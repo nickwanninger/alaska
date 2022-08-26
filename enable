@@ -1,0 +1,9 @@
+#!/bin/bash
+
+ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+source ${ALASKA}/dep/noelle/enable
+
+
+LLVM_ENABLE=${ALASKA}/dep/llvm/9.0.1/enable
+[ -f ${LLVM_ENABLE} ] && source ${LLVM_ENABLE}

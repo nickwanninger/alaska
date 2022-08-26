@@ -1,0 +1,12 @@
+config DEBUG
+	bool "Enable debug Logging"
+	default n
+
+config ENABLE_NOELLE
+	bool "Enable Noelle"
+	default y
+
+config ALASKA_LOG
+	bool "Enable alaska logging"
+	depends on ENABLE_TRANSLATE_PASS
+	default n
