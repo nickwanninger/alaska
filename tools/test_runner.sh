@@ -22,7 +22,7 @@ echo "=========== Compiling ===========" > $LOGFILE
 $TEXAS/tools/acc $input -g -O3 --keep-ir \
     --baseline $OUTDIR/baseline \
     -o $OUTDIR/bin \
-    -I$TEXAS/src/newrt/include \
+    -I$TEXAS/src/rt/include \
     $@ 2>&1 | tee -a $LOGFILE
 
 
