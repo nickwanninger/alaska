@@ -36,3 +36,5 @@ npbparams.h
 test/npb/sys/setparams
 
 /artifacts
+
+rt/target
