@@ -19,6 +19,7 @@ BUILD=${ALASKA}/build
 # Make sure the dependencies are built
 ${ALASKA}/tools/build_deps.sh
 
+
 # If there isn't a makefile in the target directory, Configure cmake
 if [ ! -f ${BUILD}/Makefile ]; then
 	echo "Configuring ALASKA..."
@@ -32,8 +33,15 @@ fi
 
 
 
-cd ${BUILD}
-make --no-print-directory -j $(nproc)
-make install --no-print-directory
 
-cp ${BUILD}/compile_commands.json ${BUILD}/../
+pushd ${BUILD} >/dev/null
+	make --no-print-directory -j $(nproc)
+	make install --no-print-directory
+
+	cp ${BUILD}/compile_commands.json ${BUILD}/../
+popd >/dev/null
+
+
+pushd ${ALASKA}/rt >/dev/null
+	cargo build --release --target-dir=${BUILD} # --out-dir=${BUILD}
+popd >/dev/null

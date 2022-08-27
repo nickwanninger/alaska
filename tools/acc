@@ -86,10 +86,11 @@ opt -mem2reg "${TMPFILE}" -o "${TMPFILE}" >/dev/null
 noelle-norm  "${TMPFILE}" -o "${TMPFILE}" >/dev/null
 
 
+LIB=release/libalaska.a
 # echo "BASELINE: ${BASELINE}"
 
 if [ "${BASELINE}" != "" ]; then
-	clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/lib/libalaska.a" -o $BASELINE $COLLECT_CLANG_ARGS
+	clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $BASELINE $COLLECT_CLANG_ARGS
 fi
 
 
@@ -102,7 +103,7 @@ LINKFLAGS=
 # LINKFLAGS+=" -Xlinker --wrap=malloc"
 # LINKFLAGS+=" -Xlinker --wrap=calloc"
 
-clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/lib/libalaska.a" -o $OUTFILE $COLLECT_CLANG_ARGS
+clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
