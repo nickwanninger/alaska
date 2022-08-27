@@ -47,6 +47,7 @@ static uint64_t next_handle = 0x1000;
 
 #define HANDLE_MASK (0xFFFFLU << 48)
 
+
 static handle_t *alaska_find(uint64_t va) {
   // walk...
   struct rb_node **n = &(handle_table.rb_node);

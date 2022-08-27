@@ -7,18 +7,10 @@ struct foo {
   int y;
 };
 
-volatile struct foo *global;
 int main() {
-
   volatile struct foo *x = alaska_alloc(sizeof(*x));
   printf("x: %p\n", x);
-
   x->x = 0;
-
-  // x->y = 1;
-  // global = x;
-  // printf("global: %p\n", global);
-
-  // x = global;
+	alaska_free((void*)x);
   return 0;
 }

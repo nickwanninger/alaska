@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 
+
 extern void *alaska_alloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
 extern void alaska_free(void *ptr);
 
