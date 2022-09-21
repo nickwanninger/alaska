@@ -45,6 +45,6 @@ rt/target
 *.fdb_latexmk
 *.fls
 *.gz
-
-paper/latex.out
-paper/__latexindent_temp.tex
+paper.pdf
+latex.out
+__latexindent_temp.tex
