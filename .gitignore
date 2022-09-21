@@ -38,3 +38,13 @@ test/npb/sys/setparams
 /artifacts
 
 rt/target
+
+
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.gz
+
+paper/latex.out
+paper/__latexindent_temp.tex

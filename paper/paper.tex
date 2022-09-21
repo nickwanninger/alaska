@@ -1,0 +1,82 @@
+\documentclass[sigplan,screen]{acmart}
+
+
+\usepackage{lipsum}  
+
+
+
+\begin{document}
+
+\title{Alaska: Handle-Based Memory \\ Management Made Easy}
+
+
+\author{Nick Wanninger}
+\affiliation{
+  \institution{Northwestern University}
+  \city{Evanston}
+  \country{United States}}
+\email{ncw@u.northwestern.edu}
+
+\author{Peter Dinda}
+\affiliation{
+  \institution{Northwestern University}
+  \city{Evanston}
+  \country{United States}}
+\email{pdinda@northwestern.edu}
+
+\newcommand{\hbmm}{handle-based memory management~}
+
+\begin{abstract}
+Prior to hardware virtual memory multitasking operating systems placed all
+programs in the same address space, potentially leading to significant memory
+fragmentation. To solve this problem, many systems turned to handles: a level
+of abstraction on top of pointers which allow the operating system to relocate
+memory without invalidating a program's pointers. To use handles, programmers
+were required to manually "Lock" and "Unlock" these pointers to allow the
+operating system relocate and defragment memory without the worry of corrupting
+the program. Unfortunately, this led to many of the same bugs found in manual
+memory management such as stale references or memory leaks.
+
+In this paper, we present Alaska - a compiler and run-time system which allows
+programmers to use \hbmm on unmanaged languages without changes to the source
+code. Using modern compiler techniques to insert the lock and unlock run-time
+calls, applications can transparently utilize features like defragmentation,
+compression, and copy-and-update semantics -- effectively allowing virtual
+memory to operate at the granularity of individual allocations. We show that
+Alaska does all this with minimal overhead to applications which don't use
+handles, but provides a great deal of control to programs that do.
+\footnote{A guess based on the naive compiler}
+
+
+\end{abstract}
+
+
+\maketitle
+
+
+\section{Introduction}
+\lipsum[2-4]
+
+\section{Handles}
+\lipsum[2-4]
+
+\section{Design}
+\lipsum[2-4]
+\subsection{Compiler}
+\lipsum[2-4]
+\subsection{Run-times}
+\lipsum[2-4]
+
+\section{Evaluation}
+\lipsum[2-4]
+
+\section{Related Work}
+\lipsum[1-2]
+
+\section{Conclusion}
+\lipsum[1-2]
+ 
+\end{document}
+\endinput
+%%
+%% End of file `sample-sigplan.tex'.
