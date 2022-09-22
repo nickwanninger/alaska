@@ -6,15 +6,25 @@
 extern "C" {
 #endif
 
+typedef struct alaska_handle_s alaska_handle_t;
 
-extern void *alaska_alloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
+extern void *alaska_alloc(size_t sz)
+    __attribute__((alloc_size(1), malloc, nothrow));
 extern void alaska_free(void *ptr);
 
 extern void *alaska_pin(void *);
 extern void alaska_unpin(void *);
 extern void alaska_barrier(void);
 
-
 #ifdef __cplusplus
 }
+#endif
+
+
+
+#ifdef __ACC__
+// allow functions in translated programs to be skipped
+#define alaska_rt __attribute__((section("$__ALASKA__$"), noinline))
+#else
+#define alaska_rt
 #endif

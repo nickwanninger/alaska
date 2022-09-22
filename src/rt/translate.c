@@ -1,9 +1,9 @@
 #include <alaska.h>
-#include <alaska/set.h>
 #include <alaska/rbtree.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <alaska/set.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -12,15 +12,22 @@
 #define GRN "\e[0;32m"
 #define GRY "\e[0;90m"
 #define RESET "\e[0m"
-#define PFX GRN "<alaska> " RESET
+#define PFX GRN "alaska: " RESET
 
 #ifdef ALASKA_DEBUG
-#  define log(fmt, args...) printf(PFX fmt RESET, ##args)
+#define log(fmt, args...) printf(PFX fmt RESET, ##args)
 #else
-#  define log(...)
+#define log(...)
 #endif
 
 #define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
+
+struct alaska_handle_s {
+  struct rb_node node; // the link to the rbtree
+  uint64_t handle;     // the handle of this allocation
+  uint64_t size;       // the size of this allocation
+  uint8_t data;
+};
 
 uint64_t now_ns() {
   struct timespec spec;
@@ -31,24 +38,20 @@ uint64_t now_ns() {
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 }
 
-static uint64_t dynamic_calls = 0;
-static uint64_t total_translations = 0;
-static uint64_t ns_pinning = 0;
+void alaska_die(const char *msg) {
+	fprintf(stderr, "alaska_die: %s\n", msg);
+	abort();
+}
 
-typedef struct {
-  struct rb_node node; // the link to the rbtree
-  uint64_t handle;     // the handle of this allocation
-  uint64_t size;       // the size of this allocation
-  uint8_t data;
-} handle_t;
+static uint64_t pin_count = 0;
+static uint64_t unpin_count = 0;
 
 static struct rb_root handle_table;
 static uint64_t next_handle = 0x1000;
 
 #define HANDLE_MASK (0xFFFFLU << 48)
 
-
-static handle_t *alaska_find(uint64_t va) {
+static alaska_handle_t *alaska_find(uint64_t va) {
   // walk...
   struct rb_node **n = &(handle_table.rb_node);
   struct rb_node *parent = NULL;
@@ -57,7 +60,7 @@ static handle_t *alaska_find(uint64_t va) {
 
   /* Figure out where to put new node */
   while (*n != NULL) {
-    handle_t *r = rb_entry(*n, handle_t, node);
+    alaska_handle_t *r = rb_entry(*n, alaska_handle_t, node);
 
     off_t start = (off_t)r->handle;
     off_t end = start + r->size;
@@ -78,8 +81,8 @@ static handle_t *alaska_find(uint64_t va) {
 }
 
 static inline int __insert_callback(struct rb_node *n, void *arg) {
-  handle_t *allocation = arg;
-  handle_t *other = rb_entry(n, handle_t, node);
+  alaska_handle_t *allocation = arg;
+  alaska_handle_t *other = rb_entry(n, alaska_handle_t, node);
   // do we go left right or here?
   long result = (long)allocation->handle - (long)other->handle;
 
@@ -93,11 +96,7 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
 }
 
 void *alaska_alloc(size_t sz) {
-	void *ptr = malloc(sz);
-	log("alloc %p\n", ptr);
-	return ptr;
-
-  handle_t *handle = malloc(sizeof(handle_t) + sz);
+  alaska_handle_t *handle = malloc(sizeof(alaska_handle_t) + sz);
   handle->size = sz;
   handle->handle = (uint64_t)next_handle | HANDLE_MASK;
   next_handle += round_up(16, sz);
@@ -108,40 +107,27 @@ void *alaska_alloc(size_t sz) {
   return (void *)handle->handle;
 }
 
-
-
 void alaska_free(void *ptr) {
-	free(ptr);
-	return;
-
-  // return;
   uint64_t handle = (uint64_t)ptr;
 
-  log("free request %p\n", ptr);
-  return;
   if ((handle & HANDLE_MASK) != 0) {
     // uint64_t start = now_ns();
-    handle_t *h = alaska_find(handle);
+    alaska_handle_t *h = alaska_find(handle);
     if (h == NULL)
       return;
-    total_translations += 1;
     log("free  %p -> %p\n", ptr, &h->data);
   }
 }
 
 void *alaska_pin(void *ptr) {
-  dynamic_calls += 1;
-  log("pin   %p\n", ptr);
-
-	return ptr;
 
   uint64_t handle = (uint64_t)ptr;
-
   if ((handle & HANDLE_MASK) != 0) {
-    log("pin   %p\n", ptr);
-    handle_t *h = alaska_find(handle);
-    total_translations += 1;
-    log("translate %016lx -> %016lx\n", ptr, &h->data);
+    alaska_handle_t *h = alaska_find(handle);
+    if (h == NULL)
+      alaska_die("pin non handle");
+    pin_count += 1;
+    log("pin   %016lx -> %016lx\n", ptr, &h->data);
     return (void *)&h->data;
   }
 
@@ -150,6 +136,14 @@ void *alaska_pin(void *ptr) {
 
 void alaska_unpin(void *ptr) {
   log("unpin %p\n", ptr);
+
+  uint64_t handle = (uint64_t)ptr;
+  if ((handle & HANDLE_MASK) != 0) {
+    alaska_handle_t *h = alaska_find(handle);
+    if (h == NULL)
+      alaska_die("unpin non handle");
+		unpin_count += 1;
+  }
 }
 
 void alaska_barrier(void) {
@@ -168,9 +162,9 @@ static void __attribute__((constructor)) alaska_init(void) {
 }
 
 static void __attribute__((destructor)) alaska_deinit(void) {
-  printf("ALASKA_DYNAMIC_CALLS: %llu\n", dynamic_calls);
-  printf("ALASKA_TRANSLATIONS:  %llu\n", total_translations);
-  printf("ALASKA_NS_PINNING: %llu\n", ns_pinning);
+  log("=================================\n");
+  log("ALASKA_PINS:          %llu\n", pin_count);
+  log("ALASKA_UNPINS:        %llu\n", unpin_count);
   // printf("ALASKA_US_PINNING: %llu\n", ns_pinning / 1000);
   // printf("ALASKA_MS_PINNING: %llu\n", ns_pinning / 1000 / 1000);
 }
