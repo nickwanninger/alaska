@@ -42,6 +42,6 @@ pushd ${BUILD} >/dev/null
 popd >/dev/null
 
 
-pushd ${ALASKA}/rt >/dev/null
-	cargo build --release --target-dir=${BUILD} # --out-dir=${BUILD}
-popd >/dev/null
+# pushd ${ALASKA}/rt >/dev/null
+# 	cargo build --release --target-dir=${BUILD} # --out-dir=${BUILD}
+# popd >/dev/null

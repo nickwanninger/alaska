@@ -13,14 +13,15 @@ if [ $# -eq 0 ]
 fi
 
 
-INPUT=$1
-shift
+# INPUT=$1
+# shift
 
 OUTFILE=a.out
 KEEP="false"
 # where to compile a baseline, if we need to
 BASELINE=""
 COLLECT_CLANG_ARGS=()
+INPUTS=()
 
 while [[ $# -gt 0 ]]
 do
@@ -40,7 +41,20 @@ do
 				shift
 				;;
 			*)
-				COLLECT_CLANG_ARGS+=("$1")
+				case $1 in
+					*.c)
+						INPUTS+=("$1")
+						;;
+					*.cpp)
+						INPUTS+=("$1")
+						;;
+					*.bc)
+						INPUTS+=("$1")
+						;;
+					*)
+						COLLECT_CLANG_ARGS+=("$1")
+						;;
+				esac
 				shift
 				;;
     esac
@@ -48,26 +62,36 @@ done
 
 COLLECT_CLANG_ARGS=${COLLECT_CLANG_ARGS[@]}
 
-# Produce the temporary bitcode file that we will transform iteratively
+INTERMEDIATE_BITCODES=()
+
+for INPUT in ${INPUTS[@]}
+do
+	echo "input $INPUT"
+	BITCODE=${INPUT}.tmp.bc
+	INTERMEDIATE_BITCODES+=("$BITCODE")
+	case $INPUT in
+		*.c)
+			clang -c $COLLECT_CLANG_ARGS -emit-llvm -D__ACC__  "${INPUT}" -o "${BITCODE}"
+			;;
+		*.cpp)
+			clang++ -c -fno-exceptions $COLLECT_CLANG_ARGS -D__ACC__ -emit-llvm "${INPUT}" -o "${BITCODE}"
+			;;
+		*.bc)
+			cp "${INPUT}" "${BITCODE}"
+			;;
+		*)
+			echo "I don't understand what to do with ${INPUT}"
+			exit
+			;;
+	esac
+done
+
+
 TMPFILE="${OUTFILE}.tmp.bc"
-case $INPUT in
-	*.c)
-		clang -c $COLLECT_CLANG_ARGS -emit-llvm "${INPUT}" -o "${TMPFILE}"
-		;;
-	*.cpp)
-		clang++ -c -fno-exceptions $COLLECT_CLANG_ARGS -emit-llvm "${INPUT}" -o "${TMPFILE}"
-		;;
-	*.bc)
-		cp "${INPUT}" "${TMPFILE}"
-		;;
-	*)
-		echo "I don't understand what to do with ${INPUT}"
-		exit
-		;;
-esac
+llvm-link -o $TMPFILE ${INTERMEDIATE_BITCODES[@]}
 
-
-
+# delete the temp files
+rm ${INTERMEDIATE_BITCODES[@]}
 
 OPTARGS="-load ${ALASKA}/build/ALASKALibrary.so"
 
@@ -86,7 +110,7 @@ opt -mem2reg "${TMPFILE}" -o "${TMPFILE}" >/dev/null
 noelle-norm  "${TMPFILE}" -o "${TMPFILE}" >/dev/null
 
 
-LIB=release/libalaska.a
+LIB=lib/libalaska.so
 # echo "BASELINE: ${BASELINE}"
 
 if [ "${BASELINE}" != "" ]; then
@@ -103,7 +127,7 @@ LINKFLAGS=
 # LINKFLAGS+=" -Xlinker --wrap=malloc"
 # LINKFLAGS+=" -Xlinker --wrap=calloc"
 
-clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
+clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
