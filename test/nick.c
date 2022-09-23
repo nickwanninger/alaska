@@ -10,11 +10,6 @@ struct foo {
 
 
 int main() {
-  alaska_arena_t arena;
-
-  alaska_arena_init(&arena);
-  printf("Initialized to %d\n", arena.id);
-
   volatile struct foo *x = alaska_alloc(sizeof(*x));
   printf("x: %p\n", x);
   x->x = 0;

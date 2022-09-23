@@ -8,13 +8,28 @@
 extern "C" {
 #endif
 
-typedef struct alaska_handle_s alaska_handle_t;
+
+typedef struct {
+  void *backing_memory; // where the data sits while pinned
+  struct rb_node node;  // the link to the rbtree
+  uint64_t handle;      // the handle of this allocation
+  uint64_t size;        // the size of this allocation
+	long pin_depth;       // ++ on pin, -- on unpin. 0 means no users.
+} alaska_handle_t;
+
 
 struct alaska_arena;
 
 typedef struct alaska_arena_s {
   // the value placed in the 0xFFnn part of the address.
   uint16_t id;
+  // Allocation of handles is a bump allocator for now. We may find a better
+  // way later on based on use cases. "64 bits should be enough for everyone."
+  long next_handle;
+
+  // The red black tree which holds all the mappings.
+  // Eventually a smarter structure would be better :)
+  struct rb_root table;
 
   // The following functions are considered "hooks". Their main purpose
   // is to define the "personality" of a particular arena in the alaska
@@ -48,6 +63,8 @@ typedef struct alaska_arena_s {
 
 } alaska_arena_t;
 
+
+// Initialize and register an arena. Call this before setting any hooks up.
 extern void alaska_arena_init(alaska_arena_t *arena);
 
 // Default personality implementations. These are thin
@@ -60,6 +77,7 @@ extern int alaska_default_unpinned(alaska_arena_t *arena, alaska_handle_t *);
 // =============================================
 
 extern void *alaska_alloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
+extern void *alaska_arena_alloc(size_t sz, alaska_arena_t *arena) __attribute__((alloc_size(1), malloc, nothrow));
 extern void alaska_free(void *ptr);
 
 // These functions are inserted by the compiler pass. It is not

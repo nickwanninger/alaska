@@ -23,12 +23,6 @@
 
 #define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
 
-struct alaska_handle_s {
-  struct rb_node node;  // the link to the rbtree
-  uint64_t handle;      // the handle of this allocation
-  uint64_t size;        // the size of this allocation
-  uint8_t data;
-};
 
 // The arena ID is the second from top byte in a handle.
 #define MAX_ARENAS 255
@@ -50,6 +44,23 @@ uint64_t now_ns() {
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 }
 
+
+static void dump_arenas() {
+	log("-------------------- ARENAS --------------------\n");
+  for (int id = 0; id < MAX_ARENAS; id++) {
+    if (arenas[id] == NULL) continue;
+
+		alaska_arena_t *arena = arenas[id];
+		log("aid:%d\n", arena->id);
+    struct rb_node *node;
+    for (node = rb_first(&arena->table); node; node = rb_next(node)) {
+			alaska_handle_t *h = rb_entry(node, alaska_handle_t, node);
+      log("   %p:%p -> %p | depth=%ld\n", h->handle, h->handle + h->size, h->backing_memory, h->pin_depth);
+		}
+  }
+	log("\n");
+}
+
 void alaska_die(const char *msg) {
   fprintf(stderr, "alaska_die: %s\n", msg);
   abort();
@@ -57,15 +68,15 @@ void alaska_die(const char *msg) {
 
 static uint64_t pin_count = 0;
 static uint64_t unpin_count = 0;
-static struct rb_root handle_table;
-static uint64_t next_handle = 0x1000;
 
-static alaska_handle_t *alaska_find(uint64_t va) {
+static alaska_handle_t *alaska_find(uint64_t va, struct rb_root *handle_table) {
   // walk...
-  struct rb_node **n = &(handle_table.rb_node);
+  struct rb_node **n = &(handle_table->rb_node);
   struct rb_node *parent = NULL;
 
   int steps = 0;
+
+	dump_arenas();
 
   /* Figure out where to put new node */
   while (*n != NULL) {
@@ -104,32 +115,27 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
   return RB_INSERT_GO_HERE;
 }
 
-void *alaska_alloc(size_t sz) {
-  alaska_handle_t *handle = malloc(sizeof(alaska_handle_t) + sz);
-  handle->size = sz;
-  handle->handle = (uint64_t)next_handle | HANDLE_MASK;
-  next_handle += round_up(16, sz);
 
-  rb_insert(&handle_table, &handle->node, __insert_callback, (void *)handle);
-  log("alloc %p\n", (void *)handle->handle);
+void *alaska_arena_alloc(size_t sz, alaska_arena_t *arena) {
+  // Calloc might be a waste here, as we initialize everything immediately
+  alaska_handle_t *handle = calloc(1, sizeof(alaska_handle_t));
+  // ask the arena's allocator to do the dirty work
+  handle->backing_memory = arena->alloc(arena, sz);
+  // assign a handle
+  handle->handle = (uint64_t)arena->next_handle | HANDLE_MASK | (arena->id << 48);
+  handle->size = sz;
+  handle->pin_depth = 0;
+  arena->next_handle += round_up(16, sz);
+
+  // insert it into the tree
+  rb_insert(&arena->table, &handle->node, __insert_callback, (void *)handle);
+
+
+  log("alloc(aid=%d) %p\n", arena->id, (void *)handle->handle);
   return (void *)handle->handle;
 }
 
-void alaska_free(void *ptr) {
-  uint64_t handle = (uint64_t)ptr;
 
-  if ((handle & HANDLE_MASK) != 0) {
-    // uint64_t start = now_ns();
-    alaska_handle_t *h = alaska_find(handle);
-    if (h == NULL) {
-      alaska_die("Attempt to free nonexistent handle");
-      return;
-    }
-    rb_erase(&h->node, &handle_table);
-    log("free  %p -> %p\n", ptr, &h->data);
-    free(h);
-  }
-}
 
 // Given a handle, fill the out variables w/ the relevant
 // structures and return 0 on success. Returns -errno otherwise
@@ -137,18 +143,66 @@ static int find_arena_and_handle(uint64_t h, alaska_handle_t **o_handle, alaska_
   if (h & ARENA_MASK != ARENA_MASK) return -EINVAL;
   uint8_t aid = HANDLE_ARENA(h);
   log("find(0x%llx): aid=%d\n", h, aid);
+
   *o_arena = arenas[aid];
-
-  if (arenas[aid] == NULL) return -ENOENT;
-
-  return -ENOENT;
+  if (*o_arena == NULL) {
+    log("No arena found!\n");
+    return -ENOENT;
+  }
+  *o_handle = alaska_find(h, &arenas[aid]->table);
+  if (*o_handle == NULL) {
+    log("No handle found!\n");
+    return -ENOENT;
+  }
+  return 0;
 }
+
+
+
+void *alaska_alloc(size_t sz) {
+  return alaska_arena_alloc(sz, arenas[0]);
+}
+
+void alaska_free(void *ptr) {
+  log("free  %p\n", ptr);
+
+  uint64_t h = (uint64_t)ptr;
+  alaska_handle_t *handle;
+  alaska_arena_t *arena;
+  if ((h & HANDLE_MASK) != 0) {
+    if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+      alaska_die("Failed to unpin!");
+    }
+	
+		if (handle->pin_depth != 0) {
+			alaska_die("Pin depth is not 0 when freeing. UAF likely. Bailing!\n");
+		}
+    arena->free(arena, handle->backing_memory);
+  	rb_erase(&handle->node, &arena->table);
+		free(handle);
+		dump_arenas();
+  }
+  // uint64_t handle = (uint64_t)ptr;
+
+  // if ((handle & HANDLE_MASK) != 0) {
+  //   alaska_handle_t *h = alaska_find(handle);
+  //   if (h == NULL) {
+  //     alaska_die("Attempt to free nonexistent handle");
+  //     return;
+  //   }
+  //   // rb_erase(&h->node, &handle_table);
+  //   log("free  %p -> %p\n", ptr, &h->data);
+  //   free(h);
+  // }
+}
+
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////
 void *alaska_pin(void *ptr) {
+  log("  pin %p\n", ptr);
   uint64_t h = (uint64_t)ptr;
   alaska_handle_t *handle;
   alaska_arena_t *arena;
@@ -158,8 +212,9 @@ void *alaska_pin(void *ptr) {
       return NULL;
     }
 
-    arena->pinned(arena, handle);
-    return handle->data;
+    if (handle->pin_depth++ == 0) arena->pinned(arena, handle);
+		dump_arenas();
+    return handle->backing_memory;
   }
   return ptr;
 }
@@ -169,11 +224,16 @@ void *alaska_pin(void *ptr) {
 void alaska_unpin(void *ptr) {
   log("unpin %p\n", ptr);
 
-  uint64_t handle = (uint64_t)ptr;
-  if ((handle & HANDLE_MASK) != 0) {
-    alaska_handle_t *h = alaska_find(handle);
-    if (h == NULL) alaska_die("unpin non handle");
-    unpin_count += 1;
+  uint64_t h = (uint64_t)ptr;
+  alaska_handle_t *handle;
+  alaska_arena_t *arena;
+  if ((h & HANDLE_MASK) != 0) {
+    if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+      alaska_die("Failed to unpin!");
+    }
+
+    if (--handle->pin_depth == 0) arena->unpinned(arena, handle);
+		dump_arenas();
   }
 }
 
@@ -198,20 +258,26 @@ void alaska_arena_init(alaska_arena_t *arena) {
   arena->free = alaska_default_free;
   arena->pinned = alaska_default_pinned;
   arena->unpinned = alaska_default_unpinned;
+  arena->table = RB_ROOT;
+	arena->next_handle = 0x1000;
   return;
 }
 
 void *alaska_default_alloc(alaska_arena_t *arena, size_t sz) {
+  log("default_alloc\n");
   return malloc(sz);
 }
 void alaska_default_free(alaska_arena_t *arena, void *ptr) {
+  log("default_free\n");
   return free(ptr);
 }
 int alaska_default_pinned(alaska_arena_t *arena, alaska_handle_t *handle) {
+  log("default_pinned\n");
   return 0;
 }
 
 int alaska_default_unpinned(alaska_arena_t *arena, alaska_handle_t *handle) {
+  log("default_unpinned\n");
   return 0;
 }
 
@@ -223,8 +289,6 @@ static void __attribute__((constructor)) alaska_init(void) {
 
   alaska_arena_t *base_arena = calloc(1, sizeof(*base_arena));
   alaska_arena_init(base_arena);
-
-  handle_table = RB_ROOT;
 }
 
 static void __attribute__((destructor)) alaska_deinit(void) {
