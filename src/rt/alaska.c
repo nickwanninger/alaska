@@ -1,6 +1,7 @@
 #include <alaska.h>
 #include <alaska/rbtree.h>
 #include <alaska/set.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,11 +24,22 @@
 #define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
 
 struct alaska_handle_s {
-  struct rb_node node; // the link to the rbtree
-  uint64_t handle;     // the handle of this allocation
-  uint64_t size;       // the size of this allocation
+  struct rb_node node;  // the link to the rbtree
+  uint64_t handle;      // the handle of this allocation
+  uint64_t size;        // the size of this allocation
   uint8_t data;
 };
+
+// The arena ID is the second from top byte in a handle.
+#define MAX_ARENAS 255
+#define HANDLE_MASK (0xFF00LU << 48)
+#define ARENA_MASK (0x00FFLU << 48)
+// Return the arena id for a handle
+#define HANDLE_ARENA(handle) ((handle) >> 48)
+// Given an arena id, return the handle w/ the bits set
+#define IN_ARENA(handle, arena) (((handle) | ARENA_MASK) >> 48)
+
+static alaska_arena_t *arenas[MAX_ARENAS];
 
 uint64_t now_ns() {
   struct timespec spec;
@@ -39,17 +51,14 @@ uint64_t now_ns() {
 }
 
 void alaska_die(const char *msg) {
-	fprintf(stderr, "alaska_die: %s\n", msg);
-	abort();
+  fprintf(stderr, "alaska_die: %s\n", msg);
+  abort();
 }
 
 static uint64_t pin_count = 0;
 static uint64_t unpin_count = 0;
-
 static struct rb_root handle_table;
 static uint64_t next_handle = 0x1000;
-
-#define HANDLE_MASK (0xFFFFLU << 48)
 
 static alaska_handle_t *alaska_find(uint64_t va) {
   // walk...
@@ -103,7 +112,6 @@ void *alaska_alloc(size_t sz) {
 
   rb_insert(&handle_table, &handle->node, __insert_callback, (void *)handle);
   log("alloc %p\n", (void *)handle->handle);
-  // log("allocated: %p, %zu\n", (void *)handle->handle, sz);
   return (void *)handle->handle;
 }
 
@@ -113,51 +121,109 @@ void alaska_free(void *ptr) {
   if ((handle & HANDLE_MASK) != 0) {
     // uint64_t start = now_ns();
     alaska_handle_t *h = alaska_find(handle);
-    if (h == NULL)
+    if (h == NULL) {
+      alaska_die("Attempt to free nonexistent handle");
       return;
+    }
+    rb_erase(&h->node, &handle_table);
     log("free  %p -> %p\n", ptr, &h->data);
+    free(h);
   }
 }
 
+// Given a handle, fill the out variables w/ the relevant
+// structures and return 0 on success. Returns -errno otherwise
+static int find_arena_and_handle(uint64_t h, alaska_handle_t **o_handle, alaska_arena_t **o_arena) {
+  if (h & ARENA_MASK != ARENA_MASK) return -EINVAL;
+  uint8_t aid = HANDLE_ARENA(h);
+  log("find(0x%llx): aid=%d\n", h, aid);
+  *o_arena = arenas[aid];
+
+  if (arenas[aid] == NULL) return -ENOENT;
+
+  return -ENOENT;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////
 void *alaska_pin(void *ptr) {
+  uint64_t h = (uint64_t)ptr;
+  alaska_handle_t *handle;
+  alaska_arena_t *arena;
+  if ((h & HANDLE_MASK) != 0) {
+    if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+      alaska_die("Failed to pin!");
+      return NULL;
+    }
 
-  uint64_t handle = (uint64_t)ptr;
-  if ((handle & HANDLE_MASK) != 0) {
-    alaska_handle_t *h = alaska_find(handle);
-    if (h == NULL)
-      alaska_die("pin non handle");
-    pin_count += 1;
-    log("pin   %016lx -> %016lx\n", ptr, &h->data);
-    return (void *)&h->data;
+    arena->pinned(arena, handle);
+    return handle->data;
   }
-
-  return (void *)handle;
+  return ptr;
 }
 
+
+////////////////////////////////////////////////////////////////////////////
 void alaska_unpin(void *ptr) {
   log("unpin %p\n", ptr);
 
   uint64_t handle = (uint64_t)ptr;
   if ((handle & HANDLE_MASK) != 0) {
     alaska_handle_t *h = alaska_find(handle);
-    if (h == NULL)
-      alaska_die("unpin non handle");
-		unpin_count += 1;
+    if (h == NULL) alaska_die("unpin non handle");
+    unpin_count += 1;
   }
 }
 
+
+////////////////////////////////////////////////////////////////////////////
 void alaska_barrier(void) {
-  // Does nothing for now. This function acts like a compiler intrinsic
-  // and holds the invariant that all pins that a function is using have
-  // been unpinned before calling this function. They will be re-pinned
-  // after returning.
-  //
-  // The point of this function is to allow the runtime to repack memory
-  // or whatever it wants to do during funciton execution.
   log("--- barrier ---\n");
 }
 
+
+
+////////////////////////////////////////////////////////////////////////////
+void alaska_arena_init(alaska_arena_t *arena) {
+  int id = -1;
+  for (id = 0; id < MAX_ARENAS; id++) {
+    if (arenas[id] == NULL) break;
+  }
+  // Easy registration
+  arenas[id] = arena;
+  arena->id = id;
+  arena->alloc = alaska_default_alloc;
+  arena->free = alaska_default_free;
+  arena->pinned = alaska_default_pinned;
+  arena->unpinned = alaska_default_unpinned;
+  return;
+}
+
+void *alaska_default_alloc(alaska_arena_t *arena, size_t sz) {
+  return malloc(sz);
+}
+void alaska_default_free(alaska_arena_t *arena, void *ptr) {
+  return free(ptr);
+}
+int alaska_default_pinned(alaska_arena_t *arena, alaska_handle_t *handle) {
+  return 0;
+}
+
+int alaska_default_unpinned(alaska_arena_t *arena, alaska_handle_t *handle) {
+  return 0;
+}
+
 static void __attribute__((constructor)) alaska_init(void) {
+  // Zero out the arenas array so invalid lookups don't cause UB
+  for (int i = 0; i < MAX_ARENAS; i++) {
+    arenas[i] = NULL;
+  }
+
+  alaska_arena_t *base_arena = calloc(1, sizeof(*base_arena));
+  alaska_arena_init(base_arena);
+
   handle_table = RB_ROOT;
 }
 

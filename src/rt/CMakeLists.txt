@@ -8,7 +8,7 @@ set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -O3 -g3 -Wall -Wno-reorder -Wextra -Wno-fo
 set(SRC_FILES
 	set.c
 	rbtree.c
-	translate.c
+	alaska.c
 )
 
 
