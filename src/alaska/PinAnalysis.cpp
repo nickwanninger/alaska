@@ -5,7 +5,7 @@
 
 // Compute parent and type for instructions before inserting them into the trace.
 class TraceVisitor : public llvm::InstVisitor<TraceVisitor> {
-public:
+ public:
   // which value does this depend on (What handle needs to be translated for
   // me to use it). If this is NULL, the node is a root and must create a call
   // to `alaska_pin` before any child can use it
@@ -48,8 +48,7 @@ public:
 
 alaska::PinNode *alaska::PinAnalysis::get_node(llvm::Value *val) const {
   auto it = m_nodes.find(val);
-  if (it == m_nodes.end())
-    return NULL;
+  if (it == m_nodes.end()) return NULL;
   return it->second.get();
 }
 
@@ -77,11 +76,9 @@ alaska::PinNode *alaska::PinAnalysis::add_node(llvm::Value *val) {
   alaska::PinNode *node = NULL;
   TraceVisitor v;
   llvm::Instruction *I = dyn_cast<llvm::Instruction>(val);
-  if (I)
-    v.visit(I);
+  if (I) v.visit(I);
 
-  if (v.parent)
-    parent = get_or_add_node(v.parent);
+  if (v.parent) parent = get_or_add_node(v.parent);
 
   node = new alaska::PinNode(next_id++, *this, v.type, parent, val);
   m_nodes[val] = std::unique_ptr<alaska::PinNode>(node);
@@ -97,8 +94,7 @@ alaska::PinNode *alaska::PinAnalysis::add_node(llvm::Value *val) {
 
 alaska::PinNode *alaska::PinAnalysis::get_or_add_node(llvm::Value *val) {
   auto n = get_node(val);
-  if (n)
-    return n;
+  if (n) return n;
   return add_node(val);
 }
 
@@ -157,11 +153,9 @@ bool alaska::PinNode::important(void) const {
   }
 
   // return true;
-  if (type() == alaska::Access)
-    return true;
+  if (type() == alaska::Access) return true;
   for (auto *child : m_children) {
-    if (child->type() == alaska::Access || child->important())
-      return true;
+    if (child->type() == alaska::Access || child->important()) return true;
   }
   return false;
 }
@@ -170,12 +164,12 @@ static llvm::Value *insert_translate_call_before(llvm::Instruction *inst, llvm::
   llvm::LLVMContext &ctx = inst->getContext();
   auto *M = inst->getParent()->getParent()->getParent();
   auto voidPtrType = llvm::Type::getInt8PtrTy(ctx, 0);
-  auto translateFunctionType = llvm::FunctionType::get(voidPtrType, { voidPtrType }, false);
+  auto translateFunctionType = llvm::FunctionType::get(voidPtrType, {voidPtrType}, false);
   auto translateFunction = M->getOrInsertFunction("alaska_pin", translateFunctionType).getCallee();
 
   llvm::IRBuilder<> b(inst);
   auto ptr = b.CreatePointerCast(val, voidPtrType);
-  auto translatedVoidPtr = b.CreateCall(translateFunction, { ptr });
+  auto translatedVoidPtr = b.CreateCall(translateFunction, {ptr});
   auto translated = b.CreatePointerCast(translatedVoidPtr, val->getType());
   return translated;
 }
@@ -186,7 +180,7 @@ static llvm::Value *insert_translate_call_after(llvm::Instruction *inst, llvm::V
 
 // Compute parent and type for instructions before inserting them into the trace.
 class PinCodegenVisitor : public llvm::InstVisitor<PinCodegenVisitor> {
-public:
+ public:
   // the node to codegen for
   alaska::PinNode *node;
   // The value that was generated
@@ -203,8 +197,7 @@ public:
       // even worse. May ned to rewrite the abstraction
       return;
     }
-    if (insertLocation == nullptr)
-      insertLocation = I;
+    if (insertLocation == nullptr) insertLocation = I;
     auto p = insert_translate_call_after(insertLocation, I);
     node->set_pin(p);
 
@@ -262,11 +255,9 @@ public:
     // `alaska_pin` to pin the newly acquired pointer
     //
     // 1. Handle the Access case
-    if (node->parent())
-      I.setOperand(0, node->parent_pin());
+    if (node->parent()) I.setOperand(0, node->parent_pin());
     // 2. handle the Conjure case.
-    if (node->children().size() > 0 && node->handle()->getType()->isPointerTy() /* wuh. */)
-      handleNaiveProduction(&I);
+    if (node->children().size() > 0 && node->handle()->getType()->isPointerTy() /* wuh. */) handleNaiveProduction(&I);
   }
 
   void visitCastInst(llvm::CastInst &I) {
@@ -296,9 +287,7 @@ public:
 };
 
 llvm::Value *alaska::PinNode::codegen_pin(void) {
-
-  if (!important())
-    return nullptr;
+  if (!important()) return nullptr;
 
   if (m_pin != nullptr) {
     alaska::println("WARN: codegen_pin was called multiple times for ", *handle());
