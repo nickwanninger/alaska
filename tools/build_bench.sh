@@ -8,6 +8,7 @@ DST=${ALASKA}/bench
 mkdir -p $DST
 
 
+
 # set -e
 
 # compile NPB
@@ -15,7 +16,7 @@ mkdir -p $DST
 make -C test/npb clean
 for bench in ft mg sp lu bt is ep cg
 do
-	CLASS=B
+	CLASS=W
 	make -C test/npb $bench CLASS=$CLASS
 	mv $DST/$bench.$CLASS $DST/nas.$bench.base
 	get-bc $DST/nas.$bench.base >/dev/null
@@ -23,7 +24,7 @@ do
 	# rm -f $DST/nas.$bench.base.bc
 done
 
-exit
+# exit
 
 # compile gap
 for bench in bfs bc cc cc_sv pr pr_spmv sssp # tc
@@ -37,3 +38,7 @@ do
 done
 
 
+echo "Compiling SQLite for fun... Wait a bit"
+gclang -Wall ${ALASKA}/test/sqlite/*.c -ldl -lm -pthread -o $DST/sqlite.base
+get-bc $DST/sqlite.base >/dev/null
+${ALASKA}/tools/acc $DST/sqlite.base.bc -ldl -lm -pthread -o $DST/sqlite.transformed >/dev/null

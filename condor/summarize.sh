@@ -19,7 +19,7 @@ for bench in gap.bc gap.bfs gap.cc gap.cc_sv gap.pr gap.pr_spmv gap.sssp gap.tc
 do
 	if [ -d $DIR/$bench.base ]; then
 		BASELINE=$(grep "Average Time:" $DIR/$bench.base/out/stdout | awk '{print $3}')
-		TRANSLATED=$(grep "Average Time:" $DIR/$bench.texas/out/stdout | awk '{print $3}')
+		TRANSLATED=$(grep "Average Time:" $DIR/$bench.alaska/out/stdout | awk '{print $3}')
 
 		# echo "$bench, $BASELINE, $TRANSLATED"
 		printf "%12s, %12.5f1, %12.5f1\n" "$bench" "$BASELINE" "$TRANSLATED"
@@ -34,8 +34,8 @@ do
 	if [ -d $DIR/$bench.base ]; then
 
 		BASELINE=$(grep "Time in seconds" $DIR/$bench.base/out/stdout | awk '{print $5}')
-		TRANSLATED=$(grep "Time in seconds" $DIR/$bench.texas/out/stdout | awk '{print $5}')
-		CALLS_RAW=$(grep "dynamic calls:" $DIR/$bench.texas/out/stdout | sed "s/.*dynamic calls: //g" )
+		TRANSLATED=$(grep "Time in seconds" $DIR/$bench.alaska/out/stdout | awk '{print $5}')
+		CALLS_RAW=$(grep "dynamic calls:" $DIR/$bench.alaska/out/stdout | sed "s/.*dynamic calls: //g" )
 
 		printf "%12s, %12.5f1, %12.5f1, $CALLS_RAW\n" "$bench" "$BASELINE" "$TRANSLATED"
 	fi

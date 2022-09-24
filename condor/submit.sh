@@ -47,7 +47,7 @@ function submit_job() {
 # submit NAS
 for bench in ft mg sp lu is ep cg # bt
 do
-	for variant in base texas
+	for variant in base alaska
 	do
 		NAME="nas.${bench}.${variant}"
 		submit_job $NAME # "-g 20"
@@ -57,7 +57,7 @@ done
 exit
 for bench in gap.bfs gap.bc gap.cc gap.cc_sv gap.pr gap.pr_spmv gap.sssp # gap.tc
 do
-	for variant in base texas
+	for variant in base alaska
 	do
 		NAME="${bench}.${variant}"
 		submit_job $NAME # "-g 20"

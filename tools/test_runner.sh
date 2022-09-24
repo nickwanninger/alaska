@@ -2,13 +2,13 @@
 
 set -e
 
-TEXAS="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
+ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 
 name=$1
 shift
 input=$1
 shift
-TESTDIR=$TEXAS/artifacts
+TESTDIR=$ALASKA/artifacts
 mkdir -p $TESTDIR/$name
 
 OUTDIR=$(realpath $TESTDIR/$name)
@@ -19,10 +19,10 @@ rm -f $LOGFILE
 
 echo "=========== Compiling ===========" > $LOGFILE
 
-$TEXAS/tools/acc $input -g -O3 --keep-ir \
+$ALASKA/tools/acc $input -g -O3 --keep-ir \
     --baseline $OUTDIR/baseline \
     -o $OUTDIR/bin \
-    -I$TEXAS/src/rt/include \
+    -I$ALASKA/src/rt/include \
     $@ 2>&1 | tee -a $LOGFILE
 
 
