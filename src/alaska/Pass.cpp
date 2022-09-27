@@ -43,6 +43,10 @@ namespace {
         fran += 1;
         if (F.empty()) continue;
 
+				auto md = M.getOrInsertNamedMetadata("alaska");
+				// md->dump();
+				// errs() << "\n";
+
         auto section = F.getSection();
         if (section.startswith("$__ALASKA__")) {
           F.setSection("");
@@ -102,6 +106,8 @@ namespace {
 
         // I think we need to compile LLVM specially to support garbage collection
         // F.setGC("shadow-stack");
+				//
+				//
 
         alaska::println("\n\n\n\nrunning on ", F.getName());
 
