@@ -11,7 +11,7 @@ shift
 
 
 # echo "bench,baseline,transformed"
-printf "%12s, %13s, %13s, raw calls\n" bench baseline transformed
+printf "%12s, %13s, %13s\n" bench baseline transformed
 
 
 # go through the GAP benchmark suite and print out slowdown
