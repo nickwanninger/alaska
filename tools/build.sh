@@ -32,16 +32,9 @@ if [ ! -f ${BUILD}/Makefile ]; then
 fi
 
 
-
-
 pushd ${BUILD} >/dev/null
 	make --no-print-directory -j $(nproc)
 	make install --no-print-directory
 
 	cp ${BUILD}/compile_commands.json ${BUILD}/../
 popd >/dev/null
-
-
-# pushd ${ALASKA}/rt >/dev/null
-# 	cargo build --release --target-dir=${BUILD} # --out-dir=${BUILD}
-# popd >/dev/null
