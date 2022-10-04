@@ -85,7 +85,7 @@ int main() {
 
   struct node *root = NULL;
   for (int i = 0; i < count; i++) {
-    struct node *n = (struct node *)alaska_arena_alloc(sizeof(struct node), &fs_arena);
+    struct node *n = (struct node *)malloc(sizeof(struct node)); // , &fs_arena);
     n->val = i;
     n->next = root;
     root = n;
@@ -97,7 +97,7 @@ int main() {
     sum += cur->val;
     struct node *prev = cur;
     cur = cur->next;
-    alaska_free(prev);
+  	free(prev);
   }
 
   printf("sum=%d\n", sum);

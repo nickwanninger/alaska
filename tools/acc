@@ -7,12 +7,6 @@ ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 source ${ALASKA}/enable
 source ${ALASKA}/.config
 
-if [ $# -eq 0 ]
-  then
-    echo "usage: $0 <input> [clang++ args...]"
-fi
-
-
 # INPUT=$1
 # shift
 
@@ -22,6 +16,8 @@ KEEP="false"
 BASELINE=""
 COLLECT_CLANG_ARGS=()
 INPUTS=()
+
+OBJECT_TARGET=
 
 while [[ $# -gt 0 ]]
 do
@@ -43,6 +39,9 @@ do
 			*)
 				case $1 in
 					*.c)
+						INPUTS+=("$1")
+						;;
+					*.o)
 						INPUTS+=("$1")
 						;;
 					*.cpp)
@@ -79,12 +78,18 @@ do
 		*.bc)
 			cp "${INPUT}" "${BITCODE}"
 			;;
+		*.o) # if any input is an object, just forward to clang to link everything like they ask.
+			clang++ ${LINKFLAGS} ${INPUTS[@]} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
+			exit
+			;;
 		*)
 			echo "I don't understand what to do with ${INPUT}"
 			exit
 			;;
 	esac
 done
+
+echo "output $OUTFILE"
 
 
 TMPFILE="${OUTFILE}.tmp.bc"
@@ -95,23 +100,11 @@ rm ${INTERMEDIATE_BITCODES[@]}
 
 OPTARGS="-load ${ALASKA}/build/ALASKALibrary.so"
 
-function run_pass() {
-	NAME=$1
-	echo "Running $NAME"
-	# -scev-aa
-	noelle-load \
-		-load "${ALASKA}/build/${NAME}.so" "-${NAME}" \
-		"${TMPFILE}" -o "${TMPFILE}" >/dev/null
-}
-
 # Run some builtin llvm passes
 opt -mem2reg "${TMPFILE}" -o "${TMPFILE}" >/dev/null
-# opt -place-safepoints "${TMPFILE}" -o "${TMPFILE}" >/dev/null
-noelle-norm  "${TMPFILE}" -o "${TMPFILE}" >/dev/null
 
 
 LIB=lib/libalaska.so
-# echo "BASELINE: ${BASELINE}"
 
 if [ "${BASELINE}" != "" ]; then
 	clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $BASELINE $COLLECT_CLANG_ARGS
@@ -120,12 +113,13 @@ fi
 
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
-opt -load "${ALASKA}/build/AlaskaNormalize.so" "-AlaskaNorm" "${TMPFILE}" -o "${TMPFILE}"
-opt -load "${ALASKA}/build/Alaska.so" "-Alaska" "${TMPFILE}" -o "${TMPFILE}"
+# opt -load "${ALASKA}/build/AlaskaNormalize.so" "-AlaskaNorm" "${TMPFILE}" -o "${TMPFILE}"
+opt -load "${ALASKA}/build/Alaska.so"  -time-passes --alaska "${TMPFILE}" -o "${TMPFILE}" -enable-new-pm=0 
 
 LINKFLAGS=
 # LINKFLAGS+=" -Xlinker --wrap=malloc"
 # LINKFLAGS+=" -Xlinker --wrap=calloc"
+# LINKFLAGS+=" -Xlinker --wrap=free"
 
 clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 

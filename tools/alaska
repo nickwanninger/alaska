@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+
+import re
+import sys
+import subprocess
+import os
+print(__file__)
+
+alaska_root = '/'.join(__file__.split('/')[:-1]) + '/../'
+args = sys.argv[1:]
+
+outfile = None
+
+inputs = []
+collect_clang_args = []
+
+waiting_for_outfile = False
+
+for arg in args:
+    if arg in ['-B', '--baseline']:
+        continue
+
+    if arg in ['-k', '--keep-ir']:
+        continue
+
+    if waiting_for_outfile:
+        waiting_for_outfile = False
+        outfile = arg
+        continue
+
+    if arg in ['-o', '--outfile']:
+        waiting_for_outfile = True
+        continue
+
+    if any(map(arg.endswith, ['.c', '.cpp', '.bc', '.o'])):
+        inputs.append(arg)
+        continue
+    
+    collect_clang_args.append(arg)
+    continue
+
+def shell(command):
+    print('[ALASKA] ' + command)
+    if subprocess.call(command, shell = True) != 0:
+        exit(-1)
+
+
+alaska_link = f'-Wl,-rpath="{alaska_root}/build/lib" "{alaska_root}/build/lib/libalaska.so"'
+
+if outfile is None:
+    if '-c' in collect_clang_args:
+        if len(inputs) != 1:
+            print('cannot handle `-c` w/ multiple inputs')
+            exit(-1)
+        i = inputs[0].split('.')
+        i[-1] = 'o'
+        i = '.'.join(i)
+        outfile = i
+    else:
+        outfile = 'a.out'
+
+# if the user compiles using `CC=alaska make`,
+# this is used to bypass the pass and just link .o files
+# into an output file
+link_stage = all([i.endswith('.o') for i in inputs])
+if link_stage and any([not i.endswith('.o') for i in inputs]):
+    print('unable to semi-link')
+    exit(-1)
+
+if link_stage:
+    shell(f'clang++ {alaska_link} {" ".join(args)}' )
+    exit()
+
+# print(f'inputs: {inputs}')
+# print(f'args:   {collect_clang_args}')
+
+def compile_intermediate(infile):
+    bitcode = infile + '.tmp.bc'
+    compiler = 'clang'
+    if infile.endswith('.cpp'):
+        compiler = 'clang++'
+    if infile.endswith('.bc'):
+        compiler = 'clang++'
+
+    command = [compiler, '-c', *collect_clang_args, '-emit-llvm', '-D__ACC_', infile, '-o', bitcode]
+    print(command)
+    shell(' '.join(command))
+    return bitcode
+
+
+intermediate_bitcodes = [compile_intermediate(i) for i in inputs]
+
+tmpout = outfile + '.tmp.bc'
+shell(' '.join(['llvm-link', '-o', tmpout, *intermediate_bitcodes]))
+
+# run some passes to clean stuff up
+shell(f'opt -mem2reg {tmpout} -o {tmpout} >/dev/null')
+# subprocess.call(f'opt -mem2reg {tmpout} -o {tmpout} >/dev/null', shell=True)
+
+shell(f'opt -load "{alaska_root}/build/AlaskaNormalize.so" "-AlaskaNorm" "{tmpout}" -o "{tmpout}"')
+shell(f'opt -load "{alaska_root}/build/Alaska.so" "-Alaska" "{tmpout}" -o "{tmpout}"')
+
+linkflags = ''
+
+shell(f'clang++ -fno-exceptions -ldl -O3 -g -lpthread "{tmpout}" {alaska_link} -o {outfile} {" ".join(collect_clang_args)}')
+
+shell(f'rm {tmpout} {" ".join(intermediate_bitcodes)}')
+

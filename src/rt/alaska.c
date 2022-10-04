@@ -47,6 +47,14 @@ uint64_t now_ns() {
 }
 
 
+void *__wrap_malloc(size_t size) {
+	return alaska_alloc(size);
+}
+void __wrap_free(void *ptr) {
+	return alaska_free(ptr);
+}
+
+/*
 static void dump_arenas() {
   log("-------------------- ARENAS --------------------\n");
   for (int id = 0; id < MAX_ARENAS; id++) {
@@ -62,6 +70,7 @@ static void dump_arenas() {
   }
   log("\n");
 }
+*/
 
 void alaska_die(const char *msg) {
   fprintf(stderr, "alaska_die: %s\n", msg);
@@ -75,7 +84,6 @@ static uint64_t dyncall_count = 0;
 static ALWAYS_INLINE alaska_handle_t *find_in_rbtree(uint64_t va, struct rb_root *handle_table) {
   // walk...
   struct rb_node **n = &(handle_table->rb_node);
-  struct rb_node *parent = NULL;
 
   int steps = 0;
 
@@ -85,7 +93,6 @@ static ALWAYS_INLINE alaska_handle_t *find_in_rbtree(uint64_t va, struct rb_root
 
     off_t start = (off_t)r->handle;
     off_t end = start + r->size;
-    parent = *n;
 
     steps++;
 
@@ -119,7 +126,7 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
 // Given a handle, fill the out variables w/ the relevant
 // structures and return 0 on success. Returns -errno otherwise
 static ALWAYS_INLINE int find_arena_and_handle(uint64_t h, alaska_handle_t **o_handle, alaska_arena_t **o_arena) {
-  if (h & ARENA_MASK != ARENA_MASK) return -EINVAL;
+  if ((h & ARENA_MASK) != ARENA_MASK) return -EINVAL;
   uint8_t aid = HANDLE_ARENA(h);
   // log("find(0x%llx): aid=%d\n", h, aid);
 
@@ -164,7 +171,6 @@ void *alaska_alloc(size_t sz) {
 }
 
 void alaska_free(void *ptr) {
-  uint64_t h = (uint64_t)ptr;
   alaska_handle_t *handle;
   alaska_arena_t *arena;
   log("free  %p\n", ptr);
