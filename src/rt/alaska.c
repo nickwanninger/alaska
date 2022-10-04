@@ -48,10 +48,10 @@ uint64_t now_ns() {
 
 
 void *__wrap_malloc(size_t size) {
-	return alaska_alloc(size);
+  return alaska_alloc(size);
 }
 void __wrap_free(void *ptr) {
-	return alaska_free(ptr);
+  return alaska_free(ptr);
 }
 
 /*
@@ -85,16 +85,12 @@ static ALWAYS_INLINE alaska_handle_t *find_in_rbtree(uint64_t va, struct rb_root
   // walk...
   struct rb_node **n = &(handle_table->rb_node);
 
-  int steps = 0;
-
   /* Figure out where to put new node */
   while (*n != NULL) {
     alaska_handle_t *r = rb_entry(*n, alaska_handle_t, node);
 
     off_t start = (off_t)r->handle;
     off_t end = start + r->size;
-
-    steps++;
 
     if (va < start) {
       n = &((*n)->rb_left);
@@ -192,12 +188,12 @@ void alaska_free(void *ptr) {
 
 ////////////////////////////////////////////////////////////////////////////
 void *alaska_pin(void *ptr) {
-	dyncall_count++;
+  dyncall_count++;
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
     alaska_handle_t *handle;
     alaska_arena_t *arena;
-  	log("  pin %p\n", ptr);
+    log("  pin %p\n", ptr);
     if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
       alaska_die("Failed to pin!");
       return NULL;
