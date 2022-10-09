@@ -72,7 +72,7 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 			cmake ../llvm -G Ninja                                    \
 				-DCMAKE_INSTALL_PREFIX=${PREFIX}                        \
 				-DCMAKE_BUILD_TYPE=Release                              \
-				-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp" \
+				-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
 				-DLLVM_TARGETS_TO_BUILD="X86;AArch64"
 
 			ninja install

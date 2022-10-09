@@ -98,12 +98,6 @@ llvm-link -o $TMPFILE ${INTERMEDIATE_BITCODES[@]}
 # delete the temp files
 rm ${INTERMEDIATE_BITCODES[@]}
 
-OPTARGS="-load ${ALASKA}/build/ALASKALibrary.so"
-
-# Run some builtin llvm passes
-opt -mem2reg "${TMPFILE}" -o "${TMPFILE}" >/dev/null
-
-
 LIB=lib/libalaska.so
 
 if [ "${BASELINE}" != "" ]; then
@@ -114,14 +108,18 @@ fi
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
 # opt -load "${ALASKA}/build/AlaskaNormalize.so" "-AlaskaNorm" "${TMPFILE}" -o "${TMPFILE}"
-opt -load "${ALASKA}/build/Alaska.so"  -time-passes --alaska "${TMPFILE}" -o "${TMPFILE}" -enable-new-pm=0 
+opt -load "${ALASKA}/build/Alaska.so" \
+	--alaska                            \
+	-enable-new-pm=0                    \
+	"${TMPFILE}" -o "${TMPFILE}" 
+# -time-passes                        \
 
 LINKFLAGS=
 # LINKFLAGS+=" -Xlinker --wrap=malloc"
 # LINKFLAGS+=" -Xlinker --wrap=calloc"
 # LINKFLAGS+=" -Xlinker --wrap=free"
 
-clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
+clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 

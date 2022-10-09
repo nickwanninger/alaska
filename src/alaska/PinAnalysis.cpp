@@ -82,9 +82,6 @@ alaska::PinNode *alaska::PinAnalysis::add_node(llvm::Value *val) {
 
   node = new alaska::PinNode(next_id++, *this, v.type, parent, val);
   m_nodes[val] = std::unique_ptr<alaska::PinNode>(node);
-  if (parent == NULL) {
-    // m_roots.insert(node);
-  }
 
   for (auto user : val->users()) {
     add_node(user);
@@ -136,40 +133,43 @@ void alaska::PinAnalysis::compute_trace(void) {
   }
 }
 
+
+void dump_uses(llvm::Value *val, int depth = 0) {
+  for (int i = 0; i < depth; i++)
+    fprintf(stderr, "  ");
+  alaska::println(*val);
+
+  for (auto user : val->users()) {
+    dump_uses(user, depth + 1);
+  }
+}
+
+
 void alaska::PinAnalysis::inject_pins(void) {
   for (auto *root : m_roots) {
-    dump_children(root);
-    root->codegen_pin();
+    // dump_children(root);
+    dump_uses(root->handle());
+    // root->codegen_pin();
   }
-
-  // alaska::println(m_func);
 }
+
+
+
 
 bool alaska::PinNode::important(void) const {
   return true;
-  // HACK: for some reason Alloca instructions appear here.
-  if (auto a = dyn_cast<llvm::AllocaInst>(m_handle)) {
-    // return false;
-  }
-
-  // return true;
-  if (type() == alaska::Access) return true;
-  for (auto *child : m_children) {
-    if (child->type() == alaska::Access || child->important()) return true;
-  }
-  return false;
 }
 
 static llvm::Value *insert_translate_call_before(llvm::Instruction *inst, llvm::Value *val) {
   llvm::LLVMContext &ctx = inst->getContext();
   auto *M = inst->getParent()->getParent()->getParent();
-  auto voidPtrType = llvm::Type::getInt8PtrTy(ctx, 0);
+  auto voidPtrType = llvm::PointerType::get(ctx, 0);
   auto translateFunctionType = llvm::FunctionType::get(voidPtrType, {voidPtrType}, false);
   auto translateFunction = M->getOrInsertFunction("alaska_pin", translateFunctionType).getCallee();
 
   llvm::IRBuilder<> b(inst);
   auto ptr = b.CreatePointerCast(val, voidPtrType);
-  auto translatedVoidPtr = b.CreateCall(translateFunction, {ptr});
+  auto translatedVoidPtr = b.CreateCall(translateFunctionType, translateFunction, {ptr});
   auto translated = b.CreatePointerCast(translatedVoidPtr, val->getType());
   return translated;
 }
@@ -230,7 +230,8 @@ class PinCodegenVisitor : public llvm::InstVisitor<PinCodegenVisitor> {
       std::vector<llvm::Value *> inds;
       for (auto &ind : I.indices())
         inds.push_back(ind);
-      node->set_pin(b.CreateGEP(node->parent_pin(), inds));
+      node->set_pin(b.CreateGEP(I.getSourceElementType(), node->parent_pin(), inds));
+      // exit(-1);
     } else {
       handleNaiveProduction(&I);
     }
@@ -242,8 +243,8 @@ class PinCodegenVisitor : public llvm::InstVisitor<PinCodegenVisitor> {
   }
 
   void visitStoreInst(llvm::StoreInst &I) {
-    alaska::println("inst ", I);
-    alaska::println("store from ", *I.getPointerOperand());
+    // alaska::println("inst ", I);
+    // alaska::println("store from ", *I.getPointerOperand());
     I.setOperand(1, node->parent_pin());
     // alaska::println();
   }
@@ -306,19 +307,19 @@ llvm::Value *alaska::PinNode::codegen_pin(void) {
 
   m_pin = nullptr;
 
-  // alaska::println("handle: ", *handle());
+  alaska::println("handle: ", *handle());
   PinCodegenVisitor v;
   v.node = this;
 
   if (auto I = dyn_cast<llvm::Instruction>(handle())) {
     v.visit(I);
 
-    // if (parent_pin() != NULL) {
-    //   v.visit(I);
-    // } else {
-    //   alaska::println("!dead!");
-    //   v.handleNaiveProduction(I);
-    // }
+    if (parent_pin() != NULL) {
+      v.visit(I);
+    } else {
+      alaska::println("!dead!");
+      v.handleNaiveProduction(I);
+    }
   } else {
     if (auto arg = dyn_cast<llvm::Argument>(handle())) {
       auto F = arg->getParent();
@@ -327,24 +328,16 @@ llvm::Value *alaska::PinNode::codegen_pin(void) {
 
       set_pin(insert_translate_call_before(target, arg));
     } else if (auto bitcastOperator = dyn_cast<llvm::BitCastOperator>(handle())) {
-      // alaska::println("BitCastOperator", *bitcastOperator);
+      alaska::println("BitCastOperator", *bitcastOperator);
       // We don't know how to handle this right now.
       assert(bitcastOperator->getNumUses() == 1);
-      llvm::Value *user = *bitcastOperator->users().begin();
+      // llvm::Value *user = *bitcastOperator->users().begin();
       // alaska::println("user:", *user);
       exit(-1);
 
     } else if (auto gepOperator = dyn_cast<llvm::GEPOperator>(handle())) {
-      // alaska::println("GEPOperator", *gepOperator);
+      alaska::println("GEPOperator", *gepOperator);
       exit(-1);
-      // alaska::println("GEPOperator");
-      // assert(gepOperator->getNumUses() == 1);
-      // llvm::Value *user = *gepOperator->users().begin();
-      // alaska::println("user:", *user);
-
-      // for (auto user : gepOperator->users()) {
-      //   alaska::println("  user:", *user);
-      // }
     }
   }
 

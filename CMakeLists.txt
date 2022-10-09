@@ -58,14 +58,13 @@ include_directories(
 
 add_llvm_library(Alaska MODULE
 	src/alaska/Pass.cpp
-
+	src/alaska/PinAnalysis.cpp
 
 	PLUGIN_TOOL
 	opt
-	# src/alaska/PinAnalysis.cpp
 )
 
-# add_llvm_library(AlaskaNormalize MODULE src/alaska-norm/Pass.cpp)
+add_llvm_library(AlaskaNormalize MODULE src/alaska-norm/Pass.cpp)
 
 include_directories(src/rt/include)
 

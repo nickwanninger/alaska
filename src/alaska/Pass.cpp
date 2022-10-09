@@ -1,5 +1,6 @@
 #include "./PinAnalysis.h"
 #include "llvm/IR/Operator.h"
+#include <unordered_set>
 
 #define ADDR_SPACE 0
 
@@ -15,6 +16,12 @@ namespace {
       return false;
     }
 
+
+    // Replace all uses of `handle` with `pinned`, and recursively call
+    // for instructions like GEP which transform the pointer.
+    void propegate_pin(llvm::Value *handle, llvm::Value *pinned) {
+    }
+
     bool runOnModule(Module &M) override {
       if (M.getNamedMetadata("alaska") != nullptr) {
         return false;
@@ -26,11 +33,12 @@ namespace {
 
       auto pinFunctionType = FunctionType::get(ptrType, {ptrType}, false);
       auto pinFunction = M.getOrInsertFunction("alaska_pin", pinFunctionType).getCallee();
-      // auto pinFunctionFunc = dyn_cast<Function>(pinFunction);
 
       auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
       auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
       // auto unpinFunctionFunc = dyn_cast<Function>(unpinFunction);
+      (void)pinFunction;
+      (void)unpinFunction;
 
       long fran = 0;
       long fcount = 0;
@@ -40,65 +48,107 @@ namespace {
       }
 
 
-      // The instructions where a the value used must be pinned.
-      std::vector<llvm::Instruction *> accessInstructions;
-
-
       // ====================================================================
       for (auto &F : M) {
         long inserted = 0;
         fran += 1;
         if (F.empty()) continue;
 
-
         auto section = F.getSection();
         if (section.startswith("$__ALASKA__")) {
           F.setSection("");
           continue;
         }
+        alaska::println(F);
 
-        auto maybeTranslate = [&](llvm::Instruction &I, llvm::Value *toTranslate) -> llvm::Value * {
-          if (dyn_cast<AllocaInst>(toTranslate) != NULL) return NULL;
-          // auto &ctx = I.getContext();
-          IRBuilder<> builder(&I);
-          // Use the GEP hack to get the size of the access we are guarding
-          std::vector<Value *> args;
-          args.push_back(toTranslate);
-          auto pinned = builder.CreateCall(pinFunctionType, pinFunction, args);
-          // errs() << "         I " << I << "\n";
-          // errs() << "        do " << *toTranslate << "\n";
-          // errs() << "translated " << *pinned << "\n\n";
-          // ... insert the unpin as well
-          //
-          builder.SetInsertPoint(I.getNextNonDebugInstruction());
-          builder.CreateCall(unpinFunctionType, unpinFunction, args);
-          inserted++;
 
-          return pinned;
-        };
+        std::unordered_map<Value *, Value *> raw_pointers;
 
+        // Go through every instruction in the function and get the
+        // pointers that are loaded and/or stored to.
         for (auto &BB : F) {
           for (auto &I : BB) {
+            // Handle loads and stores differently, as there isn't a base class to handle them the same way
             if (auto *load = dyn_cast<LoadInst>(&I)) {
               auto toTranslate = load->getPointerOperand();
-              auto translated = maybeTranslate(I, toTranslate);
-              if (translated) {
-                load->setOperand(0, translated);
-              }
+              raw_pointers[toTranslate] = toTranslate;
             } else if (auto *store = dyn_cast<StoreInst>(&I)) {
               auto toTranslate = store->getPointerOperand();
-              auto translated = maybeTranslate(I, toTranslate);
-              if (translated) {
-                store->setOperand(1, translated);
-              }
+              raw_pointers[toTranslate] = toTranslate;
             }
           }
         }
 
+        for (auto &[p, d] : raw_pointers) {
+          alaska::println("interesting pointer: ", *p);
+        }
+        alaska::println();
+
+        bool changed;
+
+        int iterations = 0;
+        for (auto &kv : raw_pointers) {
+          do {
+            iterations++;
+            changed = false;
+
+            Value *cur = kv.second;
+            if (auto gep = dyn_cast<GetElementPtrInst>(cur)) {
+              cur = gep->getPointerOperand();
+            }
+
+            if (auto gepOp = dyn_cast<GEPOperator>(cur)) {
+              cur = gepOp->getOperand(0);
+            }
+
+            if (cur != kv.second && cur != 0) {
+              kv.second = cur;
+              changed = true;
+            }
+          } while (changed);
+        }
+
+
+        std::set<Value *> root_pointers;
+
+        for (auto &kv : raw_pointers) {
+          // if `a` is Alloca, don't consider it as a root
+          if (auto a = dyn_cast<AllocaInst>(kv.second)) {
+            continue;
+          }
+
+          if (auto glob = dyn_cast<GlobalVariable>(kv.second)) {
+            continue;
+          }
+          // Don't consider non-pointer instructions as roots
+          if (!kv.second->getType()->isPointerTy()) {
+            continue;
+          }
+
+          root_pointers.insert(kv.second);
+        }
+
+        for (auto &p : root_pointers) {
+          alaska::println("interesting pointer: ", *p);
+        }
+        alaska::println();
+
+        // Analyze the trace of uses rooted in the set of pointers we reduced to.
+        alaska::PinAnalysis trace(F);
+        for (auto *p : root_pointers) {
+          trace.add_root(p);
+        }
+
+        // Using the roots, compute the trace
+        trace.compute_trace();
+        trace.inject_pins();
+
+        // alaska::println(F);
+
         fprintf(stderr, "%4ld/%-4ld |  %4ld  | %s\n", fran, fcount, inserted, F.getName().data());
       }
 
-      errs() << M << "\n";
+      // errs() << M << "\n";
       return false;
     }
   };  // namespace

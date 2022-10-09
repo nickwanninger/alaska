@@ -43,9 +43,9 @@ public:
       std::vector<llvm::Value *> inds(gep->idx_begin(), gep->idx_end());
       if (gep->isInBounds()) {
         gep->hasIndices();
-        return llvm::GetElementPtrInst::CreateInBounds(gep->getPointerOperand(), inds, "", inst);
+        return llvm::GetElementPtrInst::CreateInBounds(gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       } else {
-        return llvm::GetElementPtrInst::Create(gep->getResultElementType(), gep->getPointerOperand(), inds, "", inst);
+        return llvm::GetElementPtrInst::Create(gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       }
     }
 
@@ -109,18 +109,22 @@ struct AlaskaPass : public ModulePass {
   }
 };
 
-char AlaskaPass::ID = 0;
-static RegisterPass<AlaskaPass> X("AlaskaNorm", "Normalize LLVM IR for use with alaska");
+  static RegisterPass<AlaskaPass> X("alaska-norm", "Alaska Normalize", false /* Only looks at CFG */, false /* Analysis Pass */);
 
-static AlaskaPass *_PassMaker = NULL;
-static RegisterStandardPasses _RegPass1(PassManagerBuilder::EP_OptimizerLast, [](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-  if (!_PassMaker) {
-    PM.add(_PassMaker = new AlaskaPass());
-  }
-}); // ** for -Ox
-static RegisterStandardPasses _RegPass2(PassManagerBuilder::EP_EnabledOnOptLevel0, [](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-  if (!_PassMaker) {
-    PM.add(_PassMaker = new AlaskaPass());
-  }
-}); // ** for -O0
+  char AlaskaPass::ID = 0;
+  // static RegisterPass<AlaskaPass> X("Alaska", "Handle based memory with Alaska");
+
+  static AlaskaPass *_PassMaker = NULL;
+  static RegisterStandardPasses _RegPass1(
+      PassManagerBuilder::EP_OptimizerLast, [](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
+        if (!_PassMaker) {
+          PM.add(_PassMaker = new AlaskaPass());
+        }
+      });  // ** for -Ox
+  static RegisterStandardPasses _RegPass2(
+      PassManagerBuilder::EP_EnabledOnOptLevel0, [](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
+        if (!_PassMaker) {
+          PM.add(_PassMaker = new AlaskaPass());
+        }
+      });  // ** for -O0
 } // namespace

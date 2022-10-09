@@ -54,7 +54,6 @@ void __wrap_free(void *ptr) {
   return alaska_free(ptr);
 }
 
-/*
 static void dump_arenas() {
   log("-------------------- ARENAS --------------------\n");
   for (int id = 0; id < MAX_ARENAS; id++) {
@@ -70,7 +69,6 @@ static void dump_arenas() {
   }
   log("\n");
 }
-*/
 
 void alaska_die(const char *msg) {
   fprintf(stderr, "alaska_die: %s\n", msg);
@@ -122,7 +120,7 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
 // Given a handle, fill the out variables w/ the relevant
 // structures and return 0 on success. Returns -errno otherwise
 static ALWAYS_INLINE int find_arena_and_handle(uint64_t h, alaska_handle_t **o_handle, alaska_arena_t **o_arena) {
-  if ((h & ARENA_MASK) != ARENA_MASK) return -EINVAL;
+  // if ((h & ARENA_MASK) != ARENA_MASK) return -EINVAL;
   uint8_t aid = HANDLE_ARENA(h);
   // log("find(0x%llx): aid=%d\n", h, aid);
 
@@ -175,7 +173,7 @@ void alaska_free(void *ptr) {
   }
 
   if (handle->pin_depth != 0) {
-    alaska_die("Pin depth is not 0 when freeing. UAF likely. Bailing!\n");
+    fprintf(stderr, "Pin depth is not 0 when freeing. UAF likely!\n");
   }
   arena->free(arena, handle->backing_memory);
   rb_erase(&handle->node, &arena->table);
@@ -189,20 +187,23 @@ void alaska_free(void *ptr) {
 ////////////////////////////////////////////////////////////////////////////
 void *alaska_pin(void *ptr) {
   dyncall_count++;
+  log("  pin %p\n", ptr);
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
     alaska_handle_t *handle;
     alaska_arena_t *arena;
-    log("  pin %p\n", ptr);
     if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+      dump_arenas();
       alaska_die("Failed to pin!");
       return NULL;
     }
     arena->pinned(arena, handle);
     handle->pin_depth++;
-    // dump_arenas();
     pin_count++;
-    return handle->backing_memory;
+
+		off_t offset = (off_t)ptr - (off_t)handle->handle;
+
+    return (void *)((off_t)handle->backing_memory + offset);
   }
   return ptr;
 }
