@@ -20,9 +20,14 @@ typedef struct {
 
 struct alaska_arena;
 
+
+
+#define ALASKA_TLB_SIZE
+
 typedef struct alaska_arena_s {
   // the value placed in the 0xFFnn part of the address.
   uint16_t id;
+
   // Allocation of handles is a bump allocator for now. We may find a better
   // way later on based on use cases. "64 bits should be enough for everyone."
   long next_handle;
@@ -67,7 +72,6 @@ typedef struct alaska_arena_s {
 // Initialize and register an arena. Call this before setting any hooks up.
 extern void alaska_arena_init(alaska_arena_t *arena);
 
-// Default personality implementations. These are thin
 // wrappers around libc's malloc/free
 extern void *alaska_default_alloc(alaska_arena_t *arena, size_t sz);
 extern void alaska_default_free(alaska_arena_t *arena, void *ptr);

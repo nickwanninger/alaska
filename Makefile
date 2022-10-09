@@ -1,24 +1,23 @@
 .ONESHELL:
-.DEFAULT_GOAL := texas
+.DEFAULT_GOAL := alaska
 
 # include .config
 
 BUILD=build
 
-texas:
+alaska:
 	@tools/build.sh
 
 
-test: texas
+test: alaska
 	@make -C build verbose_test --no-print-directory
 
 GAP_SUITE:=bfs bc
-GAP_BINS:=$(foreach v,$(GAP_SUITE),build/bench/gap.$(v).texas)
+GAP_BINS:=$(foreach v,$(GAP_SUITE),build/bench/gap.$(v).alaska)
 
-.PHONY: texas all gap
+.PHONY: alaska all gap
 
 .SECONDARY: $(GAP_BINS) $(foreach v,$(GAP_SUITE),build/bench/gap.$(v).base)
-	
 
 clean:
 	rm -rf build
@@ -28,5 +27,5 @@ menuconfig:
 	@python3 tools/menuconfig.py
 
 
-nicktest: texas
+nicktest: alaska
 	@tools/acc test/nick.c -O3 --keep-ir -o build/nick

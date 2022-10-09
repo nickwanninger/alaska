@@ -1,12 +1,12 @@
 
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -O3 -g3 -Wall -Wno-reorder -Wextra -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g3 -Wall -Wno-reorder -Wextra -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare ")
 # set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++17 -g -march=native -mcmodel=large")
 
 
 
 # essential files
 set(SRC_FILES
-	set.c
+	# set.c
 	rbtree.c
 	alaska.c
 )

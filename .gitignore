@@ -19,8 +19,6 @@ src/autoconf.h
 config.cmake
 .config
 
-texas/target
-test/dataStructureTester/dataStructureTester
 
 condor/ouput
 condor/bin
