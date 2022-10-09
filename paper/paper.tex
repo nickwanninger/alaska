@@ -3,12 +3,9 @@
 
 \usepackage{lipsum}  
 
-
-
 \begin{document}
 
-\title{Alaska: Handle-Based Memory \\ Management Made Easy}
-
+\title{Transparent Handles are Better than Pointers}
 
 \author{Nick Wanninger}
 \affiliation{
@@ -16,6 +13,21 @@
   \city{Evanston}
   \country{United States}}
 \email{ncw@u.northwestern.edu}
+
+\author{Tommy McMichen}
+\affiliation{
+  \institution{Northwestern University}
+  \city{Evanston}
+  \country{United States}}
+\email{mcmichen@u.northwestern.edu}
+
+
+\author{Simone Campanoni}
+\affiliation{
+  \institution{Northwestern University}
+  \city{Evanston}
+  \country{United States}}
+\email{simonec@northwestern.edu}
 
 \author{Peter Dinda}
 \affiliation{
@@ -46,8 +58,8 @@ utilize features like defragmentation, compression, and copy-and-update
 semantics -- effectively allowing virtual memory to operate at the
 granularity of individual allocations. We show that Alaska does all this with
 minimal overhead to applications which don't use handles, but provides a
-great deal of control to programs that do.
-\footnote{A guess based on the naive compiler}
+great deal of control to programs that do. \footnote{A guess based on the
+naive compiler}
 
 
 \end{abstract}
