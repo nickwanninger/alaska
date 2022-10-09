@@ -108,6 +108,11 @@ fi
 [ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
 # opt -load "${ALASKA}/build/AlaskaNormalize.so" "-AlaskaNorm" "${TMPFILE}" -o "${TMPFILE}"
+opt -load "${ALASKA}/build/AlaskaNormalize.so" \
+	--alaska-norm                                \
+	-enable-new-pm=0                             \
+	"${TMPFILE}" -o "${TMPFILE}" 
+
 opt -load "${ALASKA}/build/Alaska.so" \
 	--alaska                            \
 	-enable-new-pm=0                    \

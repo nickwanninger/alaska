@@ -40,6 +40,7 @@ public:
     }
 
     if (auto gep = dyn_cast<GEPOperator>(op)) {
+			errs() << "found gep operator\n";
       std::vector<llvm::Value *> inds(gep->idx_begin(), gep->idx_end());
       if (gep->isInBounds()) {
         gep->hasIndices();
@@ -105,6 +106,9 @@ struct AlaskaPass : public ModulePass {
     for (auto *I : insts) {
       v.visit(I);
     }
+
+
+		// errs() << M << "\n";
     return true;
   }
 };
