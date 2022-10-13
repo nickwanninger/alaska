@@ -11,8 +11,7 @@ struct node {
 int main(int argc, char **argv) {
   // Allocate then free a linked list
   int count = 10;
-  if (argc > 2)
-    count = atoi(argv[1]);
+  if (argc > 2) count = atoi(argv[1]);
 
   struct node *root = NULL;
   for (int i = 0; i < count; i++) {
