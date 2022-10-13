@@ -40,7 +40,7 @@ public:
     }
 
     if (auto gep = dyn_cast<GEPOperator>(op)) {
-			errs() << "found gep operator\n";
+			// errs() << "found gep operator\n";
       std::vector<llvm::Value *> inds(gep->idx_begin(), gep->idx_end());
       if (gep->isInBounds()) {
         gep->hasIndices();
