@@ -28,166 +28,62 @@
 #include <unordered_map>
 #include <memory>  // shared_ptr
 #include <set>
+#include <unordered_set>
 
 using namespace llvm;
 
 namespace alaska {
 
-  class PinAnalysis;
+	class PinGraph;
 
   enum NodeType {
-    Conjure,    // CallInst, IntToPtrInst, Argument, etc..
-    Transform,  // GetElementPtrInst, BitCastInst, etc..
-    Access,     // Pointer operand of StoreInst, LoadInst
+    Source,     // Malloc, Realloc, etc..
+    Sink,       // Load, Store
+    Transient,  // Gep, Phi, etc..
   };
 
-  /**
-   * Implementation of the nodes in a PinTrace tree
-   *
-   * Trace nodes exist to map sibling operations between their handle and pin
-   * variant. They track parent nodes (of which there can be several) as well as
-   * their child nodes. If a node is of the `Conjure` type, it represents a pointer
-   * entering the control flow, and the following transformation can be done:
-   *
-   *     %handle = ??
-   *     %pin = alaska_translate(%handle)
-   *
-   * If the handle is the result of a GEP instruction, for example, it has the type
-   * `Transform`, as it transforms an existing pointer into a new pointer. In this case,
-   * it is valid to trasform the parent node in the same way:
-   *
-   *     %handle.2 = getelementptr %handle.1, ...
-   *     %pin.2    = getelementptr %pin.1,    ...
-   * or:
-   *     %handle.2 = bitcast %handle.1, ...
-   *     %pin.2    = bitcast %pin.1,    ...
-   *
-   * The final NodeType is `Access`. These nodes act as sinks for all parent
-   * nodes, and are where the program actually accesses memory. These nodes are
-   * special as their %handle value is actually the instruction which accesses
-   * the handle and not the handle itself. The value being accessed will be the
-   * parent node. The transformation will often look like the following:
-   *
-   *    %val = load %parent.handle    becomes...    %val = load %parent.pin
-   *    store %parent.handle, %val    becomes...    store %parent.pin, %val
-   *
-   * Due to the parent/child relationship, there exists a flow between nodes in
-   * this tree, where one node depends on the value of another, and can reproduce
-   * the behavior of the original in the pin address space using the %pin of it's
-   * parent node. This flow may look like the following:
-   *   +-----------+    +-----------+    +--------+
-   *   |  Conjure  ├-┬->| Transform ├-┬->| Access |
-   *   +-----------+ |  +-----------+ |  +--------+
-   *                 |  +--------+    |  +--------+
-   *                 +->| Access |    +->| Access |
-   *                    +--------+       +--------+
-   * In this example, a pointer is conjured, either by calling a `malloc` type
-   * function or recieving it as an argument. The program then transforms it
-   * by some mechanism -- for example, by GEP-ing a struct field -- and accesses
-   * it by loads or stores.
-   */
-  class PinNode {
-   public:
-    NodeType type(void) const {
-      return m_type;
-    }
+  struct Node {
+		int id;
+    // The value at this node. Typically an Instruction, but Arguments also occupy a Node
+		NodeType type;
+		PinGraph &graph;
+    llvm::Value *value;
+		std::unordered_set<int> colors;
 
-    llvm::Value *handle(void) {
-      return m_handle;
-    }
+    Node(PinGraph &graph, llvm::Value *value);
+		void add_in_edge(llvm::Use *);
 
-    bool unpinned(void) const {
-      return m_pin == nullptr;
-    }
-
-    llvm::Value *pin(void) {
-      return m_pin;
-    }
-
-    void set_pin(llvm::Value *val) {
-      auto &ctx = val->getContext();
-      if (val->getType() != llvm::Type::getVoidTy(ctx)) {
-        val->setName("pin." + std::to_string(m_id));
-      }
-      m_pin = val;
-    }
-
-    // Accessor methods into the parent
-    PinNode *parent(void) {
-      return m_parent;
-    }
-    llvm::Value *parent_pin(void) {
-      if (m_parent == NULL) {
-        // abort();
-      }
-      return m_parent == NULL ? NULL : m_parent->pin();
-    }
-    llvm::Value *parent_handle(void) {
-      return m_parent == NULL ? NULL : m_parent->handle();
-    }
-
-    const auto &children(void) const {
-      return m_children;
-    }
-
-    // determine if you need this node or not (are any subnodes important or are they accesses)
-    bool important(void) const;
-
-    // If there isn't a pin for this instruction, codegen one.
-    llvm::Value *codegen_pin(void);
-
+		std::unordered_set<Node *> get_in_nodes(void) const;
+		std::unordered_set<Node *> get_out_nodes(void) const;
    protected:
-    friend alaska::PinAnalysis;
-    PinNode(int id, PinAnalysis &trace, NodeType type, PinNode *parent, llvm::Value *handle)
-        : m_id(id), m_trace(trace), m_type(type), m_parent(parent), m_handle(handle) {
-      auto &ctx = m_handle->getContext();
-      if (m_handle->getType() != llvm::Type::getVoidTy(ctx)) {
-        m_handle->setName("handle." + std::to_string(m_id));
-      }
-      if (parent) parent->m_children.insert(this);
-    }
 
-   private:
-    int m_id;
-    PinAnalysis &m_trace;
-    NodeType m_type;
-    PinNode *m_parent = NULL;
-    llvm::Value *m_handle = nullptr;
-    llvm::Value *m_pin = nullptr;
-    std::set<PinNode *> m_children;
+		friend class PinGraph;
+
+    // edges to other nodes
+    std::unordered_set<llvm::Use *> in;
+    std::unordered_set<llvm::Use *> out;
+		void populate_edges(void);
   };
 
-
-
-
-  // There is a PinTrace per LLVM Function. It manages
-  class PinAnalysis {
+  class PinGraph {
    public:
-    PinAnalysis(llvm::Function &func) : m_func(func) {
-    }
+    PinGraph(llvm::Function &func);
+    auto &func(void) { return m_func; }
 
-    llvm::Function &func(void) {
-      return m_func;
-    }
+		// get just the nodes that we care about (skip alloca and globals)
+		std::unordered_set<alaska::Node *> get_nodes(void) const;
+		// get all nodes, including those we don't really care about.
+		std::unordered_set<alaska::Node *> get_all_nodes(void) const;
 
-    // Get an existing node, returning null if there isn't already one
-    PinNode *get_node(llvm::Value *val) const;
-    PinNode *add_node(llvm::Value *val);
-    PinNode *get_or_add_node(llvm::Value *val);
-    PinNode *add_root(llvm::Value *val);
-
-    void compute_trace(void);
-    // Inject calls top `alaska_pin` as needed
-    void inject_pins(void);
-
+	protected:
+		friend struct Node;
+		Node &get_node(llvm::Value *);
+		Node &get_node_including_sinks(llvm::Value *);
+		int next_id = 0;
    private:
-    int next_id = 0;
-    // Mappings from Values (often instructions) to their trace nodes
-    std::map<llvm::Value *, std::unique_ptr<PinNode>> m_nodes;
-    // The roots of a trace
-    std::set<PinNode *> m_roots;
-
     llvm::Function &m_func;
+		std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_nodes;
+		std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_sinks;
   };
 
   inline void println() {
