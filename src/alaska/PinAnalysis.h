@@ -48,6 +48,7 @@ namespace alaska {
 		NodeType type;
 		PinGraph &graph;
     llvm::Value *value;
+    llvm::Value *pinned_value = NULL; // HACK: abstraction leakage
 		std::unordered_set<int> colors;
 
     Node(PinGraph &graph, llvm::Value *value);
@@ -74,6 +75,7 @@ namespace alaska {
 		std::unordered_set<alaska::Node *> get_nodes(void) const;
 		// get all nodes, including those we don't really care about.
 		std::unordered_set<alaska::Node *> get_all_nodes(void) const;
+		void dump_dot(void) const;
 
 	protected:
 		friend struct Node;

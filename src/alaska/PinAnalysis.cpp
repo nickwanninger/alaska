@@ -180,11 +180,11 @@ alaska::Node &alaska::PinGraph::get_node(llvm::Value *val) {
 std::unordered_set<alaska::Node *> alaska::PinGraph::get_nodes(void) const {
   std::unordered_set<alaska::Node *> nodes;
   for (auto &[value, node] : m_sinks) {
-		if (node->colors.size() == 0) continue;
+    if (node->colors.size() == 0) continue;
     nodes.insert(node.get());
   }
   for (auto &[value, node] : m_nodes) {
-		if (node->colors.size() == 0) continue;
+    if (node->colors.size() == 0) continue;
     nodes.insert(node.get());
   }
   return nodes;
@@ -199,4 +199,45 @@ std::unordered_set<alaska::Node *> alaska::PinGraph::get_all_nodes(void) const {
     nodes.insert(node.get());
   }
   return nodes;
+}
+
+void alaska::PinGraph::dump_dot(void) const {
+  auto nodes = get_nodes();
+
+
+  alaska::println("digraph {");
+  alaska::println("  beautify=true");
+  alaska::println("  concentrate=true");
+  for (auto *node : nodes) {
+    const char *color = NULL;
+    switch (node->type) {
+      case alaska::Source:
+        color = "red";
+        break;
+      case alaska::Sink:
+        color = "blue";
+        break;
+      case alaska::Transient:
+        color = "black";
+        break;
+    }
+
+    std::string color_label = "colors:";
+    for (auto color : node->colors) {
+      color_label += " ";
+      color_label += std::to_string(color);
+    }
+    errs() << "  node" << node->id;
+    errs() << "[label=\"" << *node->value << "\\n" << color_label << "\"";
+    errs() << ", shape=box";
+    errs() << ", color=" << color;
+    errs() << "]\n";
+  }
+
+  for (auto *node : nodes) {
+    for (auto onode : node->get_out_nodes()) {
+      alaska::println("  node", node->id, " -> node", onode->id, ";");
+    }
+  }
+  alaska::println("}");
 }
