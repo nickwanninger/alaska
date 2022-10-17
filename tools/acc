@@ -114,11 +114,12 @@ opt -load "${ALASKA}/build/AlaskaNormalize.so" \
 	"${TMPFILE}" -o "${TMPFILE}" 
 
 opt -load "${ALASKA}/build/Alaska.so" \
+	-gvn \
 	--alaska                            \
 	-enable-new-pm=0                    \
 	"${TMPFILE}" -o "${TMPFILE}" 
-# -time-passes                        \
 
+	#-time-passes                        \
 LINKFLAGS=
 # LINKFLAGS+=" -Xlinker --wrap=malloc"
 # LINKFLAGS+=" -Xlinker --wrap=calloc"

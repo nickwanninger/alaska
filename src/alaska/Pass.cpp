@@ -1,6 +1,25 @@
 #include "./PinAnalysis.h"
 #include "llvm/IR/Operator.h"
 #include <unordered_set>
+#include "llvm/IR/InstVisitor.h"
+#include <cassert>
+
+using namespace llvm;
+
+struct PinVisitor : public llvm::InstVisitor<PinVisitor> {
+  alaska::Node &node;
+  PinVisitor(alaska::Node &node) : node(node) {}
+
+  void visitLoadInst(LoadInst &I) {}
+  void visitStoreInst(StoreInst &I) {}
+
+  void visitGetElementPtrInst(GetElementPtrInst &I) {}
+  void visitPHINode(PHINode &I) {}
+
+  void visitInstruction(Instruction &I) { assert(node.type == alaska::Source); }
+};
+
+
 
 namespace {
   struct AlaskaPass : public ModulePass {
@@ -11,10 +30,17 @@ namespace {
 
     bool doInitialization(Module &M) override { return false; }
 
+    llvm::Value *pin(alaska::Node *node) {
+      if (node->pinned_value != NULL) return node->pinned_value;
 
-    // Replace all uses of `handle` with `pinned`, and recursively call
-    // for instructions like GEP which transform the pointer.
-    void propegate_pin(llvm::Value *handle, llvm::Value *pinned) {}
+      if (auto I = dyn_cast<llvm::Instruction>(node->value)) {
+        PinVisitor pv(*node);
+        pv.visit(I);
+      } else {
+        //
+      }
+      return node->value;
+    }
 
     bool runOnModule(Module &M) override {
       if (M.getNamedMetadata("alaska") != nullptr) {
@@ -71,52 +97,12 @@ namespace {
 
 
         alaska::PinGraph graph(F);
+        // graph.dump_dot();
+
         auto nodes = graph.get_nodes();
 
-
-        alaska::println("digraph {");
-        alaska::println("  beautify=true");
-        alaska::println("  concentrate=true");
-        for (auto *node : nodes) {
-          const char *color = NULL;
-          switch (node->type) {
-            case alaska::Source:
-              color = "red";
-              break;
-            case alaska::Sink:
-              color = "blue";
-              break;
-            case alaska::Transient:
-              color = "black";
-              break;
-          }
-
-          std::string color_label = "colors:";
-          for (auto color : node->colors) {
-            color_label += " ";
-            color_label += std::to_string(color);
-          }
-          errs() << "  node" << node->id;
-          errs() << "[label=\"" << *node->value << "\\n" << color_label << "\"";
-          errs() << ", shape=box";
-          errs() << ", color=" << color;
-          errs() << "]\n";
-          // alaska::println("  node", node->id, "[label=\"", *node->value, "\\n", color_label, "\", shape=\"box\", color=", color, ",
-          // xlabel=\"id: ", node->id, "\"];");
-        }
-
-        for (auto *node : nodes) {
-          for (auto onode : node->get_in_nodes()) {
-            alaska::println("  node", onode->id, " -> node", node->id, ";");
-          }
-        }
-
-        for (auto *node : nodes) {
-          for (auto onode : node->get_out_nodes()) {
-            alaska::println("  node", node->id, " -> node", onode->id, "[color=red];");
-          }
-        }
-        alaska::println("}");
+        for (auto node : nodes)
+          if (node->type == alaska::Source) inserted++;
 
         fprintf(stderr, "%4ld/%-4ld |  %4ld  | %s\n", fran, fcount, inserted, F.getName().data());
       }
