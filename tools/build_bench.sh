@@ -34,7 +34,7 @@ do
 	echo "  TX  " $bench
 	get-bc $DST/gap.$bench.base >/dev/null
 	${ALASKA}/tools/acc $DST/gap.$bench.base.bc -o $DST/gap.$bench.transformed
-	rm -f $DST/gap.$bench.base.bc
+	# rm -f $DST/gap.$bench.base.bc
 done
 
 

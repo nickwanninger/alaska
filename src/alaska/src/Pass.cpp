@@ -1,25 +1,50 @@
-#include "./PinAnalysis.h"
+// #include "analysis/Grpah.h"
+
+
+#include <Graph.h>
 #include "llvm/IR/Operator.h"
 #include <unordered_set>
+#include "llvm/IR/InstVisitor.h"
+#include <cassert>
 
-#define ADDR_SPACE 0
+#include "llvm/Analysis/AliasAnalysis.h"
+
+using namespace llvm;
+
+struct PinVisitor : public llvm::InstVisitor<PinVisitor> {
+  alaska::Node &node;
+  PinVisitor(alaska::Node &node) : node(node) {}
+
+  void visitLoadInst(LoadInst &I) {}
+  void visitStoreInst(StoreInst &I) {}
+
+  void visitGetElementPtrInst(GetElementPtrInst &I) {}
+  void visitPHINode(PHINode &I) {}
+
+  void visitInstruction(Instruction &I) { assert(node.type == alaska::Source); }
+};
+
+
 
 namespace {
   struct AlaskaPass : public ModulePass {
     static char ID;
     llvm::Type *int64Type;
 
-    AlaskaPass() : ModulePass(ID) {
-    }
+    AlaskaPass() : ModulePass(ID) {}
 
-    bool doInitialization(Module &M) override {
-      return false;
-    }
+    bool doInitialization(Module &M) override { return false; }
 
+    llvm::Value *pin(alaska::Node *node) {
+      if (node->pinned_value != NULL) return node->pinned_value;
 
-    // Replace all uses of `handle` with `pinned`, and recursively call
-    // for instructions like GEP which transform the pointer.
-    void propegate_pin(llvm::Value *handle, llvm::Value *pinned) {
+      if (auto I = dyn_cast<llvm::Instruction>(node->value)) {
+        PinVisitor pv(*node);
+        pv.visit(I);
+      } else {
+        //
+      }
+      return node->value;
     }
 
     bool runOnModule(Module &M) override {
@@ -59,97 +84,51 @@ namespace {
           F.setSection("");
           continue;
         }
-        alaska::println(F);
 
 
-        std::unordered_map<Value *, Value *> raw_pointers;
+        std::set<llvm::Instruction *> sinks;
 
-        // Go through every instruction in the function and get the
         // pointers that are loaded and/or stored to.
         for (auto &BB : F) {
           for (auto &I : BB) {
             // Handle loads and stores differently, as there isn't a base class to handle them the same way
             if (auto *load = dyn_cast<LoadInst>(&I)) {
-              auto toTranslate = load->getPointerOperand();
-              raw_pointers[toTranslate] = toTranslate;
+              sinks.insert(load);
             } else if (auto *store = dyn_cast<StoreInst>(&I)) {
-              auto toTranslate = store->getPointerOperand();
-              raw_pointers[toTranslate] = toTranslate;
+              sinks.insert(store);
             }
           }
         }
 
-        for (auto &[p, d] : raw_pointers) {
-          alaska::println("interesting pointer: ", *p);
-        }
-        alaska::println();
 
-        bool changed;
-
-        int iterations = 0;
-        for (auto &kv : raw_pointers) {
-          do {
-            iterations++;
-            changed = false;
-
-            Value *cur = kv.second;
-            if (auto gep = dyn_cast<GetElementPtrInst>(cur)) {
-              cur = gep->getPointerOperand();
-            }
-
-            if (auto gepOp = dyn_cast<GEPOperator>(cur)) {
-              cur = gepOp->getOperand(0);
-            }
-
-            if (cur != kv.second && cur != 0) {
-              kv.second = cur;
-              changed = true;
-            }
-          } while (changed);
-        }
+        // Get alias analysis information for the function
+        // bool idk = false;
+        // auto &aaPass = getAnalysis<AAResultsWrapperPass>(F, &idk);
+        // auto &aa = aaPass.getAAResults();
 
 
-        std::set<Value *> root_pointers;
-
-        for (auto &kv : raw_pointers) {
-          // if `a` is Alloca, don't consider it as a root
-          if (auto a = dyn_cast<AllocaInst>(kv.second)) {
-            continue;
-          }
-
-          if (auto glob = dyn_cast<GlobalVariable>(kv.second)) {
-            continue;
-          }
-          // Don't consider non-pointer instructions as roots
-          if (!kv.second->getType()->isPointerTy()) {
-            continue;
-          }
-
-          root_pointers.insert(kv.second);
-        }
-
-        for (auto &p : root_pointers) {
-          alaska::println("interesting pointer: ", *p);
-        }
-        alaska::println();
-
-        // Analyze the trace of uses rooted in the set of pointers we reduced to.
-        alaska::PinAnalysis trace(F);
-        for (auto *p : root_pointers) {
-          trace.add_root(p);
-        }
-
-        // Using the roots, compute the trace
-        trace.compute_trace();
-        trace.inject_pins();
-
-        // alaska::println(F);
+        alaska::PinGraph graph(F);
 
         fprintf(stderr, "%4ld/%-4ld |  %4ld  | %s\n", fran, fcount, inserted, F.getName().data());
+        graph.dump_dot();
       }
+
 
       // errs() << M << "\n";
       return false;
+    }
+
+
+    void getAnalysisUsage(AnalysisUsage &AU) const override {
+      // our pass requires Alias Analysis
+      AU.addRequired<AAResultsWrapperPass>();
+
+      // some loop stuffs
+      AU.addRequired<AssumptionCacheTracker>();
+      AU.addRequired<DominatorTreeWrapperPass>();
+      AU.addRequired<LoopInfoWrapperPass>();
+      AU.addRequired<ScalarEvolutionWrapperPass>();
+      // AU.addRequired<TargetTransformInfoWrapperPass>();
     }
   };  // namespace
       //

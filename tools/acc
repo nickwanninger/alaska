@@ -14,9 +14,7 @@ OUTFILE=a.out
 KEEP="false"
 # where to compile a baseline, if we need to
 BASELINE=""
-COLLECT_CLANG_ARGS=()
-INPUTS=()
-
+COLLECT_CLANG_ARGS=() INPUTS=()
 OBJECT_TARGET=
 
 while [[ $# -gt 0 ]]
@@ -65,7 +63,6 @@ INTERMEDIATE_BITCODES=()
 
 for INPUT in ${INPUTS[@]}
 do
-	echo "input $INPUT"
 	BITCODE=${INPUT}.tmp.bc
 	INTERMEDIATE_BITCODES+=("$BITCODE")
 	case $INPUT in
@@ -73,13 +70,13 @@ do
 			clang -c $COLLECT_CLANG_ARGS -emit-llvm -D__ACC__  "${INPUT}" -o "${BITCODE}"
 			;;
 		*.cpp)
-			clang++ -c -fno-exceptions $COLLECT_CLANG_ARGS -D__ACC__ -emit-llvm "${INPUT}" -o "${BITCODE}"
+			clang++ -c $COLLECT_CLANG_ARGS -D__ACC__ -emit-llvm "${INPUT}" -o "${BITCODE}"
 			;;
 		*.bc)
 			cp "${INPUT}" "${BITCODE}"
 			;;
 		*.o) # if any input is an object, just forward to clang to link everything like they ask.
-			clang++ ${LINKFLAGS} ${INPUTS[@]} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
+			clang++ ${LINKFLAGS} ${INPUTS[@]} -ldl -O3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 			exit
 			;;
 		*)
@@ -88,8 +85,6 @@ do
 			;;
 	esac
 done
-
-echo "output $OUTFILE"
 
 
 TMPFILE="${OUTFILE}.tmp.bc"
@@ -100,8 +95,14 @@ rm ${INTERMEDIATE_BITCODES[@]}
 
 LIB=lib/libalaska.so
 
+
+LINKFLAGS=-Wno-unused-command-line-argument
+# LINKFLAGS+=" -Xlinker --wrap=malloc"
+# LINKFLAGS+=" -Xlinker --wrap=calloc"
+# LINKFLAGS+=" -Xlinker --wrap=free"
+
 if [ "${BASELINE}" != "" ]; then
-	clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $BASELINE $COLLECT_CLANG_ARGS
+	clang++ ${LINKFLAGS} -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $BASELINE $COLLECT_CLANG_ARGS
 fi
 
 
@@ -112,17 +113,24 @@ opt -load "${ALASKA}/build/AlaskaNormalize.so" \
 	--alaska-norm                                \
 	-enable-new-pm=0                             \
 	"${TMPFILE}" -o "${TMPFILE}" 
+AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
+
+LOOPS="-loops -loop-simplify -lcssa -domtree -postdomtree -scalar-evolution"
+
+
+opt $AA $LOOPS -licm "${TMPFILE}" -o "${TMPFILE}"
 
 opt -load "${ALASKA}/build/Alaska.so" \
+	$LOOPS                              \
+	-gvn                                \
+	$AA                                 \
 	--alaska                            \
 	-enable-new-pm=0                    \
 	"${TMPFILE}" -o "${TMPFILE}" 
+	
+
 # -time-passes                        \
 
-LINKFLAGS=
-# LINKFLAGS+=" -Xlinker --wrap=malloc"
-# LINKFLAGS+=" -Xlinker --wrap=calloc"
-# LINKFLAGS+=" -Xlinker --wrap=free"
 
 clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
 
