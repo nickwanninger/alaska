@@ -28,7 +28,7 @@ set(CMAKE_ASM_COMPILER clang)
 
 set(CMAKE_STAGING_PREFIX ${CMAKE_BINARY_DIR})
 set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -g3 ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -g3 -Wno-unknown-warning-option ")
 
 
 
@@ -56,15 +56,12 @@ include_directories(
 )
 
 
-add_llvm_library(Alaska MODULE
-	src/alaska/Pass.cpp
-	src/alaska/PinAnalysis.cpp
-
-	PLUGIN_TOOL
-	opt
-)
-
+# alaska normalize pass... Not super complicatedp
+# TODO: move it somewhere else
 add_llvm_library(AlaskaNormalize MODULE src/alaska-norm/Pass.cpp)
+
+
+add_subdirectory(src/alaska)
 
 include_directories(src/rt/include)
 

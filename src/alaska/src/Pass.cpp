@@ -1,8 +1,13 @@
-#include "./PinAnalysis.h"
+// #include "analysis/Grpah.h"
+
+
+#include <Graph.h>
 #include "llvm/IR/Operator.h"
 #include <unordered_set>
 #include "llvm/IR/InstVisitor.h"
 #include <cassert>
+
+#include "llvm/Analysis/AliasAnalysis.h"
 
 using namespace llvm;
 
@@ -96,19 +101,34 @@ namespace {
         }
 
 
+        // Get alias analysis information for the function
+        // bool idk = false;
+        // auto &aaPass = getAnalysis<AAResultsWrapperPass>(F, &idk);
+        // auto &aa = aaPass.getAAResults();
+
+
         alaska::PinGraph graph(F);
-        // graph.dump_dot();
-
-        auto nodes = graph.get_nodes();
-
-        for (auto node : nodes)
-          if (node->type == alaska::Source) inserted++;
 
         fprintf(stderr, "%4ld/%-4ld |  %4ld  | %s\n", fran, fcount, inserted, F.getName().data());
+        graph.dump_dot();
       }
+
 
       // errs() << M << "\n";
       return false;
+    }
+
+
+    void getAnalysisUsage(AnalysisUsage &AU) const override {
+      // our pass requires Alias Analysis
+      AU.addRequired<AAResultsWrapperPass>();
+
+      // some loop stuffs
+      AU.addRequired<AssumptionCacheTracker>();
+      AU.addRequired<DominatorTreeWrapperPass>();
+      AU.addRequired<LoopInfoWrapperPass>();
+      AU.addRequired<ScalarEvolutionWrapperPass>();
+      // AU.addRequired<TargetTransformInfoWrapperPass>();
     }
   };  // namespace
       //

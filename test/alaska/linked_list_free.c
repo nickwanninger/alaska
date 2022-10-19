@@ -8,9 +8,8 @@ struct node {
   int val;
 };
 
-struct node *root = NULL;
-
 int main(int argc, char **argv) {
+	struct node *root = NULL;
   // Allocate then free a linked list
   int count = 400;
   if (argc > 2)
