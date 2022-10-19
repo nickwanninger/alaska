@@ -20,7 +20,7 @@ GAP_BINS:=$(foreach v,$(GAP_SUITE),build/bench/gap.$(v).alaska)
 .SECONDARY: $(GAP_BINS) $(foreach v,$(GAP_SUITE),build/bench/gap.$(v).base)
 
 clean:
-	rm -rf build
+	rm -rf build .*.o*
 
 cfg: menuconfig
 menuconfig:
