@@ -32,38 +32,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -g3 -Wno-unknown-warnin
 
 
 
-
-include_directories(
-	${LLVM_INCLUDE_DIRS} 
-	dep/noelle/install/include
-	dep/noelle/install/include/svf
-	dep/virgil/include
-)
-
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
 endif()
 
 
-
-
-
-include_directories(
-	${LLVM_INCLUDE_DIRS}
-	virgil/include
-	include/
-)
-
-
-# alaska normalize pass... Not super complicatedp
-# TODO: move it somewhere else
-add_llvm_library(AlaskaNormalize MODULE src/alaska-norm/Pass.cpp)
-
-
-add_subdirectory(src/alaska)
-
-include_directories(src/rt/include)
-
-add_subdirectory(src/rt)
-add_subdirectory(test/)
+add_subdirectory(runtime)
+add_subdirectory(compiler)

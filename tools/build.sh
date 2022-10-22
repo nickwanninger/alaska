@@ -33,7 +33,7 @@ fi
 
 
 pushd ${BUILD} >/dev/null
-	make --no-print-directory -j $(nproc)
+	# make --no-print-directory -j $(nproc)
 	make install --no-print-directory
 
 	cp ${BUILD}/compile_commands.json ${BUILD}/../

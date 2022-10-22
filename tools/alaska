@@ -48,7 +48,7 @@ do
 done
 
 
-gparse ${COLLECT_CLANG_ARGS[@]}
+# gparse ${COLLECT_CLANG_ARGS[@]}
 
 if [ "$phase" = "compile" ]; then
 	gclang -c ${COLLECT_CLANG_ARGS[@]}

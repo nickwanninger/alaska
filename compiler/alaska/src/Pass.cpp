@@ -1,7 +1,7 @@
 // #include "analysis/Grpah.h"
 
 
-#include <Graph.h>
+#include <alaska/Graph.h>
 #include <cassert>
 #include <unordered_set>
 
@@ -50,10 +50,10 @@ namespace {
           continue;
         }
 
-				auto *DT = &getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-				auto *PDT = &getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+        auto *DT = &getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+        auto *PDT = &getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
         alaska::PinGraph graph(F);
-				auto nodes = graph.get_nodes();
+        auto nodes = graph.get_nodes();
 
         graph.dump_dot(*DT, *PDT);
       }
@@ -69,7 +69,7 @@ namespace {
       // some loop stuffs
       AU.addRequired<AssumptionCacheTracker>();
       AU.addRequired<DominatorTreeWrapperPass>();
-			AU.addRequired<PostDominatorTreeWrapperPass>();
+      AU.addRequired<PostDominatorTreeWrapperPass>();
       AU.addRequired<LoopInfoWrapperPass>();
       AU.addRequired<ScalarEvolutionWrapperPass>();
       // AU.addRequired<TargetTransformInfoWrapperPass>();

@@ -250,7 +250,7 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
     for (auto o : node->get_out_nodes()) {
       alaska::println("  out:", *o->value);
     }
-  	alaska::println();
+    alaska::println();
   }
 
   alaska::println("digraph {");
@@ -282,8 +282,8 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
     errs() << "]\n";
   }
 
-	alaska::println();
-	alaska::println("  // flows:");
+  alaska::println();
+  alaska::println("  // flows:");
   for (auto *node : nodes) {
     for (Use *use : node->out) {
       auto &v = node->graph.get_node_including_sinks(use->getUser());
@@ -292,8 +292,8 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
   }
 
 
-	alaska::println();
-	alaska::println("  // dominators:");
+  alaska::println();
+  alaska::println("  // dominators:");
   for (auto *node : nodes) {
     for (auto *dominated : node->get_dominated(DT)) {
       alaska::println("  node", node->id, " -> node", dominated->id, "[color=red];");
