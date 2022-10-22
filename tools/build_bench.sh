@@ -7,12 +7,7 @@ source ${ALASKA}/enable
 DST=${ALASKA}/bench
 mkdir -p $DST
 
-
-
-# set -e
-
 # compile NPB
-
 make -C test/npb clean
 for bench in ft mg sp lu bt is ep cg
 do
@@ -23,8 +18,6 @@ do
 	${ALASKA}/tools/acc $DST/nas.$bench.base.bc -lm -o $DST/nas.$bench.transformed >/dev/null
 	# rm -f $DST/nas.$bench.base.bc
 done
-
-# exit
 
 # compile gap
 for bench in bfs bc cc cc_sv pr pr_spmv sssp # tc
