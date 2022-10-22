@@ -9,9 +9,13 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
+
+#include "noelle/core/MetadataManager.hpp"
+
 
 using namespace llvm;
 
@@ -25,10 +29,13 @@ namespace {
     bool doInitialization(Module &M) override { return false; }
 
     bool runOnModule(Module &M) override {
-      if (M.getNamedMetadata("alaska") != nullptr) {
+      llvm::noelle::MetadataManager mdm(M);
+
+      if (mdm.doesHaveMetadata("alaska")) {
         return false;
       }
-      M.getOrInsertNamedMetadata("alaska");
+
+      mdm.addMetadata("alaska", "did run");
       // LLVMContext &ctx = M.getContext();
       // int64Type = Type::getInt64Ty(ctx);
       // auto ptrType = PointerType::get(ctx, 0);
@@ -40,7 +47,6 @@ namespace {
       // auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
       // (void)pinFunction;
       // (void)unpinFunction;
-
       for (auto &F : M) {
         if (F.empty()) continue;
         auto section = F.getSection();
@@ -55,8 +61,19 @@ namespace {
         alaska::PinGraph graph(F);
         auto nodes = graph.get_nodes();
 
+        for (auto node : nodes) {
+          if (auto I = dyn_cast<Instruction>(node->value)) {
+            alaska::println(*I);
+            if (!mdm.doesHaveMetadata(I, "alaska")) {
+              mdm.addMetadata(I, "alaska", "it's a handle!");
+            }
+          }
+        }
+
         graph.dump_dot(*DT, *PDT);
       }
+
+      alaska::println(M);
 
       return false;
     }

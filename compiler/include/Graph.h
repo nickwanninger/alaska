@@ -35,7 +35,7 @@ using namespace llvm;
 
 namespace alaska {
 
-	class PinGraph;
+  class PinGraph;
 
   enum NodeType {
     Source,     // Malloc, Realloc, etc..
@@ -44,31 +44,31 @@ namespace alaska {
   };
 
   struct Node {
-		int id;
+    int id;
     // The value at this node. Typically an Instruction, but Arguments also occupy a Node
-		NodeType type;
-		PinGraph &graph;
+    NodeType type;
+    PinGraph &graph;
     llvm::Value *value = NULL;
-    llvm::Value *pinned_value = NULL; // HACK: abstraction leakage
-		std::unordered_set<int> colors;
+    llvm::Value *pinned_value = NULL;  // HACK: abstraction leakage
+    std::unordered_set<int> colors;
 
     Node(PinGraph &graph, llvm::Value *value);
-		void add_in_edge(llvm::Use *);
+    void add_in_edge(llvm::Use *);
 
-		std::unordered_set<Node *> get_in_nodes(void) const;
-		std::unordered_set<Node *> get_out_nodes(void) const;
-		// get the nodes which this node dominates (out edges that it dominates)
-		std::unordered_set<Node *> get_dominated(llvm::DominatorTree &DT) const;
-		// get the nodes which this node is dominated by (in edges that dominates this)
-		std::unordered_set<Node *> get_dominators(llvm::DominatorTree &DT) const;
+    std::unordered_set<Node *> get_in_nodes(void) const;
+    std::unordered_set<Node *> get_out_nodes(void) const;
+    // get the nodes which this node dominates (out edges that it dominates)
+    std::unordered_set<Node *> get_dominated(llvm::DominatorTree &DT) const;
+    // get the nodes which this node is dominated by (in edges that dominates this)
+    std::unordered_set<Node *> get_dominators(llvm::DominatorTree &DT) const;
+
    protected:
-
-		friend class PinGraph;
+    friend class PinGraph;
 
     // edges to other nodes
     std::unordered_set<llvm::Use *> in;
     std::unordered_set<llvm::Use *> out;
-		void populate_edges(void);
+    void populate_edges(void);
   };
 
   class PinGraph {
@@ -76,21 +76,22 @@ namespace alaska {
     PinGraph(llvm::Function &func);
     auto &func(void) { return m_func; }
 
-		// get just the nodes that we care about (skip alloca and globals)
-		std::unordered_set<alaska::Node *> get_nodes(void) const;
-		// get all nodes, including those we don't really care about.
-		std::unordered_set<alaska::Node *> get_all_nodes(void) const;
-		void dump_dot(DominatorTree &DT, PostDominatorTree &PDT) const;
+    // get just the nodes that we care about (skip alloca and globals)
+    std::unordered_set<alaska::Node *> get_nodes(void) const;
+    // get all nodes, including those we don't really care about.
+    std::unordered_set<alaska::Node *> get_all_nodes(void) const;
+    void dump_dot(DominatorTree &DT, PostDominatorTree &PDT) const;
 
-	protected:
-		friend struct Node;
-		Node &get_node(llvm::Value *);
-		Node &get_node_including_sinks(llvm::Value *);
-		int next_id = 0;
+   protected:
+    friend struct Node;
+    Node &get_node(llvm::Value *);
+    Node &get_node_including_sinks(llvm::Value *);
+    int next_id = 0;
+
    private:
     llvm::Function &m_func;
-		std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_nodes;
-		std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_sinks;
+    std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_nodes;
+    std::unordered_map<llvm::Value *, std::unique_ptr<Node>> m_sinks;
   };
 
   inline void println() {
