@@ -104,6 +104,33 @@ std::unordered_set<alaska::Node *> alaska::Node::get_out_nodes(void) const {
   return outNodes;
 }
 
+std::unordered_set<alaska::Node *> alaska::Node::get_dominated(llvm::DominatorTree &DT) const {
+  std::unordered_set<alaska::Node *> dominated;
+  for (const Use *use : this->out) {
+    auto &v = graph.get_node_including_sinks(use->getUser());
+    auto I = dyn_cast<Instruction>(v.value);
+    if (I && DT.dominates(use->get(), I)) {
+      dominated.insert(&v);
+    }
+  }
+  return dominated;
+}
+
+
+std::unordered_set<alaska::Node *> alaska::Node::get_dominators(llvm::DominatorTree &DT) const {
+  std::unordered_set<alaska::Node *> dominators;
+  for (const Use *use : this->in) {
+    auto &v = graph.get_node(use->get());
+    auto I = dyn_cast<Instruction>(value);
+    if (I && DT.dominates(use->get(), I)) {
+      dominators.insert(&v);
+    }
+  }
+  return dominators;
+}
+
+
+
 void alaska::Node::add_in_edge(llvm::Use *use) {
   auto val = use->get();
   auto &other = graph.get_node(val);
@@ -201,13 +228,34 @@ std::unordered_set<alaska::Node *> alaska::PinGraph::get_all_nodes(void) const {
   return nodes;
 }
 
-void alaska::PinGraph::dump_dot(void) const {
-  auto nodes = get_nodes();
 
+
+void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
+  auto nodes = get_nodes();
+  for (auto *node : nodes) {
+    switch (node->type) {
+      case alaska::Source:
+        alaska::println("Source ", *node->value);
+        break;
+      case alaska::Sink:
+        alaska::println("Sink   ", *node->value);
+        break;
+      case alaska::Transient:
+        alaska::println("Transient ", *node->value);
+        break;
+    }
+    for (auto o : node->get_in_nodes()) {
+      alaska::println("   in:", *o->value);
+    }
+    for (auto o : node->get_out_nodes()) {
+      alaska::println("  out:", *o->value);
+    }
+  	alaska::println();
+  }
 
   alaska::println("digraph {");
-  alaska::println("  beautify=true");
-  alaska::println("  concentrate=true");
+  alaska::println("  label=", m_func.getName(), ";");
+
   for (auto *node : nodes) {
     const char *color = NULL;
     switch (node->type) {
@@ -234,10 +282,25 @@ void alaska::PinGraph::dump_dot(void) const {
     errs() << "]\n";
   }
 
+	alaska::println();
+	alaska::println("  // flows:");
   for (auto *node : nodes) {
-    for (auto onode : node->get_out_nodes()) {
-      alaska::println("  node", node->id, " -> node", onode->id, ";");
+    for (Use *use : node->out) {
+      auto &v = node->graph.get_node_including_sinks(use->getUser());
+      alaska::println("  node", node->id, " -> node", v.id, "[color=black,style=dashed];");
     }
+  }
+
+
+	alaska::println();
+	alaska::println("  // dominators:");
+  for (auto *node : nodes) {
+    for (auto *dominated : node->get_dominated(DT)) {
+      alaska::println("  node", node->id, " -> node", dominated->id, "[color=red];");
+    }
+    // for (auto *dominated : node->get_dominators(DT)) {
+    //   alaska::println("  node", dominated->id, " -> node", node->id, "[color=green];");
+    // }
   }
   alaska::println("}");
 }

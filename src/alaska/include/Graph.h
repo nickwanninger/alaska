@@ -15,6 +15,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -47,7 +48,7 @@ namespace alaska {
     // The value at this node. Typically an Instruction, but Arguments also occupy a Node
 		NodeType type;
 		PinGraph &graph;
-    llvm::Value *value;
+    llvm::Value *value = NULL;
     llvm::Value *pinned_value = NULL; // HACK: abstraction leakage
 		std::unordered_set<int> colors;
 
@@ -56,6 +57,10 @@ namespace alaska {
 
 		std::unordered_set<Node *> get_in_nodes(void) const;
 		std::unordered_set<Node *> get_out_nodes(void) const;
+		// get the nodes which this node dominates (out edges that it dominates)
+		std::unordered_set<Node *> get_dominated(llvm::DominatorTree &DT) const;
+		// get the nodes which this node is dominated by (in edges that dominates this)
+		std::unordered_set<Node *> get_dominators(llvm::DominatorTree &DT) const;
    protected:
 
 		friend class PinGraph;
@@ -75,7 +80,7 @@ namespace alaska {
 		std::unordered_set<alaska::Node *> get_nodes(void) const;
 		// get all nodes, including those we don't really care about.
 		std::unordered_set<alaska::Node *> get_all_nodes(void) const;
-		void dump_dot(void) const;
+		void dump_dot(DominatorTree &DT, PostDominatorTree &PDT) const;
 
 	protected:
 		friend struct Node;
