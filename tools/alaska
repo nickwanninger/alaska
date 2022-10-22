@@ -1,109 +1,132 @@
-#!/usr/bin/env python3
+#!/bin/bash
+
+set -e
+
+ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
+
+source ${ALASKA}/enable
+source ${ALASKA}/.config
+
+# INPUT=$1
+# shift
+
+OUTFILE="a.out"
+KEEP="false"
+# where to compile a baseline, if we need to
+BASELINE="false"
+COLLECT_CLANG_ARGS=() INPUTS=()
+OBJECT_TARGET=
+
+phase="link"
+
+while [[ $# -gt 0 ]]
+do
+    case $1 in
+			-b|--baseline)
+				BASELINE="true"
+				shift
+				;;
+			-k|--keep-ir)
+				KEEP="true"
+				shift
+				;;
+			-o)
+				OUTFILE="$2"
+				shift
+				shift
+				COLLECT_CLANG_ARGS+=("-o $OUTFILE")
+				;;
+			-c)
+				phase="compile"
+				shift
+				;;
+			*)
+				COLLECT_CLANG_ARGS+=("$1")
+				shift
+				;;
+    esac
+done
 
 
-import re
-import sys
-import subprocess
-import os
-print(__file__)
+gparse ${COLLECT_CLANG_ARGS[@]}
 
-alaska_root = '/'.join(__file__.split('/')[:-1]) + '/../'
-args = sys.argv[1:]
+if [ "$phase" = "compile" ]; then
+	gclang -c ${COLLECT_CLANG_ARGS[@]}
+	exit
+else
+	# If the program is being linked, link it as the user requests, then
+	# use get-bc to run our pass on it behind the scenes :)
+	gclang ${COLLECT_CLANG_ARGS[@]}
+	get-bc $OUTFILE # "${OUTFILE}.bc" now exists
+	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
+	TMPFILE=${OUTFILE}.bc
+	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE}.bc -o ${OUTFILE}.in.ll
 
-outfile = None
+	opt -load "${ALASKA}/build/AlaskaNormalize.so" \
+		--alaska-norm                                \
+		-enable-new-pm=0                             \
+		"${TMPFILE}" -o "${TMPFILE}" 
 
-inputs = []
-collect_clang_args = []
+	file $TMPFILE
 
-waiting_for_outfile = False
+	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 
-for arg in args:
-    if arg in ['-B', '--baseline']:
-        continue
+	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
+	AA=""
+	LOOPS=""
 
-    if arg in ['-k', '--keep-ir']:
-        continue
+	# opt $AA $LOOPS -licm "${TMPFILE}" -o "${TMPFILE}"
 
-    if waiting_for_outfile:
-        waiting_for_outfile = False
-        outfile = arg
-        continue
+	opt -load "${ALASKA}/build/Alaska.so" \
+		-domtree                           \
+		-gvn                                \
+		$AA                                 \
+		--alaska                            \
+		-enable-new-pm=0                    \
+		"${TMPFILE}" -o "${TMPFILE}" 
+	
+	file $TMPFILE
 
-    if arg in ['-o', '--outfile']:
-        waiting_for_outfile = True
-        continue
-
-    if any(map(arg.endswith, ['.c', '.cpp', '.bc', '.o'])):
-        inputs.append(arg)
-        continue
-    
-    collect_clang_args.append(arg)
-    continue
-
-def shell(command):
-    print('[ALASKA] ' + command)
-    if subprocess.call(command, shell = True) != 0:
-        exit(-1)
+	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE}.bc -o ${OUTFILE}.out.ll
 
 
-alaska_link = f'-Wl,-rpath="{alaska_root}/build/lib" "{alaska_root}/build/lib/libalaska.so"'
-
-if outfile is None:
-    if '-c' in collect_clang_args:
-        if len(inputs) != 1:
-            print('cannot handle `-c` w/ multiple inputs')
-            exit(-1)
-        i = inputs[0].split('.')
-        i[-1] = 'o'
-        i = '.'.join(i)
-        outfile = i
-    else:
-        outfile = 'a.out'
-
-# if the user compiles using `CC=alaska make`,
-# this is used to bypass the pass and just link .o files
-# into an output file
-link_stage = all([i.endswith('.o') for i in inputs])
-if link_stage and any([not i.endswith('.o') for i in inputs]):
-    print('unable to semi-link')
-    exit(-1)
-
-if link_stage:
-    shell(f'clang++ {alaska_link} {" ".join(args)}' )
-    exit()
-
-# print(f'inputs: {inputs}')
-# print(f'args:   {collect_clang_args}')
-
-def compile_intermediate(infile):
-    bitcode = infile + '.tmp.bc'
-    compiler = 'clang'
-    if infile.endswith('.cpp'):
-        compiler = 'clang++'
-    if infile.endswith('.bc'):
-        compiler = 'clang++'
-
-    command = [compiler, '-c', *collect_clang_args, '-emit-llvm', '-D__ACC_', infile, '-o', bitcode]
-    print(command)
-    shell(' '.join(command))
-    return bitcode
+	clang -lm -ldl -O3 -g -lpthread ${TMPFILE} -o $OUTFILE
+fi
 
 
-intermediate_bitcodes = [compile_intermediate(i) for i in inputs]
+exit
 
-tmpout = outfile + '.tmp.bc'
-shell(' '.join(['llvm-link', '-o', tmpout, *intermediate_bitcodes]))
 
-# run some passes to clean stuff up
-shell(f'opt -mem2reg {tmpout} -o {tmpout} >/dev/null')
-# subprocess.call(f'opt -mem2reg {tmpout} -o {tmpout} >/dev/null', shell=True)
 
-shell(f'opt -load "{alaska_root}/build/AlaskaNormalize.so" "-AlaskaNorm" "{tmpout}" -o "{tmpout}"')
-shell(f'opt -load "{alaska_root}/build/Alaska.so" "-Alaska" "{tmpout}" -o "{tmpout}"')
+TMPFILE="${OUTFILE}.tmp.bc"
+llvm-link -o $TMPFILE ${INTERMEDIATE_BITCODES[@]}
 
-linkflags = ''
+# delete the temp files
+rm ${INTERMEDIATE_BITCODES[@]}
 
-shell(f'clang++ -fno-exceptions -ldl -O3 -g -lpthread "{tmpout}" {alaska_link} -o {outfile} {" ".join(collect_clang_args)}')
+LIB=lib/libalaska.so
 
-shell(f'rm {tmpout} {" ".join(intermediate_bitcodes)}')
+
+LINKFLAGS=-Wno-unused-command-line-argument
+# LINKFLAGS+=" -Xlinker --wrap=malloc"
+# LINKFLAGS+=" -Xlinker --wrap=calloc"
+# LINKFLAGS+=" -Xlinker --wrap=free"
+
+if [ "${BASELINE}" != "" ]; then
+	clang++ ${LINKFLAGS} -ldl -O3 -g -lpthread "${TMPFILE}" "${ALASKA}/build/$LIB" -o $BASELINE $COLLECT_CLANG_ARGS
+fi
+
+
+	
+
+# -time-passes                        \
+
+
+clang++ ${LINKFLAGS} -fno-exceptions -ldl -O3 -g3 -g -lpthread "${TMPFILE}"  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -o $OUTFILE $COLLECT_CLANG_ARGS
+
+[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
+
+rm "${TMPFILE}" # "${INPUT}.ALASKA.bc"
+
+
 

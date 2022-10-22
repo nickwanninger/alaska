@@ -115,7 +115,7 @@ opt -load "${ALASKA}/build/AlaskaNormalize.so" \
 	"${TMPFILE}" -o "${TMPFILE}" 
 AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 
-LOOPS="-loops -loop-simplify -lcssa -domtree -postdomtree -scalar-evolution"
+LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 
 
 opt $AA $LOOPS -licm "${TMPFILE}" -o "${TMPFILE}"
