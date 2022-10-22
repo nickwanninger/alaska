@@ -8,6 +8,16 @@ struct node {
   int val;
 };
 
+int sum(struct node *root) {
+  int sum = 0;
+  struct node *cur = root;
+  while (cur != NULL) {
+    sum += cur->val;
+    cur = cur->next;
+  }
+	return sum;
+}
+
 int main(int argc, char **argv) {
   // Allocate then free a linked list
   int count = 10;
@@ -21,14 +31,7 @@ int main(int argc, char **argv) {
     root = n;
   }
 
-  int sum = 0;
-  struct node *cur = root;
-  while (cur != NULL) {
-    sum += cur->val;
-    cur = cur->next;
-  }
-
-  printf("sum=%d\n", sum);
+  printf("sum=%d\n", sum(root));
 
   return 0;
 }
