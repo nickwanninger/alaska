@@ -10,7 +10,7 @@ src/compiler_passes/noelle
 /dep
 /compile_commands.json
 
-noelle/
+/dep/noelle/
 .noelle_marker
 
 .virgil_marker
