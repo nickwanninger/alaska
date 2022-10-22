@@ -16,25 +16,6 @@ void dump_uses(llvm::Value *val, int depth = 0) {
 }
 
 
-llvm::Value *insert_translate_call_before(llvm::Instruction *inst, llvm::Value *val) {
-  llvm::LLVMContext &ctx = inst->getContext();
-  auto *M = inst->getParent()->getParent()->getParent();
-  auto voidPtrType = llvm::PointerType::get(ctx, 0);
-  auto translateFunctionType = llvm::FunctionType::get(voidPtrType, {voidPtrType}, false);
-  auto translateFunction = M->getOrInsertFunction("alaska_pin", translateFunctionType).getCallee();
-
-  llvm::IRBuilder<> b(inst);
-  auto ptr = b.CreatePointerCast(val, voidPtrType);
-  auto translatedVoidPtr = b.CreateCall(translateFunctionType, translateFunction, {ptr});
-  auto translated = b.CreatePointerCast(translatedVoidPtr, val->getType());
-  return translated;
-}
-
-llvm::Value *insert_translate_call_after(llvm::Instruction *inst, llvm::Value *val) {
-  return insert_translate_call_before(inst->getNextNode(), val);
-}
-
-
 struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
   alaska::Node &node;
   NodeConstructionVisitor(alaska::Node &node) : node(node) {}
