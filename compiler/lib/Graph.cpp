@@ -213,26 +213,6 @@ std::unordered_set<alaska::Node *> alaska::PinGraph::get_all_nodes(void) const {
 
 void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
   auto nodes = get_nodes();
-  for (auto *node : nodes) {
-    switch (node->type) {
-      case alaska::Source:
-        alaska::println("Source ", *node->value);
-        break;
-      case alaska::Sink:
-        alaska::println("Sink   ", *node->value);
-        break;
-      case alaska::Transient:
-        alaska::println("Transient ", *node->value);
-        break;
-    }
-    for (auto o : node->get_in_nodes()) {
-      alaska::println("   in:", *o->value);
-    }
-    for (auto o : node->get_out_nodes()) {
-      alaska::println("  out:", *o->value);
-    }
-    alaska::println();
-  }
 
   alaska::println("digraph {");
   alaska::println("  label=", m_func.getName(), ";");

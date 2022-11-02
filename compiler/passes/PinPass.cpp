@@ -13,6 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "noelle/core/MetadataManager.hpp"
 
@@ -36,6 +37,9 @@ namespace {
       }
 
       mdm.addMetadata("alaska", "did run");
+
+
+
       LLVMContext &ctx = M.getContext();
       int64Type = Type::getInt64Ty(ctx);
       auto ptrType = PointerType::get(ctx, 0);
@@ -45,8 +49,29 @@ namespace {
 
       auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
       auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
-      // (void)pinFunction;
-      // (void)unpinFunction;
+      (void)pinFunction;
+      (void)unpinFunction;
+
+
+
+      // Codegen the pin function
+      //
+      // extern void *alaska_pin_internal(void *handle);
+      // extern void *alaska_pin(void *handle) {
+      //     // Check if the top bit is set
+      //     if ((long)handle < 0) {
+      //         return alaska_pin_internal(handle);
+      //     }
+      //     return handle;
+      // }
+
+      // auto internalPin = M.getOrInsertFunction("__alaska_pin", pinFunctionType);
+
+
+
+      // to compute average user ratios
+      std::vector<long> source_users;
+
       for (auto &F : M) {
         if (F.empty()) continue;
         auto section = F.getSection();
@@ -56,51 +81,91 @@ namespace {
           continue;
         }
 
-        // auto *DT = &getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-        // auto *PDT = &getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
         alaska::PinGraph graph(F);
         auto nodes = graph.get_nodes();
+
+        // auto *DT = &getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
+        // auto *PDT = &getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+        // graph.dump_dot(*DT, *PDT);
+
+        for (auto node : nodes) {
+          if (node->type != alaska::Source) continue;
+
+          long users = 0;
+
+          for (auto o : nodes) {
+            if (o->type != alaska::Sink) {
+              // continue;
+            }
+            for (auto color : o->colors) {
+              if (color == node->id) users++;
+            }
+          }
+
+          source_users.push_back(users);
+        }
+
+
+#ifdef ALASKA_CONSERVATIVE
+        enum InsertionType { Pin, UnPin };
+        auto insertGuardedRTCallBefore = [&](InsertionType it, llvm::Value *handle, llvm::Instruction *inst) -> llvm::Value * {
+          // The original basic block
+          auto *headBB = inst->getParent();
+
+          llvm::IRBuilder<> b(inst);
+          auto sltInst = b.CreateICmpSLT(handle, llvm::ConstantPointerNull::get(ptrType));
+
+
+          // a pointer to the terminator of the "Then" block
+          auto pinTerminator = llvm::SplitBlockAndInsertIfThen(sltInst, inst, false);
+          auto termBB = dyn_cast<BranchInst>(pinTerminator)->getSuccessor(0);
+
+          if (it == InsertionType::Pin) {
+            b.SetInsertPoint(pinTerminator);
+            auto pinned = b.CreateCall(pinFunctionType, pinFunction, {handle});
+            // Create a PHI node between `handle` and `pinned`
+            b.SetInsertPoint(termBB->getFirstNonPHI());
+            auto phiNode = b.CreatePHI(ptrType, 2);
+
+            phiNode->addIncoming(handle, headBB);
+            phiNode->addIncoming(pinned, pinned->getParent());
+
+            return phiNode;
+          }
+          if (it == InsertionType::UnPin) {
+            b.SetInsertPoint(pinTerminator);
+            b.CreateCall(unpinFunctionType, unpinFunction, {handle});
+            return nullptr;
+          }
+
+					return NULL;
+        };
 
         for (auto node : nodes) {
           if (node->type != alaska::Sink) continue;
           auto I = dyn_cast<Instruction>(node->value);
+          llvm::Value *ptr = NULL;
 
-          llvm::IRBuilder<> b(I);
-
-					llvm::Value *ptr = NULL;
-
-          //
           if (auto *load = dyn_cast<LoadInst>(I)) {
-						ptr = load->getPointerOperand();
-						auto pinned = b.CreateCall(pinFunctionType, pinFunction, {ptr});
-						load->setOperand(0, pinned);
-						b.SetInsertPoint(I->getNextNode());
-						b.CreateCall(unpinFunctionType, unpinFunction, {ptr});
+            ptr = load->getPointerOperand();
+            auto pinned = insertGuardedRTCallBefore(InsertionType::Pin, ptr, load);
+            load->setOperand(0, pinned);
+            insertGuardedRTCallBefore(InsertionType::UnPin, ptr, I->getNextNode());
+          } else if (auto *store = dyn_cast<StoreInst>(I)) {
+            ptr = store->getPointerOperand();
+            auto pinned = insertGuardedRTCallBefore(InsertionType::Pin, ptr, store);
+            store->setOperand(1, pinned);
+            insertGuardedRTCallBefore(InsertionType::UnPin, ptr, I->getNextNode());
+            // b.CreateCall(unpinFunctionType, unpinFunction, {ptr});
           }
-
-          //
-          if (auto *store = dyn_cast<StoreInst>(I)) {
-						ptr = store->getPointerOperand();
-						auto pinned = b.CreateCall(pinFunctionType, pinFunction, {ptr});
-						store->setOperand(1, pinned);
-						b.SetInsertPoint(I->getNextNode());
-						b.CreateCall(unpinFunctionType, unpinFunction, {ptr});
-          }
-
-
         }
-
-        // for (auto node : nodes) {
-        //   if (auto I = dyn_cast<Instruction>(node->value)) {
-        //     alaska::println(*I);
-        //     if (!mdm.doesHaveMetadata(I, "alaska")) {
-        //       mdm.addMetadata(I, "alaska", "it's a handle!");
-        //     }
-        //   }
-        // }
-
-        // graph.dump_dot(*DT, *PDT);
+        // alaska::println(F);
+#endif
       }
+      long total = 0;
+      for (auto u : source_users)
+        total += u;
+      printf("average source:sink ratio: %f\n", total / (float)source_users.size());
 
       // alaska::println(M);
 
