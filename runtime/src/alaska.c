@@ -35,6 +35,11 @@
 #define WITH_ARENA(aid, h) ((h) | HANDLE_MASK | (((uint64_t)(aid)) << 48))
 
 
+// The top bit of an address indicates that it is in fact a handle
+#define HANDLE_MARKER (1LLU << 64)
+
+
+
 static alaska_arena_t *arenas[MAX_ARENAS];
 
 uint64_t now_ns() {
@@ -155,7 +160,7 @@ void *alaska_arena_alloc(size_t sz, alaska_arena_t *arena) {
   rb_insert(&arena->table, &handle->node, __insert_callback, (void *)handle);
 
 
-  log("alloc(aid=%d) %p\n", arena->id, (void *)handle->handle);
+  // log("alloc(aid=%d) %p\n", arena->id, (void *)handle->handle);
   return (void *)handle->handle;
 }
 
@@ -167,7 +172,7 @@ void *alaska_alloc(size_t sz) {
 void alaska_free(void *ptr) {
   alaska_handle_t *handle;
   alaska_arena_t *arena;
-  log("free  %p\n", ptr);
+  // log("free  %p\n", ptr);
   if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
     alaska_die("Failed to unpin!");
   }
@@ -211,11 +216,12 @@ void *alaska_pin(void *ptr) {
 
 ////////////////////////////////////////////////////////////////////////////
 void alaska_unpin(void *ptr) {
+	return;
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
     alaska_handle_t *handle;
     alaska_arena_t *arena;
-    log("unpin %p\n", ptr);
+    // log("unpin %p\n", ptr);
     if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
       alaska_die("Failed to unpin!");
     }
