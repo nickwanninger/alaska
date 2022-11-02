@@ -73,7 +73,8 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 				-DCMAKE_INSTALL_PREFIX=${PREFIX}                        \
 				-DCMAKE_BUILD_TYPE=Release                              \
 				-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
-				-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"
+				-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"                         \
+				-DLLVM_ENABLE_LLD=True
 
 			ninja install
 		popd
