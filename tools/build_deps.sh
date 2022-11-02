@@ -68,6 +68,7 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 	if [ "$(uname)" == "Linux" ]; then
 		case $(uname -m) in
 			x86_64)
+				# the RHEL version is more stable on other distributions, it seems
 				LLVM_FILE=clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz
 				;;
 			arm)
