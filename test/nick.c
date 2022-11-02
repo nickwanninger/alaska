@@ -1,24 +1,54 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-// #include "./miniz.c"
 
 struct node {
   struct node *next;
   int val;
 };
 
-int sum(struct node *root) {
-  int sum = 0;
-  struct node *cur = root;
-  while (cur != NULL) {
-    sum += cur->val;
-    cur = cur->next;
-  }
-	return sum;
+
+
+void addone(int *x) {
+	*x += 1;
 }
 
-int main() {
+// int sum_linked_list(struct node *root) {
+//   int sum = 0;
+//   struct node *cur = root;
+//   while (cur != NULL) {
+//     sum += cur->val;
+//     cur = cur->next;
+//   }
+//   return sum;
+// }
 
-  return 0;
-}
+
+
+
+// #define M 128
+// #define K 10
+// #define N 128
+//
+// void matrix_multiply(const float *A, const float *B, float *C) {
+//   int i, j, k;
+//   for (i = 0; i < M; i++) {
+//     for (j = 0; j < N; j++) {
+//       float s = 0;
+//       for (k = 0; k < K; k++) {
+//         s += A[i * K + k] * B[k * N + j];
+//       }
+//       C[i * N + j] = s;
+//     }
+//   }
+// }
+
+// int sum_array(size_t len, int *array) {
+//   int sum = 0;
+//   for (size_t i = 0; i < len; i++) {
+//     sum += array[i];
+//   }
+//   return sum;
+// }
+
+int main() { return 0; }
