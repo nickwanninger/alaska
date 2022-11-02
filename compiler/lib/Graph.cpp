@@ -221,13 +221,13 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
     const char *color = NULL;
     switch (node->type) {
       case alaska::Source:
-        color = "red";
+        color = "#aec9fc70";
         break;
       case alaska::Sink:
-        color = "blue";
+        color = "#dc5d4a70";
         break;
       case alaska::Transient:
-        color = "black";
+        color = "#dedcdb70";
         break;
     }
 
@@ -239,7 +239,8 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
     errs() << "  node" << node->id;
     errs() << "[label=\"" << *node->value << "\\n" << color_label << "\"";
     errs() << ", shape=box";
-    errs() << ", color=" << color;
+    errs() << ", style=filled";
+    errs() << ", fillcolor=\"" << color << "\"";
     errs() << "]\n";
   }
 
