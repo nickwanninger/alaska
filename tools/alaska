@@ -46,13 +46,13 @@ done
 
 
 if [ "$phase" = "compile" ]; then
-	gclang -I${ALASKA}/runtime/Include -c ${COLLECT_CLANG_ARGS[@]}
+	gclang -I${ALASKA}/runtime/include -c ${COLLECT_CLANG_ARGS[@]}
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	gclang -I${ALASKA}/runtime/Include ${COLLECT_CLANG_ARGS[@]}
-	get-bc $OUTFILE # "${OUTFILE}.bc" now exists
+	gclang -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]}
+	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
 	TMPFILE=${OUTFILE}.bc
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
@@ -61,8 +61,6 @@ else
 		--alaska-norm                                \
 		-enable-new-pm=0                             \
 		"${TMPFILE}" -o "${TMPFILE}" 
-
-	file $TMPFILE
 
 	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
@@ -98,12 +96,11 @@ else
 		-instcombine \
 		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
 	
-	file $TMPFILE
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	clang  -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -lm -ldl -O3 -g -lpthread ${TMPFILE} -o $OUTFILE
+	clang -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -lm -ldl -O3 -g -lpthread ${TMPFILE} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
