@@ -9,9 +9,9 @@ struct node {
 
 
 
-void addone(int *x) {
-	*x += 1;
-}
+// void addone(int *x) {
+// 	*x += 1;
+// }
 
 // int sum_linked_list(struct node *root) {
 //   int sum = 0;
