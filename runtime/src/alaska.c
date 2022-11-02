@@ -52,12 +52,8 @@ uint64_t now_ns() {
 }
 
 
-void *__wrap_malloc(size_t size) {
-  return alaska_alloc(size);
-}
-void __wrap_free(void *ptr) {
-  return alaska_free(ptr);
-}
+void *__wrap_malloc(size_t size) { return alaska_alloc(size); }
+void __wrap_free(void *ptr) { return alaska_free(ptr); }
 
 static void dump_arenas() {
   log("-------------------- ARENAS --------------------\n");
@@ -165,9 +161,7 @@ void *alaska_arena_alloc(size_t sz, alaska_arena_t *arena) {
 }
 
 
-void *alaska_alloc(size_t sz) {
-  return alaska_arena_alloc(sz, arenas[0]);
-}
+void *alaska_alloc(size_t sz) { return alaska_arena_alloc(sz, arenas[0]); }
 
 void alaska_free(void *ptr) {
   alaska_handle_t *handle;
@@ -191,53 +185,41 @@ void alaska_free(void *ptr) {
 
 ////////////////////////////////////////////////////////////////////////////
 void *alaska_pin(void *ptr) {
-  dyncall_count++;
   log("  pin %p\n", ptr);
-  uint64_t h = (uint64_t)ptr;
-  if ((h & HANDLE_MASK) != 0) {
-    alaska_handle_t *handle;
-    alaska_arena_t *arena;
-    if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
-      dump_arenas();
-      alaska_die("Failed to pin!");
-      return NULL;
-    }
-    arena->pinned(arena, handle);
-    handle->pin_depth++;
-    pin_count++;
-
-		off_t offset = (off_t)ptr - (off_t)handle->handle;
-
-    return (void *)((off_t)handle->backing_memory + offset);
+  alaska_handle_t *handle;
+  alaska_arena_t *arena;
+  if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+    dump_arenas();
+    alaska_die("Failed to pin!");
+    return NULL;
   }
-  return ptr;
+  arena->pinned(arena, handle);
+  handle->pin_depth++;
+  pin_count++;
+  // Compute the offset into the backing memory
+  off_t offset = (off_t)ptr - (off_t)handle->handle;
+  return (void *)((off_t)handle->backing_memory + offset);
 }
 
 
 ////////////////////////////////////////////////////////////////////////////
 void alaska_unpin(void *ptr) {
-	return;
-  uint64_t h = (uint64_t)ptr;
-  if ((h & HANDLE_MASK) != 0) {
-    alaska_handle_t *handle;
-    alaska_arena_t *arena;
-    // log("unpin %p\n", ptr);
-    if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
-      alaska_die("Failed to unpin!");
-    }
-
-    --handle->pin_depth;
-    arena->unpinned(arena, handle);
-    unpin_count++;
-    // dump_arenas();
+  // This function *requires* that the input is a handle. Otherwise the program will crash
+  alaska_handle_t *handle;
+  alaska_arena_t *arena;
+  log("unpin %p\n", ptr);
+  if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
+    alaska_die("Failed to unpin!");
   }
+
+  --handle->pin_depth;
+  arena->unpinned(arena, handle);
+  unpin_count++;
 }
 
 
 ////////////////////////////////////////////////////////////////////////////
-void alaska_barrier(void) {
-  log("--- barrier ---\n");
-}
+void alaska_barrier(void) { log("--- barrier ---\n"); }
 
 
 
