@@ -65,10 +65,10 @@ fi
 if [ ! -f "${PREFIX}/bin/clang" ]; then
 
 
-	if [ "$(uname)" -eq "Linux" ]; then
+	if [ "$(uname)" == "Linux" ]; then
 		case $(uname -m) in
 			x86_64)
-				LLVM_FILE=clang+llvm-15.0.2-x86_64-unknown-linux-gnu-sles15.tar.xz
+				LLVM_FILE=clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz
 				;;
 			arm)
 				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
