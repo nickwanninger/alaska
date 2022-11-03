@@ -8,6 +8,7 @@ include_directories(
 set(SRC_FILES
 	src/rbtree.c
 	src/alaska.c
+	src/translate.c
 )
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
