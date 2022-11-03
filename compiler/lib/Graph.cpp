@@ -98,6 +98,7 @@ std::unordered_set<alaska::Node *> alaska::Node::get_dominated(llvm::DominatorTr
 }
 
 
+
 std::unordered_set<alaska::Node *> alaska::Node::get_dominators(llvm::DominatorTree &DT) const {
   std::unordered_set<alaska::Node *> dominators;
   for (const Use *use : this->in) {
@@ -109,6 +110,21 @@ std::unordered_set<alaska::Node *> alaska::Node::get_dominators(llvm::DominatorT
   }
   return dominators;
 }
+
+
+std::unordered_set<alaska::Node *> alaska::Node::get_postdominated(llvm::PostDominatorTree &PDT) const {
+  std::unordered_set<alaska::Node *> dominators;
+  for (const Use *use : this->in) {
+    auto &v = graph.get_node(use->get());
+    auto I = dyn_cast<Instruction>(value);
+    auto I2 = dyn_cast<Instruction>(use->get());
+    if (I && I2 && PDT.dominates(I, I2)) {
+      dominators.insert(&v);
+    }
+  }
+  return dominators;
+}
+
 
 
 
@@ -215,9 +231,14 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
   auto nodes = get_nodes();
 
   alaska::println("digraph {");
-  alaska::println("  label=", m_func.getName(), ";");
+  alaska::println("  label=\"", m_func.getName(), "\";");
+	alaska::println("  compound=true;");
+	alaska::println("  start=1;");
 
-  for (auto *node : nodes) {
+
+  std::map<llvm::BasicBlock *, std::set<alaska::Node *>> bb_nodes;
+
+  auto emitNodeDef = [&](alaska::Node *node, const char *indent = "") {
     const char *color = NULL;
     switch (node->type) {
       case alaska::Source:
@@ -236,33 +257,57 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
       color_label += " ";
       color_label += std::to_string(color);
     }
-    errs() << "  node" << node->id;
-    errs() << "[label=\"" << *node->value << "\\n" << color_label << "\"";
+    errs() << indent << "  n" << node->id << " [label=\"";
+    node->value->printAsOperand(errs(), false);
+    // errs() << *node->value;
+    errs() << "\\n" << color_label << "\"";
     errs() << ", shape=box";
     errs() << ", style=filled";
     errs() << ", fillcolor=\"" << color << "\"";
-    errs() << "]\n";
-  }
+    errs() << "];\n";
+  };
 
-  alaska::println();
-  alaska::println("  // flows:");
-  for (auto *node : nodes) {
+  auto emitNodeEdges = [&](alaska::Node *node, const char *indent = "") {
+
     for (Use *use : node->out) {
       auto &v = node->graph.get_node_including_sinks(use->getUser());
-      alaska::println("  node", node->id, " -> node", v.id, "[color=black,style=dashed];");
+      alaska::println(indent, "  n", node->id, " -> n", v.id, "[color=black,style=dashed];");
     }
-  }
-
-
-  alaska::println();
-  alaska::println("  // dominators:");
-  for (auto *node : nodes) {
     for (auto *dominated : node->get_dominated(DT)) {
-      alaska::println("  node", node->id, " -> node", dominated->id, "[color=red];");
+      alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=red];");
     }
-    // for (auto *dominated : node->get_dominators(DT)) {
-    //   alaska::println("  node", dominated->id, " -> node", node->id, "[color=green];");
-    // }
+    for (auto *dominated : node->get_postdominated(PDT)) {
+      alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=blue];");
+    }
+	};
+
+
+  for (auto *node : nodes) {
+    if (auto I = dyn_cast<Instruction>(node->value)) {
+      bb_nodes[I->getParent()].insert(node);
+    } else {
+    	emitNodeDef(node);
+    	emitNodeEdges(node);
+		}
   }
-  alaska::println("}");
+  
+  for (auto &[bb, block_nodes] : bb_nodes) {
+    errs() << "  subgraph \"cluster_";
+    bb->printAsOperand(errs(), false);
+    errs() << "\" {\n";
+		errs() << "    style=filled;\n";
+		errs() << "    bgcolor=\"#eff0f7\";\n";
+		errs() << "    label=\"block ";
+    bb->printAsOperand(errs(), false);
+    errs() << "\";\n";
+
+    for (auto *node : block_nodes) {
+    	emitNodeDef(node, "  ");
+			emitNodeEdges(node, "  ");
+    }
+
+    errs() << "  }\n";
+  }
+
+  alaska::println("}\n\n\n");
 }

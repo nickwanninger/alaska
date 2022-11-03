@@ -62,6 +62,9 @@ namespace alaska {
     // get the nodes which this node is dominated by (in edges that dominates this)
     std::unordered_set<Node *> get_dominators(llvm::DominatorTree &DT) const;
 
+    // get the nodes which this node postdominates
+    std::unordered_set<Node *> get_postdominated(llvm::PostDominatorTree &PDT) const;
+
    protected:
     friend class PinGraph;
 

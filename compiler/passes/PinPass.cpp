@@ -55,9 +55,9 @@ namespace {
         alaska::PinGraph graph(F);
         auto nodes = graph.get_nodes();
 
-        auto *DT = &getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-        auto *PDT = &getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
-        graph.dump_dot(*DT, *PDT);
+				llvm::DominatorTree DT(F);
+				llvm::PostDominatorTree PDT(F);
+        graph.dump_dot(DT, PDT);
 
 #ifdef ALASKA_CONSERVATIVE
         alaska::insertConservativePins(graph);
