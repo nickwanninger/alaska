@@ -76,6 +76,7 @@ else
 		--break-crit-edges \
 		-loop-simplify \
 		-lcssa \
+		-gvn \
 		-indvars \
 		--function-attrs \
 		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"

@@ -29,3 +29,8 @@ menuconfig:
 
 nicktest: alaska
 	@tools/acc test/nick.c -O3 --keep-ir -o build/nick
+
+notebook:
+	jupyter notebook .
+
+
