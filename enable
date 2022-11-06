@@ -4,13 +4,7 @@ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 
 PREFIX=$ROOT/dep/local
-mkdir -p ${PREFIX}/{bin,lib}
+# mkdir -p ${PREFIX}/{bin,lib}
 
 export PATH=$PREFIX/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
-
-# source ${ALASKA}/dep/noelle/enable
-# export PATH=${PATH}:${ALASKA}/tools
-
-# LLVM_ENABLE=${ALASKA}/dep/llvm/9.0.1/enable
-# [ -f ${LLVM_ENABLE} ] && source ${LLVM_ENABLE}
