@@ -1,48 +1,36 @@
+#include "alaska.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
 
 struct node {
   struct node *next;
   int val;
 };
 
-int sum_linked_list(struct node *root) {
+int main(int argc, char **argv) {
+	srand(0);
+	struct node *root = NULL;
+  // Allocate then free a linked list
+  int count = 100000000;
+
+  for (int i = 0; i < count; i++) {
+    struct node *n = (struct node *)malloc(sizeof(struct node));
+    n->val = i;
+    n->next = root;
+    root = n;
+  }
+
   int sum = 0;
   struct node *cur = root;
   while (cur != NULL) {
     sum += cur->val;
+    struct node *prev = cur;
     cur = cur->next;
+    free(prev);
   }
-  return sum;
+
+  printf("sum=%d\n", sum);
+
+  return 0;
 }
-
-
-
-
-// #define M 128
-// #define K 10
-// #define N 128
-//
-// void matrix_multiply(const float *A, const float *B, float *C) {
-//   int i, j, k;
-//   for (i = 0; i < M; i++) {
-//     for (j = 0; j < N; j++) {
-//       float s = 0;
-//       for (k = 0; k < K; k++) {
-//         s += A[i * K + k] * B[k * N + j];
-//       }
-//       C[i * N + j] = s;
-//     }
-//   }
-// }
-
-// int sum_array(size_t len, int *array) {
-//   int sum = 0;
-//   for (size_t i = 0; i < len; i++) {
-//     sum += array[i];
-//   }
-//   return sum;
-// }
-
-int main() { return 0; }

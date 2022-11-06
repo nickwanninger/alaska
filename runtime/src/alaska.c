@@ -182,9 +182,25 @@ void alaska_free(void *ptr) {
 
 
 
+extern uint64_t *__alaska_drill_size_64(uint64_t address, uint64_t *top_level, int allocate);
+
+
+uint64_t *pagetable = NULL;
+
+uint64_t drills = 0;
+uint64_t ns_drilling = 0;
+static inline void drill_test(void *ptr) {
+	if (pagetable == NULL) pagetable = calloc(sizeof(uint64_t), 512);
+
+	uint64_t start = now_ns();
+	__alaska_drill_size_64((uint64_t)ptr, pagetable, 1);
+	drills++;
+	ns_drilling += now_ns() - start;
+}
 
 ////////////////////////////////////////////////////////////////////////////
-void *alaska_pin(void *ptr) {
+void *alaska_guarded_pin(void *ptr) {
+  // This function *requires* that the input is a handle. Otherwise the program will crash
   log("  pin %p\n", ptr);
   alaska_handle_t *handle;
   alaska_arena_t *arena;
@@ -202,12 +218,12 @@ void *alaska_pin(void *ptr) {
 }
 
 
-////////////////////////////////////////////////////////////////////////////
-void alaska_unpin(void *ptr) {
+void alaska_guarded_unpin(void *ptr) {
   // This function *requires* that the input is a handle. Otherwise the program will crash
+  log("unpin %p\n", ptr);
+
   alaska_handle_t *handle;
   alaska_arena_t *arena;
-  log("unpin %p\n", ptr);
   if (find_arena_and_handle((uint64_t)ptr, &handle, &arena) != 0) {
     alaska_die("Failed to unpin!");
   }
@@ -215,6 +231,23 @@ void alaska_unpin(void *ptr) {
   --handle->pin_depth;
   arena->unpinned(arena, handle);
   unpin_count++;
+}
+
+void *alaska_pin(void *ptr) {
+	drill_test(ptr);
+  uint64_t h = (uint64_t)ptr;
+  if ((h & HANDLE_MASK) != 0) {
+    return alaska_guarded_pin(ptr);
+  }
+  return ptr;
+}
+
+void alaska_unpin(void *ptr) {
+	drill_test(ptr);
+  uint64_t h = (uint64_t)ptr;
+  if ((h & HANDLE_MASK) != 0) {
+    alaska_guarded_unpin(ptr);
+  }
 }
 
 
@@ -274,6 +307,9 @@ static void __attribute__((destructor)) alaska_deinit(void) {
   log("ALASKA_PINS:          %llu\n", pin_count);
   log("ALASKA_UNPINS:        %llu\n", unpin_count);
   log("ALASKA_CALLS:         %llu\n", dyncall_count);
+  log("drills: %llu\n", drills);
+  log("ns_drilling: %llu\n", ns_drilling);
+  log("avg ns drilling: %f\n", (float)ns_drilling / (float)drills);
   // printf("ALASKA_US_PINNING: %llu\n", ns_pinning / 1000);
   // printf("ALASKA_MS_PINNING: %llu\n", ns_pinning / 1000 / 1000);
 }

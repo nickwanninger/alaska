@@ -258,8 +258,8 @@ void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree
       color_label += std::to_string(color);
     }
     errs() << indent << "  n" << node->id << " [label=\"";
-    node->value->printAsOperand(errs(), false);
-    // errs() << *node->value;
+    // node->value->printAsOperand(errs(), false);
+    errs() << *node->value;
     errs() << "\\n" << color_label << "\"";
     errs() << ", shape=box";
     errs() << ", style=filled";

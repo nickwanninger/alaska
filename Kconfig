@@ -2,7 +2,16 @@ config DEBUG
 	bool "Enable debug Logging"
 	default n
 
+config DUMP_GRAPH
+	bool "Dump the 'flow graph' after it is constructed"
+	depends on DEBUG
+	default n
 
 config CONSERVATIVE
 	bool "Conservatively pin all loads and stores"
 	default n
+
+
+config INLINE_HANDLE_GUARD
+	bool "Inline the handle check before calling runtime functions"
+	default y

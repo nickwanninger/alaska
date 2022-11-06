@@ -11,6 +11,41 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+
+llvm::Value *alaska::insertRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst) {
+  using namespace llvm;
+
+  // The original basic block
+  auto *headBB = inst->getParent();
+  auto &F = *headBB->getParent();
+  auto &M = *F.getParent();
+  LLVMContext &ctx = M.getContext();
+  auto ptrType = PointerType::get(ctx, 0);
+
+  IRBuilder<> b(inst);
+
+
+  // Insert a call to `alaska_pin` and return the pinned pointer
+  if (type == InsertionType::Pin) {
+    auto pinFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+    auto pinFunction = M.getOrInsertFunction("alaska_pin", pinFunctionType).getCallee();
+    return b.CreateCall(pinFunctionType, pinFunction, {handle});
+  }
+
+  // Insert a call to `alaska_unpin`, and return nothing
+  if (type == InsertionType::UnPin) {
+    auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
+    auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
+    b.CreateCall(unpinFunctionType, unpinFunction, {handle});
+    return nullptr;
+  }
+
+  return NULL;
+}
+
+
+// Insert the call to alaska_pin or alaska_unpin, but inline the handle guard
+// as a new basic block. This improves performance quite a bit :)
 llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst) {
   using namespace llvm;
 
@@ -29,11 +64,10 @@ llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle
   auto pinTerminator = SplitBlockAndInsertIfThen(sltInst, inst, false);
   auto termBB = dyn_cast<BranchInst>(pinTerminator)->getSuccessor(0);
 
-
   // Insert a call to `alaska_pin` and return the pinned pointer
   if (type == InsertionType::Pin) {
     auto pinFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-    auto pinFunction = M.getOrInsertFunction("alaska_pin", pinFunctionType).getCallee();
+    auto pinFunction = M.getOrInsertFunction("alaska_guarded_pin", pinFunctionType).getCallee();
     b.SetInsertPoint(pinTerminator);
     auto pinned = b.CreateCall(pinFunctionType, pinFunction, {handle});
     // Create a PHI node between `handle` and `pinned`
@@ -49,7 +83,7 @@ llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle
   // Insert a call to `alaska_unpin`, and return nothing
   if (type == InsertionType::UnPin) {
     auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
-    auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
+    auto unpinFunction = M.getOrInsertFunction("alaska_guarded_unpin", unpinFunctionType).getCallee();
     b.SetInsertPoint(pinTerminator);
     b.CreateCall(unpinFunctionType, unpinFunction, {handle});
     return nullptr;
@@ -60,6 +94,15 @@ llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle
 
 
 
+static inline llvm::Value *wrapped_insert_runtime(alaska::InsertionType type, llvm::Value *handle, llvm::Instruction *inst) {
+#ifdef ALASKA_INLINE_HANDLE_GUARD
+  return insertGuardedRTCall(type, handle, inst);
+#else
+  return insertRTCall(type, handle, inst);
+#endif
+}
+
+
 void alaska::insertConservativePins(alaska::PinGraph &G) {
   // Naively insert pin/unpin around loads and stores (the sinks in the graph provided)
   auto nodes = G.get_nodes();
@@ -68,13 +111,14 @@ void alaska::insertConservativePins(alaska::PinGraph &G) {
     // only operate on sinks...
     if (node->type != alaska::Sink) continue;
     auto I = dyn_cast<Instruction>(node->value);
+
     // Insert the pin/unpin.
     // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
     if (auto *load = dyn_cast<LoadInst>(I)) {
       auto ptr = load->getPointerOperand();
       auto pinned = alaska::insertGuardedRTCall(alaska::InsertionType::Pin, ptr, I);
       load->setOperand(0, pinned);
-      alaska::insertGuardedRTCall(alaska::InsertionType::UnPin, ptr, I->getNextNode());
+      wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
       continue;
     }
 
@@ -82,7 +126,7 @@ void alaska::insertConservativePins(alaska::PinGraph &G) {
       auto ptr = store->getPointerOperand();
       auto pinned = alaska::insertGuardedRTCall(alaska::InsertionType::Pin, ptr, I);
       store->setOperand(1, pinned);
-      alaska::insertGuardedRTCall(alaska::InsertionType::UnPin, ptr, I->getNextNode());
+      wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
       continue;
     }
   }
