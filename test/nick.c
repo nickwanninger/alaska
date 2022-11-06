@@ -7,18 +7,11 @@ struct node {
   int val;
 };
 
-
-
-// void addone(int *x) {
-// 	*x += 1;
-// }
-
 int sum_linked_list(struct node *root) {
   int sum = 0;
   struct node *cur = root;
   while (cur != NULL) {
-		if (((unsigned long)cur & (0xFFFLU << 0x34)) == 0) break; 
-		sum += cur->val;
+    sum += cur->val;
     cur = cur->next;
   }
   return sum;
@@ -30,7 +23,7 @@ int sum_linked_list(struct node *root) {
 // #define M 128
 // #define K 10
 // #define N 128
-// 
+//
 // void matrix_multiply(const float *A, const float *B, float *C) {
 //   int i, j, k;
 //   for (i = 0; i < M; i++) {
