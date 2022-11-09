@@ -9,33 +9,11 @@ extern "C" {
 #endif
 
 
-typedef struct {
-  void *backing_memory; // where the data sits while pinned
-  struct rb_node node;  // the link to the rbtree
-  uint64_t handle;      // the handle of this allocation
-  uint64_t size;        // the size of this allocation
-	long pin_depth;       // ++ on pin, -- on unpin. 0 means no users.
-} alaska_handle_t;
-
-
-struct alaska_arena;
-
-
+typedef uint64_t alaska_handle_t;
 
 #define ALASKA_TLB_SIZE
 
 typedef struct alaska_arena_s {
-  // the value placed in the 0xFFnn part of the address.
-  uint16_t id;
-
-  // Allocation of handles is a bump allocator for now. We may find a better
-  // way later on based on use cases. "64 bits should be enough for everyone."
-  long next_handle;
-
-  // The red black tree which holds all the mappings.
-  // Eventually a smarter structure would be better :)
-  struct rb_root table;
-
   // The following functions are considered "hooks". Their main purpose
   // is to define the "personality" of a particular arena in the alaska
   // runtime. A personality mainly defines the resource management and
