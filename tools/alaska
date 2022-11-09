@@ -51,7 +51,7 @@ if [ "$phase" = "compile" ]; then
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	gclang -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB" -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]}
+	gclang  -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB"
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
 	TMPFILE=${OUTFILE}.bc

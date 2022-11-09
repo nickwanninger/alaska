@@ -9,10 +9,10 @@ struct node {
 };
 
 int main(int argc, char **argv) {
-	srand(0);
-	struct node *root = NULL;
+  srand(0);
+  struct node *root = NULL;
   // Allocate then free a linked list
-  int count = 1000;
+  int count = 10;
 
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)alaska_alloc(sizeof(struct node));

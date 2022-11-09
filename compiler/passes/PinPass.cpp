@@ -56,8 +56,8 @@ namespace {
         auto nodes = graph.get_nodes();
 
 #ifdef ALASKA_DUMP_GRAPH
-				llvm::DominatorTree DT(F);
-				llvm::PostDominatorTree PDT(F);
+        llvm::DominatorTree DT(F);
+        llvm::PostDominatorTree PDT(F);
         graph.dump_dot(DT, PDT);
 #endif
 
@@ -77,7 +77,7 @@ namespace {
     }
   };
 
-  static RegisterPass<AlaskaPass> X("alaska", "Alaska Pinning", false /* Only looks at CFG */, false /* Analysis Pass */);
+  static RegisterPass<AlaskaPass> X("alaska", "Alaska Pinning", false, false);
   char AlaskaPass::ID = 0;
 
 }  // namespace
