@@ -28,10 +28,23 @@ namespace alaska {
     alaska_map_entry_t *translate(alaska_handle_t handle, AllocateIntermediate allocate_intermediate);
     ~HandleTable();
 
+    // Allocate a location in the handle table, and return it.
+    alaska_map_entry_t *allocate_handle(alaska_handle_t &out_handle);
+
    private:
     size_t m_size;
     alaska_map_driller_t m_driller;  // this indirection will end up being slow. TODO: template on this
     uint64_t *m_lvl0 = nullptr;
+    off_t m_next_handle = 0;
+
+#ifdef ALASKA_ENABLE_STLB
+    struct TLBEntry {
+      uint64_t key;  // == -1 means there is not a value in the cache here.
+      alaska_map_entry_t *entry;
+    };
+
+    TLBEntry *m_tlb;
+#endif
   };
 
 

@@ -31,20 +31,10 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
   }
 
   auto &table = m_tables[bin];
-  alaska_map_entry_t *entry = NULL;
-
-  // TODO: SLOW AND BAD, FIX
   // find a place to put the value.
   alaska_handle_t handle_id;
-  for (handle_id = bin_size;; handle_id += bin_size) {
-    // printf("trying %lx\n", handle_id);
-    entry = table.translate(handle_id, AllocateIntermediate::Yes);
-    if (entry->ptr == NULL) {
-      break;
-    }
-  }
+  auto *entry = table.allocate_handle(handle_id);
   alaska_handle_t handle = ALASKA_INDICATOR | ALASKA_AID(m_id) | ALASKA_BIN(bin) | handle_id;
-  // printf("Allocate sz=%zu, bin=%d, handle=%lx\n", size, bin, handle);
 
   entry->pindepth = 0;
   entry->ptr = malloc(size);
@@ -74,7 +64,7 @@ void *alaska::Arena::pin(alaska_handle_t handle) {
     fprintf(stderr, "alaska: invalid call to `pin` with handle, %lx.\n", handle);
     abort();
   }
-  // entry->pindepth++;
+  entry->pindepth++;
 
   off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
 
@@ -91,7 +81,7 @@ void alaska::Arena::unpin(alaska_handle_t handle) {
     abort();
   }
 
-  // entry->pindepth--;
+  entry->pindepth--;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -99,13 +89,61 @@ void alaska::Arena::unpin(alaska_handle_t handle) {
 alaska::HandleTable::~HandleTable(void) {
   if (m_lvl0 != NULL) free(m_lvl0);
 }
+#define TLB_KEYSIZE 20
 
 void alaska::HandleTable::init(size_t size, alaska_map_driller_t driller) {
-  m_size = size;
+  m_next_handle = m_size = size;
   m_driller = driller;
   m_lvl0 = (uint64_t *)alaska_alloc_map_frame(m_size, sizeof(uint64_t *), 512);
+
+#ifdef ALASKA_ENABLE_STLB
+  m_tlb = (TLBEntry *)calloc(sizeof(TLBEntry), 1 << TLB_KEYSIZE);
+
+  for (int i = 0; i < TLB_KEYSIZE; i++) {
+    m_tlb->key = -1;
+    m_tlb->entry = NULL;
+  }
+#endif
 }
 
+extern long alaska_tlb_hits;
+extern long alaska_tlb_misses;
+
+#define unlikely(x) __builtin_expect((x), 0)
 alaska_map_entry_t *alaska::HandleTable::translate(alaska_handle_t handle, AllocateIntermediate allocate_intermediate) {
+#ifndef ALASKA_ENABLE_STLB
   return m_driller(handle, m_lvl0, allocate_intermediate == AllocateIntermediate::Yes);
+#else
+  int bin = ALASKA_GET_BIN(handle);
+  uint64_t key = handle >> (bin + 5);
+
+  int ind = key & ((1 << TLB_KEYSIZE) - 1);
+
+  alaska_map_entry_t *mapping = NULL;
+
+  auto &tlb_entry = m_tlb[ind];
+  if (tlb_entry.key == key) {
+    alaska_tlb_hits++;
+    mapping = tlb_entry.entry;
+  } else {
+    mapping = m_driller(handle, m_lvl0, allocate_intermediate == AllocateIntermediate::Yes);
+
+    alaska_tlb_misses++;
+    if (mapping) {
+      tlb_entry.key = key;
+      tlb_entry.entry = mapping;
+    }
+  }
+
+  return mapping;
+#endif
+}
+
+
+
+alaska_map_entry_t *alaska::HandleTable::allocate_handle(alaska_handle_t &out_handle) {
+  out_handle = m_next_handle;
+  m_next_handle += m_size;
+
+  return translate(out_handle, AllocateIntermediate::Yes);
 }

@@ -119,11 +119,17 @@ static void __attribute__((constructor)) alaska_init(void) {
   arenas[0] = new alaska::Arena(0);
 }
 
+
+long alaska_tlb_hits = 0;
+long alaska_tlb_misses = 0;
+
 static void __attribute__((destructor)) alaska_deinit(void) {
   log("=================================\n");
   log("ALASKA_PINS:          %llu\n", pin_count);
   log("ALASKA_UNPINS:        %llu\n", unpin_count);
   log("ALASKA_CALLS:         %llu\n", dyncall_count);
+  log("TLB HITS:             %llu\n", alaska_tlb_hits);
+  log("TLB MISSES:           %llu\n", alaska_tlb_misses);
 }
 
 extern "C" void *alaska_alloc_map_frame(int level, size_t entry_size, int size) {

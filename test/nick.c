@@ -9,11 +9,11 @@ struct node {
   int val;
 };
 
-#define _malloc alaska_alloc
-#define _free alaska_free
+// #define _malloc alaska_alloc
+// #define _free alaska_free
 
-// #define _malloc malloc
-// #define _free free
+#define _malloc malloc
+#define _free free
 
 static uint64_t now_ns() {
   struct timespec spec;
@@ -24,6 +24,28 @@ static uint64_t now_ns() {
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 }
 
+
+int test(struct node *root) {
+  volatile int sum = 0;
+
+  float times[100];
+  for (int i = 0; i < 100; i++) {
+    uint64_t start = now_ns();
+    struct node *cur = root;
+    while (cur != NULL) {
+      sum += cur->val;
+      cur = cur->next;
+    }
+
+    uint64_t end = now_ns();
+    times[i] = (end - start) / 1000.0;
+  }
+  for (int i = 0; i < 100; i++) {
+    printf("%f\n", times[i]);
+  }
+  return sum;
+}
+
 int main(int argc, char **argv) {
   srand(0);
   struct node *root = NULL;
@@ -32,23 +54,17 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
+
     n->next = root;
     n->val = i;
     root = n;
   }
 
-  printf("starting iteration...\n");
-  uint64_t start = now_ns();
-  int sum = 0;
+  test(root);
+
+  return 0;
+
   struct node *cur = root;
-  while (cur != NULL) {
-    sum += cur->val;
-    cur = cur->next;
-  }
-
-  uint64_t end = now_ns();
-
-
   cur = root;
   while (cur != NULL) {
     struct node *prev = cur;
@@ -57,8 +73,6 @@ int main(int argc, char **argv) {
   }
 
 
-
-  printf("sum=%d in %luus\n", sum, (end - start) / 1000);
 
   return 0;
 }

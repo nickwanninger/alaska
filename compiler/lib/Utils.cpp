@@ -116,7 +116,7 @@ void alaska::insertConservativePins(alaska::PinGraph &G) {
     // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
     if (auto *load = dyn_cast<LoadInst>(I)) {
       auto ptr = load->getPointerOperand();
-      auto pinned = alaska::insertGuardedRTCall(alaska::InsertionType::Pin, ptr, I);
+      auto pinned = wrapped_insert_runtime(alaska::InsertionType::Pin, ptr, I);
       load->setOperand(0, pinned);
       wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
       continue;
@@ -124,7 +124,7 @@ void alaska::insertConservativePins(alaska::PinGraph &G) {
 
     if (auto *store = dyn_cast<StoreInst>(I)) {
       auto ptr = store->getPointerOperand();
-      auto pinned = alaska::insertGuardedRTCall(alaska::InsertionType::Pin, ptr, I);
+      auto pinned = wrapped_insert_runtime(alaska::InsertionType::Pin, ptr, I);
       store->setOperand(1, pinned);
       wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
       continue;

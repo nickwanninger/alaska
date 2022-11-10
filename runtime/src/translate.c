@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <alaska/translation_types.h>
-
-
 #define unlikely(x) __builtin_expect((x), 0)
 
 // FAAASSSSS_____________000000000111111111222222222333333333......
@@ -175,8 +173,6 @@ alaska_map_entry_t *alaska_map_drill_4096(uint64_t address, uint64_t *lvl0, int 
   uint64_t ind1 = (address >> 30) & 0b111111111;  // index into uint64_t
   uint64_t ind2 = (address >> 21) & 0b111111111;  // index into uint64_t
   uint64_t ind3 = (address >> 12) & 0b111111111;  // index into alaska_map_entry_t
-
-  // printf("translate %p: %4d %4d %4d %4d\n", address, ind0, ind1, ind2, ind3);
   uint64_t *lvl1 = (uint64_t *)lvl0[ind0];
   if (unlikely(lvl1 == NULL)) {  // slow: allocation
     if (allocate == 0) return NULL;

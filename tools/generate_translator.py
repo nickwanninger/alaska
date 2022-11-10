@@ -4,7 +4,7 @@
 # This script is set to test translation bins and whatnot
 
 handle_bits = 64 # total number of bits in the address
-max_levels = 4
+max_levels = 3
 bits_per_level = 9
 size_bits = 5
 arena_bits = 3
