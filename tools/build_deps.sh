@@ -65,6 +65,8 @@ fi
 if [ ! -f "${PREFIX}/bin/clang" ]; then
 
 
+	LLVM_FILE=""
+
 	if [ "$(uname)" == "Linux" ]; then
 		case $(uname -m) in
 			x86_64)
@@ -78,10 +80,24 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
 				;;
 		esac
+	fi
+
+
+	if [ "$(uname)" == "Darwin" ]; then
+		case $(uname -m) in
+			arm64)
+				LLVM_FILE=clang+llvm-15.0.2-arm64-apple-darwin21.0.tar.xz
+				;;
+		esac
+	fi
+
+	if [ "${LLVM_FILE}" != "" ]; then
+
 		if [ ! -f llvm.tar.xz ]; then
 			wget -O llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/$LLVM_FILE
 		fi
 		tar xvf llvm.tar.xz --strip-components=1 -C local/
+
 	else
 		echo "We have to compile LLVM from source on your platform..."
 		if [ ! -f llvm.tar.xz ]; then
