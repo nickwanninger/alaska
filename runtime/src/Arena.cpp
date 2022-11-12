@@ -38,10 +38,17 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
 
   entry->pindepth = 0;
   entry->ptr = malloc(size);
+
+  if (bin_size == 64) {
+    handle = ALASKA_INDICATOR | ALASKA_AID(m_id) | ALASKA_BIN(bin) | ((unsigned long)entry << 6);
+    // printf("Handle %p, entry %p\n", handle, entry);
+  }
+
   return handle;
 }
 
 void alaska::Arena::free(alaska_handle_t handle) {
+  return;
   int bin = ALASKA_GET_BIN(handle);
   // printf("Free %lx, bin=%d\n", handle, bin);
   auto *entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
@@ -59,11 +66,26 @@ void alaska::Arena::free(alaska_handle_t handle) {
 
 void *alaska::Arena::pin(alaska_handle_t handle) {
   int bin = ALASKA_GET_BIN(handle);
-  auto *entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
+
+  alaska_map_entry_t *entry;
+
+  if (bin == 0) {
+    // printf("a: %p\n", handle);
+    alaska_handle_t th = handle << 9;
+    // printf("b: %p\n", th);
+    th >>= (9 + 6);
+    // printf("c: %p <- entry\n", th);
+    // printf("r: %p\n", entry = (alaska_map_entry_t *)((handle & ~(0b111111111LU << 55)) >> 6));
+    entry = (alaska_map_entry_t *)th;
+  } else {
+    entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
+  }
+
   if (entry == NULL) {
     fprintf(stderr, "alaska: invalid call to `pin` with handle, %lx.\n", handle);
     abort();
   }
+
   entry->pindepth++;
 
   off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
@@ -74,6 +96,7 @@ void *alaska::Arena::pin(alaska_handle_t handle) {
 }
 
 void alaska::Arena::unpin(alaska_handle_t handle) {
+  return;
   int bin = ALASKA_GET_BIN(handle);
   auto *entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
   if (entry == NULL) {
@@ -89,7 +112,7 @@ void alaska::Arena::unpin(alaska_handle_t handle) {
 alaska::HandleTable::~HandleTable(void) {
   if (m_lvl0 != NULL) free(m_lvl0);
 }
-#define TLB_KEYSIZE 20
+#define TLB_KEYSIZE 9
 
 void alaska::HandleTable::init(size_t size, alaska_map_driller_t driller) {
   m_next_handle = m_size = size;

@@ -9,11 +9,6 @@ struct node {
   int val;
 };
 
-// #define _malloc alaska_alloc
-// #define _free alaska_free
-
-#define _malloc malloc
-#define _free free
 
 static uint64_t now_ns() {
   struct timespec spec;
@@ -25,11 +20,12 @@ static uint64_t now_ns() {
 }
 
 
+#define TRIALS 100
 int test(struct node *root) {
   volatile int sum = 0;
 
-  float times[100];
-  for (int i = 0; i < 100; i++) {
+  float times[TRIALS];
+  for (int i = 0; i < TRIALS; i++) {
     uint64_t start = now_ns();
     struct node *cur = root;
     while (cur != NULL) {
@@ -40,16 +36,28 @@ int test(struct node *root) {
     uint64_t end = now_ns();
     times[i] = (end - start) / 1000.0;
   }
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < TRIALS; i++) {
     printf("%f\n", times[i]);
   }
   return sum;
 }
 
 int main(int argc, char **argv) {
+  void *(*_malloc)(size_t);
+  void (*_free)(void *);
+
+  if (argc == 2 && !strcmp(argv[1], "baseline")) {
+    _malloc = malloc;
+    _free = free;
+  } else {
+    _malloc = alaska_alloc;
+    _free = alaska_free;
+  }
+
   srand(0);
   struct node *root = NULL;
   // Allocate then free a linked list
+  // int count = 100000;
   int count = 100000;
 
   for (int i = 0; i < count; i++) {

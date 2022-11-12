@@ -69,11 +69,19 @@ extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t
 
 
 ////////////////////////////////////////////////////////////////////////////
-extern "C" void *alaska_guarded_pin(void *handle) {
+extern "C" void *alaska_guarded_pin(void *vhandle) {
   // This function *requires* that the input is a handle. Otherwise the program will crash
-  auto ptr = arenas[0]->pin((alaska_handle_t)handle);
-  // log("  pin %p\n", handle);
-  return ptr;
+  alaska_handle_t handle = (alaska_handle_t)vhandle;
+  int bin = ALASKA_GET_BIN(handle);
+  if (bin == 0) {
+    alaska_map_entry_t *entry;
+    alaska_handle_t th = (handle << 9) >> (9 + 6);
+    entry = (alaska_map_entry_t *)th;
+    off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
+    void *pin = (void *)((off_t)entry->ptr + offset);
+    return pin;
+  }
+  return arenas[0]->pin(handle);
 }
 
 
