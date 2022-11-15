@@ -15,6 +15,6 @@ set(SRC_FILES
 )
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
-add_library(alaska SHARED ${SRC_FILES})
+add_library(alaska STATIC ${SRC_FILES})
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE CXX)
 install(TARGETS alaska RUNTIME)
