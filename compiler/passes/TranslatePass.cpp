@@ -77,7 +77,7 @@ namespace {
     }
   };
 
-  static RegisterPass<AlaskaPass> X("alaska", "Alaska Pinning", false, false);
+  static RegisterPass<AlaskaPass> X("alaska", "Alaska Translation", false, false);
   char AlaskaPass::ID = 0;
 
 }  // namespace

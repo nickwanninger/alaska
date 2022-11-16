@@ -14,7 +14,7 @@ add_library(AlaskaCompilerLibrary OBJECT
 )
 
 add_llvm_library(Alaska MODULE
-	passes/PinPass.cpp
+	passes/TranslatePass.cpp
 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
 
 	PLUGIN_TOOL
