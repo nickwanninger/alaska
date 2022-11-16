@@ -35,7 +35,7 @@ using namespace llvm;
 
 namespace alaska {
 
-  class PinGraph;
+  class PointerFlowGraph;
 
   enum NodeType {
     Source,     // Malloc, Realloc, etc..
@@ -47,12 +47,12 @@ namespace alaska {
     int id;
     // The value at this node. Typically an Instruction, but Arguments also occupy a Node
     NodeType type;
-    PinGraph &graph;
+    PointerFlowGraph &graph;
     llvm::Value *value = NULL;
     llvm::Value *pinned_value = NULL;  // HACK: abstraction leakage
     std::unordered_set<int> colors;
 
-    Node(PinGraph &graph, llvm::Value *value);
+    Node(PointerFlowGraph &graph, llvm::Value *value);
     void add_in_edge(llvm::Use *);
 
     std::unordered_set<Node *> get_in_nodes(void) const;
@@ -66,7 +66,7 @@ namespace alaska {
     std::unordered_set<Node *> get_postdominated(llvm::PostDominatorTree &PDT) const;
 
    protected:
-    friend class PinGraph;
+    friend class PointerFlowGraph;
 
     // edges to other nodes
     std::unordered_set<llvm::Use *> in;
@@ -74,9 +74,9 @@ namespace alaska {
     void populate_edges(void);
   };
 
-  class PinGraph {
+  class PointerFlowGraph {
    public:
-    PinGraph(llvm::Function &func);
+    PointerFlowGraph(llvm::Function &func);
     auto &func(void) { return m_func; }
 
     // get just the nodes that we care about (skip alloca and globals)

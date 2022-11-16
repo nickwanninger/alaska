@@ -46,12 +46,6 @@ void alaska_die(const char *msg) {
   abort();
 }
 
-static uint64_t pin_count = 0;
-static uint64_t unpin_count = 0;
-static uint64_t dyncall_count = 0;
-
-
-
 extern "C" void *alaska_alloc(size_t sz) { return (void *)arenas[0]->allocate(sz); }
 
 extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t)ptr); }
@@ -59,42 +53,37 @@ extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t
 extern "C" void alaska_do_nothing() {}
 
 ////////////////////////////////////////////////////////////////////////////
-extern "C" __attribute__((always_inline)) void *alaska_guarded_pin(void *vhandle) {
+extern "C" __attribute__((always_inline)) void *alaska_guarded_get(void *vhandle) {
   alaska_handle_t handle = (alaska_handle_t)vhandle;
   int bin = ALASKA_GET_BIN(handle);
   alaska_map_entry_t *entry;
   alaska_handle_t th = (handle << 9) >> (9 + 6);
   entry = (alaska_map_entry_t *)th;
   off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
-  void *pin = (void *)((off_t)entry->ptr + offset);
-  return pin;
-  // return arenas[0]->pin((alaska_handle_t)vhandle);
+  void *addr = (void *)((off_t)entry->ptr + offset);
+  return addr;
 }
 
 
-extern "C" void alaska_guarded_unpin(void *ptr) {
+extern "C" void alaska_guarded_put(void *ptr) {
   // This function *requires* that the input is a handle. Otherwise the program will crash
-  // log("unpin %p\n", ptr);
+  // log("put %p\n", ptr);
   // alaska_die("Unimplemented function");
-  // arenas[0]->unpin((alaska_handle_t)ptr);
+  // arenas[0]->put((alaska_handle_t)ptr);
 }
 
-extern "C" void *alaska_pin(void *ptr) {
+extern "C" void *alaska_get(void *ptr) {
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
-    return alaska_guarded_pin(ptr);
-  } else {
-    dyncall_count++;
+    return alaska_guarded_get(ptr);
   }
   return ptr;
 }
 
-void alaska_unpin(void *ptr) {
+void alaska_put(void *ptr) {
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
-    alaska_guarded_unpin(ptr);
-  } else {
-    dyncall_count++;
+    alaska_guarded_put(ptr);
   }
 }
 
@@ -119,12 +108,6 @@ long alaska_tlb_hits = 0;
 long alaska_tlb_misses = 0;
 
 static void __attribute__((destructor)) alaska_deinit(void) {
-  log("=================================\n");
-  log("ALASKA_PINS:          %lu\n", pin_count);
-  log("ALASKA_UNPINS:        %lu\n", unpin_count);
-  log("ALASKA_CALLS:         %lu\n", dyncall_count);
-  log("TLB HITS:             %lu\n", alaska_tlb_hits);
-  log("TLB MISSES:           %lu\n", alaska_tlb_misses);
 }
 
 extern "C" void *alaska_alloc_map_frame(int level, size_t entry_size, int size) {

@@ -24,19 +24,18 @@ llvm::Value *alaska::insertRTCall(InsertionType type, llvm::Value *handle, llvm:
 
   IRBuilder<> b(inst);
 
-
-  // Insert a call to `alaska_pin` and return the pinned pointer
-  if (type == InsertionType::Pin) {
-    auto pinFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-    auto pinFunction = M.getOrInsertFunction("alaska_pin", pinFunctionType).getCallee();
-    return b.CreateCall(pinFunctionType, pinFunction, {handle});
+  // Insert a call to `alaska_get` and return the getned pointer
+  if (type == InsertionType::Get) {
+    auto getFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+    auto getFunction = M.getOrInsertFunction("alaska_get", getFunctionType).getCallee();
+    return b.CreateCall(getFunctionType, getFunction, {handle});
   }
 
-  // Insert a call to `alaska_unpin`, and return nothing
-  if (type == InsertionType::UnPin) {
-    auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
-    auto unpinFunction = M.getOrInsertFunction("alaska_unpin", unpinFunctionType).getCallee();
-    b.CreateCall(unpinFunctionType, unpinFunction, {handle});
+  // Insert a call to `alaska_put`, and return nothing
+  if (type == InsertionType::Put) {
+    auto putFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
+    auto putFunction = M.getOrInsertFunction("alaska_put", putFunctionType).getCallee();
+    b.CreateCall(putFunctionType, putFunction, {handle});
     return nullptr;
   }
 
@@ -44,7 +43,7 @@ llvm::Value *alaska::insertRTCall(InsertionType type, llvm::Value *handle, llvm:
 }
 
 
-// Insert the call to alaska_pin or alaska_unpin, but inline the handle guard
+// Insert the call to alaska_get or alaska_put, but inline the handle guard
 // as a new basic block. This improves performance quite a bit :)
 llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst) {
   using namespace llvm;
@@ -61,31 +60,31 @@ llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle
 
 
   // a pointer to the terminator of the "Then" block
-  auto pinTerminator = SplitBlockAndInsertIfThen(sltInst, inst, false);
-  auto termBB = dyn_cast<BranchInst>(pinTerminator)->getSuccessor(0);
+  auto getTerminator = SplitBlockAndInsertIfThen(sltInst, inst, false);
+  auto termBB = dyn_cast<BranchInst>(getTerminator)->getSuccessor(0);
 
-  // Insert a call to `alaska_pin` and return the pinned pointer
-  if (type == InsertionType::Pin) {
-    auto pinFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-    auto pinFunction = M.getOrInsertFunction("alaska_guarded_pin", pinFunctionType).getCallee();
-    b.SetInsertPoint(pinTerminator);
-    auto pinned = b.CreateCall(pinFunctionType, pinFunction, {handle});
-    // Create a PHI node between `handle` and `pinned`
+  // Insert a call to `alaska_get` and return the getned pointer
+  if (type == InsertionType::Get) {
+    auto getFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+    auto getFunction = M.getOrInsertFunction("alaska_guarded_get", getFunctionType).getCallee();
+    b.SetInsertPoint(getTerminator);
+    auto getned = b.CreateCall(getFunctionType, getFunction, {handle});
+    // Create a PHI node between `handle` and `getned`
     b.SetInsertPoint(termBB->getFirstNonPHI());
     auto phiNode = b.CreatePHI(ptrType, 2);
 
     phiNode->addIncoming(handle, headBB);
-    phiNode->addIncoming(pinned, pinned->getParent());
+    phiNode->addIncoming(getned, getned->getParent());
 
     return phiNode;
   }
 
-  // Insert a call to `alaska_unpin`, and return nothing
-  if (type == InsertionType::UnPin) {
-    auto unpinFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
-    auto unpinFunction = M.getOrInsertFunction("alaska_guarded_unpin", unpinFunctionType).getCallee();
-    b.SetInsertPoint(pinTerminator);
-    b.CreateCall(unpinFunctionType, unpinFunction, {handle});
+  // Insert a call to `alaska_put`, and return nothing
+  if (type == InsertionType::Put) {
+    auto putFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
+    auto putFunction = M.getOrInsertFunction("alaska_guarded_put", putFunctionType).getCallee();
+    b.SetInsertPoint(getTerminator);
+    b.CreateCall(putFunctionType, putFunction, {handle});
     return nullptr;
   }
 
@@ -103,8 +102,8 @@ static inline llvm::Value *wrapped_insert_runtime(alaska::InsertionType type, ll
 }
 
 
-void alaska::insertConservativePins(alaska::PinGraph &G) {
-  // Naively insert pin/unpin around loads and stores (the sinks in the graph provided)
+void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
+  // Naively insert get/put around loads and stores (the sinks in the graph provided)
   auto nodes = G.get_nodes();
   // Loop over all the nodes...
   for (auto node : nodes) {
@@ -112,21 +111,21 @@ void alaska::insertConservativePins(alaska::PinGraph &G) {
     if (node->type != alaska::Sink) continue;
     auto I = dyn_cast<Instruction>(node->value);
 
-    // Insert the pin/unpin.
+    // Insert the get/put.
     // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
     if (auto *load = dyn_cast<LoadInst>(I)) {
       auto ptr = load->getPointerOperand();
-      auto pinned = wrapped_insert_runtime(alaska::InsertionType::Pin, ptr, I);
-      load->setOperand(0, pinned);
-      wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
+      auto getned = wrapped_insert_runtime(alaska::InsertionType::Get, ptr, I);
+      load->setOperand(0, getned);
+      wrapped_insert_runtime(alaska::InsertionType::Put, ptr, I->getNextNode());
       continue;
     }
 
     if (auto *store = dyn_cast<StoreInst>(I)) {
       auto ptr = store->getPointerOperand();
-      auto pinned = wrapped_insert_runtime(alaska::InsertionType::Pin, ptr, I);
-      store->setOperand(1, pinned);
-      wrapped_insert_runtime(alaska::InsertionType::UnPin, ptr, I->getNextNode());
+      auto getned = wrapped_insert_runtime(alaska::InsertionType::Get, ptr, I);
+      store->setOperand(1, getned);
+      wrapped_insert_runtime(alaska::InsertionType::Put, ptr, I->getNextNode());
       continue;
     }
   }

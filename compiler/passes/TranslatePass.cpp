@@ -52,7 +52,7 @@ namespace {
           continue;
         }
 
-        alaska::PinGraph graph(F);
+        alaska::PointerFlowGraph graph(F);
         auto nodes = graph.get_nodes();
 
 #ifdef ALASKA_DUMP_GRAPH
@@ -62,7 +62,7 @@ namespace {
 #endif
 
 #ifdef ALASKA_CONSERVATIVE
-        alaska::insertConservativePins(graph);
+        alaska::insertConservativeTranslations(graph);
 #endif
       }
 

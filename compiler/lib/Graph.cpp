@@ -53,7 +53,7 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
 };
 
 
-alaska::Node::Node(alaska::PinGraph &graph, llvm::Value *value) : graph(graph), value(value) { id = graph.next_id++; }
+alaska::Node::Node(alaska::PointerFlowGraph &graph, llvm::Value *value) : graph(graph), value(value) { id = graph.next_id++; }
 
 void alaska::Node::populate_edges(void) {
   if (auto I = dyn_cast<llvm::Instruction>(value)) {
@@ -135,7 +135,7 @@ void alaska::Node::add_in_edge(llvm::Use *use) {
   in.insert(use);
 }
 
-alaska::PinGraph::PinGraph(llvm::Function &func) : m_func(func) {
+alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func) : m_func(func) {
   //
   // Step 1. Find all the sinks in the function.
   //
@@ -185,14 +185,14 @@ alaska::PinGraph::PinGraph(llvm::Function &func) : m_func(func) {
     if (!changed) break;
   }
 }
-alaska::Node &alaska::PinGraph::get_node_including_sinks(llvm::Value *val) {
+alaska::Node &alaska::PointerFlowGraph::get_node_including_sinks(llvm::Value *val) {
   if (m_sinks.find(val) != m_sinks.end()) {
     return *m_sinks[val].get();
   }
   return get_node(val);
 }
 
-alaska::Node &alaska::PinGraph::get_node(llvm::Value *val) {
+alaska::Node &alaska::PointerFlowGraph::get_node(llvm::Value *val) {
   if (m_nodes.find(val) == m_nodes.end()) {
     m_nodes[val] = std::make_unique<Node>(*this, val);
     m_nodes[val]->populate_edges();
@@ -201,7 +201,7 @@ alaska::Node &alaska::PinGraph::get_node(llvm::Value *val) {
 }
 
 
-std::unordered_set<alaska::Node *> alaska::PinGraph::get_nodes(void) const {
+std::unordered_set<alaska::Node *> alaska::PointerFlowGraph::get_nodes(void) const {
   std::unordered_set<alaska::Node *> nodes;
   for (auto &[value, node] : m_sinks) {
     if (node->colors.size() == 0) continue;
@@ -214,7 +214,7 @@ std::unordered_set<alaska::Node *> alaska::PinGraph::get_nodes(void) const {
   return nodes;
 }
 
-std::unordered_set<alaska::Node *> alaska::PinGraph::get_all_nodes(void) const {
+std::unordered_set<alaska::Node *> alaska::PointerFlowGraph::get_all_nodes(void) const {
   std::unordered_set<alaska::Node *> nodes;
   for (auto &[value, node] : m_sinks) {
     nodes.insert(node.get());
@@ -227,7 +227,7 @@ std::unordered_set<alaska::Node *> alaska::PinGraph::get_all_nodes(void) const {
 
 
 
-void alaska::PinGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
+void alaska::PointerFlowGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
   auto nodes = get_nodes();
 
   alaska::println("digraph {");
