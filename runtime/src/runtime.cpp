@@ -53,7 +53,7 @@ extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t
 extern "C" void alaska_do_nothing() {}
 
 ////////////////////////////////////////////////////////////////////////////
-extern "C" __attribute__((always_inline)) void *alaska_guarded_get(void *vhandle) {
+extern "C" __attribute__((always_inline)) void *alaska_guarded_lock(void *vhandle) {
   alaska_handle_t handle = (alaska_handle_t)vhandle;
   int bin = ALASKA_GET_BIN(handle);
   alaska_map_entry_t *entry;
@@ -65,25 +65,25 @@ extern "C" __attribute__((always_inline)) void *alaska_guarded_get(void *vhandle
 }
 
 
-extern "C" void alaska_guarded_put(void *ptr) {
+extern "C" void alaska_guarded_unlock(void *ptr) {
   // This function *requires* that the input is a handle. Otherwise the program will crash
   // log("put %p\n", ptr);
   // alaska_die("Unimplemented function");
   // arenas[0]->put((alaska_handle_t)ptr);
 }
 
-extern "C" void *alaska_get(void *ptr) {
+extern "C" void *alaska_lock(void *ptr) {
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
-    return alaska_guarded_get(ptr);
+    return alaska_guarded_lock(ptr);
   }
   return ptr;
 }
 
-void alaska_put(void *ptr) {
+void alaska_unlock(void *ptr) {
   uint64_t h = (uint64_t)ptr;
   if ((h & HANDLE_MASK) != 0) {
-    alaska_guarded_put(ptr);
+		alaska_guarded_unlock(ptr);
   }
 }
 

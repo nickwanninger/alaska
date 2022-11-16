@@ -63,8 +63,8 @@ extern void alaska_free(void *ptr);
 
 // These functions are inserted by the compiler pass. It is not
 // recommended to use them directly
-extern void *alaska_get(void *handle);
-extern void alaska_put(void *handle);
+extern void *alaska_lock(void *handle);
+extern void alaska_unlock(void *handle);
 extern void alaska_barrier(void);
 
 #ifdef __cplusplus
