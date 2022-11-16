@@ -63,9 +63,9 @@ namespace alaska {
     // allocate a handle in this arena.
     alaska_handle_t allocate(size_t size);
     void free(alaska_handle_t handle);
-    // Pin and unpin a handle
-    void *pin(alaska_handle_t handle);
-    void unpin(alaska_handle_t handle);
+		// Lock and unlock a handle
+    void *lock(alaska_handle_t handle);
+    void unlock(alaska_handle_t handle);
 
    private:
     int m_id;

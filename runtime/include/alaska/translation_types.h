@@ -19,7 +19,7 @@ extern "C" {
 
 typedef struct {
   void *ptr;
-  uint32_t pindepth;
+  uint32_t locks;
   uint8_t arena;
   uint16_t size;
   // other stuff...

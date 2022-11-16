@@ -36,7 +36,7 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
   auto *entry = table.allocate_handle(handle_id);
   alaska_handle_t handle = ALASKA_INDICATOR | ALASKA_AID(m_id) | ALASKA_BIN(bin) | handle_id;
 
-  entry->pindepth = 0;
+  entry->locks = 0;
   entry->ptr = malloc(size);
 
   if (bin_size == 64) {
@@ -56,55 +56,49 @@ void alaska::Arena::free(alaska_handle_t handle) {
     fprintf(stderr, "alaska: invalid call to free with handle, %lx.\n", handle);
     abort();
   }
-  if (entry->pindepth != 0) {
-    fprintf(stderr, "alaska: warning, handle %lx was not fully unpinned before freeing. UAF likely!\n", handle);
+  if (entry->locks != 0) {
+    fprintf(stderr, "alaska: warning, handle %lx was not fully unlockned before freeing. UAF likely!\n", handle);
   }
 
   ::free(entry->ptr);
   entry->ptr = 0;
 }
 
-void *alaska::Arena::pin(alaska_handle_t handle) {
+void *alaska::Arena::lock(alaska_handle_t handle) {
   int bin = ALASKA_GET_BIN(handle);
 
   alaska_map_entry_t *entry;
 
   if (bin == 0) {
-    // printf("a: %p\n", handle);
     alaska_handle_t th = handle << 9;
-    // printf("b: %p\n", th);
     th >>= (9 + 6);
-    // printf("c: %p <- entry\n", th);
-    // printf("r: %p\n", entry = (alaska_map_entry_t *)((handle & ~(0b111111111LU << 55)) >> 6));
     entry = (alaska_map_entry_t *)th;
   } else {
     entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
   }
 
   if (entry == NULL) {
-    fprintf(stderr, "alaska: invalid call to `pin` with handle, %lx.\n", handle);
+    fprintf(stderr, "alaska: invalid call to `lock` with handle, %lx.\n", handle);
     abort();
   }
 
-  entry->pindepth++;
+  entry->locks++;
 
   off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
 
-  void *pin = (void *)((off_t)entry->ptr + offset);
-  // printf("%p, off=%p, ptr=%p, pin=%p\n", handle, offset, entry->ptr, pin);
-  return pin;
+  return (void *)((off_t)entry->ptr + offset);
 }
 
-void alaska::Arena::unpin(alaska_handle_t handle) {
+void alaska::Arena::unlock(alaska_handle_t handle) {
   return;
   int bin = ALASKA_GET_BIN(handle);
   auto *entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
   if (entry == NULL) {
-    fprintf(stderr, "alaska: invalid call to `pin` with handle, %lx.\n", handle);
+    fprintf(stderr, "alaska: invalid call to `unlock` with handle, %lx.\n", handle);
     abort();
   }
 
-  entry->pindepth--;
+  entry->locks--;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
