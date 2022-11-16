@@ -980,4 +980,3 @@ function(llvmir_attach_library)
 
   ## postamble
 endfunction()
-

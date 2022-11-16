@@ -1,7 +1,5 @@
 #include <alaska.h>
 #include <alaska/translation_types.h>
-#include <alaska/rbtree.h>
-#include <alaska/set.h>
 #include <alaska/Arena.hpp>
 
 #include <errno.h>
@@ -42,15 +40,6 @@
 
 static alaska::Arena *arenas[ALASKA_MAX_ARENAS];
 
-// static uint64_t now_ns() {
-//   struct timespec spec;
-//   if (clock_gettime(1, &spec) == -1) { /* 1 is CLOCK_MONOTONIC */
-//     abort();
-//   }
-//
-//   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
-// }
-
 
 void alaska_die(const char *msg) {
   fprintf(stderr, "alaska_die: %s\n", msg);
@@ -67,21 +56,19 @@ extern "C" void *alaska_alloc(size_t sz) { return (void *)arenas[0]->allocate(sz
 
 extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t)ptr); }
 
+extern "C" void alaska_do_nothing() {}
 
 ////////////////////////////////////////////////////////////////////////////
-extern "C" void *alaska_guarded_pin(void *vhandle) {
-  // This function *requires* that the input is a handle. Otherwise the program will crash
+extern "C" __attribute__((always_inline)) void *alaska_guarded_pin(void *vhandle) {
   alaska_handle_t handle = (alaska_handle_t)vhandle;
   int bin = ALASKA_GET_BIN(handle);
-  if (bin == 0) {
-    alaska_map_entry_t *entry;
-    alaska_handle_t th = (handle << 9) >> (9 + 6);
-    entry = (alaska_map_entry_t *)th;
-    off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
-    void *pin = (void *)((off_t)entry->ptr + offset);
-    return pin;
-  }
-  return arenas[0]->pin(handle);
+  alaska_map_entry_t *entry;
+  alaska_handle_t th = (handle << 9) >> (9 + 6);
+  entry = (alaska_map_entry_t *)th;
+  off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
+  void *pin = (void *)((off_t)entry->ptr + offset);
+  return pin;
+  // return arenas[0]->pin((alaska_handle_t)vhandle);
 }
 
 
@@ -89,7 +76,7 @@ extern "C" void alaska_guarded_unpin(void *ptr) {
   // This function *requires* that the input is a handle. Otherwise the program will crash
   // log("unpin %p\n", ptr);
   // alaska_die("Unimplemented function");
-  arenas[0]->unpin((alaska_handle_t)ptr);
+  // arenas[0]->unpin((alaska_handle_t)ptr);
 }
 
 extern "C" void *alaska_pin(void *ptr) {
@@ -133,11 +120,11 @@ long alaska_tlb_misses = 0;
 
 static void __attribute__((destructor)) alaska_deinit(void) {
   log("=================================\n");
-  log("ALASKA_PINS:          %llu\n", pin_count);
-  log("ALASKA_UNPINS:        %llu\n", unpin_count);
-  log("ALASKA_CALLS:         %llu\n", dyncall_count);
-  log("TLB HITS:             %llu\n", alaska_tlb_hits);
-  log("TLB MISSES:           %llu\n", alaska_tlb_misses);
+  log("ALASKA_PINS:          %lu\n", pin_count);
+  log("ALASKA_UNPINS:        %lu\n", unpin_count);
+  log("ALASKA_CALLS:         %lu\n", dyncall_count);
+  log("TLB HITS:             %lu\n", alaska_tlb_hits);
+  log("TLB MISSES:           %lu\n", alaska_tlb_misses);
 }
 
 extern "C" void *alaska_alloc_map_frame(int level, size_t entry_size, int size) {

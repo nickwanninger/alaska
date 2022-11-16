@@ -10,39 +10,68 @@ struct node {
 };
 
 
-static uint64_t now_ns() {
+static inline uint64_t timestamp() {
+#if defined(__x86_64__)
+  uint32_t rdtsc_hi_, rdtsc_lo_;
+  __asm__ volatile("rdtsc" : "=a"(rdtsc_lo_), "=d"(rdtsc_hi_));
+  return (uint64_t)rdtsc_hi_ << 32 | rdtsc_lo_;
+#else
+
   struct timespec spec;
   if (clock_gettime(1, &spec) == -1) { /* 1 is CLOCK_MONOTONIC */
     abort();
   }
 
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
+#endif
 }
 
 
+extern void do_nothing();
+
 #define TRIALS 100
+
+void manual_pin(int t) {
+  uint64_t times[TRIALS];
+  int *root = (int *)alaska_alloc(sizeof(*root));
+  for (int i = 0; i < TRIALS; i++) {
+    uint64_t start = timestamp();
+    for (int j = 0; j < t; j++) {
+      (*root)++;
+    }
+
+    uint64_t end = timestamp();
+    times[i] = (end - start) / t;
+  }
+  for (int i = 0; i < TRIALS; i++) {
+    printf("%zu\n", times[i]);
+  }
+}
+
 int test(struct node *root) {
   volatile int sum = 0;
 
-  float times[TRIALS];
+  uint64_t times[TRIALS];
   for (int i = 0; i < TRIALS; i++) {
-    uint64_t start = now_ns();
+    uint64_t start = timestamp();
     struct node *cur = root;
     while (cur != NULL) {
       sum += cur->val;
       cur = cur->next;
     }
 
-    uint64_t end = now_ns();
-    times[i] = (end - start) / 1000.0;
+    uint64_t end = timestamp();
+    times[i] = (end - start);
   }
   for (int i = 0; i < TRIALS; i++) {
-    printf("%f\n", times[i]);
+    printf("%zu\n", times[i]);
   }
   return sum;
 }
 
 int main(int argc, char **argv) {
+  // manual_pin(atoi(argv[1]));
+  // return 0;
   void *(*_malloc)(size_t);
   void (*_free)(void *);
 

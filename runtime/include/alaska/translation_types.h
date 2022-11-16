@@ -20,6 +20,8 @@ extern "C" {
 typedef struct {
   void *ptr;
   uint32_t pindepth;
+  uint8_t arena;
+  uint16_t size;
   // other stuff...
 } alaska_map_entry_t;
 

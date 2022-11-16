@@ -7,7 +7,7 @@ ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 source ${ALASKA}/enable
 source ${ALASKA}/.config
 
-LIB=lib/libalaska.a
+LIB=lib/libalaska_library.a
 OUTFILE="a.out"
 KEEP="false"
 BASELINE="false"
@@ -56,7 +56,7 @@ if [ "$phase" = "compile" ]; then
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	gclang -lm -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} -Wl,-rpath="${ALASKA}/build/lib" "${ALASKA}/build/$LIB"
+	gclang -lm -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} "${ALASKA}/build/$LIB"
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
 	TMPFILE=${OUTFILE}.bc
@@ -98,19 +98,27 @@ else
 		"${TMPFILE}" -o "${TMPFILE}" 
 
 
+	llvm-link -o ${TMPFILE} ${TMPFILE} ${ALASKA}/build/lib/alaska.bc
+
 	opt ${AA} \
+		-mem2reg \
+		-simplifycfg-sink-common=false \
+		-sink \
+		-lowerswitch \
+		-mergereturn \
+		--break-crit-edges \
 		-loop-simplify \
+		-lcssa \
+		-gvn \
+		-indvars \
 		--function-attrs \
-		-gvn         \
-		-reassociate \
-		-instcombine \
 		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
 	
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	clang -lm -O3 -g ${TMPFILE} -o $OUTFILE -Wl,-rpath="${ALASKA}/build/lib" ${ALASKA}/build/$LIB 
+	clang -lm -O3 -g -march=native ${TMPFILE} "${ALASKA}/build/$LIB" -o $OUTFILE
 
 	rm ${TMPFILE}
 fi

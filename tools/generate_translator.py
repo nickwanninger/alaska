@@ -94,7 +94,7 @@ for n in range(0, size_base ** size_bits):
         print(f'  {level_types[level]} *{lname} = ({level_types[level]} *){prevname}[ind{i}];')
         print(f'  if (unlikely(lvl{level} == NULL)) {{ // slow: allocation')
         print(f'    if (allocate == 0) return NULL;')
-        print(f'    {lname} = alaska_alloc_map_frame(ind{i}, sizeof({level_types[level]}), {2 << bits_per_level - 1});')
+        print(f'    {lname} = ({level_types[level]} *)alaska_alloc_map_frame(ind{i}, sizeof({level_types[level]}), {2 << bits_per_level - 1});')
         print(f'    {prevname}[ind{i}] = (uint64_t){lname};')
         print(f'  }}')
         # print(f'  current = next;')

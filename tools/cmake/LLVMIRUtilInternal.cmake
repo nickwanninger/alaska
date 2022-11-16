@@ -343,5 +343,3 @@ function(llvmir_extract_compile_flags out_compile_flags from)
 
   set(${out_compile_flags} ${compile_flags} PARENT_SCOPE)
 endfunction()
-
-
