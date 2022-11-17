@@ -11,11 +11,6 @@ config CONSERVATIVE
 	bool "Conservatively pin all loads and stores"
 	default n
 
-
 config INLINE_HANDLE_GUARD
 	bool "Inline the handle check before calling runtime functions"
-	default y
-
-config ENABLE_STLB
-	bool "Use a software TLB to cache translation lookups"
 	default y
