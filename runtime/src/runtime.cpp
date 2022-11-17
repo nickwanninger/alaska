@@ -31,7 +31,8 @@ void alaska_die(const char *msg) {
 
 extern "C" void *alaska_alloc(size_t sz) { return (void *)arenas[0]->allocate(sz); }
 extern "C" void alaska_free(void *ptr) { return arenas[0]->free((alaska_handle_t)ptr); }
-extern "C" void alaska_do_nothing() {}
+
+static uint32_t access_time = 0;
 
 ////////////////////////////////////////////////////////////////////////////
 extern "C" void *alaska_guarded_lock(void *vhandle) {
@@ -40,6 +41,9 @@ extern "C" void *alaska_guarded_lock(void *vhandle) {
   alaska_map_entry_t *entry;
   alaska_handle_t th = (handle << 9) >> (9 + 6);
   entry = (alaska_map_entry_t *)th;
+
+	entry->locks++;
+	entry->last_access = access_time++;
   off_t offset = (off_t)handle & (off_t)((2 << (bin + 5)) - 1);
   void *addr = (void *)((off_t)entry->ptr + offset);
   return addr;
@@ -69,6 +73,9 @@ void alaska_barrier(void) { log("--- barrier ---\n"); }
 
 
 static void __attribute__((constructor)) alaska_init(void) {
+
+	printf("0x%zx per 2mb block\n", (0x200000LU / sizeof(alaska_map_entry_t)) - 1);
+
   // Zero out the arenas array so invalid lookups don't cause UB
   for (int i = 0; i < ALASKA_MAX_ARENAS; i++) {
     arenas[i] = NULL;

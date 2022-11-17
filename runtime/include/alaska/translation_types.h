@@ -13,14 +13,13 @@ extern "C" {
 #define ALASKA_AID(aid) (((unsigned long)(aid)) << 60)  // 3 bits
 #define ALASKA_BIN(bin) (((unsigned long)(bin)) << 55)  // 5 bits
 
-
 #define ALASKA_GET_AID(h) (((h) >> 60) & 0b111)
 #define ALASKA_GET_BIN(h) (((h) >> 55) & 0b11111)
 
 typedef struct {
   void *ptr;
   uint32_t locks;
-  uint8_t arena;
+  uint32_t last_access;
   uint16_t size;
   // other stuff...
 } alaska_map_entry_t;

@@ -118,7 +118,7 @@ else
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	clang -lm -O3 -g -march=native ${TMPFILE} "${ALASKA}/build/$LIB" -o $OUTFILE
+	clang -T "${ALASKA}/compiler/linkerscripts/alaska-aarch64.ld" -lm -O3 -g -march=native ${TMPFILE} "${ALASKA}/build/$LIB" -o $OUTFILE
 
 	rm ${TMPFILE}
 fi

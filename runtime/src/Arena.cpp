@@ -23,7 +23,7 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
   // 64, then compute the "bin" value, which is the index into m_tables, and the
   // value in the high bits of the handle
   size_t bin_size = size == 1 ? 1 : 1 << (64 - __builtin_clzl(size - 1));
-  if (bin_size < 64) bin_size = 64;  // clap at a min of 64 (TODO: 128 is better util)
+  if (bin_size < 64) bin_size = 64;  // cap at a min of 64 (TODO: 128 is better util)
   int bin = log2(bin_size) - 6;      // real size is `2^(bin + 6)`
   if (bin > 32) {
     fprintf(stderr, "alaska: cannot allocate handle of size %zu. Too big.\n", size);
@@ -39,9 +39,16 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
   entry->locks = 0;
   entry->ptr = malloc(size);
 
+	uint64_t p = (uint64_t)entry;
+	int c = 0;
+	while (p != 0) {
+		c++;
+		p >>= 1;
+	}
+	printf("%p requires %d bits\n", entry, c);
+
   if (bin_size == 64) {
     handle = ALASKA_INDICATOR | ALASKA_AID(m_id) | ALASKA_BIN(bin) | ((unsigned long)entry << 6);
-    // printf("Handle %p, entry %p\n", handle, entry);
   }
 
   return handle;
@@ -50,7 +57,6 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
 void alaska::Arena::free(alaska_handle_t handle) {
   return;
   int bin = ALASKA_GET_BIN(handle);
-  // printf("Free %lx, bin=%d\n", handle, bin);
   auto *entry = m_tables[bin].translate(handle, AllocateIntermediate::No);
   if (entry == NULL) {
     fprintf(stderr, "alaska: invalid call to free with handle, %lx.\n", handle);

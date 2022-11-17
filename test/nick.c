@@ -1,8 +1,9 @@
-#include "alaska.h"
+#include "../runtime/include/alaska.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
 
 struct node {
   struct node *next;
@@ -10,7 +11,7 @@ struct node {
 };
 
 
-static inline uint64_t timestamp() {
+uint64_t timestamp() {
 #if defined(__x86_64__)
   uint32_t rdtsc_hi_, rdtsc_lo_;
   __asm__ volatile("rdtsc" : "=a"(rdtsc_lo_), "=d"(rdtsc_hi_));
@@ -30,23 +31,6 @@ static inline uint64_t timestamp() {
 extern void do_nothing();
 
 #define TRIALS 100
-
-void manual_pin(int t) {
-  uint64_t times[TRIALS];
-  int *root = (int *)alaska_alloc(sizeof(*root));
-  for (int i = 0; i < TRIALS; i++) {
-    uint64_t start = timestamp();
-    for (int j = 0; j < t; j++) {
-      (*root)++;
-    }
-
-    uint64_t end = timestamp();
-    times[i] = (end - start) / t;
-  }
-  for (int i = 0; i < TRIALS; i++) {
-    printf("%zu\n", times[i]);
-  }
-}
 
 int test(struct node *root) {
   volatile int sum = 0;
@@ -70,8 +54,6 @@ int test(struct node *root) {
 }
 
 int main(int argc, char **argv) {
-  // manual_pin(atoi(argv[1]));
-  // return 0;
   void *(*_malloc)(size_t);
   void (*_free)(void *);
 
@@ -85,13 +67,9 @@ int main(int argc, char **argv) {
 
   srand(0);
   struct node *root = NULL;
-  // Allocate then free a linked list
-  // int count = 100000;
-  int count = 100000;
-
+  int count = 1000;
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
-
     n->next = root;
     n->val = i;
     root = n;
