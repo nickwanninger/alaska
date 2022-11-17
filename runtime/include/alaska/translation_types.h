@@ -17,12 +17,14 @@ extern "C" {
 #define ALASKA_GET_BIN(h) (((h) >> 55) & 0b11111)
 
 typedef struct {
-  void *ptr;
-  uint32_t locks;
-  uint32_t last_access;
-  uint16_t size;
-  // other stuff...
+  void *ptr; // The raw backing memory of the handle
+  uint32_t size;
+  uint16_t locks; // How many users does this handle have?
+  uint16_t flags; // additional flags (idk, tbd)
 } alaska_map_entry_t;
+
+
+_Static_assert(sizeof(alaska_map_entry_t) == 16, "Alaska Map Entry is too big!");
 
 typedef alaska_map_entry_t *(*alaska_map_driller_t)(uint64_t, uint64_t *, int);
 

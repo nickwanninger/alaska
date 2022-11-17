@@ -20,8 +20,8 @@ set(CMAKE_CXX_COMPILER_ID "Clang")
 
 set(SRC_FILES
 	src/runtime.cpp
-	src/Arena.cpp
-	src/translate.cpp
+	# src/Arena.cpp
+	# src/translate.cpp
 )
 
 message(STATUS "COMPILER ID: ${CMAKE_CXX_COMPILER_ID}")

@@ -32,6 +32,10 @@ extern void do_nothing();
 
 #define TRIALS 100
 
+void inc(int *x) {
+	(*x) += 1;
+}
+
 int test(struct node *root) {
   volatile int sum = 0;
 
@@ -67,7 +71,7 @@ int main(int argc, char **argv) {
 
   srand(0);
   struct node *root = NULL;
-  int count = 1000;
+  int count = 100000;
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
     n->next = root;

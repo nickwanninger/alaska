@@ -39,14 +39,6 @@ alaska_handle_t alaska::Arena::allocate(size_t size) {
   entry->locks = 0;
   entry->ptr = malloc(size);
 
-	uint64_t p = (uint64_t)entry;
-	int c = 0;
-	while (p != 0) {
-		c++;
-		p >>= 1;
-	}
-	printf("%p requires %d bits\n", entry, c);
-
   if (bin_size == 64) {
     handle = ALASKA_INDICATOR | ALASKA_AID(m_id) | ALASKA_BIN(bin) | ((unsigned long)entry << 6);
   }
