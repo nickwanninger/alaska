@@ -13,8 +13,8 @@ typedef uint64_t alaska_handle_t;
 #define ALASKA_TLB_SIZE
 
 // =============================================
-
 extern void *alaska_alloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
+extern void *alaska_realloc(void *handle, size_t sz);
 extern void alaska_free(void *ptr);
 
 // These functions are inserted by the compiler pass. It is not

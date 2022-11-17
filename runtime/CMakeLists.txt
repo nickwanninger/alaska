@@ -1,19 +1,11 @@
 add_link_options("-fuse-ld=lld")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fdeclspec ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-exceptions -fno-rtti -nostdlib++ ")
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
 include_directories(include/)
-
-# set(HEADER_FILES include/alaska.h)
-# set(PRIVATE_HEADER_FILES
-#   include/alaska/Arena.hpp
-#   include/alaska/spinlock.h
-#   include/alaska/translatino_types.h
-# )
-
 
 # HACK: this just makes it work
 set(CMAKE_CXX_COMPILER_ID "Clang")
@@ -50,14 +42,3 @@ add_dependencies(alaska alaska_library)
 
 set_property(TARGET alaska_bitcodes PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska PROPERTY EXCLUDE_FROM_ALL OFF)
-
-# set(SRC_FILES
-# 	src/runtime.cpp
-# 	src/Arena.cpp
-# 	src/translate.cpp
-# )
-
-# add_definitions(-D_GNU_SOURCE -D_REENTRANT)
-# add_library(alaska STATIC ${SRC_FILES})
-# set_target_properties(alaska PROPERTIES LINKER_LANGUAGE CXX)
-# install(TARGETS alaska RUNTIME)
