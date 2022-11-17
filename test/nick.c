@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 
   srand(0);
   struct node *root = NULL;
-  int count = 100000;
+  int count = 100;
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
     n->next = root;
