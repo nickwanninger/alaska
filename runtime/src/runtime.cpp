@@ -1,7 +1,7 @@
 #include <alaska.h>
 #include <alaska/translation_types.h>
 #include <alaska/Arena.hpp>
-
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include <stdint.h>
@@ -16,7 +16,7 @@
 #define unlikely(x) __builtin_expect((x), 0)
 
 #define MAP_ENTRY_SIZE 16 // enforced by a static assert in translation_types.h
-#define MAP_GRANULARITY 0x100000LU // minimum size of a "huge page" if we ever get around to that
+#define MAP_GRANULARITY 0x200000LU // minimum size of a "huge page" if we ever get around to that
 #define HANDLE_MARKER (1LLU << 63)
 #define GET_ENTRY(handle) ((alaska_map_entry_t*)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
 
@@ -37,7 +37,8 @@ extern "C" void *alaska_alloc(size_t sz) {
 
 	// max size of 2^31 ish, so storing this in an int is save.
 	next_handle->size = sz;
-	next_handle->ptr = NULL; // don't allocate now. Do it later.
+	// next_handle->ptr = NULL; // don't allocate now. Do it later.
+	next_handle->ptr = malloc(sz); // just use malloc
 
 	next_handle++;
 	return (void*)handle;
@@ -83,9 +84,9 @@ extern "C" __declspec(noinline) void alaska_barrier(void) {
 extern "C" void *alaska_guarded_lock(void *ptr) {
 	auto ent = GET_ENTRY(ptr);
 	// if the pointer is NULL, we need to perform a "handle fault"
-	if (unlikely(ent->ptr == NULL)) {
-		alaska_fault(ent);
-	}
+	// if (unlikely(ent->ptr == NULL)) {
+	// 	alaska_fault(ent);
+	// }
 
 	ent->locks++;
 	return ent->ptr;
@@ -117,12 +118,25 @@ void alaska_unlock(void *ptr) {
 
 
 
+#define MAP_HUGE_2MB    (21 << MAP_HUGE_SHIFT)
 
 static void __attribute__((constructor)) alaska_init(void) {
+	const char *hugetlbfile = getenv("ALASKA_HUGETLB_FILE");
+	int fd = -1;
+	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 	size_t sz = MAP_GRANULARITY * 8;
+
+	if (hugetlbfile != NULL) {
+		fd = open(hugetlbfile, O_RDWR);
+		printf("fd = %d\n", fd);
+		ftruncate(fd, sz);
+		flags = MAP_SHARED | MAP_HUGETLB | MAP_HUGE_2MB;
+	}
+
 	// TODO: do this using hugetlbfs :)
-	next_handle = map = (alaska_map_entry_t*)mmap((void*)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	next_handle = map = (alaska_map_entry_t*)mmap((void*)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);
 	map_size = sz / MAP_ENTRY_SIZE;
+	printf("%p\n", map);
 }
 
 
