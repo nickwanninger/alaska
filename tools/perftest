@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+
+
+
+EVENTS="instructions,duration_time"
+# cache events
+EVENTS+=",cache-references,cache-misses"
+# tlb events
+EVENTS+=",dTLB-load-misses,dTLB-loads"
+EVENTS+=",branch-instructions,branch-misses"
+PROG=$1
+shift
+CMD1=$1
+shift
+CMD2=$1
+shift
+
+
+echo 'arg,mean,unit,name,stddev,cycles,cycle_fraction,shadow_val,shadow_desc' > out.csv
+ARGS='-x , -r 10 -o tmp.csv '
+
+function run {
+	arg=$1
+	sudo perf stat $ARGS -e "$EVENTS" $PROG $arg >/dev/null
+	cat tmp.csv | sed '/^#/d' | sed -r '/^\s*$/d' | sed -e "s/^/$arg,/" >> out.csv
+	rm -f tmp.csv
+}
+
+
+run $CMD1
+run $CMD2
+
+
+
+cat out.csv
+rm -f out.csv
+
