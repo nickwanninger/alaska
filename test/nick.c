@@ -30,7 +30,7 @@ uint64_t timestamp() {
 
 extern void do_nothing();
 
-#define TRIALS 100
+#define TRIALS 10
 
 void inc(int *x) {
 	(*x) += 1;
@@ -47,9 +47,9 @@ int test(struct node *root) {
       sum += cur->val;
       cur = cur->next;
     }
-
     uint64_t end = timestamp();
     times[i] = (end - start);
+		// alaska_barrier();
   }
   for (int i = 0; i < TRIALS; i++) {
     printf("%zu\n", times[i]);
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 
   srand(0);
   struct node *root = NULL;
-  int count = 100;
+  int count = 10000;
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
     n->next = root;
