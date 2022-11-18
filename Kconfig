@@ -14,3 +14,8 @@ config CONSERVATIVE
 config INLINE_HANDLE_GUARD
 	bool "Inline the handle check before calling runtime functions"
 	default y
+
+
+config OOB_CHECK
+	bool "Perform bounds checks on handles"
+	default n

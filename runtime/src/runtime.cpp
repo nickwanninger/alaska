@@ -20,6 +20,8 @@
 #define HANDLE_MARKER (1LLU << 63)
 #define GET_ENTRY(handle) ((alaska_map_entry_t*)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
 
+#define GET_OFFSET(handle) ((off_t)(handle) & 0xFFFFFFFF)
+
 // How many map cells are there in the map table?
 size_t map_size = 0;
 // The memory for the alaska translation map. This lives at 0x200000 and is grown in 2mb chunks
@@ -81,21 +83,34 @@ extern "C" __declspec(noinline) void alaska_barrier(void) {
 	// Work through `map` and do something fun
 }
 
+extern "C" __declspec(noinline) void alaska_fault_oob(alaska_map_entry_t *ent, off_t offset) {
+	fprintf(stderr, "[FATAL] alaska: out of bound access of handle %p. Attempt to access byte %zu in a %d byte handle!\n", ent, offset, ent->size);
+	exit(-1);
+}
+
+
 extern "C" void *alaska_guarded_lock(void *ptr) {
 	auto ent = GET_ENTRY(ptr);
+	off_t off = GET_OFFSET(ptr);
+
 	// if the pointer is NULL, we need to perform a "handle fault"
 	// if (unlikely(ent->ptr == NULL)) {
 	// 	alaska_fault(ent);
 	// }
-
+#ifdef ALASKA_OOB_CHECK
+	if (unlikely(off > ent->size))
+		alaska_fault_oob(ent, off);
+#endif
 	ent->locks++;
-	return ent->ptr;
+	// __atomic_add_fetch(&ent->locks, 1, __ATOMIC_RELAXED);
+	return (void*)((uint64_t)ent->ptr + off);
 }
 
 
 extern "C" void alaska_guarded_unlock(void *ptr) {
 	auto ent = GET_ENTRY(ptr);
 	ent->locks--;
+	// __atomic_sub_fetch(&ent->locks, 1, __ATOMIC_RELAXED);
 	if (ent->locks == 0) {
 		// Maybe do something fun?
 	}
@@ -138,10 +153,6 @@ static void __attribute__((constructor)) alaska_init(void) {
 	map_size = sz / MAP_ENTRY_SIZE;
 	printf("%p\n", map);
 }
-
-
-long alaska_tlb_hits = 0;
-long alaska_tlb_misses = 0;
 
 static void __attribute__((destructor)) alaska_deinit(void) {
 	munmap(map, map_size * MAP_ENTRY_SIZE);
