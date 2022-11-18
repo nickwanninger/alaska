@@ -30,7 +30,7 @@ uint64_t timestamp() {
 
 extern void do_nothing();
 
-#define TRIALS 100
+#define TRIALS 10
 
 void inc(int *x) {
 	(*x) += 1;

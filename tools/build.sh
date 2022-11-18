@@ -33,8 +33,10 @@ fi
 
 
 pushd ${BUILD} >/dev/null
-	# make --no-print-directory -j $(nproc)
-	make install --no-print-directory
+
+	# cmake --build .
+	make --no-print-directory -j $(nproc)
+	cmake --install . --prefix $(realpath ${BUILD}/../install)
 
 	cp ${BUILD}/compile_commands.json ${BUILD}/../
 popd >/dev/null

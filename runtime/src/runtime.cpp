@@ -100,7 +100,7 @@ extern "C" void *alaska_guarded_lock(void *ptr) {
 	if (unlikely(off > ent->size))
 		alaska_fault_oob(ent, off);
 #endif
-	ent->locks++;
+	// ent->locks++;
 	// __atomic_add_fetch(&ent->locks, 1, __ATOMIC_RELAXED);
 	return (void*)((uint64_t)ent->ptr + off);
 }
@@ -108,7 +108,7 @@ extern "C" void *alaska_guarded_lock(void *ptr) {
 
 extern "C" void alaska_guarded_unlock(void *ptr) {
 	auto ent = GET_ENTRY(ptr);
-	ent->locks--;
+	// ent->locks--;
 	// __atomic_sub_fetch(&ent->locks, 1, __ATOMIC_RELAXED);
 	if (ent->locks == 0) {
 		// Maybe do something fun?

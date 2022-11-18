@@ -28,3 +28,6 @@ add_llvm_library(AlaskaNormalize MODULE
 	PLUGIN_TOOL
 	opt
 )
+
+add_subdirectory(bin)
+

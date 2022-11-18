@@ -2,7 +2,7 @@
 
 set -e
 
-ALASKA="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
+ALASKA=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../../")
 
 source ${ALASKA}/enable
 source ${ALASKA}/.config

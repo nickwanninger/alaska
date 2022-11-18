@@ -20,6 +20,9 @@ add_library(alaska_library STATIC ${SRC_FILES})
 target_include_directories(alaska_library PUBLIC include/)
 set_target_properties(alaska_library PROPERTIES LINKER_LANGUAGE CXX)
 
+install(DIRECTORY include/ DESTINATION include)
+
+
 install(
   TARGETS alaska_library
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
