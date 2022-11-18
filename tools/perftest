@@ -9,6 +9,9 @@ EVENTS+=",cache-references,cache-misses"
 # tlb events
 EVENTS+=",dTLB-load-misses,dTLB-loads"
 EVENTS+=",branch-instructions,branch-misses"
+# EVENTS+=",faults,l1d.replacement"
+EVENTS+=",L1-dcache-load-misses,L1-dcache-loads"
+
 PROG=$1
 shift
 CMD1=$1
