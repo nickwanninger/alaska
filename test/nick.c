@@ -36,6 +36,10 @@ void inc(int *x) {
 	(*x) += 1;
 }
 
+void store(int *x, int val) {
+	*x = val;
+}
+
 int test(struct node *root) {
   volatile int sum = 0;
 
@@ -46,6 +50,7 @@ int test(struct node *root) {
     while (cur != NULL) {
       sum += cur->val;
       cur = cur->next;
+			// cur[1].val++;
     }
     uint64_t end = timestamp();
     times[i] = (end - start);
@@ -71,7 +76,7 @@ int main(int argc, char **argv) {
 
   srand(0);
   struct node *root = NULL;
-  int count = 10000;
+  int count = 100000;
   for (int i = 0; i < count; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
     n->next = root;
