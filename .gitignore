@@ -17,3 +17,5 @@ test/npb/sys/setparams
 
 tools/.ipynb_checkpoints
 .venv
+
+/install
