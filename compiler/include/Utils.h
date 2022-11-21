@@ -13,4 +13,5 @@ namespace alaska {
 
   // Insert get/puts for a graph conservatively (every load and store)
   void insertConservativeTranslations(alaska::PointerFlowGraph &G);
+  void insertNaiveFlowBasedTranslations(alaska::PointerFlowGraph &G);
 }  // namespace alaska

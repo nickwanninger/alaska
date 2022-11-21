@@ -4,8 +4,8 @@ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 
 PREFIX=$ROOT/dep/local
-# mkdir -p ${PREFIX}/{bin,lib}
-
 export PATH=$PREFIX/bin:$PATH
-export PATH=$ROOT/tools:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
+
+
+export PATH=$PREFIX/install/bin:$PATH

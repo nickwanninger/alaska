@@ -20,6 +20,7 @@ BUILD=${ALASKA}/build
 ${ALASKA}/tools/build_deps.sh
 
 
+
 # If there isn't a makefile in the target directory, Configure cmake
 if [ ! -f ${BUILD}/Makefile ]; then
 	echo "Configuring ALASKA..."
@@ -32,6 +33,11 @@ if [ ! -f ${BUILD}/Makefile ]; then
 fi
 
 
+# if [ ! -d ${ALASKA}/install ]; then
+# 	mkdir -p ${ALASKA}/install
+# 	rsync -va ${ALASKA}/dep/local/ ${ALASKA}/install
+# fi
+
 pushd ${BUILD} >/dev/null
 
 	# cmake --build .
@@ -40,3 +46,5 @@ pushd ${BUILD} >/dev/null
 
 	cp ${BUILD}/compile_commands.json ${BUILD}/../
 popd >/dev/null
+
+

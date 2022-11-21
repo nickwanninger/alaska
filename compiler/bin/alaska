@@ -60,13 +60,14 @@ else
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
 	TMPFILE=${OUTFILE}.bc
-	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
 
 	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 	AA=""
 	LOOPS=""
+	
+	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
 	# Run a cleanup pass on the bitcode
 	opt ${AA} \
@@ -82,6 +83,7 @@ else
 		-indvars \
 		--function-attrs \
 		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
+
 
 	# Run a simple normalization pass on the code
 	opt -load "${ALASKA}/install/lib/AlaskaNormalize.$SO" \

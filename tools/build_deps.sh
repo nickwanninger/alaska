@@ -18,23 +18,6 @@ mkdir -p ${PREFIX}/{bin,lib}
 export PATH=$PREFIX/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 
-# cmake --version
-# exit
-
-# if [ ! -f ${PREFIX}/bin/cmake ]; then
-# 	if [ ! -f cmake.tar.gz ]; then
-# 		wget -O cmake.tar.gz https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2.tar.gz
-# 	fi
-
-# 	tar xvf cmake.tar.gz
-# 	pushd cmake-3.24.2
-
-# 		./configure --prefix=${PREFIX} --parallel=$(nproc)
-# 		make -j $(nproc) install
-# 	popd
-
-# fi
-
 
 if [ ! -f ${PREFIX}/bin/gclang ]; then
 	# install go

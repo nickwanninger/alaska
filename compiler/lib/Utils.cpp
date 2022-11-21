@@ -130,3 +130,103 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
     }
   }
 }
+
+struct NaiveLockVisitor : public llvm::InstVisitor<NaiveLockVisitor> {
+  llvm::Function &F;
+  // map from an LLVM pointer to the associated "result of a lock" (whatever we want to call that)
+  std::map<llvm::Value *, llvm::Value *> m_associated_lock;
+  NaiveLockVisitor(llvm::Function &F) : F(F) {}
+
+  void setAssociated(llvm::Value *ptr, llvm::Value *tptr) { m_associated_lock[ptr] = tptr; }
+
+  llvm::Value *getAssociated(llvm::Value *ptr) {
+		// alaska::println("get ", *ptr);
+    if (m_associated_lock[ptr] == NULL) {
+      if (auto I = dyn_cast<llvm::Instruction>(ptr)) {
+        visit(I);
+      } else {
+        auto insertPoint = F.front().getFirstNonPHI();
+        auto t = wrapped_insert_runtime(alaska::InsertionType::Lock, ptr, insertPoint);
+        setAssociated(ptr, t);
+      }
+    }
+
+    return m_associated_lock[ptr];
+  }
+
+  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+    // create a new GEP right after this one.
+    IRBuilder<> b(I.getNextNode());
+
+    auto t = getAssociated(I.getPointerOperand());
+    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
+    setAssociated(&I, b.CreateGEP(I.getSourceElementType(), t, inds, "", I.isInBounds()));
+  }
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    auto t = getAssociated(I.getPointerOperand());
+    I.setOperand(0, t);
+  }
+  void visitStoreInst(llvm::StoreInst &I) {
+    auto t = getAssociated(I.getPointerOperand());
+    I.setOperand(1, t);
+  }
+
+
+  void visitPHINode(llvm::PHINode &I) {
+    IRBuilder<> b(I.getNextNode());
+    auto p = b.CreatePHI(I.getType(), I.getNumIncomingValues());
+    // set early, as there could be loops
+    setAssociated(&I, p);
+
+    for (unsigned int i = 0; i < I.getNumIncomingValues(); i++) {
+      auto v = getAssociated(I.getIncomingValue(i));
+      p->addIncoming(v, I.getIncomingBlock(i));
+    }
+  }
+
+  void visitInstruction(llvm::Instruction &I) {
+    alaska::println("dunno how to handle this: ", I);
+  }
+};
+
+void alaska::insertNaiveFlowBasedTranslations(alaska::PointerFlowGraph &G) {
+  auto nodes = G.get_nodes();
+  auto &F = G.func();
+  NaiveLockVisitor nlv(F);
+  for (auto node : nodes) {
+    if (node->type == alaska::Source) {
+      if (auto I = dyn_cast<llvm::Instruction>(node->value)) {
+        llvm::Value *t = NULL;
+        t = wrapped_insert_runtime(alaska::InsertionType::Lock, node->value, I->getNextNode());
+        nlv.setAssociated(node->value, t);
+      } else {
+        auto insertPoint = F.front().getFirstNonPHI();
+        auto t = wrapped_insert_runtime(alaska::InsertionType::Lock, node->value, insertPoint);
+        nlv.setAssociated(node->value, t);
+      }
+    }
+  }
+
+  for (auto node : nodes) {
+    // only operate on sinks...
+    if (node->type != alaska::Sink) continue;
+    auto I = dyn_cast<Instruction>(node->value);
+
+    // Insert the get/unlock.
+    // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
+    if (auto *load = dyn_cast<LoadInst>(I)) {
+      auto ptr = load->getPointerOperand();
+      auto t = nlv.getAssociated(ptr);
+      load->setOperand(0, t);
+      continue;
+    }
+
+    if (auto *store = dyn_cast<StoreInst>(I)) {
+      auto ptr = store->getPointerOperand();
+      auto t = nlv.getAssociated(ptr);
+      store->setOperand(1, t);
+      continue;
+    }
+  }
+}

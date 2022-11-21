@@ -5,10 +5,6 @@
 #include <time.h>
 
 
-struct node {
-  struct node *next;
-  int val;
-};
 
 
 uint64_t timestamp() {
@@ -28,65 +24,44 @@ uint64_t timestamp() {
 }
 
 
-extern void do_nothing();
+#define TRIALS 1000
+#define LENGTH 100000
 
-#define TRIALS 10
+struct node {
+  struct node *next;
+  int val;
+};
 
-void inc(int *x) {
-	(*x) += 1;
-}
 
-void store(int *x, int val) {
-	*x = val;
-}
-
-int test(struct node *root) {
+int test(struct node *root, uint64_t *out) {
   volatile int sum = 0;
-
-  uint64_t times[TRIALS];
   for (int i = 0; i < TRIALS; i++) {
     uint64_t start = timestamp();
     struct node *cur = root;
     while (cur != NULL) {
       sum += cur->val;
       cur = cur->next;
-			// cur[1].val++;
     }
     uint64_t end = timestamp();
-    times[i] = (end - start);
-		// alaska_barrier();
-  }
-  for (int i = 0; i < TRIALS; i++) {
-    printf("%zu\n", times[i]);
+    out[i] = (end - start);
   }
   return sum;
 }
 
-int main(int argc, char **argv) {
-  void *(*_malloc)(size_t);
-  void (*_free)(void *);
 
-  if (argc == 2 && !strcmp(argv[1], "baseline")) {
-    _malloc = malloc;
-    _free = free;
-  } else {
-    _malloc = alaska_alloc;
-    _free = alaska_free;
-  }
+uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
+  uint64_t *trials = (uint64_t *)calloc(TRIALS, sizeof(uint64_t));
 
-  srand(0);
   struct node *root = NULL;
-  int count = 100000;
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < LENGTH; i++) {
     struct node *n = (struct node *)_malloc(sizeof(struct node));
     n->next = root;
     n->val = i;
     root = n;
   }
 
-  test(root);
+  test(root, trials);
 
-  return 0;
 
   struct node *cur = root;
   cur = root;
@@ -95,8 +70,25 @@ int main(int argc, char **argv) {
     cur = cur->next;
     _free(prev);
   }
+  return trials;
+}
+
+int main(int argc, char **argv) {
+  printf("baseline,alaska\n");
+  for (int i = 0; i < 1; i++) {
+    uint64_t *baseline = run_test(malloc, free);
+    uint64_t *alaska = run_test(alaska_alloc, alaska_free);
 
 
+    for (int i = 0; i < TRIALS; i++) {
+      uint64_t a = alaska[i];
+      uint64_t b = baseline[i];
+      printf("%lu,%lu\n", b, a);
+    }
+
+    free(alaska);
+    free(baseline);
+  }
 
   return 0;
 }
