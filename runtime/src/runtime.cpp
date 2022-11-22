@@ -46,17 +46,17 @@ extern "C" void *alaska_alloc(size_t sz) {
   uint64_t handle = HANDLE_MARKER | (((uint64_t)next_handle) << 32);
 
 
-	alaska_map_entry_t *ent = next_handle;
-	next_handle = (alaska_map_entry_t*)ent->ptr;
-	if (next_handle == NULL) {
-		fprintf(stderr, "alaska: out of space!\n");
-		exit(-1);
-	}
+  alaska_map_entry_t *ent = next_handle;
+  next_handle = (alaska_map_entry_t *)ent->ptr;
+  if (next_handle == NULL) {
+    fprintf(stderr, "alaska: out of space!\n");
+    exit(-1);
+  }
 
   memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = sz;
   /// ent->ptr = NULL;  // don't allocate now. Do it later.
-  ent->ptr = malloc(sz); // just use malloc
+  ent->ptr = malloc(sz);  // just use malloc
 
   return (void *)handle;
 }
@@ -102,8 +102,8 @@ extern "C" __declspec(noinline) void alaska_barrier(void) {
 }
 
 extern "C" __declspec(noinline) void alaska_fault_oob(alaska_map_entry_t *ent, off_t offset) {
-	fprintf(stderr, "[FATAL] alaska: out of bound access of handle %ld. Attempt to access byte %zu in a %d byte handle!\n", ENT_GET_CANONICAL(ent), offset,
-			ent->size);
+  fprintf(stderr, "[FATAL] alaska: out of bound access of handle %ld. Attempt to access byte %zu in a %d byte handle!\n",
+      ENT_GET_CANONICAL(ent), offset, ent->size);
   exit(-1);
 }
 
@@ -142,9 +142,9 @@ extern "C" void *alaska_guarded_lock(void *ptr) {
   // if the pointer is NULL, we need to perform a "handle fault" This
   // is to allow the runtime to fully deallocate unused handles, but it
   // is a relatively expensive check on some architectures...
-  if (unlikely(ent->ptr == NULL)) {
-    alaska_fault(ent);
-  }
+  // if (unlikely(ent->ptr == NULL)) {
+  //   alaska_fault(ent);
+  // }
 
 
 
@@ -155,7 +155,7 @@ extern "C" void *alaska_guarded_lock(void *ptr) {
   ent->locks++;
 
   // Return the address of the pointer plus the offset we are locking at.
-  return (void *)((uint64_t)ent->ptr + off);
+  return (void *)((uint64_t)ent->ptr | off);
 }
 
 
@@ -197,7 +197,7 @@ static void __attribute__((constructor)) alaska_init(void) {
     map[i].ptr = (void *)&map[i + 1];
     map[i].size = 0;  // a size of zero indicates that this field is unmapped
   }
-	map[map_size - 1].ptr = NULL;
+  map[map_size - 1].ptr = NULL;
   // start allocating at the first handle
   next_handle = &map[0];
 }

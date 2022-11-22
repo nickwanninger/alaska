@@ -6,7 +6,6 @@
 /.clangd
 /.cache
 /artifacts
-/dep
 /compile_commands.json
 config.cmake
 .config# Don't commit the compiled benchmarks
@@ -17,5 +16,5 @@ test/npb/sys/setparams
 
 tools/.ipynb_checkpoints
 .venv
-
-/install
+# where stuff gets installed to
+/local

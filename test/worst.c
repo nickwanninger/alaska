@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
+#include <unistd.h>
 
 
 
@@ -24,7 +24,7 @@ uint64_t timestamp() {
 }
 
 
-#define TRIALS 1000
+#define TRIALS 100
 #define LENGTH 100000
 
 struct node {
@@ -75,7 +75,7 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 
 int main(int argc, char **argv) {
   printf("baseline,alaska\n");
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 100; i++) {
     uint64_t *baseline = run_test(malloc, free);
     uint64_t *alaska = run_test(alaska_alloc, alaska_free);
 
@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
 
     free(alaska);
     free(baseline);
+		// usleep(100000);
   }
 
   return 0;
