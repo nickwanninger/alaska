@@ -3,8 +3,8 @@
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 
 
-mkdir -p $ROOT/dep
-pushd $ROOT/dep
+mkdir -p $ROOT/local
+pushd $ROOT/local
 
 if [ ! -f "${ROOT}/.config" ]; then
 	echo "ERROR: run 'make menuconfig' first";
@@ -12,7 +12,7 @@ if [ ! -f "${ROOT}/.config" ]; then
 fi
 
 LLVM_VERSION=15.0.2
-PREFIX=$ROOT/dep/local
+PREFIX=$ROOT/local
 mkdir -p ${PREFIX}/{bin,lib}
 
 export PATH=$PREFIX/bin:$PATH
@@ -79,7 +79,7 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 		if [ ! -f llvm.tar.xz ]; then
 			wget -O llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/$LLVM_FILE
 		fi
-		tar xvf llvm.tar.xz --strip-components=1 -C local/
+		tar xvf llvm.tar.xz --strip-components=1 -C ${PREFIX}
 
 	else
 		echo "We have to compile LLVM from source on your platform..."

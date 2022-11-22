@@ -1,12 +1,27 @@
-.ONESHELL:
+# .ONESHELL:
 .DEFAULT_GOAL := alaska
+
+ROOT=$(shell pwd)
+export PATH:=$(ROOT)/local/bin:$(PATH)
+export PATH:=$(ROOT)/install/bin:$(PATH)
+export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
+export LD_LIBRARY_PATH:=$(ROOT)/install/lib:$(LD_LIBRARY_PATH)
 
 # include .config
 
 BUILD=build
 
-alaska:
-	@tools/build.sh
+$(BUILD)/Makefile:
+	mkdir -p $(BUILD)
+	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
+
+alaska: local/bin/clang $(BUILD)/Makefile
+	@$(MAKE) --no-print-directory install -C build
+	@cp build/compile_commands.json .
+
+
+local/bin/clang:
+	tools/build_deps.sh
 
 
 test: alaska
