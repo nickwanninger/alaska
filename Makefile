@@ -20,9 +20,11 @@ alaska: local/bin/clang $(BUILD)/Makefile
 	@cp build/compile_commands.json .
 
 
+
 local/bin/clang:
 	tools/build_deps.sh
 
+deps: local/bin/clang
 
 test: alaska
 	@make -C build verbose_test --no-print-directory
