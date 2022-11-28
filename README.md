@@ -20,5 +20,6 @@ Once it finishes, `local/` should contain the tools required to use alaska.
 
 Once built, `local/bin/alaska` functions as a drop-in replacement for `clang`. You can test alaska with the following commands:
 ```
-local/bin/alaska -O3 test/locality.c -o build/locality && build/locality
+local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 ```
+You can also run `make sanity`, which will do it for you.

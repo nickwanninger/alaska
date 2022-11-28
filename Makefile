@@ -26,6 +26,10 @@ local/bin/clang:
 
 deps: local/bin/clang
 
+sanity: alaska
+	@local/bin/alaska test/sanity.c -o build/sanity
+	@build/sanity
+
 test: alaska
 	@make -C build verbose_test --no-print-directory
 
