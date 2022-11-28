@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 
-
 uint64_t timestamp() {
 #if defined(__x86_64__)
   uint32_t rdtsc_hi_, rdtsc_lo_;
@@ -15,10 +14,7 @@ uint64_t timestamp() {
 #else
 
   struct timespec spec;
-  if (clock_gettime(1, &spec) == -1) { /* 1 is CLOCK_MONOTONIC */
-    abort();
-  }
-
+  clock_gettime(1, &spec);
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 #endif
 }
@@ -27,11 +23,29 @@ uint64_t timestamp() {
 #define TRIALS 100
 #define LENGTH 100000
 
+#define NODE_SIZE 64
 struct node {
   struct node *next;
   int val;
 };
 
+
+struct node *reverse_list(struct node *root) {
+  // Initialize current, previous and next pointers
+  struct node *current = root;
+  struct node *prev = NULL, *next = NULL;
+
+  while (current != NULL) {
+    // Store next
+    next = current->next;
+    // Reverse current node's pointer
+    current->next = prev;
+    // Move pointers one position ahead.
+    prev = current;
+    current = next;
+  }
+  return prev;
+}
 
 int test(struct node *root, uint64_t *out) {
   volatile int sum = 0;
@@ -54,11 +68,17 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 
   struct node *root = NULL;
   for (int i = 0; i < LENGTH; i++) {
-    struct node *n = (struct node *)_malloc(sizeof(struct node));
+    struct node *n = (struct node *)_malloc(NODE_SIZE);
     n->next = root;
     n->val = i;
     root = n;
   }
+
+  // Hacky way to "manufacture locality" without a fancy runtime.
+  // Ideally, we'd see the alaska runtime do this for us, but that
+  // part isn't written yet so this is a proxy for what that part
+  // can do.
+  // if (_malloc == alaska_alloc) root = reverse_list(root);
 
   test(root, trials);
 
@@ -75,21 +95,23 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 
 int main(int argc, char **argv) {
   printf("baseline,alaska\n");
-  for (int i = 0; i < 100; i++) {
-    uint64_t *baseline = run_test(malloc, free);
-    uint64_t *alaska = run_test(alaska_alloc, alaska_free);
+  uint64_t *baseline = run_test(malloc, free);
+  uint64_t *alaska = run_test(alaska_alloc, alaska_free);
 
 
-    for (int i = 0; i < TRIALS; i++) {
-      uint64_t a = alaska[i];
-      uint64_t b = baseline[i];
-      printf("%lu,%lu\n", b, a);
-    }
-
-    free(alaska);
-    free(baseline);
-		// usleep(100000);
+  float sum_slowdowns = 0.0f;
+  for (int i = 0; i < TRIALS; i++) {
+    uint64_t a = alaska[i];
+    uint64_t b = baseline[i];
+    float slowdown = (float)a / (float)b;
+    sum_slowdowns += slowdown;
+    printf("%lu,%lu\n", b, a);
   }
+
+  fprintf(stderr, "average slowdown: %f\n", sum_slowdowns / (float)TRIALS);
+
+  free(alaska);
+  free(baseline);
 
   return 0;
 }

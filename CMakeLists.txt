@@ -18,6 +18,8 @@ set(CMAKE_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_PREFIX}/include)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC -g3 -Wno-unknown-warning-option ")
 
+set(CMAKE_INSTALL_MESSAGE LAZY)
+
 # configure LLVM 
 find_package(LLVM REQUIRED CONFIG)
 
