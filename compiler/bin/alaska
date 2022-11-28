@@ -56,7 +56,7 @@ if [ "$phase" = "compile" ]; then
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	gclang -lm -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} "${ALASKA}/install/$LIB"
+	gclang -lm -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} "${ALASKA}/local/$LIB"
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
 	TMPFILE=${OUTFILE}.bc
@@ -86,13 +86,13 @@ else
 
 
 	# Run a simple normalization pass on the code
-	opt -load "${ALASKA}/install/lib/AlaskaNormalize.$SO" \
+	opt -load "${ALASKA}/local/lib/AlaskaNormalize.$SO" \
 		--alaska-norm                                \
 		-enable-new-pm=0                             \
 		"${TMPFILE}" -o "${TMPFILE}" 
 
 	# Run the main pin pass over the code
-	opt -load "${ALASKA}/install/lib/Alaska.$SO" \
+	opt -load "${ALASKA}/local/lib/Alaska.$SO" \
 		-domtree                             \
 		$AA                                  \
 		--alaska                             \
@@ -100,7 +100,7 @@ else
 		"${TMPFILE}" -o "${TMPFILE}" 
 
 
-	llvm-link -o ${TMPFILE} ${TMPFILE} ${ALASKA}/install/lib/alaska.bc
+	llvm-link -o ${TMPFILE} ${TMPFILE} ${ALASKA}/local/lib/alaska.bc
 
 	opt ${AA} \
 		-mem2reg \
@@ -120,7 +120,7 @@ else
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	clang++ -T "${ALASKA}/compiler/ldscripts/alaska-$(uname -m).ld" -lm -ldl -pthread -O3 -g -march=native ${TMPFILE} "${ALASKA}/install/$LIB" -o $OUTFILE
+	clang++ -T "${ALASKA}/compiler/ldscripts/alaska-$(uname -m).ld" -lm -ldl -pthread -O3 -g -march=native ${TMPFILE} "${ALASKA}/local/$LIB" -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
