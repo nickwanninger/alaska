@@ -23,7 +23,7 @@ int sum_list(struct node *root) {
 int main(int argc, char **argv) {
   struct node *root = NULL;
   for (int i = 0; i < 16; i++) {
-    struct node *n = (struct node *)alaska_alloc(sizeof(struct node));
+    struct node *n = (struct node *)halloc(sizeof(struct node));
     n->next = root;
     n->val = i;
     root = n;

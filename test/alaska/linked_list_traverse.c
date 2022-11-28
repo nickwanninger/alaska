@@ -15,7 +15,7 @@ int sum(struct node *root) {
     sum += cur->val;
     cur = cur->next;
   }
-	return sum;
+  return sum;
 }
 
 int main(int argc, char **argv) {
@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
 
   struct node *root = NULL;
   for (int i = 0; i < count; i++) {
-    struct node *n = (struct node *)alaska_alloc(sizeof(struct node));
+    struct node *n = (struct node *)halloc(sizeof(struct node));
     n->val = rand();
     n->next = root;
     root = n;

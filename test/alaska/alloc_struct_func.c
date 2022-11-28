@@ -10,7 +10,7 @@ void modify(struct foo *x) {
 }
 
 int main() {
-  struct foo *x = alaska_alloc(sizeof(*x));
+  struct foo *x = halloc(sizeof(*x));
   modify(x);
   return 0;
 }

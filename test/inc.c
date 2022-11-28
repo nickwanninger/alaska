@@ -6,19 +6,19 @@
 
 
 struct data {
-	int x;
-	int y;
+  int x;
+  int y;
 };
 
 void inc(int *x) { (*x) += 1; }
-void inc_y(struct data *d) { d->y ++; }
+void inc_y(struct data *d) { d->y++; }
 
 int main(int argc, char **argv) {
-  int *ptr = (int *)alaska_alloc(sizeof(int));
+  int *ptr = (int *)halloc(sizeof(int));
   *ptr = 0;
   printf("%p\n", ptr);
   inc(ptr + 1);
 
-  alaska_free(ptr);
+  hfree(ptr);
   return 0;
 }

@@ -10,12 +10,11 @@ struct node {
 
 int main(int argc, char **argv) {
   int count = 10;
-  if (argc > 2)
-    count = atoi(argv[1]);
+  if (argc > 2) count = atoi(argv[1]);
 
   struct node *root = NULL;
   for (int i = 0; i < count; i++) {
-    struct node *n = (struct node *)alaska_alloc(sizeof(struct node));
+    struct node *n = (struct node *)halloc(sizeof(struct node));
     n->val = rand();
     n->next = root;
     root = n;

@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
   int count = 10;
 
   for (int i = 0; i < count; i++) {
-    struct node *n = (struct node *)alaska_alloc(sizeof(struct node));
+    struct node *n = (struct node *)halloc(sizeof(struct node));
     n->val = i;
     n->next = root;
     root = n;
@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     sum += cur->val;
     struct node *prev = cur;
     cur = cur->next;
-    alaska_free(prev);
+    hfree(prev);
   }
 
   printf("sum=%d\n", sum);

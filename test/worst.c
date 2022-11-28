@@ -78,7 +78,7 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
   // Ideally, we'd see the alaska runtime do this for us, but that
   // part isn't written yet so this is a proxy for what that part
   // can do.
-  // if (_malloc == alaska_alloc) root = reverse_list(root);
+  // if (_malloc == halloc) root = reverse_list(root);
 
   test(root, trials);
 
@@ -96,7 +96,7 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 int main(int argc, char **argv) {
   printf("baseline,alaska\n");
   uint64_t *baseline = run_test(malloc, free);
-  uint64_t *alaska = run_test(alaska_alloc, alaska_free);
+  uint64_t *alaska = run_test(halloc, hfree);
 
 
   float sum_slowdowns = 0.0f;

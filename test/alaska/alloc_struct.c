@@ -5,7 +5,7 @@ struct foo {
 };
 
 int main() {
-  struct foo *x = alaska_alloc(sizeof(*x));
+  struct foo *x = halloc(sizeof(*x));
   x->a = 3;
   x->b = 4;
   return 0;
