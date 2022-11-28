@@ -1,5 +1,5 @@
 #include <alaska.h>
-#include <alaska/translation_types.h>
+#include <alaska/internal.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>

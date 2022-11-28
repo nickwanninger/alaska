@@ -8,7 +8,8 @@
 /artifacts
 /compile_commands.json
 config.cmake
-.config# Don't commit the compiled benchmarks
+.config
+# Don't commit the compiled benchmarks
 /bench
 # Some stuff for NAS
 npbparams.h

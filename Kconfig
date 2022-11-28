@@ -19,3 +19,8 @@ config INLINE_HANDLE_GUARD
 config OOB_CHECK
 	bool "Perform bounds checks on handles"
 	default n
+
+
+config SANITY_CHECK
+	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
+	default n
