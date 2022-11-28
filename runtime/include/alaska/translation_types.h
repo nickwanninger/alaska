@@ -17,11 +17,11 @@ extern "C" {
 #define ALASKA_GET_BIN(h) (((h) >> 55) & 0b11111)
 
 typedef struct {
-  void *ptr; // The raw backing memory of the handle
-	uint32_t usage_timestamp;
+  void *ptr;  // The raw backing memory of the handle
+  uint32_t usage_timestamp;
   uint32_t size;
-  uint16_t locks; // How many users does this handle have?
-  uint16_t flags; // additional flags (idk, tbd)
+  uint16_t locks;  // How many users does this handle have?
+  uint16_t flags;  // additional flags (idk, tbd)
 } alaska_map_entry_t;
 
 
@@ -29,7 +29,7 @@ typedef struct {
 
 typedef alaska_map_entry_t *(*alaska_map_driller_t)(uint64_t, uint64_t *, int);
 
-extern void *alaska_alloc_map_frame(int level, size_t entry_size, int size);
+extern void *hmalloc_map_frame(int level, size_t entry_size, int size);
 
 #ifdef __cplusplus
 }

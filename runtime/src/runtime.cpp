@@ -40,12 +40,12 @@ static uint64_t next_usage_timestamp = 0;
 // this because all handle map entries  are the same size. It is the
 // allocations they point to that are variable sized. This means we can
 // simply store a linked list of free nodes within the alaska map entrys
-// themselves. This turns `alaska_alloc` calls into a nice O(1) common case,
+// themselves. This turns `halloc` calls into a nice O(1) common case,
 // and a `mremap()` call in the worst case (if we need more handles)
 static alaska_map_entry_t *next_handle = NULL;
 
 
-extern "C" void *alaska_alloc(size_t sz) {
+extern "C" void *halloc(size_t sz) {
   assert(sz < (1LLU << 32));
   uint64_t handle = HANDLE_MARKER | (((uint64_t)next_handle) << 32);
 
@@ -66,7 +66,7 @@ extern "C" void *alaska_alloc(size_t sz) {
 }
 
 // Reallocate a handle
-extern "C" void *alaska_realloc(void *handle, size_t sz) {
+extern "C" void *hrealloc(void *handle, size_t sz) {
   auto ent = GET_ENTRY(handle);
   ent->ptr = realloc(ent->ptr, sz);
   ent->size = sz;
@@ -77,7 +77,7 @@ extern "C" void *alaska_realloc(void *handle, size_t sz) {
   return handle;
 }
 
-extern "C" void alaska_free(void *ptr) {
+extern "C" void hfree(void *ptr) {
   auto ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   free(ent->ptr);
@@ -291,7 +291,7 @@ static void __attribute__((constructor)) alaska_init(void) {
 
 static void __attribute__((destructor)) alaska_deinit(void) { munmap(map, map_size * MAP_ENTRY_SIZE); }
 
-extern "C" void *alaska_alloc_map_frame(int level, size_t entry_size, int size) {
+extern "C" void *hmalloc_map_frame(int level, size_t entry_size, int size) {
   void *p = calloc(entry_size, size);
   return p;
 }
