@@ -20,6 +20,8 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+
+#include "noelle/core/DataFlow.hpp"
 #include "noelle/core/MetadataManager.hpp"
 
 
@@ -54,6 +56,21 @@ namespace {
 
         alaska::PointerFlowGraph graph(F);
         auto nodes = graph.get_nodes();
+
+
+				// llvm::noelle::DataFlowAnalysis dfa;
+				// auto df = dfa.runReachableAnalysis(&F);
+				// for (auto &BB : F) {
+				// 	for (auto &I : BB) {
+				// 		alaska::println(I);
+				// 		auto &OUT = df->OUT(&I);
+				// 		for (auto out : OUT) {
+				// 			alaska::println("   ", *out);
+				// 		}
+				//
+				// 	}
+				// }
+				// delete df;
 
 #ifdef ALASKA_DUMP_GRAPH
         llvm::DominatorTree DT(F);

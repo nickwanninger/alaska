@@ -11,6 +11,9 @@ add_library(AlaskaCompilerLibrary OBJECT
 	lib/noelle/MetadataEntry.cpp
 	lib/noelle/MetadataManager_Instruction.cpp
 	lib/noelle/MetadataManager_Module.cpp
+	lib/noelle/DataFlowAnalysis.cpp
+	lib/noelle/DataFlowEngine.cpp
+	lib/noelle/DataFlowResult.cpp
 )
 
 add_llvm_library(Alaska MODULE
