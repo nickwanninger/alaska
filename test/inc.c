@@ -11,7 +11,10 @@ struct data {
 };
 
 void inc(int *x) { (*x) += 1; }
-void inc_y(struct data *d) { d->y++; }
+void inc_y(struct data *d) {
+	d->x--;
+	d->y++;
+}
 
 int main(int argc, char **argv) {
   int *ptr = (int *)halloc(sizeof(int));

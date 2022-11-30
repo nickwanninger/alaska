@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
+#include <math.h>
 
 uint64_t timestamp() {
 #if defined(__x86_64__)
@@ -20,14 +20,14 @@ uint64_t timestamp() {
 }
 
 
-#define TRIALS 100
-#define LENGTH 100000
+#define TRIALS 1000
+#define LENGTH 10000
 
-#define NODE_SIZE 64
 struct node {
   struct node *next;
   int val;
 };
+#define NODE_SIZE 64
 
 
 struct node *reverse_list(struct node *root) {
@@ -78,7 +78,7 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
   // Ideally, we'd see the alaska runtime do this for us, but that
   // part isn't written yet so this is a proxy for what that part
   // can do.
-  // if (_malloc == halloc) root = reverse_list(root);
+  if (_malloc == halloc) root = reverse_list(root);
 
   test(root, trials);
 
@@ -99,16 +99,28 @@ int main(int argc, char **argv) {
   uint64_t *alaska = run_test(halloc, hfree);
 
 
+  float slowdowns[TRIALS];
   float sum_slowdowns = 0.0f;
   for (int i = 0; i < TRIALS; i++) {
     uint64_t a = alaska[i];
     uint64_t b = baseline[i];
     float slowdown = (float)a / (float)b;
+    slowdowns[i] = slowdown;
     sum_slowdowns += slowdown;
     printf("%lu,%lu\n", b, a);
   }
 
-  fprintf(stderr, "average slowdown: %f\n", sum_slowdowns / (float)TRIALS);
+
+  // Compute standard deviation
+  float mean = sum_slowdowns / (float)TRIALS;
+  float stddev = 0.0;
+  for (int i = 0; i < TRIALS; i++) {
+    stddev += pow(slowdowns[i] - mean, 2);
+  }
+  stddev = sqrt(stddev / (float)TRIALS);
+
+
+  fprintf(stderr, "µ:%.3fx σ:%.2f\n", mean, stddev);
 
   free(alaska);
   free(baseline);

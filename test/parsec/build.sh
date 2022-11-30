@@ -33,7 +33,8 @@ CONFIG=gcc-serial
 ./bin/parsecmgmt -a fulluninstall -c $CONFIG
 ./bin/parsecmgmt -a fullclean -c $CONFIG
 
-benchmarksList=("blackscholes" "bodytrack" "fluidanimate" "freqmine" "swaptions" "x264" "canneal" "streamcluster") ;
+# benchmarksList=("blackscholes" "bodytrack" "fluidanimate" "freqmine" "swaptions" "x264" "canneal" "streamcluster") ;
+benchmarksList=("streamcluster") ;
 
 
 for elem in ${benchmarksList[@]} ; do
