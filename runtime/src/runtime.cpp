@@ -14,10 +14,10 @@
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
-#define MAP_ENTRY_SIZE sizeof(alaska_map_entry_t)  // enforced by a static assert in translation_types.h
-#define MAP_GRANULARITY 0x200000LU                 // minimum size of a "huge page" if we ever get around to that
+#define MAP_ENTRY_SIZE sizeof(alaska_mapping_t)  // enforced by a static assert in translation_types.h
+#define MAP_GRANULARITY 0x200000LU               // minimum size of a "huge page" if we ever get around to that
 #define HANDLE_MARKER (1LLU << 63)
-#define GET_ENTRY(handle) ((alaska_map_entry_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
+#define GET_ENTRY(handle) ((alaska_mapping_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
 #define GET_OFFSET(handle) ((off_t)(handle)&0xFFFFFFFF)
 
 #define ENT_GET_CANONICAL(ent) (((off_t)(ent) - (off_t)(map)) / MAP_ENTRY_SIZE)
@@ -29,7 +29,7 @@
 // How many map cells are there in the map table?
 size_t map_size = 0;
 // The memory for the alaska translation map. This lives at 0x200000 and is grown in 2mb chunks
-static alaska_map_entry_t *map = NULL;
+static alaska_mapping_t *map = NULL;
 
 // ...
 static uint64_t next_usage_timestamp = 0;
@@ -42,7 +42,7 @@ static uint64_t next_usage_timestamp = 0;
 // simply store a linked list of free nodes within the alaska map entrys
 // themselves. This turns `halloc` calls into a nice O(1) common case,
 // and a `mremap()` call in the worst case (if we need more handles)
-static alaska_map_entry_t *next_handle = NULL;
+static alaska_mapping_t *next_handle = NULL;
 
 
 extern "C" void *halloc(size_t sz) {
@@ -50,8 +50,8 @@ extern "C" void *halloc(size_t sz) {
   uint64_t handle = HANDLE_MARKER | (((uint64_t)next_handle) << 32);
 
 
-  alaska_map_entry_t *ent = next_handle;
-  next_handle = (alaska_map_entry_t *)ent->ptr;
+  alaska_mapping_t *ent = next_handle;
+  next_handle = (alaska_mapping_t *)ent->ptr;
   if (next_handle == NULL) {
     fprintf(stderr, "alaska: out of space!\n");
     exit(-1);
@@ -84,7 +84,7 @@ extern "C" void hfree(void *ptr) {
   memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = 0;
   ent->ptr = (void *)next_handle;
-  next_handle = (alaska_map_entry_t *)ent;
+  next_handle = (alaska_mapping_t *)ent;
 }
 
 
@@ -99,7 +99,7 @@ enum alaska_fault_reason {
 // may go out to disk, decompress, decrypt, or something else more interesting :)
 //
 // This, and alaska_barrier are the main locations where the runtime can be customized
-extern "C" __declspec(noinline) void alaska_fault(alaska_map_entry_t *ent, alaska_fault_reason reason, off_t offset) {
+extern "C" __declspec(noinline) void alaska_fault(alaska_mapping_t *ent, alaska_fault_reason reason, off_t offset) {
   if (reason == OUT_OF_BOUNDS) {
     fprintf(stderr, "[FATAL] alaska: out of bound access of handle %ld. Attempt to access byte %zu in a %d byte handle!\n",
         ENT_GET_CANONICAL(ent), offset, ent->size);
@@ -132,8 +132,8 @@ static void foreach_handle(Fn fn) {
 #define MAX_MOVE 32
 
 int alaska_ent_usage_compare(const void *_a, const void *_b) {
-  auto a = *(alaska_map_entry_t **)_a;
-  auto b = *(alaska_map_entry_t **)_b;
+  auto a = *(alaska_mapping_t **)_a;
+  auto b = *(alaska_mapping_t **)_b;
 
   return a->usage_timestamp - b->usage_timestamp;
 }
@@ -154,12 +154,12 @@ extern "C" __declspec(noinline) void alaska_barrier(void) {
   // How many have we found?
   int found = 0;
   // these are the ones we are interested in
-  alaska_map_entry_t *relocation_plan[MAX_MOVE];
+  alaska_mapping_t *relocation_plan[MAX_MOVE];
   void *allocations[MAX_MOVE];
 
   printf("=== alaska_barrier ===\n");
   // Work through `map` and do something fun
-  foreach_handle([&](alaska_map_entry_t *ent) {
+  foreach_handle([&](alaska_mapping_t *ent) {
     if (found >= MAX_MOVE) return false;
 
     if (ent->locks == 0 && ent->size == size_target) {
@@ -179,7 +179,7 @@ extern "C" __declspec(noinline) void alaska_barrier(void) {
   }
 
 
-  qsort(relocation_plan, found, sizeof(alaska_map_entry_t *), alaska_ent_usage_compare);
+  qsort(relocation_plan, found, sizeof(alaska_mapping_t *), alaska_ent_usage_compare);
 
   printf("relocated:\n");
   for (int i = 0; i < found; i++) {
@@ -276,7 +276,7 @@ static void __attribute__((constructor)) alaska_init(void) {
   size_t sz = MAP_GRANULARITY * 8;
 
   // TODO: do this using hugetlbfs :)
-  map = (alaska_map_entry_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);
+  map = (alaska_mapping_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);
   map_size = sz / MAP_ENTRY_SIZE;
 
   for (size_t i = 0; i < map_size - 1; i++) {

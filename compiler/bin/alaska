@@ -50,15 +50,20 @@ do
 done
 
 
+ALASKA_LIBS="${ALASKA}/local/lib/libalaska_library.a ${ALASKA}/local/lib/libalaska_allocator.a "
+
+
+GCLANG="${ALASKA_GCLANG:=gclang}"
+CLANG="${ALASKA_CLANG:=clang}"
 if [ "$phase" = "compile" ]; then
-	gclang -I${ALASKA}/runtime/include -c ${COLLECT_CLANG_ARGS[@]}
+	$GCLANG -Wno-unused-command-line-argument -I${ALASKA}/local/include -c ${COLLECT_CLANG_ARGS[@]}
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	gclang -lm -I${ALASKA}/runtime/include ${COLLECT_CLANG_ARGS[@]} "${ALASKA}/local/$LIB"
+	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${ALASKA}/local/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
 	get-bc $OUTFILE >/dev/null
-	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.baseline
+	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
 	TMPFILE=${OUTFILE}.bc
 
 
@@ -120,7 +125,7 @@ else
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	clang++ -T "${ALASKA}/compiler/ldscripts/alaska-$(uname -m).ld" -lm -ldl -pthread -O3 -g -march=native ${TMPFILE} "${ALASKA}/local/$LIB" -o $OUTFILE
+	$CLANG -T "${ALASKA}/compiler/ldscripts/alaska-$(uname -m).ld" -lm -ldl -pthread -O3 -g -march=native ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi

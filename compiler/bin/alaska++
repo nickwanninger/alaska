@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
+
+
+ALASKA_GCLANG=gclang++ ALASKA_CLANG=clang++ $HERE/alaska $@

@@ -11,9 +11,9 @@ extern "C" {
 #endif
 
 #ifdef ALASKA_SANITY_CHECK
-#define ALASKA_SANITY(c, msg) 
+#define ALASKA_SANITY(c, msg)
 #else
-#define ALASKA_SANITY(c, msg) // do nothing if it's disabled
+#define ALASKA_SANITY(c, msg)  // do nothing if it's disabled
 #endif
 
 
@@ -23,7 +23,7 @@ typedef struct {
   uint32_t size;
   uint16_t locks;  // How many users does this handle have?
   uint16_t flags;  // additional flags (idk, tbd)
-} alaska_map_entry_t;
+} alaska_mapping_t;
 
 
 #ifdef __cplusplus
