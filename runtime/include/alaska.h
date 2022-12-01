@@ -14,6 +14,7 @@ typedef uint64_t alaska_handle_t;
 
 
 extern void *halloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
+extern void *hcalloc(size_t nmemb, size_t size);
 extern void *hrealloc(void *handle, size_t sz);
 extern void hfree(void *ptr);
 // "Go do something in the runtime", whatever that means right now

@@ -52,10 +52,11 @@ void *halloc(size_t sz) {
 
   memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = sz;
-  ent->ptr = je_malloc(sz);  // just use malloc
-
+  ent->ptr = je_calloc(1, sz);  // just use malloc
   return (void *)handle;
 }
+
+extern void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t sz) {
@@ -73,7 +74,6 @@ void hfree(void *ptr) {
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   je_free(ent->ptr);
-  memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = 0;
   ent->ptr = (void *)next_handle;
 
@@ -108,13 +108,10 @@ void *alaska_defrag_alloc(alaska_mapping_t *ent) {
   void *ptr = ent->ptr;
   size_t size = ent->size;
   void *newptr;
-  /*
-	// TODO:
-  if(!je_get_defrag_hint(ptr)) {
-      server.stat_active_defrag_misses++;
-      return NULL;
-  }
-  */
+  // if(!je_get_defrag_hint(ptr)) {
+  //     server.stat_active_defrag_misses++;
+  //     return NULL;
+  // }
 
   /* move this allocation to a new allocation.
    * make sure not to use the thread cache. so that we don't get back the same
@@ -123,7 +120,7 @@ void *alaska_defrag_alloc(alaska_mapping_t *ent) {
   newptr = je_mallocx(size, MALLOCX_TCACHE_NONE);
   memcpy(newptr, ptr, size);
   je_free(ptr);
-	ent->ptr = newptr;
+  ent->ptr = newptr;
   return newptr;
 }
 
@@ -181,7 +178,6 @@ __declspec(noinline) void alaska_barrier(void) {}
 // The core function to lock a handle. This is called only once we know
 // that @ptr is a handle (indicated by the top bit being set to 1).
 void *alaska_guarded_lock(void *ptr) {
-  // printf("lock %p, %ld\n", ptr, GET_CANONICAL(ptr));
   // A handle is encoded as two 32 bit components. The first (top half)
   // component is simply a pointer to the mapping directly. The second
   // (bottom 32 bits) are an offset into the mapping. This simplifies
@@ -198,23 +194,6 @@ void *alaska_guarded_lock(void *ptr) {
   // Extract the lower 32 bits of the pointer for the offset.
   off_t off = GET_OFFSET(ptr);
 
-
-
-#ifdef ALASKA_OOB_CHECK
-  // Alaska can perform out of bounds checks when each load and store
-  // performs a lock. This is also expensive, and should really be outlined
-  // by the compiler a-la TEXAS/CARAT.
-  //
-  // Another option would be to resize pointers automatically, ensuring
-  // there is always enough space (within the 2gb space that `off` can
-  // measure). This would effectively allow turning allocations into
-  // automatically growing arrays.
-  if (unlikely(off >= ent->size)) {
-    alaska_fault(ent, OUT_OF_BOUNDS, off);
-  }
-#endif
-
-
   // if the pointer is NULL, we need to perform a "handle fault" This
   // is to allow the runtime to fully deallocate unused handles, but it
   // is a relatively expensive check on some architectures...
@@ -225,9 +204,11 @@ void *alaska_guarded_lock(void *ptr) {
   // Proxy for temporal locality.
   // The compiler could decide to do this or not based on if it
   // if wants to track this in some scope
-  ent->usage_timestamp = next_usage_timestamp++;
+  // ent->usage_timestamp = next_usage_timestamp++;
 
-  // Record the lock occuring so the runtime knows not to relocate the memory.
+  // printf("lock %p, %ld, %ld\n", ptr, GET_CANONICAL(ptr), ent->usage_timestamp);
+  
+	// Record the lock occuring so the runtime knows not to relocate the memory.
   // TODO: hoist this into the compiler and avoid doing it if it's not needed.
   // ex: if there are no calls to alaska_barrier between lock/unlocks,
   //     there is no need to lock (we only care about one thread for now)
@@ -243,7 +224,6 @@ void alaska_guarded_unlock(void *ptr) {
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   ent->locks--;
 }
-
 
 
 // These functions are simple wrappers around the guarded version of the
@@ -263,6 +243,18 @@ void alaska_unlock(void *ptr) {
   }
 }
 
+// This function exists to lock on extern escapes.
+// TODO: determine if we should lock it forever or not...
+void *alaska_lock_for_escape(void *ptr) {
+  uint64_t h = (uint64_t)ptr;
+  if (unlikely((h & HANDLE_MARKER) != 0)) {
+    // its easier to do this than to duplicate efforts and inline.
+    void *t = alaska_lock(ptr);
+    alaska_unlock(ptr);
+    return t;
+  }
+  return ptr;
+}
 
 
 #define MAP_HUGE_2MB (21 << MAP_HUGE_SHIFT)

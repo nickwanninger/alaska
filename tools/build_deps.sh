@@ -41,6 +41,7 @@ if [ ! -f ${PREFIX}/bin/gclang ]; then
 	GOPATH=${PREFIX} GO111MODULE=off go/bin/go get -v github.com/SRI-CSL/gllvm/cmd/...
 
 	rm -rf go
+	rm -rf go.tar.gz
 fi
 
 
@@ -102,5 +103,8 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 		popd
 	fi
 
+	rm -rf llvm.tar.xz
+
+	
 
 fi

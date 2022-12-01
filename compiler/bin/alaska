@@ -1,17 +1,17 @@
-#!/bin/bash
+#!/usr/bin/bash
 
 set -e
 
-ALASKA=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../../")
+PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
 
-source ${ALASKA}/enable
-source ${ALASKA}/.config
+export PATH=$PFX/bin:$PATH
+export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
 
 LIB=lib/libalaska_library.a
 OUTFILE="a.out"
 KEEP="false"
 BASELINE="false"
-COLLECT_CLANG_ARGS=() INPUTS=()
+COLLECT_CLANG_ARGS=() INPUTS=() OPT_ARGS=()
 OBJECT_TARGET=
 
 SO="so"
@@ -42,6 +42,11 @@ do
 				phase="compile"
 				shift
 				;;
+
+			--alaska-*)
+				OPT_ARGS+=("$1")
+				shift
+				;;
 			*)
 				COLLECT_CLANG_ARGS+=("$1")
 				shift
@@ -50,18 +55,18 @@ do
 done
 
 
-ALASKA_LIBS="${ALASKA}/local/lib/libalaska_library.a ${ALASKA}/local/lib/libalaska_allocator.a "
+ALASKA_LIBS="${PFX}/lib/libalaska_library.a ${PFX}/lib/libalaska_allocator.a "
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
 if [ "$phase" = "compile" ]; then
-	$GCLANG -Wno-unused-command-line-argument -I${ALASKA}/local/include -c ${COLLECT_CLANG_ARGS[@]}
+	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]}
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${ALASKA}/local/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
+	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
 	TMPFILE=${OUTFILE}.bc
@@ -91,41 +96,48 @@ else
 
 
 	# Run a simple normalization pass on the code
-	opt -load "${ALASKA}/local/lib/AlaskaNormalize.$SO" \
-		--alaska-norm                                \
-		-enable-new-pm=0                             \
+	function run_alaska_pass {
+		NAME=$1
+		PASS=$2
+		shift; shift;
+		opt -load "${PFX}/lib/$NAME.$SO" $PASS $@ \
+		-enable-new-pm=0                                   \
 		"${TMPFILE}" -o "${TMPFILE}" 
+	}
+
+	# run_alaska_pass AlaskaNormalize --alaska-norm
+	# run_alaska_pass AlaskaReplacement --alaska-replace
+	# run_alaska_pass AlaskaEscapeHandler --alaska-escape
+	# run_alaska_pass Alaska --alaska
 
 	# Run the main pin pass over the code
-	opt -load "${ALASKA}/local/lib/Alaska.$SO" \
-		-domtree                             \
-		$AA                                  \
-		--alaska                             \
-		-enable-new-pm=0                     \
+	opt -load "${PFX}/lib/Alaska.$SO"          \
+		-load   "${PFX}/lib/AlaskaNormalize.$SO"   \
+		-load   "${PFX}/lib/AlaskaReplacement.$SO" \
+		-load   "${PFX}/lib/AlaskaEscapeHandler.$SO" \
+		--alaska-norm                                     \
+		-domtree                                          \
+		--alaska-replace                                  \
+		$AA ${OPT_ARGS[@]}                                \
+		--alaska                                          \
+		--alaska-escape                                   \
+		--mem2reg                                         \
+		-enable-new-pm=0                                  \
 		"${TMPFILE}" -o "${TMPFILE}" 
 
+	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
 
-	llvm-link -o ${TMPFILE} ${TMPFILE} ${ALASKA}/local/lib/alaska.bc
-
-	opt ${AA} \
-		-mem2reg \
-		-simplifycfg-sink-common=false \
-		-sink \
-		-lowerswitch \
-		-mergereturn \
-		--break-crit-edges \
-		-loop-simplify \
-		-lcssa \
-		-gvn \
-		-indvars \
-		--function-attrs \
-		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
+	# opt ${AA} -mem2reg -simplifycfg-sink-common=false -sink       \
+	# 	-lowerswitch -mergereturn --break-crit-edges -loop-simplify \
+	# 	-lcssa -gvn -indvars --function-attrs --rpo-function-attrs  \
+	# 	"${TMPFILE}" -o "${TMPFILE}"
 	
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 
-	$CLANG -T "${ALASKA}/compiler/ldscripts/alaska-$(uname -m).ld" -lm -ldl -pthread -O3 -g -march=native ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+	$CLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
+		-lm -ldl -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
