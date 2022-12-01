@@ -1,6 +1,3 @@
-// #include "analysis/Grpah.h"
-
-
 // Alaska includes
 #include <Graph.h>
 #include <Utils.h>
@@ -19,7 +16,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-
+#include "llvm/Support/CommandLine.h"
 
 #include "noelle/core/DataFlow.hpp"
 #include "noelle/core/MetadataManager.hpp"
@@ -42,9 +39,6 @@ namespace {
       if (mdm.doesHaveMetadata("alaska")) return false;
       mdm.addMetadata("alaska", "did run");
 
-      // to compute average user ratios
-      std::vector<long> source_users;
-
       for (auto &F : M) {
         if (F.empty()) continue;
         auto section = F.getSection();
@@ -56,7 +50,6 @@ namespace {
 
         alaska::PointerFlowGraph graph(F);
         auto nodes = graph.get_nodes();
-
 
 				// llvm::noelle::DataFlowAnalysis dfa;
 				// auto df = dfa.runReachableAnalysis(&F);

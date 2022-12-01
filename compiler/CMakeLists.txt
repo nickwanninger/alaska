@@ -3,6 +3,7 @@ include_directories(
 	${LLVM_INCLUDE_DIRS}
 	include/
 )
+install(DIRECTORY ldscripts DESTINATION share/alaska)
 
 add_library(AlaskaCompilerLibrary OBJECT 
 	lib/Graph.cpp
@@ -31,6 +32,24 @@ add_llvm_library(AlaskaNormalize MODULE
 	PLUGIN_TOOL
 	opt
 )
+
+
+add_llvm_library(AlaskaReplacement MODULE
+	passes/ReplacementPass.cpp
+	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+
+	PLUGIN_TOOL
+	opt
+)
+
+add_llvm_library(AlaskaEscapeHandler MODULE
+	passes/EscapeHandlerPass.cpp
+	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+
+	PLUGIN_TOOL
+	opt
+)
+
 
 add_subdirectory(bin)
 

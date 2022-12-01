@@ -17,11 +17,11 @@ void inc_y(struct data *d) {
 }
 
 int main(int argc, char **argv) {
-  int *ptr = (int *)halloc(sizeof(int));
+  int *ptr = (int *)malloc(sizeof(int));
   *ptr = 0;
   printf("%p\n", ptr);
-  inc(ptr + 1);
+  inc(ptr);
 
-  hfree(ptr);
+  free(ptr);
   return 0;
 }

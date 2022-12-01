@@ -15,7 +15,6 @@ int sum_list(struct node *root) {
   int sum = 0;
   struct node *cur = root;
   while (cur != NULL) {
-		printf("use %p\n", cur);
     sum += cur->val;
     cur = cur->next;
   }
@@ -24,8 +23,8 @@ int sum_list(struct node *root) {
 
 int main(int argc, char **argv) {
   struct node *root = NULL;
-  for (int i = 0; i < 8; i++) {
-    struct node *n = (struct node *)halloc(sizeof(struct node));
+  for (int i = 0; i < 10; i++) {
+    struct node *n = (struct node *)malloc(sizeof(struct node));
     n->next = root;
     n->val = i;
     root = n;
@@ -34,6 +33,14 @@ int main(int argc, char **argv) {
   printf("sum = %d\n", sum_list(root));
   alaska_barrier();
   printf("sum = %d\n", sum_list(root));
+
+
+  struct node *cur = root;
+  while (cur != NULL) {
+    struct node *prev = cur;
+    cur = cur->next;
+    free(prev);
+  }
 
   return 0;
 }

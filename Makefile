@@ -7,9 +7,16 @@ export PATH:=$(ROOT)/install/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/install/lib:$(LD_LIBRARY_PATH)
 
-#include.config
+-include .config
 
 BUILD=build
+
+
+BUILD_REQ=$(BUILD)/Makefile
+
+ifdef ALASKA_USE_NINJA
+BUILD_REQ=$(BUILD)/build.ninja
+endif
 
 $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
@@ -20,9 +27,8 @@ $(BUILD)/build.ninja:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config local/bin/clang $(BUILD)/build.ninja
-	@#$(MAKE) --no-print-directory install -C build
-	@ninja install -C build
+alaska: .config local/bin/clang $(BUILD_REQ)
+	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
 
 
@@ -51,7 +57,7 @@ NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/
 GAP_BENCHMARKS := bench/gap/bfs bench/gap/bc bench/gap/cc bench/gap/cc_sv bench/gap/pr bench/gap/pr_spmv bench/gap/sssp
 
 
-NAS_CLASS=B
+NAS_CLASS=S
 bench/nas/%: alaska
 	@mkdir -p bench/nas
 	@echo "  CC  " $@

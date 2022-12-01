@@ -1,3 +1,8 @@
+
+config USE_NINJA
+	bool "Use the Ninja build system instead of Make"
+	default n
+
 config DEBUG
 	bool "Enable debug Logging"
 	default n
@@ -16,9 +21,6 @@ config INLINE_HANDLE_GUARD
 	default y
 
 
-config OOB_CHECK
-	bool "Perform bounds checks on handles"
-	default n
 
 
 config SANITY_CHECK

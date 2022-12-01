@@ -20,7 +20,7 @@ uint64_t timestamp() {
 }
 
 
-#define TRIALS 1000
+#define TRIALS 100
 #define LENGTH 10000
 
 struct node {
