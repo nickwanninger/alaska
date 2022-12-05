@@ -14,7 +14,7 @@ config DUMP_GRAPH
 
 config CONSERVATIVE
 	bool "Conservatively pin all loads and stores"
-	default n
+	default y
 
 config INLINE_HANDLE_GUARD
 	bool "Inline the handle check before calling runtime functions"
