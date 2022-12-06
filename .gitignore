@@ -19,3 +19,7 @@ tools/.ipynb_checkpoints
 .venv
 # where stuff gets installed to
 /local
+
+/musl
+
+libc
