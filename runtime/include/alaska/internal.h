@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <alaska/list_head.h>
 
+
 // This file contains structures that the the translation subsystem uses
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,23 @@ extern size_t alaska_map_size;
 
 #define ENT_GET_CANONICAL(ent) (((off_t)(ent) - (off_t)(alaska_map)) / MAP_ENTRY_SIZE)
 #define GET_CANONICAL(handle) ENT_GET_CANONICAL(GET_ENTRY(handle))
+
+
+// stolen from redis, it's just a nicer interface :)
+#define atomic_inc(var,count) __atomic_add_fetch(&var,(count),__ATOMIC_RELAXED)
+#define atomic_get_inc(var,oldvalue_var,count) do { \
+    oldvalue_var = __atomic_fetch_add(&var,(count),__ATOMIC_RELAXED); \
+} while(0)
+#define atomic_dec(var,count) __atomic_sub_fetch(&var,(count),__ATOMIC_RELAXED)
+#define atomic_get(var,dstvar) do { \
+    dstvar = __atomic_load_n(&var,__ATOMIC_RELAXED); \
+} while(0)
+#define atomic_set(var,value) __atomic_store_n(&var,value,__ATOMIC_RELAXED)
+#define atomic_get_sync(var,dstvar) do { \
+    dstvar = __atomic_load_n(&var,__ATOMIC_SEQ_CST); \
+} while(0)
+#define atomic_set_sync(var,value) \
+    __atomic_store_n(&var,value,__ATOMIC_SEQ_CST)
 
 #ifdef __cplusplus
 }
