@@ -1,0 +1,45 @@
+#!/bin/bash
+
+set -e
+
+HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
+PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
+
+INPUT=$1
+shift
+
+AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
+LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
+AA=""
+LOOPS=""
+
+
+# Run a cleanup pass on the bitcode
+opt ${AA} \
+	-mem2reg \
+	-simplifycfg-sink-common=false \
+	-sink \
+	-lowerswitch \
+	-mergereturn \
+	--break-crit-edges \
+	-loop-simplify \
+	-lcssa \
+	-gvn \
+	-indvars \
+	--function-attrs \
+	--rpo-function-attrs "${INPUT}" -o "${INPUT}"
+
+# Run the main pin pass over the code
+opt -load "${PFX}/lib/Alaska.so"                    \
+	-load   "${PFX}/lib/AlaskaNormalize.so"           \
+	-load   "${PFX}/lib/AlaskaReplacement.so"         \
+	-load   "${PFX}/lib/AlaskaEscapeHandler.so"       \
+	--alaska-norm                                     \
+	-domtree                                          \
+	--alaska-replace                                  \
+	$AA $@                                            \
+	--alaska                                          \
+	--alaska-escape                                   \
+	--mem2reg                                         \
+	-enable-new-pm=0                                  \
+	"${INPUT}" -o "${INPUT}" 

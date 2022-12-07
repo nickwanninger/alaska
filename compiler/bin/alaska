@@ -55,7 +55,10 @@ do
 done
 
 
-ALASKA_LIBS="${PFX}/lib/libalaska_library.a ${PFX}/lib/libalaska_allocator.a "
+ALASKA_LIBS=""
+
+# ALASKA_LIBS+="-nostdlib ${PFX}/lib/libc.o ${PFX}/lib/libc.a "
+ALASKA_LIBS+="${PFX}/lib/libalaska_library.a ${PFX}/lib/libalaska_allocator.a "
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
@@ -71,13 +74,14 @@ else
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
 	TMPFILE=${OUTFILE}.bc
 
+	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
+	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
 	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 	AA=""
 	LOOPS=""
 	
-	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 
 	# Run a cleanup pass on the bitcode
 	opt ${AA} \
@@ -110,21 +114,6 @@ else
 	# run_alaska_pass AlaskaEscapeHandler --alaska-escape
 	# run_alaska_pass Alaska --alaska
 
-	# Run the main pin pass over the code
-	opt -load "${PFX}/lib/Alaska.$SO"          \
-		-load   "${PFX}/lib/AlaskaNormalize.$SO"   \
-		-load   "${PFX}/lib/AlaskaReplacement.$SO" \
-		-load   "${PFX}/lib/AlaskaEscapeHandler.$SO" \
-		--alaska-norm                                     \
-		-domtree                                          \
-		--alaska-replace                                  \
-		$AA ${OPT_ARGS[@]}                                \
-		--alaska                                          \
-		--alaska-escape                                   \
-		--mem2reg                                         \
-		-enable-new-pm=0                                  \
-		"${TMPFILE}" -o "${TMPFILE}" 
-
 	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
 
 	# opt ${AA} -mem2reg -simplifycfg-sink-common=false -sink       \
@@ -137,7 +126,7 @@ else
 
 
 	$CLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
-		-lm -ldl -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+		 -O3 -lm -ldl -lcapstone -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
