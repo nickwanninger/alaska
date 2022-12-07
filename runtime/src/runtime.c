@@ -72,7 +72,6 @@ __declspec(noinline) void *hcalloc(size_t nmemb, size_t size) { return halloc(nm
 // Reallocate a handle
 __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
 	if (handle == NULL) return halloc(sz);
-	printf("hrealloc %p %zu\n", handle, sz);
   alaska_mapping_t *ent = GET_ENTRY(handle);
   ent->ptr = je_realloc(ent->ptr, sz);
   ent->size = sz;
@@ -280,7 +279,7 @@ void *alaska_lock_for_escape(void *ptr) {
 static void __attribute__((constructor)) alaska_init(void) {
   int fd = -1;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  size_t sz = MAP_GRANULARITY * 8;
+  size_t sz = MAP_GRANULARITY * 64;
 
   // TODO: do this using hugetlbfs :)
   alaska_map = (alaska_mapping_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);

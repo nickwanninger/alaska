@@ -9,43 +9,56 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <ucontext.h>
-
+#include <unicorn/unicorn.h>
 // Just hacking on this on arm for now
 #ifdef __aarch64__
 
 #define sigsegv_outp(x, ...) fprintf(stderr, x "\n", ##__VA_ARGS__)
 
 
+void uc_err_check(const char *name, uc_err err) {
+  if (err) {
+    fprintf(stderr, "Unicorn: %s failed with error returned: %s\n", name, uc_strerror(err));
+    exit(EXIT_FAILURE);
+  }
+}
+__thread uc_engine *uc = NULL;
+__thread bool fault_handling = false;
+
 void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
-  fflush(stdout);
-  fflush(stderr);
-
   ucontext_t *ucontext = (ucontext_t *)ptr;
-  sigsegv_outp("\n\nSEGFAULT: pc = %llx %llx", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.sp);
 
+  if (fault_handling == true) {
+    fprintf(stderr, "segfault while performing a correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc,
+        ucontext->uc_mcontext.fault_address);
+  }
+  fault_handling = true;
+  fprintf(stderr, "correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.fault_address);
+
+
+
+  if (uc == NULL) {
+    uc_err_check("uc_open", uc_open(UC_ARCH_ARM64, UC_MODE_ARM, &uc));
+  }
+
+
+  // populate the registers
   off_t pc = ucontext->uc_mcontext.pc;
-
-  csh handle;
-  cs_insn *insn;
-  size_t count;
-
-  if (cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &handle) != CS_ERR_OK) {
-    fprintf(stderr, "dead!\n");
-    exit(-1);
+  for (int i = 0; i < 31; i++) {
+    uc_reg_write(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
   }
-  count = cs_disasm(handle, (uint8_t *)pc, 100, pc, 0, &insn);
-  if (count > 0) {
-    printf("0x%lx:%d:\t%s\t\t%s\n", insn[0].address, insn[0].size, insn[0].mnemonic, insn[0].op_str);
+  uc_reg_write(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
 
-    cs_free(insn, count);
-  } else {
-    printf("ERROR: Failed to disassemble given code!\n");
+  uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
+
+
+  for (int i = 0; i < 31; i++) {
+    uc_reg_read(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
   }
+  uc_reg_read(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+  uc_reg_read(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
 
-  cs_close(&handle);
-  for (int i = 0; i < 32; i++)
-    sigsegv_outp("reg[%02d]       = 0x%llx", i, ucontext->uc_mcontext.regs[i]);
-  exit(-1);
+  fault_handling = false;
 }
 
 

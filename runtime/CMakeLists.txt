@@ -7,7 +7,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
-include_directories(include/)
+include_directories(
+	include/
+	unicorn/include/
+)
 
 # HACK: this just makes it work
 set(CMAKE_C_COMPILER_ID "Clang")
@@ -90,5 +93,8 @@ llvmir_attach_link_target(
 
 add_dependencies(alaska alaska_library)
 
+
 set_property(TARGET alaska_bitcodes PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska PROPERTY EXCLUDE_FROM_ALL OFF)
+
+add_subdirectory(unicorn)

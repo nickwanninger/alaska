@@ -19,6 +19,25 @@ export PATH=$PREFIX/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 
 
+# make sure we get libunicorn for emulation
+# if [ ! -f ${PREFIX}/lib/libunicorn.a ]; then
+# 	mkdir -p ${PREFIX}
+#
+# 	if [ ! -d unicorn ]; then
+# 		git clone git@github.com:unicorn-engine/unicorn.git --depth 1
+# 	fi
+# 	pushd unicorn
+# 		mkdir build
+# 		pushd build
+# 			cmake ../ -G Ninja -DCMAKE_INSTALL_PREFIX=${PREFIX}
+# 			ninja install
+# 		popd
+# 	popd
+# 	# rm -rf unicorn
+# fi
+
+
+
 if [ ! -f ${PREFIX}/bin/gclang ]; then
 	# install go
 	KERNEL=$(uname | tr '[:upper:]' '[:lower:]')
