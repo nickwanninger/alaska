@@ -39,7 +39,9 @@ opt -load "${PFX}/lib/Alaska.so"                    \
 	--alaska-replace                                  \
 	$AA $@                                            \
 	--alaska                                          \
-	--alaska-escape                                   \
 	--mem2reg                                         \
 	-enable-new-pm=0                                  \
 	"${INPUT}" -o "${INPUT}" 
+
+
+# --alaska-escape                                   \

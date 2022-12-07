@@ -72,6 +72,11 @@ __declspec(noinline) void *hcalloc(size_t nmemb, size_t size) { return halloc(nm
 // Reallocate a handle
 __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
 	if (handle == NULL) return halloc(sz);
+  uint64_t h = (uint64_t)handle;
+
+  if (unlikely((h & HANDLE_MARKER)  == 0)) {
+		return realloc(handle, sz);
+	}
   alaska_mapping_t *ent = GET_ENTRY(handle);
   ent->ptr = je_realloc(ent->ptr, sz);
   ent->size = sz;
@@ -85,6 +90,13 @@ __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
 
 __declspec(noinline) void hfree(void *ptr) {
 	if (ptr == NULL) return;
+
+  uint64_t h = (uint64_t)ptr;
+  if (unlikely((h & HANDLE_MARKER)  == 0)) {
+		return free(ptr);
+	}
+
+
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   je_free(ent->ptr);
