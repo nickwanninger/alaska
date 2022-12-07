@@ -25,50 +25,63 @@
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Support/CommandLine.h"
 
-#define ADDR_SPACE 0
+#include <WrappedFunctions.h>
 
+#define ADDR_SPACE 0
 
 using namespace llvm;
 // This pass runs by default, but can be disabled with --alaska-no-replace
 
 
-cl::opt<bool> no_replace("alaska-no-replace", cl::desc("Specify output filename"), cl::value_desc("filename"));
+cl::opt<bool> keep_malloc("alaska-keep-malloc", cl::desc("Don't replace malloc/free with halloc/hfree"));
 
 namespace {
-struct AlaskaPass : public ModulePass {
-  static char ID;
-  llvm::Type *int64Type;
-  llvm::Type *voidPtrType;
-  llvm::Type *voidPtrTypePinned;
-  llvm::Value *translateFunction;
-  AlaskaPass() : ModulePass(ID) {}
+  struct AlaskaPass : public ModulePass {
+    static char ID;
+    llvm::Type *int64Type;
+    llvm::Type *voidPtrType;
+    llvm::Type *voidPtrTypePinned;
+    llvm::Value *translateFunction;
+    AlaskaPass() : ModulePass(ID) {}
 
-  bool doInitialization(Module &M) override {
-    return false;
-  }
+    bool doInitialization(Module &M) override { return false; }
 
 
-	void replace_function_name(Module &M, const char *original_name, const char *new_name) {
-    auto oldFunction = M.getFunction(original_name);
-    if (oldFunction) {
-      auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
-      oldFunction->replaceAllUsesWith(newFunction);
-			oldFunction->eraseFromParent();
+
+    // Take any calls to a function called `original_name` and
+    // replace them with a call to `new_name` instead.
+    void replace_function(Module &M, std::string original_name, std::string new_name = "") {
+      if (new_name == "") {
+        new_name = "alaska_wrapped_" + original_name;
+      }
+      auto oldFunction = M.getFunction(original_name);
+      if (oldFunction) {
+        auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
+        oldFunction->replaceAllUsesWith(newFunction);
+        oldFunction->eraseFromParent();
+      }
+      // delete oldFunction;
     }
-		// delete oldFunction;
-  }
 
-  bool runOnModule(Module &M) override {
-		if (no_replace) return false;
-		replace_function_name(M, "malloc", "halloc");
-		replace_function_name(M, "calloc", "hcalloc");
-		replace_function_name(M, "realloc", "hrealloc");
-		replace_function_name(M, "free", "hfree");
-    return true;
-  }
-};
+    bool runOnModule(Module &M) override {
+      if (!keep_malloc) {
+        // replace
+        replace_function(M, "malloc", "halloc");
+        replace_function(M, "calloc", "hcalloc");
+        replace_function(M, "realloc", "hrealloc");
+        replace_function(M, "free", "hfree");
+      }
 
-  static RegisterPass<AlaskaPass> X("alaska-replace", "Replace malloc/realloc/free", false /* Only looks at CFG */, false /* Analysis Pass */);
+      for (auto *name : alaska::wrapped_functions) {
+        replace_function(M, name);
+      }
+
+      return true;
+    }
+  };
+
+  static RegisterPass<AlaskaPass> X(
+      "alaska-replace", "Replace malloc/realloc/free", false /* Only looks at CFG */, false /* Analysis Pass */);
 
   char AlaskaPass::ID = 0;
   // static RegisterPass<AlaskaPass> X("Alaska", "Handle based memory with Alaska");
@@ -86,4 +99,4 @@ struct AlaskaPass : public ModulePass {
           PM.add(_PassMaker = new AlaskaPass());
         }
       });  // ** for -O0
-} // namespace
+}  // namespace

@@ -25,6 +25,7 @@
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Support/CommandLine.h"
 
+#include <WrappedFunctions.h>  // functions to blacklist from escapes
 #include <Utils.h>
 #define ADDR_SPACE 0
 
@@ -45,14 +46,19 @@ namespace {
 
 
     bool runOnModule(Module &M) override {
-      std::set<std::string> alaska_functions = {
+      std::set<std::string> functions_to_ignore = {
           "halloc", "hrealloc", "hcalloc", "hfree", "alaska_lock", "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock"};
+
+
+      for (auto r : alaska::wrapped_functions) {
+        functions_to_ignore.insert(r);
+      }
 
       std::vector<llvm::CallInst *> escapes;
       for (auto &F : M) {
         // if the function is defined (has a body) skip it
         if (!F.empty()) continue;
-        if (alaska_functions.find(std::string(F.getName())) != alaska_functions.end()) continue;
+        if (functions_to_ignore.find(std::string(F.getName())) != functions_to_ignore.end()) continue;
         if (F.getName().startswith("llvm.lifetime")) continue;
 
         for (auto user : F.users()) {
