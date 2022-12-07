@@ -11,6 +11,7 @@
 #include <string.h>
 #include <assert.h>
 #include <jemalloc/jemalloc.h>
+#include <malloc.h>
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
@@ -55,22 +56,36 @@ __declspec(noinline) void *halloc(size_t sz) {
   return (void *)handle;
 }
 
+
+size_t alaska_usable_size(void *ptr) {
+
+  uint64_t h = (uint64_t)ptr;
+  if (unlikely((h & HANDLE_MARKER) != 0)) {
+		return GET_ENTRY(h)->size;
+	}
+
+	return malloc_usable_size(ptr);
+}
+
 __declspec(noinline) void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
 
 // Reallocate a handle
 __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
+	if (handle == NULL) return halloc(sz);
+	printf("hrealloc %p %zu\n", handle, sz);
   alaska_mapping_t *ent = GET_ENTRY(handle);
   ent->ptr = je_realloc(ent->ptr, sz);
   ent->size = sz;
   // realloc in alaska will always return the same pointer...
   // Ahh the benefits of using handles!
 
-  // hopefully, nobody is relying on the output of realloc changing :I
+  // hopefully, nobody is relying on the output of realloc changing :^)
   return handle;
 }
 
 
 __declspec(noinline) void hfree(void *ptr) {
+	if (ptr == NULL) return;
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   je_free(ent->ptr);

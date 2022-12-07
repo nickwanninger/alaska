@@ -70,6 +70,7 @@ namespace {
         replace_function(M, "calloc", "hcalloc");
         replace_function(M, "realloc", "hrealloc");
         replace_function(M, "free", "hfree");
+        replace_function(M, "malloc_usable_size", "alaska_usable_size");
       }
 
       for (auto *name : alaska::wrapped_functions) {

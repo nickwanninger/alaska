@@ -3,9 +3,7 @@
 
 ROOT=$(shell pwd)
 export PATH:=$(ROOT)/local/bin:$(PATH)
-export PATH:=$(ROOT)/install/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
-export LD_LIBRARY_PATH:=$(ROOT)/install/lib:$(LD_LIBRARY_PATH)
 
 -include .config
 
@@ -49,7 +47,8 @@ test: alaska
 
 
 
-.PHONY: alaska all bench bench/nas
+
+.PHONY: alaska all bench bench/nas libc
 
 	
 # targets to build benchmarks
@@ -57,7 +56,7 @@ NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/
 GAP_BENCHMARKS := bench/gap/bfs bench/gap/bc bench/gap/cc bench/gap/cc_sv bench/gap/pr bench/gap/pr_spmv bench/gap/sssp
 
 
-NAS_CLASS=S
+NAS_CLASS=B
 bench/nas/%: alaska
 	@mkdir -p bench/nas
 	@echo "  CC  " $@
@@ -82,10 +81,67 @@ cfg: menuconfig
 menuconfig:
 	@python3 tools/menuconfig.py
 
-
 nicktest: alaska
 	@tools/acc test/nick.c -O3 --keep-ir -o build/nick
 
 notebook:
 	jupyter notebook .
 
+
+
+redis:
+	$(MAKE) -C test/redis
+
+
+libc/src:
+	mkdir -p libc
+	# git checkout azanella/clang
+	git clone git@github.com:bminor/glibc.git --depth 1 $@
+
+libc/build/Makefile: libc/src
+	mkdir -p libc/build
+	cd libc/build && unset LD_LIBRARY_PATH && CC=clang CXX=clang++ ../src/configure \
+		--with-lld \
+		--verbose \
+		--with-default-link \
+		--disable-multi-arch \
+		--disable-sanity-checks \
+		--prefix=$(ROOT)/libc/local
+
+libc/build/libc.a: libc/build/Makefile
+	$(MAKE) -C libc/build
+
+libc/build/libc.bc: libc/build/libc.a
+	get-bc -b $<
+	@cp $^ $@
+	@alaska-transform $@
+	@llvm-dis $@
+
+local/lib/libc.o: libc/build/lib/libc.a
+
+libc: libc/build/Makefile
+
+
+# musl:
+# 	git clone git://git.musl-libc.org/musl --depth 1 musl
+#
+# musl/lib/libc.a: musl
+# 	cd musl && CC=gclang ./configure --prefix=$(PWD)/local
+# 	CC=gclang $(MAKE) -C musl lib/libc.a
+#
+# musl/lib/lib%.a.bc: musl/lib/libc.a # everyone relies on libc.a, as we build all of them at the same time
+# 	get-bc -b musl/lib/lib$*.a 2>/dev/null # ignore the warnings for asm files
+#
+# build/lib%.bc: musl/lib/lib%.a.bc
+# 	@echo " TX lib$*"
+# 	@cp musl/lib/lib$*.a.bc build/lib$*.bc
+# 	@alaska-transform build/lib$*.bc
+# 	@llvm-dis build/lib$*.bc
+#
+# # code to build libc with alaska :)
+# local/lib/lib%.o: alaska build/lib%.bc
+# 	@echo " CC lib$*"
+# 	@clang -O3 -c -o build/lib$*.o build/lib$*.bc
+# 	@cp build/lib$*.o local/lib/
+# 	@cp musl/lib/lib$*.a local/lib/
+# libc: local/lib/libc.o
