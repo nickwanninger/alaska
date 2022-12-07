@@ -38,8 +38,7 @@ static uint64_t next_usage_timestamp = 0;
 // and a `mremap()` call in the worst case (if we need more handles)
 static alaska_mapping_t *next_handle = NULL;
 
-
-void *halloc(size_t sz) {
+__declspec(noinline) void *halloc(size_t sz) {
   assert(sz < (1LLU << 32));
   uint64_t handle = HANDLE_MARKER | (((uint64_t)next_handle) << 32);
 
@@ -56,10 +55,10 @@ void *halloc(size_t sz) {
   return (void *)handle;
 }
 
-extern void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
+__declspec(noinline) void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
 
 // Reallocate a handle
-void *hrealloc(void *handle, size_t sz) {
+__declspec(noinline) void *hrealloc(void *handle, size_t sz) {
   alaska_mapping_t *ent = GET_ENTRY(handle);
   ent->ptr = je_realloc(ent->ptr, sz);
   ent->size = sz;
@@ -70,7 +69,8 @@ void *hrealloc(void *handle, size_t sz) {
   return handle;
 }
 
-void hfree(void *ptr) {
+
+__declspec(noinline) void hfree(void *ptr) {
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   je_free(ent->ptr);
@@ -204,11 +204,11 @@ void *alaska_guarded_lock(void *ptr) {
   // Proxy for temporal locality.
   // The compiler could decide to do this or not based on if it
   // if wants to track this in some scope
-  // ent->usage_timestamp = next_usage_timestamp++;
+  ent->usage_timestamp = next_usage_timestamp++;
 
-  // printf("lock %p, %ld, %ld\n", ptr, GET_CANONICAL(ptr), ent->usage_timestamp);
-  
-	// Record the lock occuring so the runtime knows not to relocate the memory.
+  // printf("lock %p, %ld\n", ptr, GET_CANONICAL(ptr));
+
+  // Record the lock occuring so the runtime knows not to relocate the memory.
   // TODO: hoist this into the compiler and avoid doing it if it's not needed.
   // ex: if there are no calls to alaska_barrier between lock/unlocks,
   //     there is no need to lock (we only care about one thread for now)
@@ -216,7 +216,7 @@ void *alaska_guarded_lock(void *ptr) {
 
 
   // Return the address of the pointer plus the offset we are locking at.
-  return (void *)((uint64_t)ent->ptr | off);
+  return (void *)((uint64_t)ent->ptr + off);
 }
 
 
@@ -245,9 +245,12 @@ void alaska_unlock(void *ptr) {
 
 // This function exists to lock on extern escapes.
 // TODO: determine if we should lock it forever or not...
+static uint64_t escape_locks = 0;
 void *alaska_lock_for_escape(void *ptr) {
   uint64_t h = (uint64_t)ptr;
   if (unlikely((h & HANDLE_MARKER) != 0)) {
+    atomic_inc(escape_locks, 1);
+    // escape_locks++;
     // its easier to do this than to duplicate efforts and inline.
     void *t = alaska_lock(ptr);
     alaska_unlock(ptr);

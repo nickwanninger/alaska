@@ -48,7 +48,9 @@ set(SRC_FILES
 add_library(alaska_allocator STATIC ${SRC_FILES})
 
 set(SRC_FILES
-	src/runtime.c
+	src/runtime.c  # the core runtime
+	src/fallback.c # fallback to segfault+emulate
+	src/compat.c   # libc functions that we wrap
 )
 
 
