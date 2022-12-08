@@ -298,6 +298,18 @@ void *alaska_lock_for_escape(void *ptr) {
 }
 
 
+void alaska_classify(void *ptr, uint8_t c) {
+#ifdef ALASKA_CLASS_TRACKING
+  uint64_t h = (uint64_t)ptr;
+  if (likely((h & HANDLE_MARKER) != 0)) {
+  	alaska_mapping_t *ent = GET_ENTRY(ptr);
+
+		ent->object_class = c;
+  }
+#endif
+}
+
+
 #define MAP_HUGE_2MB (21 << MAP_HUGE_SHIFT)
 
 static void __attribute__((constructor)) alaska_init(void) {
