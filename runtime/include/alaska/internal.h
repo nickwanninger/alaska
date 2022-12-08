@@ -34,6 +34,9 @@ typedef struct {
   uint32_t size;
   uint64_t locks;  // How many users does this handle have?
   // uint16_t flags;  // additional flags (idk, tbd)
+#ifdef ALASKA_CLASS_TRACKING
+	uint8_t object_class;
+#endif
 } alaska_mapping_t;
 
 extern alaska_mapping_t *alaska_map;

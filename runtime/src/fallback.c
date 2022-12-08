@@ -11,7 +11,7 @@
 #include <ucontext.h>
 #include <unicorn/unicorn.h>
 // Just hacking on this on arm for now
-#ifdef __aarch64__
+// #ifdef __aarch64__
 
 #define sigsegv_outp(x, ...) fprintf(stderr, x "\n", ##__VA_ARGS__)
 
@@ -33,7 +33,7 @@ void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
         ucontext->uc_mcontext.fault_address);
   }
   fault_handling = true;
-  fprintf(stderr, "correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.fault_address);
+  // fprintf(stderr, "correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.fault_address);
 
 
 
@@ -62,7 +62,7 @@ void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
 }
 
 
-static void __attribute__((constructor)) alaska_init(void) {
+static void __attribute__((constructor)) alaska_fallback_init(void) {
   struct sigaction sa;
 
   sa.sa_flags = SA_SIGINFO;
@@ -71,4 +71,4 @@ static void __attribute__((constructor)) alaska_init(void) {
   sigaction(SIGSEGV, &sa, NULL);
 }
 
-#endif
+// #endif

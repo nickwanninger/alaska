@@ -24,9 +24,5 @@ extern void alaska_barrier(void);
 }
 #endif
 
-#ifdef __ACC__
 // allow functions in translated programs to be skipped
 #define alaska_rt __attribute__((section("$__ALASKA__$"), noinline))
-#else
-#define alaska_rt
-#endif

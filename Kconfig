@@ -21,6 +21,10 @@ config INLINE_HANDLE_GUARD
 	default y
 
 
+config CLASS_TRACKING
+	bool "Track allocation classes and record access counts in a histogram"
+	default n
+
 
 
 config SANITY_CHECK

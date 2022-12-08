@@ -18,6 +18,10 @@
 
 
 
+#ifdef ALASKA_CLASS_TRACKING
+static uint64_t alaska_class_access_counts[256];
+#endif
+
 
 // convert a canonical handle id to a pointer.
 #define FROM_CANONICAL(chid) (&alaska_map[chid])
@@ -53,30 +57,33 @@ __declspec(noinline) void *halloc(size_t sz) {
   memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = sz;
   ent->ptr = je_calloc(1, sz);  // just use malloc
+                                //
+#ifdef ALASKA_CLASS_TRACKING
+  ent->object_class = 0;
+#endif
   return (void *)handle;
 }
 
 
 size_t alaska_usable_size(void *ptr) {
-
   uint64_t h = (uint64_t)ptr;
   if (unlikely((h & HANDLE_MARKER) != 0)) {
-		return GET_ENTRY(h)->size;
-	}
+    return GET_ENTRY(h)->size;
+  }
 
-	return malloc_usable_size(ptr);
+  return malloc_usable_size(ptr);
 }
 
 __declspec(noinline) void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
 
 // Reallocate a handle
 __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
-	if (handle == NULL) return halloc(sz);
+  if (handle == NULL) return halloc(sz);
   uint64_t h = (uint64_t)handle;
 
-  if (unlikely((h & HANDLE_MARKER)  == 0)) {
-		return realloc(handle, sz);
-	}
+  if (unlikely((h & HANDLE_MARKER) == 0)) {
+    return realloc(handle, sz);
+  }
   alaska_mapping_t *ent = GET_ENTRY(handle);
   ent->ptr = je_realloc(ent->ptr, sz);
   ent->size = sz;
@@ -89,12 +96,12 @@ __declspec(noinline) void *hrealloc(void *handle, size_t sz) {
 
 
 __declspec(noinline) void hfree(void *ptr) {
-	if (ptr == NULL) return;
+  if (ptr == NULL) return;
 
   uint64_t h = (uint64_t)ptr;
-  if (unlikely((h & HANDLE_MARKER)  == 0)) {
-		return free(ptr);
-	}
+  if (unlikely((h & HANDLE_MARKER) == 0)) {
+    return free(ptr);
+  }
 
 
   alaska_mapping_t *ent = GET_ENTRY(ptr);
@@ -220,6 +227,11 @@ void *alaska_guarded_lock(void *ptr) {
   // Extract the lower 32 bits of the pointer for the offset.
   off_t off = GET_OFFSET(ptr);
 
+
+#ifdef ALASKA_CLASS_TRACKING
+  alaska_class_access_counts[ent->object_class]++;
+#endif
+
   // if the pointer is NULL, we need to perform a "handle fault" This
   // is to allow the runtime to fully deallocate unused handles, but it
   // is a relatively expensive check on some architectures...
@@ -310,4 +322,13 @@ static void __attribute__((constructor)) alaska_init(void) {
 static void __attribute__((destructor)) alaska_deinit(void) {
   // Simply unmap the map region
   munmap(alaska_map, alaska_map_size * MAP_ENTRY_SIZE);
+
+#ifdef ALASKA_CLASS_TRACKING
+  if (getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL) {
+    printf("class,accesse\n");
+    for (int i = 0; i < 256; i++) {
+      printf("%d,%zu\n", i, alaska_class_access_counts[i]);
+    }
+  }
+#endif
 }

@@ -7,7 +7,6 @@ PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd 
 export PATH=$PFX/bin:$PATH
 export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
 
-LIB=lib/libalaska_library.a
 OUTFILE="a.out"
 KEEP="false"
 BASELINE="false"
@@ -58,7 +57,7 @@ done
 ALASKA_LIBS=""
 
 # ALASKA_LIBS+="-nostdlib ${PFX}/lib/libc.o ${PFX}/lib/libc.a "
-ALASKA_LIBS+="${PFX}/lib/libalaska_library.a ${PFX}/lib/libalaska_allocator.a ${PFX}/lib/libunicorn.a"
+ALASKA_LIBS+="-L${PFX}/lib -lalaska_support"
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
@@ -70,6 +69,7 @@ else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
 	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
+
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
 	TMPFILE=${OUTFILE}.bc
@@ -79,8 +79,6 @@ else
 
 	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
-	AA=""
-	LOOPS=""
 	
 
 	# Run a cleanup pass on the bitcode
@@ -99,35 +97,13 @@ else
 		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
 
 
-	# Run a simple normalization pass on the code
-	function run_alaska_pass {
-		NAME=$1
-		PASS=$2
-		shift; shift;
-		opt -load "${PFX}/lib/$NAME.$SO" $PASS $@ \
-		-enable-new-pm=0                                   \
-		"${TMPFILE}" -o "${TMPFILE}" 
-	}
-
-	# run_alaska_pass AlaskaNormalize --alaska-norm
-	# run_alaska_pass AlaskaReplacement --alaska-replace
-	# run_alaska_pass AlaskaEscapeHandler --alaska-escape
-	# run_alaska_pass Alaska --alaska
-
+	# link the alaska bitcode file
 	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
-
-	# opt ${AA} -mem2reg -simplifycfg-sink-common=false -sink       \
-	# 	-lowerswitch -mergereturn --break-crit-edges -loop-simplify \
-	# 	-lcssa -gvn -indvars --function-attrs --rpo-function-attrs  \
-	# 	"${TMPFILE}" -o "${TMPFILE}"
-	
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-
-	$CLANG \
-		-T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
-		 -O3 -lm -ldl -lcapstone -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+	$CLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
+		 -O3 -lm -ldl -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
