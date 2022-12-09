@@ -89,7 +89,7 @@ notebook:
 
 
 
-redis:
+redis: alaska
 	$(MAKE) -C test/redis
 
 

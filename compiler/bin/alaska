@@ -57,7 +57,7 @@ done
 ALASKA_LIBS=""
 
 # ALASKA_LIBS+="-nostdlib ${PFX}/lib/libc.o ${PFX}/lib/libc.a "
-ALASKA_LIBS+="-L${PFX}/lib -lalaska_support"
+ALASKA_LIBS+="-Wl,-rpath=${PFX}/lib -Wl,-rpath-link=${PFX}/lib -L${PFX}/lib -lalaska_support"
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
@@ -79,6 +79,8 @@ else
 
 	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
+	AA=""
+	LOOPS=""
 	
 
 	# Run a cleanup pass on the bitcode
