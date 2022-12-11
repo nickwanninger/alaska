@@ -2405,6 +2405,15 @@ uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...)
     return err;
 }
 
+UNICORN_EXPORT
+uc_err uc_alaska_set_memory_emulation(uc_engine *uc, uc_emulate_load_t load,
+                                      uc_emulate_store_t store)
+{
+    uc->emulate_load = load;
+    uc->emulate_store = store;
+    return UC_ERR_OK;
+}
+
 #ifdef UNICORN_TRACER
 uc_tracer *get_tracer()
 {

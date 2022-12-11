@@ -37,77 +37,6 @@
 
 #include <glib_compat.h>
 
-extern void *alaska_lock(void *ptr);
-extern void alaska_unlock(void *ptr);
-
-static inline char byte_size_human(unsigned size)
-{
-    switch (size) {
-    case 8:
-        return 'q';
-    case 4:
-        return 'w';
-    case 2:
-        return 'h';
-    case 1:
-        return 'b';
-    }
-    return '?';
-}
-static inline uint64_t alaska_emulate_load(void *addr, int op)
-{
-    void *ptr = alaska_lock(addr);
-    uint64_t val = 0;
-    unsigned size = memop_size(op);
-    switch (size) {
-    case 8:
-        val = *(uint64_t *)ptr;
-        break;
-    case 4:
-        val = *(uint32_t *)ptr;
-        break;
-    case 2:
-        val = *(uint16_t *)ptr;
-        break;
-    case 1:
-        val = *(uint8_t *)ptr;
-        break;
-    }
-
-    // if (addr != ptr)
-    //     printf("alaska: emulate ld%c %016zx -> %0*zx\n", byte_size_human(size), (off_t)addr,
-    //            size * 2, val);
-
-    alaska_unlock(addr);
-    return val;
-}
-
-static inline void alaska_emulate_store(void *addr, uint64_t val, int op)
-{
-    void *ptr = alaska_lock(addr);
-    unsigned size = memop_size(op);
-    // if (addr != ptr)
-    //     printf("alaska: emulate st%c %016zx <- %0*zx\n", byte_size_human(size), (off_t)addr,
-    //            size * 2, val);
-
-    switch (size) {
-    case 8:
-        *(uint64_t *)ptr = val;
-        break;
-    case 4:
-        *(uint32_t *)ptr = val;
-        break;
-    case 2:
-        *(uint16_t *)ptr = val;
-        break;
-    case 1:
-        *(uint8_t *)ptr = val;
-        break;
-    }
-
-    alaska_unlock(addr);
-}
-
 /* DEBUG defines, enable DEBUG_TLB_LOG to log to the CPU_LOG_MMU target */
 /* #define DEBUG_TLB */
 /* #define DEBUG_TLB_LOG */
@@ -1499,7 +1428,7 @@ static uint64_t inline load_helper(CPUArchState *env, target_ulong addr,
 {
     struct uc_struct *uc = env->uc;
     uc->invalid_error = UC_ERR_OK;
-    return alaska_emulate_load((void *)(uint64_t)addr, op);
+    return uc->emulate_load((void *)(uint64_t)addr, memop_size(op));
 }
 
 /*
@@ -1790,7 +1719,7 @@ static void inline store_helper(CPUArchState *env, target_ulong addr,
 {
     struct uc_struct *uc = env->uc;
     uc->invalid_error = UC_ERR_OK;
-    return alaska_emulate_store((void *)(uint64_t)addr, val, op);
+    return uc->emulate_store((void *)(uint64_t)addr, val, memop_size(op));
 }
 
 void helper_ret_stb_mmu(CPUArchState *env, target_ulong addr, uint8_t val,

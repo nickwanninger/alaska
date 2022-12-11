@@ -398,6 +398,9 @@ struct uc_struct {
     struct TranslationBlock *last_tb; // The real last tb we executed.
 
     FlatView *empty_view; // Static function variable moved from flatviews_init
+    // HACK:
+    uint64_t (*emulate_load)(void *addr, size_t size);
+    void (*emulate_store)(void *addr, uint64_t value, size_t size);
 };
 
 // Metadata stub for the variable-size cpu context used with uc_context_*()
@@ -405,7 +408,8 @@ struct uc_context {
     size_t context_size; // size of the real internal context structure
     uc_mode mode;        // the mode of this context
     uc_arch arch;        // the arch of this context
-    char data[0];        // context
+
+    char data[0]; // context
 };
 
 // check if this address is mapped in (via uc_mem_map())

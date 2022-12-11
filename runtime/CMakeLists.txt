@@ -9,14 +9,29 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
 include_directories(
 	include/
-	unicorn/include/
+	emu/include/
 )
 
-add_subdirectory(unicorn)
+add_subdirectory(emu)
 
 # HACK: this just makes it work
 set(CMAKE_C_COMPILER_ID "Clang")
 set(CMAKE_CXX_COMPILER_ID "Clang")
+
+
+
+# the target `alaska_core` contains the concrete implementations of `alaska_lock` and co.
+# it is turned into bitcode and linked directly. The rest of the support code in alaska_support
+# is linked through a dynamic library, as it is not particularly performance sensitive
+set(SRC_FILES
+	src/runtime.c  # the core runtime
+	src/compat.c   # libc functions that we wrap
+)
+
+add_library(alaska_core STATIC ${SRC_FILES})
+target_include_directories(alaska_core PUBLIC include/)
+set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+
 
 set(SRC_FILES
 	src/jemalloc/jemalloc.c
@@ -48,43 +63,11 @@ set(SRC_FILES
 	src/jemalloc/util.c
 	src/jemalloc/witness.c
 	src/jemalloc/valgrind.c
-)
-add_library(alaska_jemalloc STATIC ${SRC_FILES})
 
-target_link_libraries(alaska_jemalloc pthread)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# the target `alaska_core` contains the concrete implementations of `alaska_lock` and co.
-# it is turned into bitcode and linked directly. The rest of the support code in alaska_support
-# is linked through a dynamic library, as it is not particularly performance sensitive
-set(SRC_FILES
-	src/runtime.c  # the core runtime
-	src/compat.c   # libc functions that we wrap
-)
-
-add_library(alaska_core STATIC ${SRC_FILES})
-target_include_directories(alaska_core PUBLIC include/)
-set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska_core alaska_jemalloc)
-
-
-
-set(SRC_FILES
 	src/fallback.c # fallback to segfault+emulate
 )
-add_library(alaska_support SHARED ${SRC_FILES})
-target_link_libraries(alaska_support unicorn alaska_core alaska_jemalloc)
+add_library(alaska_support STATIC ${SRC_FILES})
+target_link_libraries(alaska_support unicorn)
 
 
 
@@ -96,6 +79,21 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+install(
+  TARGETS alaska_core
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# install(
+#   TARGETS alaska_jemalloc
+#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 llvmir_attach_bc_target(
   TARGET alaska_bitcodes

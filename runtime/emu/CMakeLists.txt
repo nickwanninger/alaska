@@ -44,6 +44,8 @@ include(bundle_static.cmake)
 # Also we would like users to link a native cmake target, instead of a custom target for better
 # compatability.
 option(BUILD_SHARED_LIBS "Build shared instead of static library" ${PROJECT_IS_TOP_LEVEL})
+
+set(BUILD_SHARED_LIBS 1)
 option(UNICORN_INSTALL "Enable unicorn installation" ${PROJECT_IS_TOP_LEVEL})
 set(UNICORN_ARCH "x86;aarch64;riscv" CACHE STRING "Enabled unicorn architectures")
 
@@ -594,9 +596,11 @@ if(NOT MSVC AND NOT ANDROID_ABI)
     target_link_libraries(unicorn-common PRIVATE pthread)
 endif()
 
-add_library(unicorn STATIC ${UNICORN_SRCS})
+add_library(unicorn SHARED ${UNICORN_SRCS})
 # For static archive
-# add_library(unicorn_static STATIC ${UNICORN_SRCS})
+if(BUILD_SHARED_LIBS)
+	add_library(unicorn_static STATIC ${UNICORN_SRCS})
+endif()
 
 
 if(BUILD_SHARED_LIBS)
@@ -705,9 +709,9 @@ target_include_directories(unicorn PUBLIC
 
 # For static archive
 if (BUILD_SHARED_LIBS)
-    target_include_directories(unicorn_static PUBLIC
-        include
-    )
+	target_include_directories(unicorn_static PUBLIC
+			include
+	)
 endif()
 
 # Black magic for generating static archives...

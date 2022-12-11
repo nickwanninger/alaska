@@ -10,6 +10,7 @@ int alaska_wrapped_puts(const char *s) { return puts(alaska_lock_for_escape(s));
 
 
 int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
+	printf("sigaction=%d\n", signum);
   if (signum == SIGSEGV) {
     return -1;
   }

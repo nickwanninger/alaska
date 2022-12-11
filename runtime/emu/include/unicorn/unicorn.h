@@ -1112,6 +1112,13 @@ UNICORN_EXPORT
 uc_err uc_context_reg_write_batch(uc_context *ctx, int *regs, void *const *vals,
                                   int count);
 
+typedef uint64_t (*uc_emulate_load_t)(void *addr, size_t size);
+typedef void (*uc_emulate_store_t)(void *addr, uint64_t value, size_t size);
+
+UNICORN_EXPORT
+uc_err uc_alaska_set_memory_emulation(uc_engine *uc, uc_emulate_load_t load,
+                                      uc_emulate_store_t store);
+
 /*
  Read multiple register values from a context.
 
