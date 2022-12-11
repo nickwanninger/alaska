@@ -339,7 +339,9 @@ static void __attribute__((destructor)) alaska_deinit(void) {
   if (getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL) {
     printf("class,accesse\n");
     for (int i = 0; i < 256; i++) {
-      printf("%d,%zu\n", i, alaska_class_access_counts[i]);
+			if (alaska_class_access_counts[i] != 0) {
+      	printf("%d,%zu\n", i, alaska_class_access_counts[i]);
+			}
     }
   }
 #endif

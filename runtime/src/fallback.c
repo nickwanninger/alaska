@@ -16,6 +16,75 @@
 #define sigsegv_outp(x, ...) fprintf(stderr, x "\n", ##__VA_ARGS__)
 
 
+extern void *alaska_lock(void *ptr);
+extern void alaska_unlock(void *ptr);
+
+static inline char byte_size_human(unsigned size) {
+  switch (size) {
+    case 8:
+      return 'q';
+    case 4:
+      return 'w';
+    case 2:
+      return 'h';
+    case 1:
+      return 'b';
+  }
+  return '?';
+}
+
+static uint64_t emulations = 0;
+static inline uint64_t alaska_emulate_load(void *addr, size_t size) {
+	emulations++;
+  void *ptr = alaska_lock(addr);
+  uint64_t val = 0;
+  switch (size) {
+    case 8:
+      val = *(uint64_t *)ptr;
+      break;
+    case 4:
+      val = *(uint32_t *)ptr;
+      break;
+    case 2:
+      val = *(uint16_t *)ptr;
+      break;
+    case 1:
+      val = *(uint8_t *)ptr;
+      break;
+  }
+
+  /* if (addr != ptr) */
+	printf("alaska: (%8zu) emulate ld%c %016zx -> %0*zx\n", emulations, byte_size_human(size), (off_t)addr, size * 2, val);
+
+  alaska_unlock(addr);
+  return val;
+}
+
+static inline void alaska_emulate_store(void *addr, uint64_t val, size_t size) {
+	emulations++;
+  void *ptr = alaska_lock(addr);
+  /* if (addr != ptr) */
+  printf("alaska: (%8zu) emulate st%c %016zx <- %0*zx\n", emulations, byte_size_human(size), (off_t)addr, size * 2, val);
+
+  switch (size) {
+    case 8:
+      *(uint64_t *)ptr = val;
+      break;
+    case 4:
+      *(uint32_t *)ptr = val;
+      break;
+    case 2:
+      *(uint16_t *)ptr = val;
+      break;
+    case 1:
+      *(uint8_t *)ptr = val;
+      break;
+  }
+
+  alaska_unlock(addr);
+}
+
+
 void uc_err_check(const char *name, uc_err err) {
   if (err) {
     fprintf(stderr, "Unicorn: %s failed with error returned: %s\n", name, uc_strerror(err));
@@ -36,11 +105,10 @@ void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
   // fprintf(stderr, "correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.fault_address);
 
 
-
   if (uc == NULL) {
     uc_err_check("uc_open", uc_open(UC_ARCH_ARM64, UC_MODE_ARM, &uc));
+    uc_alaska_set_memory_emulation(uc, alaska_emulate_load, alaska_emulate_store);
   }
-
 
   // populate the registers
   off_t pc = ucontext->uc_mcontext.pc;
@@ -63,6 +131,7 @@ void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
 
 
 static void __attribute__((constructor)) alaska_fallback_init(void) {
+  printf("init!\n");
   struct sigaction sa;
 
   sa.sa_flags = SA_SIGINFO;
