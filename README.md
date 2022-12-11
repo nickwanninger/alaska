@@ -23,3 +23,8 @@ Once built, `local/bin/alaska` functions as a drop-in replacement for `clang`. Y
 local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 ```
 You can also run `make sanity`, which will do it for you.
+
+
+## Dependencies
+
+Alaska depends on [unicorn](https://www.unicorn-engine.org/) to guarentee correctness in non-transformed libraries
