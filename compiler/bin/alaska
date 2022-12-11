@@ -55,11 +55,12 @@ done
 
 
 ALASKA_LIBS=""
-# ALASKA_LIBS+="${PFX}/lib/libalaska_core.a "
-ALASKA_LIBS+="-Wl,--whole-archive "
-ALASKA_LIBS+="${PFX}/lib/libalaska_support.a "
-ALASKA_LIBS+="-Wl,--no-whole-archive "
-ALASKA_LIBS+="-Wl,-rpath=${PFX}/lib -Wl,-rpath-link=${PFX}/lib -L${PFX}/lib -lunicorn"
+# ALASKA_LIBS+="-nostdlib ${PFX}/lib/libc.o ${PFX}/lib/libc.a "
+ALASKA_LIBS+="${PFX}/lib/libalaska_core.a "
+# ALASKA_LIBS+="-Wl,--whole-archive "
+# ALASKA_LIBS+="${PFX}/lib/libalaska_support.a "
+# ALASKA_LIBS+="-Wl,--no-whole-archive "
+ALASKA_LIBS+="-Wl,-rpath=${PFX}/lib -Wl,-rpath-link=${PFX}/lib -L${PFX}/lib -lalaska_support -lunicorn"
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
@@ -70,7 +71,7 @@ if [ "$phase" = "compile" ]; then
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} "${PFX}/lib/libalaska_core.a" ${ALASKA_LIBS}
+	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
 
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
@@ -86,19 +87,19 @@ else
 	
 
 	# Run a cleanup pass on the bitcode
-	opt ${AA} \
-		-mem2reg \
-		-simplifycfg-sink-common=false \
-		-sink \
-		-lowerswitch \
-		-mergereturn \
-		--break-crit-edges \
-		-loop-simplify \
-		-lcssa \
-		-gvn \
-		-indvars \
-		--function-attrs \
-		--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
+	# opt ${AA} \
+	# 	-mem2reg \
+	# 	-simplifycfg-sink-common=false \
+	# 	-sink \
+	# 	-lowerswitch \
+	# 	-mergereturn \
+	# 	--break-crit-edges \
+	# 	-loop-simplify \
+	# 	-lcssa \
+	# 	-gvn \
+	# 	-indvars \
+	# 	--function-attrs \
+	# 	--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
 
 
 	# link the alaska bitcode file
@@ -107,7 +108,7 @@ else
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 	$CLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
-		 -O3 -lm -ldl -pthread -O3 -g ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+		 -O3 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi

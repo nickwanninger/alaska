@@ -22,39 +22,21 @@
 static uint64_t alaska_class_access_counts[256];
 #endif
 
-
-// convert a canonical handle id to a pointer.
-#define FROM_CANONICAL(chid) (&alaska_map[chid])
-// How many map cells are there in the map table?
-size_t alaska_map_size = 0;
-// The memory for the alaska translation map. This lives at 0x200000 and is grown in 2mb chunks
-alaska_mapping_t *alaska_map = NULL;
-
 // ...
 static uint64_t next_usage_timestamp = 0;
 
 
-
-// The alaska allocator is a *very* simple free list allocator. We can do
-// this because all handle map entries  are the same size. It is the
-// allocations they point to that are variable sized. This means we can
-// simply store a linked list of free nodes within the alaska map entrys
-// themselves. This turns `halloc` calls into a nice O(1) common case,
-// and a `mremap()` call in the worst case (if we need more handles)
-static alaska_mapping_t *next_handle = NULL;
-
 __declspec(noinline) void *halloc(size_t sz) {
   assert(sz < (1LLU << 32));
-  uint64_t handle = HANDLE_MARKER | (((uint64_t)next_handle) << 32);
 
-  alaska_mapping_t *ent = next_handle;
-  next_handle = (alaska_mapping_t *)ent->ptr;
-  if (next_handle == NULL) {
+  alaska_mapping_t *ent = alaska_table_get();
+  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << 32);
+
+  if (ent == NULL) {
     fprintf(stderr, "alaska: out of space!\n");
     exit(-1);
   }
 
-  memset(ent, 0, MAP_ENTRY_SIZE);
   ent->size = sz;
   ent->ptr = je_calloc(1, sz);  // just use malloc
                                 //
@@ -107,10 +89,8 @@ __declspec(noinline) void hfree(void *ptr) {
   alaska_mapping_t *ent = GET_ENTRY(ptr);
   // assert(ent->locks == 0);
   je_free(ent->ptr);
-  ent->size = 0;
-  ent->ptr = (void *)next_handle;
-
-  next_handle = (alaska_mapping_t *)ent;
+  // return the mapping to the table
+  alaska_table_put(ent);
 }
 
 
@@ -171,7 +151,7 @@ enum alaska_fault_reason {
 __declspec(noinline) void alaska_fault(alaska_mapping_t *ent, enum alaska_fault_reason reason, off_t offset) {
   if (reason == OUT_OF_BOUNDS) {
     fprintf(stderr, "[FATAL] alaska: out of bound access of handle %ld. Attempt to access byte %zu in a %d byte handle!\n",
-        ENT_GET_CANONICAL(ent), offset, ent->size);
+        alaska_table_get_canonical(ent), offset, ent->size);
     exit(-1);
   }
 
@@ -182,7 +162,7 @@ __declspec(noinline) void alaska_fault(alaska_mapping_t *ent, enum alaska_fault_
     return;
   }
 
-  fprintf(stderr, "[FATAL] alaska: unknown fault reason, %d, on handle %ld.\n", reason, ENT_GET_CANONICAL(ent));
+  fprintf(stderr, "[FATAL] alaska: unknown fault reason, %d, on handle %ld.\n", reason, alaska_table_get_canonical(ent));
   exit(-1);
 }
 
@@ -313,31 +293,17 @@ void alaska_classify(void *ptr, uint8_t c) {
 #define MAP_HUGE_2MB (21 << MAP_HUGE_SHIFT)
 
 static void __attribute__((constructor)) alaska_init(void) {
-  int fd = -1;
-  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  size_t sz = MAP_GRANULARITY * 64;
+// initialize the translation table first
+  alaska_table_init();
 
-  // TODO: do this using hugetlbfs :)
-  alaska_map = (alaska_mapping_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);
-  alaska_map_size = sz / MAP_ENTRY_SIZE;
-
-  for (size_t i = 0; i < alaska_map_size - 1; i++) {
-    // when unmapped, the pointer field points to the next free handle
-    alaska_map[i].ptr = (void *)&alaska_map[i + 1];
-    alaska_map[i].size = 0;  // a size of zero indicates that this field is unmapped
-  }
-  alaska_map[alaska_map_size - 1].ptr = NULL;
-  // start allocating at the first handle
-  next_handle = &alaska_map[0];
 }
 
 static void __attribute__((destructor)) alaska_deinit(void) {
   // Simply unmap the map region
-  munmap(alaska_map, alaska_map_size * MAP_ENTRY_SIZE);
 
 #ifdef ALASKA_CLASS_TRACKING
   if (getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL) {
-    printf("class,accesse\n");
+    printf("class,accesses\n");
     for (int i = 0; i < 256; i++) {
 			if (alaska_class_access_counts[i] != 0) {
       	printf("%d,%zu\n", i, alaska_class_access_counts[i]);
@@ -345,4 +311,8 @@ static void __attribute__((destructor)) alaska_deinit(void) {
     }
   }
 #endif
+
+
+  // delete the table at the end
+  alaska_table_deinit();
 }

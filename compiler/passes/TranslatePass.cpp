@@ -74,7 +74,7 @@ namespace {
 #ifdef ALASKA_CONSERVATIVE
         alaska::insertConservativeTranslations(graph);
 #else
-        alaska::insertNaiveFlowBasedTranslations(graph);
+        // alaska::insertNaiveFlowBasedTranslations(graph);
 #endif
       }
 

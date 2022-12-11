@@ -33,9 +33,7 @@ static inline char byte_size_human(unsigned size) {
   return '?';
 }
 
-static uint64_t emulations = 0;
 static inline uint64_t alaska_emulate_load(void *addr, size_t size) {
-	emulations++;
   void *ptr = alaska_lock(addr);
   uint64_t val = 0;
   switch (size) {
@@ -53,18 +51,21 @@ static inline uint64_t alaska_emulate_load(void *addr, size_t size) {
       break;
   }
 
-  /* if (addr != ptr) */
-	printf("alaska: (%8zu) emulate ld%c %016zx -> %0*zx\n", emulations, byte_size_human(size), (off_t)addr, size * 2, val);
+  if (addr != ptr) {
+    printf("alaska: emulate ld%c %016zx -> %0*zx", byte_size_human(size), (off_t)addr, size * 2, val);
+    if (size == 1) printf("  '%c'", val);
+    printf("\n");
+  }
 
   alaska_unlock(addr);
   return val;
 }
 
 static inline void alaska_emulate_store(void *addr, uint64_t val, size_t size) {
-	emulations++;
   void *ptr = alaska_lock(addr);
-  /* if (addr != ptr) */
-  printf("alaska: (%8zu) emulate st%c %016zx <- %0*zx\n", emulations, byte_size_human(size), (off_t)addr, size * 2, val);
+  if (addr != ptr){
+    printf("alaska: cemulate st%c %016zx <- %0*zx\n", byte_size_human(size), (off_t)addr, size * 2, val);
+  }
 
   switch (size) {
     case 8:

@@ -20,19 +20,11 @@ set(CMAKE_CXX_COMPILER_ID "Clang")
 
 
 
-# the target `alaska_core` contains the concrete implementations of `alaska_lock` and co.
-# it is turned into bitcode and linked directly. The rest of the support code in alaska_support
-# is linked through a dynamic library, as it is not particularly performance sensitive
-set(SRC_FILES
-	src/runtime.c  # the core runtime
-	src/compat.c   # libc functions that we wrap
-)
 
-add_library(alaska_core STATIC ${SRC_FILES})
-target_include_directories(alaska_core PUBLIC include/)
-set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-
-
+# The alaska support library implements some of the larger, performance
+# insensitive parts of alaska. Primarially, it contains the memory allocator
+# (je_malloc), as compiling it into bitcode does not benefit anyone - it just
+# takes more time
 set(SRC_FILES
 	src/jemalloc/jemalloc.c
 	src/jemalloc/atomic.c
@@ -64,10 +56,32 @@ set(SRC_FILES
 	src/jemalloc/witness.c
 	src/jemalloc/valgrind.c
 
-	src/fallback.c # fallback to segfault+emulate
 )
-add_library(alaska_support STATIC ${SRC_FILES})
-target_link_libraries(alaska_support unicorn)
+add_library(alaska_support SHARED ${SRC_FILES})
+target_link_libraries(alaska_support pthread) # requires pthread
+
+
+
+
+
+# the target `alaska_core` contains the concrete implementations of `alaska_lock` and co.
+# It also contains the implementation of the fallback correctness trap (outside of the emulator)
+# This library is turned into bitcode and linked directly. The rest of the support code in alaska_support
+# is linked through a dynamic library, as it is not particularly performance sensitive
+set(SRC_FILES
+	# The core runtime implementation
+	src/runtime.c
+	src/table.c
+
+	# libc functions that we wrap
+	src/compat.c   
+
+	# The correctness fallback (emulate using TCG)
+	src/emulator.c
+)
+add_library(alaska_core STATIC ${SRC_FILES})
+target_include_directories(alaska_core PUBLIC include/)
+set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 
 
 
