@@ -26,7 +26,7 @@ void alaska_table_init(void) {
 
   int fd = -1;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  size_t sz = MAP_GRANULARITY * 64;
+  size_t sz = MAP_GRANULARITY * 1;
 
   // TODO: do this using hugetlbfs :)
   table.map = (alaska_mapping_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);
@@ -60,6 +60,8 @@ alaska_mapping_t *alaska_table_get(void) {
     alaska_mapping_t *ent = &table.map[i];
     if (ent->size == -1) {
       ent->size = 0;
+      table.nfree--;
+      // printf("nfree=%zu\n", table.nfree);
       return ent;
     }
   }
@@ -69,5 +71,6 @@ alaska_mapping_t *alaska_table_get(void) {
 
 
 void alaska_table_put(alaska_mapping_t *ent) {
+  table.nfree++;
   ent->size = -1;
 }

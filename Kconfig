@@ -30,3 +30,7 @@ config CLASS_TRACKING
 config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
 	default n
+
+config CORRECTNESS_EMULATOR_LOGGING
+	bool "Log correctness fault load/store messages"
+	default n

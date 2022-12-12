@@ -92,6 +92,8 @@ notebook:
 redis: alaska
 	$(MAKE) -C test/redis
 
+lua: alaska
+	local/bin/alaska -b -k test/lua/onelua.c -o build/lua
 
 libc/src:
 	mkdir -p libc
