@@ -7,7 +7,7 @@ src:
 
 
 src/src/redis-server: src
-	$(MAKE) -C src USE_JEMALLOC=no CC=gclang OPTIMIZATION=-O0 "CFLAGS=-Wno-strict-prototypes"
+	$(MAKE) -C src USE_JEMALLOC=no CC=gclang OPTIMIZATION=-O0 "CFLAGS=-g3 -Wno-strict-prototypes"
 
 src/src/redis-servr.bc: src/src/redis-server
 

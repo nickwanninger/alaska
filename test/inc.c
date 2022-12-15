@@ -1,4 +1,4 @@
-#include "../runtime/include/alaska.h"
+#include <alaska.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
