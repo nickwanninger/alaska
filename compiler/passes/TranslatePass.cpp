@@ -1,6 +1,8 @@
 // Alaska includes
+#include <FlowForest.h>
 #include <Graph.h>
 #include <Utils.h>
+#include <FlowForestTransformation.h>
 
 // C++ includes
 #include <cassert>
@@ -39,6 +41,7 @@ namespace {
       if (mdm.doesHaveMetadata("alaska")) return false;
       mdm.addMetadata("alaska", "did run");
 
+
       for (auto &F : M) {
         if (F.empty()) continue;
         auto section = F.getSection();
@@ -47,34 +50,14 @@ namespace {
           F.setSection("");
           continue;
         }
-
-        alaska::PointerFlowGraph graph(F);
-        auto nodes = graph.get_nodes();
-
-				// llvm::noelle::DataFlowAnalysis dfa;
-				// auto df = dfa.runReachableAnalysis(&F);
-				// for (auto &BB : F) {
-				// 	for (auto &I : BB) {
-				// 		alaska::println(I);
-				// 		auto &OUT = df->OUT(&I);
-				// 		for (auto out : OUT) {
-				// 			alaska::println("   ", *out);
-				// 		}
-				//
-				// 	}
-				// }
-				// delete df;
-
-#ifdef ALASKA_DUMP_GRAPH
-        llvm::DominatorTree DT(F);
-        llvm::PostDominatorTree PDT(F);
-        graph.dump_dot(DT, PDT);
-#endif
+        // if (F.getName() != "sum") continue;
 
 #ifdef ALASKA_CONSERVATIVE
+        alaska::PointerFlowGraph graph(F);
         alaska::insertConservativeTranslations(graph);
 #else
-        // alaska::insertNaiveFlowBasedTranslations(graph);
+        alaska::FlowForestTransformation fftx(F);
+        fftx.apply();
 #endif
       }
 

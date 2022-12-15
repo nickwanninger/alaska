@@ -65,13 +65,14 @@ ALASKA_LIBS+="-Wl,-rpath=${PFX}/lib -Wl,-rpath-link=${PFX}/lib -L${PFX}/lib -lal
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
+
 if [ "$phase" = "compile" ]; then
-	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]}
+	$GCLANG -g3 -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]}
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
+	$GCLANG -g3 -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
 
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
@@ -80,35 +81,13 @@ else
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
-	AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
-	LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
-	AA=""
-	LOOPS=""
-	
-
-	# Run a cleanup pass on the bitcode
-	# opt ${AA} \
-	# 	-mem2reg \
-	# 	-simplifycfg-sink-common=false \
-	# 	-sink \
-	# 	-lowerswitch \
-	# 	-mergereturn \
-	# 	--break-crit-edges \
-	# 	-loop-simplify \
-	# 	-lcssa \
-	# 	-gvn \
-	# 	-indvars \
-	# 	--function-attrs \
-	# 	--rpo-function-attrs "${TMPFILE}" -o "${TMPFILE}"
-
-
 	# link the alaska bitcode file
 	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
-		 -O3 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+	$GCLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
+		 -O3 -g3 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi

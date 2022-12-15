@@ -11,29 +11,30 @@ shift
 AA="--basic-aa --globals-aa --cfl-steens-aa --tbaa --cfl-anders-aa -scev-aa "
 LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 AA=""
-LOOPS=""
+# LOOPS=""
 
 
 # Run a cleanup pass on the bitcode
-opt ${AA} \
-	-mem2reg \
-	-simplifycfg-sink-common=false \
-	-sink \
-	-lowerswitch \
-	-mergereturn \
-	--break-crit-edges \
-	-loop-simplify \
-	-lcssa \
-	-gvn \
-	-indvars \
-	--function-attrs \
-	--rpo-function-attrs "${INPUT}" -o "${INPUT}"
+# opt ${AA} \
+# 	-mem2reg \
+# 	-simplifycfg-sink-common=false \
+# 	-sink \
+# 	-lowerswitch \
+# 	-mergereturn \
+# 	--break-crit-edges \
+# 	-loop-simplify \
+# 	-lcssa \
+# 	-gvn \
+# 	-indvars \
+# 	--function-attrs \
+# 	--rpo-function-attrs "${INPUT}" -o "${INPUT}"
 
 # Run the main pin pass over the code
 opt -load "${PFX}/lib/Alaska.so"                    \
 	-load   "${PFX}/lib/AlaskaNormalize.so"           \
 	-load   "${PFX}/lib/AlaskaReplacement.so"         \
 	-load   "${PFX}/lib/AlaskaEscapeHandler.so"       \
+	--mem2reg                                         \
 	--alaska-norm                                     \
 	-domtree                                          \
 	--alaska-replace                                  \

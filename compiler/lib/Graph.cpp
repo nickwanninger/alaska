@@ -17,8 +17,8 @@ void dump_uses(llvm::Value *val, int depth = 0) {
 
 
 struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
-  alaska::Node &node;
-  NodeConstructionVisitor(alaska::Node &node) : node(node) {}
+  alaska::FlowNode &node;
+  NodeConstructionVisitor(alaska::FlowNode &node) : node(node) {}
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     auto &use = I.getOperandUse(0);
@@ -39,6 +39,12 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
   }
 
 
+  // void visitSelectInst(llvm::SelectInst &I) {
+  //   node.type = alaska::Transient;
+  //   node.add_in_edge(&I.getOperandUse(1));
+  //   node.add_in_edge(&I.getOperandUse(2));
+  // }
+
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
     // alloca has no color. it is not an allocation we care about.
@@ -53,9 +59,11 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
 };
 
 
-alaska::Node::Node(alaska::PointerFlowGraph &graph, llvm::Value *value) : graph(graph), value(value) { id = graph.next_id++; }
+alaska::FlowNode::FlowNode(alaska::PointerFlowGraph &graph, llvm::Value *value) : graph(graph), value(value) {
+  id = graph.next_id++;
+}
 
-void alaska::Node::populate_edges(void) {
+void alaska::FlowNode::populate_edges(void) {
   if (auto I = dyn_cast<llvm::Instruction>(value)) {
     NodeConstructionVisitor vis(*this);
     vis.visit(I);
@@ -70,23 +78,23 @@ void alaska::Node::populate_edges(void) {
 }
 
 
-std::unordered_set<alaska::Node *> alaska::Node::get_in_nodes(void) const {
-  std::unordered_set<alaska::Node *> out;
+std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_in_nodes(void) const {
+  std::unordered_set<alaska::FlowNode *> out;
   for (auto e : in) {
     out.insert(&graph.get_node(e->get()));
   }
   return out;
 }
-std::unordered_set<alaska::Node *> alaska::Node::get_out_nodes(void) const {
-  std::unordered_set<alaska::Node *> outNodes;
+std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_out_nodes(void) const {
+  std::unordered_set<alaska::FlowNode *> outNodes;
   for (auto e : out) {
     outNodes.insert(&graph.get_node_including_sinks(e->getUser()));
   }
   return outNodes;
 }
 
-std::unordered_set<alaska::Node *> alaska::Node::get_dominated(llvm::DominatorTree &DT) const {
-  std::unordered_set<alaska::Node *> dominated;
+std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominated(llvm::DominatorTree &DT) const {
+  std::unordered_set<alaska::FlowNode *> dominated;
   for (const Use *use : this->out) {
     auto &v = graph.get_node_including_sinks(use->getUser());
     auto I = dyn_cast<Instruction>(v.value);
@@ -99,8 +107,8 @@ std::unordered_set<alaska::Node *> alaska::Node::get_dominated(llvm::DominatorTr
 
 
 
-std::unordered_set<alaska::Node *> alaska::Node::get_dominators(llvm::DominatorTree &DT) const {
-  std::unordered_set<alaska::Node *> dominators;
+std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominators(llvm::DominatorTree &DT) const {
+  std::unordered_set<alaska::FlowNode *> dominators;
   for (const Use *use : this->in) {
     auto &v = graph.get_node(use->get());
     auto I = dyn_cast<Instruction>(value);
@@ -112,8 +120,8 @@ std::unordered_set<alaska::Node *> alaska::Node::get_dominators(llvm::DominatorT
 }
 
 
-std::unordered_set<alaska::Node *> alaska::Node::get_postdominated(llvm::PostDominatorTree &PDT) const {
-  std::unordered_set<alaska::Node *> dominators;
+std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_postdominated(llvm::PostDominatorTree &PDT) const {
+  std::unordered_set<alaska::FlowNode *> dominators;
   for (const Use *use : this->in) {
     auto &v = graph.get_node(use->get());
     auto I = dyn_cast<Instruction>(value);
@@ -128,7 +136,7 @@ std::unordered_set<alaska::Node *> alaska::Node::get_postdominated(llvm::PostDom
 
 
 
-void alaska::Node::add_in_edge(llvm::Use *use) {
+void alaska::FlowNode::add_in_edge(llvm::Use *use) {
   auto val = use->get();
   auto &other = graph.get_node(val);
   other.out.insert(use);
@@ -158,7 +166,7 @@ alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func) : m_func(func) 
   // recurse and compute the entire graph from the bottom up
   for (auto &[sink, use] : sinks) {
     // allocate the sink in the m_sinks set, which will not compute edges
-    m_sinks[sink] = std::make_unique<alaska::Node>(*this, sink);
+    m_sinks[sink] = std::make_unique<alaska::FlowNode>(*this, sink);
     auto &node = m_sinks[sink];
     node->type = alaska::Sink;
     node->add_in_edge(use);
@@ -184,25 +192,35 @@ alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func) : m_func(func) 
     }
     if (!changed) break;
   }
+
+#ifdef ALASKA_DUMP_FLOW_GRAPH
+  alaska::println("--------------------------------------");
+  llvm::PostDominatorTree PDT(func);
+  llvm::DominatorTree DT(func);
+  dump_dot(DT, PDT);
+  alaska::println("--------------------------------------");
+#endif
 }
-alaska::Node &alaska::PointerFlowGraph::get_node_including_sinks(llvm::Value *val) {
+
+
+alaska::FlowNode &alaska::PointerFlowGraph::get_node_including_sinks(llvm::Value *val) {
   if (m_sinks.find(val) != m_sinks.end()) {
     return *m_sinks[val].get();
   }
   return get_node(val);
 }
 
-alaska::Node &alaska::PointerFlowGraph::get_node(llvm::Value *val) {
+alaska::FlowNode &alaska::PointerFlowGraph::get_node(llvm::Value *val) {
   if (m_nodes.find(val) == m_nodes.end()) {
-    m_nodes[val] = std::make_unique<Node>(*this, val);
+    m_nodes[val] = std::make_unique<FlowNode>(*this, val);
     m_nodes[val]->populate_edges();
   }
   return *m_nodes[val].get();
 }
 
 
-std::unordered_set<alaska::Node *> alaska::PointerFlowGraph::get_nodes(void) const {
-  std::unordered_set<alaska::Node *> nodes;
+std::unordered_set<alaska::FlowNode *> alaska::PointerFlowGraph::get_nodes(void) const {
+  std::unordered_set<alaska::FlowNode *> nodes;
   for (auto &[value, node] : m_sinks) {
     if (node->colors.size() == 0) continue;
     nodes.insert(node.get());
@@ -214,8 +232,8 @@ std::unordered_set<alaska::Node *> alaska::PointerFlowGraph::get_nodes(void) con
   return nodes;
 }
 
-std::unordered_set<alaska::Node *> alaska::PointerFlowGraph::get_all_nodes(void) const {
-  std::unordered_set<alaska::Node *> nodes;
+std::unordered_set<alaska::FlowNode *> alaska::PointerFlowGraph::get_all_nodes(void) const {
+  std::unordered_set<alaska::FlowNode *> nodes;
   for (auto &[value, node] : m_sinks) {
     nodes.insert(node.get());
   }
@@ -232,22 +250,25 @@ void alaska::PointerFlowGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDomin
 
   alaska::println("digraph {");
   alaska::println("  label=\"", m_func.getName(), "\";");
-	alaska::println("  compound=true;");
-	alaska::println("  start=1;");
+  alaska::println("  compound=true;");
+  alaska::println("  start=1;");
 
 
-  std::map<llvm::BasicBlock *, std::set<alaska::Node *>> bb_nodes;
+  std::map<llvm::BasicBlock *, std::set<alaska::FlowNode *>> bb_nodes;
 
-  auto emitNodeDef = [&](alaska::Node *node, const char *indent = "") {
+  auto emitNodeDef = [&](alaska::FlowNode *node, const char *indent = "") {
     const char *color = NULL;
     switch (node->type) {
       case alaska::Source:
+        // blue
         color = "#aec9fc70";
         break;
       case alaska::Sink:
+        // red
         color = "#dc5d4a70";
         break;
       case alaska::Transient:
+        // gray
         color = "#dedcdb70";
         break;
     }
@@ -267,8 +288,7 @@ void alaska::PointerFlowGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDomin
     errs() << "];\n";
   };
 
-  auto emitNodeEdges = [&](alaska::Node *node, const char *indent = "") {
-
+  auto emitNodeEdges = [&](alaska::FlowNode *node, const char *indent = "") {
     for (Use *use : node->out) {
       auto &v = node->graph.get_node_including_sinks(use->getUser());
       alaska::println(indent, "  n", node->id, " -> n", v.id, "[color=black,style=dashed];");
@@ -279,35 +299,35 @@ void alaska::PointerFlowGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDomin
     for (auto *dominated : node->get_postdominated(PDT)) {
       alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=blue];");
     }
-	};
+  };
 
 
   for (auto *node : nodes) {
     if (auto I = dyn_cast<Instruction>(node->value)) {
       bb_nodes[I->getParent()].insert(node);
     } else {
-    	emitNodeDef(node);
-    	emitNodeEdges(node);
-		}
+      emitNodeDef(node);
+      emitNodeEdges(node);
+    }
   }
-  
+
   for (auto &[bb, block_nodes] : bb_nodes) {
     errs() << "  subgraph \"cluster_";
     bb->printAsOperand(errs(), false);
     errs() << "\" {\n";
-		errs() << "    style=filled;\n";
-		errs() << "    bgcolor=\"#eff0f7\";\n";
-		errs() << "    label=\"block ";
+    errs() << "    style=filled;\n";
+    errs() << "    bgcolor=\"#eff0f7\";\n";
+    errs() << "    label=\"block ";
     bb->printAsOperand(errs(), false);
     errs() << "\";\n";
 
     for (auto *node : block_nodes) {
-    	emitNodeDef(node, "  ");
-			emitNodeEdges(node, "  ");
+      emitNodeDef(node, "  ");
+      emitNodeEdges(node, "  ");
     }
 
     errs() << "  }\n";
   }
 
-  alaska::println("}\n\n\n");
+  alaska::println("}");
 }

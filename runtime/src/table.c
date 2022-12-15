@@ -26,7 +26,7 @@ void alaska_table_init(void) {
 
   int fd = -1;
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  size_t sz = MAP_GRANULARITY * 1;
+  size_t sz = MAP_GRANULARITY * 64;
 
   // TODO: do this using hugetlbfs :)
   table.map = (alaska_mapping_t *)mmap((void *)MAP_GRANULARITY, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, fd, 0);

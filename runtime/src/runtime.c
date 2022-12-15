@@ -12,10 +12,22 @@
 #include <assert.h>
 #include <jemalloc/jemalloc.h>
 #include <malloc.h>
+#include <execinfo.h>
+
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
+#define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
 
+
+typedef union {
+  struct {
+    unsigned offset : 32;  // the offset into the handle
+    unsigned handle : 31;  // the translation in the translation table
+    unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
+  };
+  void *ptr;
+} handle_t;
 
 
 #ifdef ALASKA_CLASS_TRACKING
@@ -28,7 +40,6 @@ static uint64_t next_usage_timestamp = 0;
 
 __declspec(noinline) void *halloc(size_t sz) {
   assert(sz < (1LLU << 32));
-
   alaska_mapping_t *ent = alaska_table_get();
   uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << 32);
 
@@ -156,11 +167,10 @@ __declspec(noinline) void alaska_fault(alaska_mapping_t *ent, enum alaska_fault_
   }
 
 
-  if (reason == NOT_PRESENT) {
-    // lazy allocate for now.
-    ent->ptr = malloc(ent->size);
-    return;
-  }
+  // if (reason == NOT_PRESENT) {
+  //   // lazy allocate for now.
+  //   return;
+  // }
 
   fprintf(stderr, "[FATAL] alaska: unknown fault reason, %d, on handle %ld.\n", reason, alaska_table_get_canonical(ent));
   exit(-1);
@@ -191,22 +201,11 @@ __declspec(noinline) void alaska_barrier(void) {}
 // The core function to lock a handle. This is called only once we know
 // that @ptr is a handle (indicated by the top bit being set to 1).
 void *alaska_guarded_lock(void *ptr) {
-  // A handle is encoded as two 32 bit components. The first (top half)
-  // component is simply a pointer to the mapping directly. The second
-  // (bottom 32 bits) are an offset into the mapping. This simplifies
-  // translation quite a bit, as all handles share the same bit pattern
-  // and offset computation is very easy.
-  //
-  // On AAarch64, this operation can be performed with 3 instructions:
-  //   ubfx; ldr; add;
-  // (Extract bits (32..63), load `ent->ptr`, and add the offset)
-  alaska_mapping_t *ent = GET_ENTRY(ptr);
-  ALASKA_SANITY(ent >= alaska_map, "Entry is before the map");
-  ALASKA_SANITY(ent < alaska_map + alaska_map_size, "Entry is after the map");
+  handle_t h;
+  h.ptr = ptr;
 
-  // Extract the lower 32 bits of the pointer for the offset.
-  off_t off = GET_OFFSET(ptr);
-
+  alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
+  off_t off = h.offset;
 
 #ifdef ALASKA_CLASS_TRACKING
   alaska_class_access_counts[ent->object_class]++;
@@ -219,12 +218,16 @@ void *alaska_guarded_lock(void *ptr) {
   //   alaska_fault(ent, NOT_PRESENT, off);
   // }
 
+  // printf("lock %p, %ld\n", ptr, alaska_table_get_canonical(ent));
+
+
+  ALASKA_SANITY(
+      off <= ent->size, "out of bounds access.\nAttempt to access offset %u in an object of size %u. Handle = %p", off, ent->size, ptr);
   // Proxy for temporal locality.
   // The compiler could decide to do this or not based on if it
   // if wants to track this in some scope
   ent->usage_timestamp = next_usage_timestamp++;
 
-  // printf("lock %p, %ld\n", ptr, GET_CANONICAL(ptr));
 
   // Record the lock occuring so the runtime knows not to relocate the memory.
   // TODO: hoist this into the compiler and avoid doing it if it's not needed.
@@ -247,16 +250,18 @@ void alaska_guarded_unlock(void *ptr) {
 // These functions are simple wrappers around the guarded version of the
 // same name. These versions just check if `ptr` is a handle before locking.
 void *alaska_lock(void *ptr) {
-  uint64_t h = (uint64_t)ptr;
-  if (likely((h & HANDLE_MARKER) != 0)) {
+  handle_t h;
+  h.ptr = ptr;
+  if (likely(h.flag != 0)) {
     return alaska_guarded_lock(ptr);
   }
   return ptr;
 }
 
 void alaska_unlock(void *ptr) {
-  uint64_t h = (uint64_t)ptr;
-  if (likely((h & HANDLE_MARKER) != 0)) {
+  handle_t h;
+  h.ptr = ptr;
+  if (likely(h.flag != 0)) {
     alaska_guarded_unlock(ptr);
   }
 }
@@ -265,8 +270,9 @@ void alaska_unlock(void *ptr) {
 // TODO: determine if we should lock it forever or not...
 static uint64_t escape_locks = 0;
 void *alaska_lock_for_escape(void *ptr) {
-  uint64_t h = (uint64_t)ptr;
-  if (unlikely((h & HANDLE_MARKER) != 0)) {
+  handle_t h;
+  h.ptr = ptr;
+  if (likely(h.flag != 0)) {
     atomic_inc(escape_locks, 1);
     // escape_locks++;
     // its easier to do this than to duplicate efforts and inline.
@@ -280,8 +286,9 @@ void *alaska_lock_for_escape(void *ptr) {
 
 void alaska_classify(void *ptr, uint8_t c) {
 #ifdef ALASKA_CLASS_TRACKING
-  uint64_t h = (uint64_t)ptr;
-  if (likely((h & HANDLE_MARKER) != 0)) {
+  handle_t h;
+  h.ptr = ptr;
+  if (likely(h.flag != 0)) {
     alaska_mapping_t *ent = GET_ENTRY(ptr);
 
     ent->object_class = c;
@@ -290,12 +297,9 @@ void alaska_classify(void *ptr, uint8_t c) {
 }
 
 
-#define MAP_HUGE_2MB (21 << MAP_HUGE_SHIFT)
-
 static void __attribute__((constructor)) alaska_init(void) {
-// initialize the translation table first
+  // initialize the translation table first
   alaska_table_init();
-
 }
 
 static void __attribute__((destructor)) alaska_deinit(void) {
@@ -305,9 +309,9 @@ static void __attribute__((destructor)) alaska_deinit(void) {
   if (getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL) {
     printf("class,accesses\n");
     for (int i = 0; i < 256; i++) {
-			if (alaska_class_access_counts[i] != 0) {
-      	printf("%d,%zu\n", i, alaska_class_access_counts[i]);
-			}
+      if (alaska_class_access_counts[i] != 0) {
+        printf("%d,%zu\n", i, alaska_class_access_counts[i]);
+      }
     }
   }
 #endif
@@ -315,4 +319,32 @@ static void __attribute__((destructor)) alaska_deinit(void) {
 
   // delete the table at the end
   alaska_table_deinit();
+}
+
+
+
+#define BT_BUF_SIZE 100
+void alaska_dump_backtrace(void) {
+	return;
+  int nptrs;
+
+  void *buffer[BT_BUF_SIZE];
+  char **strings;
+
+  nptrs = backtrace(buffer, BT_BUF_SIZE);
+  printf("Backtrace:\n", nptrs);
+
+  /* The call backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO)
+     would produce similar output to the following: */
+
+  strings = backtrace_symbols(buffer, nptrs);
+  if (strings == NULL) {
+    perror("backtrace_symbols");
+    exit(EXIT_FAILURE);
+  }
+
+  for (int j = 0; j < nptrs; j++)
+    printf("\x1b[92m%d\x1b[0m: %s\n", j, strings[j]);
+
+  free(strings);
 }

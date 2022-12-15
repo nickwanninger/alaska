@@ -3,7 +3,7 @@ add_link_options("-fuse-ld=lld")
 set(WARNINGS " -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
@@ -76,10 +76,13 @@ set(SRC_FILES
 	# libc functions that we wrap
 	src/compat.c   
 	
-
-	# The correctness fallback (emulate using TCG)
-	src/emulator.c
 )
+
+if(ALASKA_CORRECTNESS_EMULATOR)
+	# The correctness fallback (emulate using TCG)
+	set(SRC_FILES ${SRC_FILES} src/emulator.c)
+endif()
+
 add_library(alaska_core STATIC ${SRC_FILES})
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)

@@ -7,8 +7,14 @@ config DEBUG
 	bool "Enable debug Logging"
 	default n
 
-config DUMP_GRAPH
-	bool "Dump the 'flow graph' after it is constructed"
+config DUMP_FLOW_GRAPH
+	bool "Dump flow graphs after they are constructed"
+	depends on DEBUG
+	default n
+
+
+config DUMP_FLOW_FOREST
+	bool "Dump flow forests after they are constructed"
 	depends on DEBUG
 	default n
 
@@ -31,6 +37,12 @@ config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
 	default n
 
+
+config CORRECTNESS_EMULATOR
+	bool "Enable the correctness emulator"
+	default y
+
 config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
+	depends on CORRECTNESS_EMULATOR
 	default n
