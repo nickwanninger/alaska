@@ -5,6 +5,10 @@ set -e
 HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
 PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
 
+
+export PATH=$PFX/bin:$PATH
+export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
+
 INPUT=$1
 shift
 
@@ -44,5 +48,4 @@ opt -load "${PFX}/lib/Alaska.so"                    \
 	-enable-new-pm=0                                  \
 	"${INPUT}" -o "${INPUT}" 
 
-
-# --alaska-escape                                   \
+	# --alaska-escape                                   \
