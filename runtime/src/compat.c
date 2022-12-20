@@ -10,7 +10,7 @@ int alaska_wrapped_puts(const char *s) { return puts(alaska_lock_for_escape(s));
 
 
 int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
-	printf("sigaction=%d\n", signum);
+  printf("sigaction=%d\n", signum);
   if (signum == SIGSEGV) {
     return -1;
   }
@@ -39,5 +39,42 @@ void *memcpy(void *vdst, const void *vsrc, size_t n) {
   }
   alaska_unlock(vdst);
   alaska_unlock(vsrc);
-	return vdst;
+  return vdst;
+}
+
+
+size_t strlen(const char *vsrc) {
+  uint8_t *src = (uint8_t *)alaska_lock(vsrc);
+	size_t s = 0;
+	for (s = 0; src[s]; s++) {}
+	alaska_unlock(vsrc);
+	return s;
+}
+
+char *strcpy(char *vdest, const char *vsrc) {
+  uint8_t *dest = (uint8_t *)alaska_lock(vdest);
+  uint8_t *src = (uint8_t *)alaska_lock(vsrc);
+  size_t i;
+
+  for (i = 0; src[i] != '\0'; i++)
+    dest[i] = src[i];
+
+  alaska_unlock(vdest);
+  alaska_unlock(vsrc);
+  return vdest;
+}
+
+char *strncpy(char *vdest, const char *vsrc, size_t n) {
+  uint8_t *dest = (uint8_t *)alaska_lock(vdest);
+  uint8_t *src = (uint8_t *)alaska_lock(vsrc);
+  size_t i;
+
+  for (i = 0; i < n && src[i] != '\0'; i++)
+    dest[i] = src[i];
+  for (; i < n; i++)
+    dest[i] = '\0';
+  alaska_unlock(vdest);
+  alaska_unlock(vsrc);
+
+  return vdest;
 }
