@@ -113,7 +113,7 @@ __declspec(noinline) void alaska_real_segfault_handler(ucontext_t *ucontext) {
 
 #ifdef __aarch64__
 
-static void aarch64_reserved_sync(ucontext_t *ucontext, uc_engine *uc, void *vsync) {
+static void aarch64_emu_register_sync(ucontext_t *ucontext, uc_engine *uc, void *vsync) {
 	uc_err (*uc_sync)(uc_engine *, int, void*);
 	uc_sync = vsync;
 	// Linux encodes the __reserved field in a variable length array of different sized
@@ -139,28 +139,19 @@ static void aarch64_reserved_sync(ucontext_t *ucontext, uc_engine *uc, void *vsy
 			exit(-1);
 		}
 	}
+
+  for (int i = 0; i < 31; i++)
+    uc_sync(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
+	uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+  uc_sync(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
 }
 static void emu_run(ucontext_t *ucontext) {
   // populate the registers
   off_t pc = ucontext->uc_mcontext.pc;
-
-	aarch64_reserved_sync(ucontext, uc, uc_reg_write);
-
-  for (int i = 0; i < 31; i++)
-    uc_reg_write(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-	uc_reg_write(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-  uc_reg_write(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
-
+	aarch64_emu_register_sync(ucontext, uc, uc_reg_write);
   // Emulate a single instruction
   uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
-
-  for (int i = 0; i < 31; i++)
-    uc_reg_read(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-  uc_reg_read(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-	uc_reg_read(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
-
-	aarch64_reserved_sync(ucontext, uc, uc_reg_read);
-
+	aarch64_emu_register_sync(ucontext, uc, uc_reg_read);
 }
 #elif defined(__x86_64__)
 static void emu_run(ucontext_t *ucontext) {
