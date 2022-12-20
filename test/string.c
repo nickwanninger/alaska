@@ -5,8 +5,9 @@
 const char *string = "Hello, world!";
 
 int main() {
+	size_t len = strlen(string) + 1;
 	// Allocate a copy of the string
-	char *msg = malloc(strlen(string));
+	char *msg = malloc(len);
 	// alaska_classify(msg, 1);
 	strcpy(msg, string);
 	// And print it
