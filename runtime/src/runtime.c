@@ -198,14 +198,13 @@ int alaska_ent_ptr_compare(const void *_a, const void *_b) {
 __declspec(noinline) void alaska_barrier(void) {}
 
 
+
 // The core function to lock a handle. This is called only once we know
 // that @ptr is a handle (indicated by the top bit being set to 1).
 void *alaska_guarded_lock(void *ptr) {
   handle_t h;
   h.ptr = ptr;
-
   alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
-  off_t off = h.offset;
 
 #ifdef ALASKA_CLASS_TRACKING
   alaska_class_access_counts[ent->object_class]++;
@@ -218,32 +217,24 @@ void *alaska_guarded_lock(void *ptr) {
   //   alaska_fault(ent, NOT_PRESENT, off);
   // }
 
-  // printf("lock %p, %ld\n", ptr, alaska_table_get_canonical(ent));
-
 
   ALASKA_SANITY(
-      off <= ent->size, "out of bounds access.\nAttempt to access offset %u in an object of size %u. Handle = %p", off, ent->size, ptr);
-  // Proxy for temporal locality.
-  // The compiler could decide to do this or not based on if it
-  // if wants to track this in some scope
-  ent->usage_timestamp = next_usage_timestamp++;
+      h.offset <= ent->size, "out of bounds access.\nAttempt to access offset %u in an object of size %u. Handle = %p", h.offset, ent->size, ptr);
 
 
-  // Record the lock occuring so the runtime knows not to relocate the memory.
-  // TODO: hoist this into the compiler and avoid doing it if it's not needed.
-  // ex: if there are no calls to alaska_barrier between lock/unlocks,
-  //     there is no need to lock (we only care about one thread for now)
-  ent->locks++;
-
+  // ent->usage_timestamp = next_usage_timestamp++;
+  // ent->locks++;
 
   // Return the address of the pointer plus the offset we are locking at.
-  return (void *)((uint64_t)ent->ptr + off);
+  return (void *)((uint64_t)ent->ptr + h.offset);
 }
 
 
 void alaska_guarded_unlock(void *ptr) {
-  alaska_mapping_t *ent = GET_ENTRY(ptr);
-  ent->locks--;
+  // handle_t h;
+  // h.ptr = ptr;
+  // alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
+  // ent->locks--;
 }
 
 

@@ -73,7 +73,7 @@ static inline void alaska_emulate_store(void *addr, uint64_t val, size_t size) {
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
   if (addr != ptr) {
-    fprintf(stderr, "alaska: st%c %016zx <- %0*zx\n", byte_size_human(size), (off_t)addr, size * 2, val);
+    fprintf(stderr, "alaska: st%c %016zx(%p) <- %0*zx\n", byte_size_human(size), (off_t)addr, ptr, size * 2, val);
   }
 #endif
   switch (size) {
@@ -114,49 +114,48 @@ __declspec(noinline) void alaska_real_segfault_handler(ucontext_t *ucontext) {
 #ifdef __aarch64__
 
 static void aarch64_emu_register_sync(ucontext_t *ucontext, uc_engine *uc, void *vsync) {
-	uc_err (*uc_sync)(uc_engine *, int, void*);
-	uc_sync = vsync;
-	// Linux encodes the __reserved field in a variable length array of different sized
-	// contexts. It contains the values of the floating point unit, ESR, etc...
-	uint8_t *res = (uint8_t *)ucontext->uc_mcontext.__reserved;
-	for (int i = 0; i < 4096; i++) {
-		uint32_t val = *(uint32_t*)&res[i];
+  uc_err (*uc_sync)(uc_engine *, int, void *);
+  uc_sync = vsync;
+  // Linux encodes the __reserved field in a variable length array of different sized
+  // contexts. It contains the values of the floating point unit, ESR, etc...
+  uint8_t *res = (uint8_t *)ucontext->uc_mcontext.__reserved;
+  for (int i = 0; i < 4096; i++) {
+    uint32_t val = *(uint32_t *)&res[i];
 
-		if (val == FPSIMD_MAGIC) {
-			struct fpsimd_context *ctx = (struct fpsimd_context*)(res + i);
-			for (int i = 0; i < 32; i++)
-				uc_sync(uc, UC_ARM64_REG_V0 + i, &ctx->vregs[i]);
-			i += ctx->head.size;
-			continue;
-		}
+    if (val == FPSIMD_MAGIC) {
+      struct fpsimd_context *ctx = (struct fpsimd_context *)(res + i);
+      for (int r = 0; r < 32; r++) {
+        uc_sync(uc, UC_ARM64_REG_V0 + r, &ctx->vregs[r]);
+      }
+      i += ctx->head.size;
+      continue;
+    } else if (val == SVE_MAGIC) {
+			// We don't really care about the `vl` register, as the emulator framework doesn't
+			// seem to support changing it. For now, we will just skip it and hope for the best :)
+      struct sve_context *ctx = (struct sve_context *)(res + i);
+      i += ctx->head.size;
+    }
+  }
 
-		if (val == ESR_MAGIC) {
-			// Don't care about... (TODO: should we?)
-		}
-		if (val == SVE_MAGIC) {
-			// Don't care about... (TODO: should we?)
-			fprintf(stderr, "SVE MAGIC\n");
-			exit(-1);
-		}
-	}
+
 
   for (int i = 0; i < 31; i++)
     uc_sync(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-	uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+  uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
   uc_sync(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
 }
 static void emu_run(ucontext_t *ucontext) {
   // populate the registers
   off_t pc = ucontext->uc_mcontext.pc;
-	aarch64_emu_register_sync(ucontext, uc, uc_reg_write);
+  aarch64_emu_register_sync(ucontext, uc, uc_reg_write);
   // Emulate a single instruction
   uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
-	aarch64_emu_register_sync(ucontext, uc, uc_reg_read);
+  aarch64_emu_register_sync(ucontext, uc, uc_reg_read);
 }
 #elif defined(__x86_64__)
 static void emu_run(ucontext_t *ucontext) {
-	fprintf(stderr, "not done yet!\n");
-	exit(-1);
+  fprintf(stderr, "not done yet!\n");
+  exit(-1);
 }
 #else
 #error hmm
@@ -171,7 +170,7 @@ void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
   ucontext_t *ucontext = (ucontext_t *)ptr;
 
   if (faulting_context != NULL) {
-    alaska_real_segfault_handler((ucontext_t*)faulting_context);
+    alaska_real_segfault_handler((ucontext_t *)faulting_context);
     exit(-1);
   }
   faulting_context = ucontext;

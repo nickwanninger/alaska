@@ -20,14 +20,14 @@ uint64_t timestamp() {
 }
 
 
-#define TRIALS 100
+#define TRIALS 1000
 #define LENGTH 10000
 
 struct node {
   struct node *next;
   int val;
 };
-#define NODE_SIZE 64
+#define NODE_SIZE sizeof(struct node)
 
 
 struct node *reverse_list(struct node *root) {
