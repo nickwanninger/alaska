@@ -38,7 +38,7 @@ static inline uint64_t alaska_emulate_load(void *addr, size_t size) {
   uint64_t val = 0;
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
   if (addr != ptr) {
-    printf("alaska: ld%c %016zx -> ", byte_size_human(size), (off_t)addr);
+    fprintf(stderr, "alaska: ld%c %016zx(%p) -> ", byte_size_human(size), (off_t)addr, ptr);
     fflush(stdout);
   }
 #endif
@@ -58,9 +58,9 @@ static inline uint64_t alaska_emulate_load(void *addr, size_t size) {
   }
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
   if (addr != ptr) {
-    printf("%0*zx", size * 2, val);
-    if (size == 1) printf("  '%c'", val);
-    printf("\n");
+    fprintf(stderr, "%0*zx", size * 2, val);
+    if (size == 1) fprintf(stderr, "  '%c'", val);
+    fprintf(stderr, "\n");
   }
 #endif
 
@@ -72,8 +72,8 @@ static inline void alaska_emulate_store(void *addr, uint64_t val, size_t size) {
   void *ptr = alaska_lock(addr);
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (addr != ptr || 1) {
-    printf("alaska: st%c %016zx <- %0*zx\n", byte_size_human(size), (off_t)addr, size * 2, val);
+  if (addr != ptr) {
+    fprintf(stderr, "alaska: st%c %016zx <- %0*zx\n", byte_size_human(size), (off_t)addr, size * 2, val);
   }
 #endif
   switch (size) {
@@ -102,7 +102,7 @@ void uc_err_check(const char *name, uc_err err) {
   }
 }
 __thread uc_engine *uc = NULL;
-__thread ucontext_t *faulting_context = false;
+__thread volatile ucontext_t *faulting_context = false;
 
 __declspec(noinline) void alaska_real_segfault_handler(ucontext_t *ucontext) {
   fprintf(stderr, "segfault while performing a correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc,
@@ -110,43 +110,87 @@ __declspec(noinline) void alaska_real_segfault_handler(ucontext_t *ucontext) {
   exit(-1);
 }
 
+
+#ifdef __aarch64__
+
+static void aarch64_reserved_sync(ucontext_t *ucontext, uc_engine *uc, void *vsync) {
+	uc_err (*uc_sync)(uc_engine *, int, void*);
+	uc_sync = vsync;
+	// Linux encodes the __reserved field in a variable length array of different sized
+	// contexts. It contains the values of the floating point unit, ESR, etc...
+	uint8_t *res = (uint8_t *)ucontext->uc_mcontext.__reserved;
+	for (int i = 0; i < 4096; i++) {
+		uint32_t val = *(uint32_t*)&res[i];
+
+		if (val == FPSIMD_MAGIC) {
+			struct fpsimd_context *ctx = (struct fpsimd_context*)(res + i);
+			for (int i = 0; i < 32; i++)
+				uc_sync(uc, UC_ARM64_REG_V0 + i, &ctx->vregs[i]);
+			i += ctx->head.size;
+			continue;
+		}
+
+		if (val == ESR_MAGIC) {
+			// Don't care about... (TODO: should we?)
+		}
+		if (val == SVE_MAGIC) {
+			// Don't care about... (TODO: should we?)
+			fprintf(stderr, "SVE MAGIC\n");
+			exit(-1);
+		}
+	}
+}
+static void emu_run(ucontext_t *ucontext) {
+  // populate the registers
+  off_t pc = ucontext->uc_mcontext.pc;
+
+	aarch64_reserved_sync(ucontext, uc, uc_reg_write);
+
+  for (int i = 0; i < 31; i++)
+    uc_reg_write(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
+	uc_reg_write(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+  uc_reg_write(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
+
+  // Emulate a single instruction
+  uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
+
+  for (int i = 0; i < 31; i++)
+    uc_reg_read(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
+  uc_reg_read(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+	uc_reg_read(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
+
+	aarch64_reserved_sync(ucontext, uc, uc_reg_read);
+
+}
+#elif defined(__x86_64__)
+static void emu_run(ucontext_t *ucontext) {
+	fprintf(stderr, "not done yet!\n");
+	exit(-1);
+}
+#else
+#error hmm
+#endif
+
 void alaska_sigsegv_handler(int sig, siginfo_t *info, void *ptr) {
   // allow segfaults to be delivered within the emulator
-  // sigset_t set, old;
-  // sigfillset(&set);
-  // sigprocmask(SIG_UNBLOCK, &set, &old);
+  sigset_t set, old;
+  sigfillset(&set);
+  sigprocmask(SIG_UNBLOCK, &set, &old);
 
   ucontext_t *ucontext = (ucontext_t *)ptr;
 
   if (faulting_context != NULL) {
-    // alaska_real_segfault_handler(faulting_context);
+    alaska_real_segfault_handler((ucontext_t*)faulting_context);
     exit(-1);
   }
   faulting_context = ucontext;
-
-  // fprintf(stderr, "correctness emulation at pc:%p, fa:%p\n", ucontext->uc_mcontext.pc, ucontext->uc_mcontext.fault_address);
 
   if (uc == NULL) {
     uc_err_check("uc_open", uc_open(UC_ARCH_ARM64, UC_MODE_ARM, &uc));
     uc_alaska_set_memory_emulation(uc, alaska_emulate_load, alaska_emulate_store);
   }
 
-  // populate the registers
-  off_t pc = ucontext->uc_mcontext.pc;
-  for (int i = 0; i < 31; i++)
-    uc_reg_write(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-  uc_reg_write(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-  uc_reg_write(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-
-  // Emulate a single instruction
-  uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, -1, 0, 1));
-
-
-  for (int i = 0; i < 31; i++)
-    uc_reg_read(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-  uc_reg_read(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-  uc_reg_read(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
-
+  emu_run(ucontext);
 
   faulting_context = NULL;
 
