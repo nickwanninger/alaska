@@ -83,10 +83,6 @@ alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     this->roots.push_back(std::move(node));
   }
 
-
-
-
-
 #ifdef ALASKA_DUMP_FLOW_FOREST
   dump_dot();
 #endif
@@ -139,14 +135,14 @@ void alaska::FlowForest::dump_dot(void) {
 
       if (node->parent->parent == NULL && node->share_lock_with) {
         errs() << "  n" << node->parent << ":n" << node->compute_shared_lock() << " -> n" << node
-               << " [style=\"dashed\"]\n";
+               << " [style=\"dashed\", color=orange]\n";
       }
     }
 
 
-    for (auto *dom : node->dominates) {
-      errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
-    }
+    // for (auto *dom : node->dominates) {
+    //   errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
+    // }
 
     // for (auto *dom : node->postdominates) {
     //   errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
