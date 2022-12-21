@@ -20,6 +20,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/CommandLine.h"
 
+
 #include "noelle/core/DataFlow.hpp"
 #include "noelle/core/MetadataManager.hpp"
 
@@ -50,7 +51,6 @@ namespace {
           F.setSection("");
           continue;
         }
-        // if (F.getName() != "sum") continue;
 
 #ifdef ALASKA_CONSERVATIVE
         alaska::PointerFlowGraph graph(F);

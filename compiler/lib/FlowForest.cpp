@@ -6,7 +6,18 @@
 #include "llvm/IR/Instructions.h"
 
 
+static void extract_nodes(alaska::FlowForest::Node *node, std::unordered_set<alaska::FlowForest::Node *> &nodes) {
+  nodes.insert(node);
 
+  for (auto &child : node->children) {
+    extract_nodes(child.get(), nodes);
+  }
+}
+
+int alaska::FlowForest::Node::depth(void) {
+  if (parent == NULL) return 0;
+  return parent->depth() + 1;
+}
 
 llvm::Instruction *alaska::FlowForest::Node::effective_instruction(void) {
   if (auto inst = dyn_cast<llvm::Instruction>(val)) {
@@ -37,65 +48,43 @@ alaska::FlowForest::Node::Node(alaska::FlowNode *val, alaska::FlowForest::Node *
 
 
 alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT) : func(G.func()) {
+  llvm::DominatorTree DT(func);
   // The nodes which have no in edges that it post dominates
   std::unordered_set<alaska::FlowNode *> roots;
-  // "which nodes' in edges should we look at next"
-  std::deque<alaska::FlowNode *> worklist;
+  // all the sources are roots in the flow tree
   for (auto *node : G.get_nodes()) {
-    if (node->type == alaska::NodeType::Sink) worklist.push_back(node);
+    if (node->type == alaska::NodeType::Source) roots.insert(node);
   }
 
-  while (!worklist.empty()) {
-    auto *current_node = worklist.front();
-    worklist.pop_front();
-    auto *current_inst = dyn_cast<Instruction>(current_node->value);
-    if (current_inst == NULL) {
-      roots.insert(current_node);
-      continue;
-    }
+  for (auto *root : roots) {
+    auto node = std::make_unique<Node>(root);
 
-    auto in_nodes = current_node->get_in_nodes();
-
-    // If there is nothing in the in edges, this node is a root.
-    // This is kindof a hack to deal with the fact that alloca pointers
-    // are pruned from the flow graph. If we don't do this, -O0 programs
-    // might not have *any* trees in the forest.
-    if (in_nodes.size() == 0) {
-      roots.insert(current_node);
-    } else {
-      for (auto *in : in_nodes) {
-        bool postdominates = false;
-        if (auto in_arg = dyn_cast<llvm::Argument>(in->value)) {
-          auto &F = G.func();
-          auto *in_bb = &F.getEntryBlock();
-          auto *current_bb = current_inst->getParent();
-
-          if (PDT.dominates(current_bb, in_bb)) {
-            postdominates = true;
+  	// compute which children dominate which siblings
+    std::unordered_set<Node *> nodes;
+    extract_nodes(node.get(), nodes);
+    for (auto *node : nodes) {
+      for (auto &child : node->children) {
+        auto *inst = child->effective_instruction();
+        for (auto &sibling : node->children) {
+          if (sibling == child) continue;
+          auto *sib_inst = sibling->effective_instruction();
+          if (PDT.dominates(inst, sib_inst)) {
+            child->postdominates.insert(sibling.get());
           }
-        } else if (auto in_inst = dyn_cast<llvm::Instruction>(in->value)) {
-          if (PDT.dominates(current_inst, in_inst)) {
-            postdominates = true;
-          }
-        }
 
-        if (postdominates) {
-          // If the in edge is post dominated by the current node, insert it into
-          // the work list.
-          worklist.push_back(in);
-        } else {
-          // If the in edge is *not* post dominated by the current
-          // node, the current node is a root
-          roots.insert(current_node);
+          if (DT.dominates(inst, sib_inst)) {
+            sibling->share_lock_with = child.get();
+            child->dominates.insert(sibling.get());
+          }
         }
       }
     }
-  }
-  alaska::println("roots: ", roots.size());
 
-  for (auto *root : roots) {
-    this->roots.push_back(std::make_unique<Node>(root));
+    this->roots.push_back(std::move(node));
   }
+
+
+
 
 
 #ifdef ALASKA_DUMP_FLOW_FOREST
@@ -104,13 +93,6 @@ alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 }
 
 
-static void extract_nodes(alaska::FlowForest::Node *node, std::unordered_set<alaska::FlowForest::Node *> &nodes) {
-  nodes.insert(node);
-
-  for (auto &child : node->children) {
-    extract_nodes(child.get(), nodes);
-  }
-}
 
 void alaska::FlowForest::dump_dot(void) {
   alaska::println("------------------- { Flow forest for function ", func.getName(), " } -------------------");
@@ -127,16 +109,50 @@ void alaska::FlowForest::dump_dot(void) {
 
   for (auto node : nodes) {
     errs() << "  n" << node << " [label=\"";
-    errs() << *node->val;
-    errs() << "\", shape=box";
-    errs() << ", style=filled";
+    errs() << "{" << *node->val;
+    if (node->parent == NULL && node->children.size() > 0) {
+      errs() << "|{";
+      int i = 0;
+
+      for (auto &child : node->children) {
+        if (i++ != 0) {
+          errs() << "|";
+        }
+
+        errs() << "<n" << child.get() << ">";
+        if (child->share_lock_with == NULL) {
+          errs() << "lock";
+        } else {
+          errs() << "-";
+        }
+      }
+      errs() << "}";
+    }
+    errs() << "}";
+    errs() << "\", shape=record";
     errs() << "];\n";
   }
 
   for (auto node : nodes) {
     if (node->parent) {
-      errs() << "  n" << node->parent << " -> n" << node << "\n";
+      errs() << "  n" << node->parent << ":n" << node << " -> n" << node << "\n";
+
+      if (node->parent->parent == NULL && node->share_lock_with) {
+        errs() << "  n" << node->parent << ":n" << node->compute_shared_lock() << " -> n" << node
+               << " [style=\"dashed\"]\n";
+      }
     }
+
+
+    for (auto *dom : node->dominates) {
+      errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
+    }
+
+    // for (auto *dom : node->postdominates) {
+    //   errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
+    // }
   }
+
+
   alaska::println("}\n\n\n");
 }

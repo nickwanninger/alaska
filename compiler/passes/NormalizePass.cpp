@@ -21,18 +21,18 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
-#define ADDR_SPACE 0
+#include <unordered_set>
 
 using namespace llvm;
 
 // Compute parent and type for instructions before inserting them into the trace.
 class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
-public:
+ public:
   llvm::Value *handleOperator(llvm::Operator *op, llvm::Instruction *inst) {
-
     IRBuilder<> b(inst);
 
     if (auto bitCastOp = dyn_cast<BitCastOperator>(op)) {
@@ -40,11 +40,12 @@ public:
     }
 
     if (auto gep = dyn_cast<GEPOperator>(op)) {
-			// errs() << "found gep operator\n";
+      // errs() << "found gep operator\n";
       std::vector<llvm::Value *> inds(gep->idx_begin(), gep->idx_end());
       if (gep->isInBounds()) {
         gep->hasIndices();
-        return llvm::GetElementPtrInst::CreateInBounds(gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
+        return llvm::GetElementPtrInst::CreateInBounds(
+            gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       } else {
         return llvm::GetElementPtrInst::Create(gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       }
@@ -59,8 +60,7 @@ public:
     }
     if (auto op = dyn_cast<llvm::Operator>(I.getPointerOperand())) {
       auto n = handleOperator(op, &I);
-      if (n)
-        I.setOperand(1, n);
+      if (n) I.setOperand(1, n);
     }
   }
 
@@ -70,50 +70,79 @@ public:
     }
     if (auto op = dyn_cast<llvm::Operator>(I.getPointerOperand())) {
       auto n = handleOperator(op, &I);
-      if (n)
-        I.setOperand(0, n);
+      if (n) I.setOperand(0, n);
     }
   }
 };
 
 namespace {
-struct AlaskaPass : public ModulePass {
-  static char ID;
-  llvm::Type *int64Type;
-  llvm::Type *voidPtrType;
-  llvm::Type *voidPtrTypePinned;
-  llvm::Value *translateFunction;
-  AlaskaPass() : ModulePass(ID) {}
+  struct AlaskaPass : public ModulePass {
+    static char ID;
+    llvm::Type *int64Type;
+    llvm::Type *voidPtrType;
+    llvm::Type *voidPtrTypePinned;
+    llvm::Value *translateFunction;
+    AlaskaPass() : ModulePass(ID) {}
 
-  bool doInitialization(Module &M) override {
-    return false;
-  }
 
-  bool runOnModule(Module &M) override {
-    NormalizeVisitor v;
-    std::vector<llvm::Instruction *> insts;
+    // Normalize select statements that have a pointer type
+    void normalizeSelects(Function &F) {
+      std::unordered_set<llvm::SelectInst *> selects;
 
-    for (auto &F : M) {
-      if (F.empty())
-        continue;
       for (auto &BB : F) {
         for (auto &I : BB) {
-          insts.push_back(&I);
+          if (auto sinst = dyn_cast<SelectInst>(&I)) {
+            if (sinst->getType()->isPointerTy()) {
+              selects.insert(sinst);
+            }
+          }
         }
+      }
+      if (selects.size() == 0) return;
+
+      for (auto *sel : selects) {
+        Instruction *thenTerm, *elseTerm;
+        SplitBlockAndInsertIfThenElse(sel->getCondition(), sel->getNextNode(), &thenTerm, &elseTerm);
+
+        auto termBB = dyn_cast<BranchInst>(thenTerm)->getSuccessor(0);
+
+        IRBuilder<> b(termBB->getFirstNonPHI());
+        auto phi = b.CreatePHI(sel->getType(), 2);
+        phi->addIncoming(sel->getTrueValue(), thenTerm->getParent());
+        phi->addIncoming(sel->getFalseValue(), elseTerm->getParent());
+        sel->replaceAllUsesWith(phi);
+        sel->eraseFromParent();
       }
     }
 
-    for (auto *I : insts) {
-      v.visit(I);
+    bool doInitialization(Module &M) override { return false; }
+
+    bool runOnModule(Module &M) override {
+      NormalizeVisitor v;
+      std::vector<llvm::Instruction *> insts;
+
+      for (auto &F : M) {
+        if (F.empty()) continue;
+        for (auto &BB : F) {
+          for (auto &I : BB) {
+            insts.push_back(&I);
+          }
+        }
+      }
+
+      for (auto *I : insts)
+        v.visit(I);
+
+
+      for (auto &F : M)
+        normalizeSelects(F);
+
+      return true;
     }
+  };
 
-
-		// errs() << M << "\n";
-    return true;
-  }
-};
-
-  static RegisterPass<AlaskaPass> X("alaska-norm", "Alaska Normalize", false /* Only looks at CFG */, false /* Analysis Pass */);
+  static RegisterPass<AlaskaPass> X(
+      "alaska-norm", "Alaska Normalize", false /* Only looks at CFG */, false /* Analysis Pass */);
 
   char AlaskaPass::ID = 0;
   // static RegisterPass<AlaskaPass> X("Alaska", "Handle based memory with Alaska");
@@ -131,4 +160,4 @@ struct AlaskaPass : public ModulePass {
           PM.add(_PassMaker = new AlaskaPass());
         }
       });  // ** for -O0
-} // namespace
+}  // namespace

@@ -15,7 +15,7 @@ bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
   if (node.parent == NULL) {
     // trivial. Insert call to `alaska_lock`
     auto next = node.effective_instruction()->getNextNode();
-    node.translated = alaska::insertGuardedRTCall(alaska::Lock, node.val, next);
+    node.translated = alaska::insertGuardedRTCall(alaska::Lock, node.val, next, next->getDebugLoc());
   } else {
     // do something to handle each instruction
     // ...
@@ -29,6 +29,7 @@ bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
 }
 
 bool alaska::FlowForestTransformation::apply(void) {
+	return false;
   for (auto &root : forest.roots) {
     alaska::println("apply tx to forest:");
     root->dump();

@@ -30,13 +30,12 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     node.type = alaska::Transient;
     //
   }
-  void visitPHINode(llvm::PHINode &I) {
-    node.type = alaska::Transient;
-    for (unsigned i = 0; i < I.getNumOperands(); i++) {
-      node.add_in_edge(&I.getOperandUse(i));
-    }
-    //
-  }
+  // void visitPHINode(llvm::PHINode &I) {
+  //   node.type = alaska::Transient;
+  //   for (unsigned i = 0; i < I.getNumOperands(); i++) {
+  //     node.add_in_edge(&I.getOperandUse(i));
+  //   }
+  // }
 
 
   // void visitSelectInst(llvm::SelectInst &I) {

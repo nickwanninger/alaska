@@ -74,9 +74,9 @@ namespace {
         int i = 0;
         for (auto &arg : call->args()) {
           if (arg->getType()->isPointerTy()) {
-            auto *translated = alaska::insertRTCall(alaska::InsertionType::Lock, arg, call);
+            auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call, call->getDebugLoc());
             call->setArgOperand(i, translated);
-            alaska::insertGuardedRTCall(alaska::InsertionType::Unlock, arg, call->getNextNode());
+            alaska::insertGuardedRTCall(alaska::InsertionType::Unlock, arg, call->getNextNode(), call->getDebugLoc());
           }
           i++;
         }
