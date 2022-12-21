@@ -22,10 +22,6 @@ config CONSERVATIVE
 	bool "Conservatively pin all loads and stores"
 	default y
 
-config INLINE_HANDLE_GUARD
-	bool "Inline the handle check before calling runtime functions"
-	default y
-
 
 config CLASS_TRACKING
 	bool "Track allocation classes and record access counts in a histogram"

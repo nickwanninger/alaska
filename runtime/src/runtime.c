@@ -222,8 +222,8 @@ void *alaska_guarded_lock(void *ptr) {
       h.offset <= ent->size, "out of bounds access.\nAttempt to access offset %u in an object of size %u. Handle = %p", h.offset, ent->size, ptr);
 
 
-  // ent->usage_timestamp = next_usage_timestamp++;
-  // ent->locks++;
+  ent->usage_timestamp = next_usage_timestamp++;
+  ent->locks++;
 
   // Return the address of the pointer plus the offset we are locking at.
   return (void *)((uint64_t)ent->ptr + h.offset);
@@ -231,15 +231,16 @@ void *alaska_guarded_lock(void *ptr) {
 
 
 void alaska_guarded_unlock(void *ptr) {
-  // handle_t h;
-  // h.ptr = ptr;
-  // alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
-  // ent->locks--;
+  handle_t h;
+  h.ptr = ptr;
+  alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
+  ent->locks--;
 }
 
 
 // These functions are simple wrappers around the guarded version of the
 // same name. These versions just check if `ptr` is a handle before locking.
+__declspec(alwaysinline)
 void *alaska_lock(void *ptr) {
   handle_t h;
   h.ptr = ptr;

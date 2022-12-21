@@ -3,7 +3,7 @@ add_link_options("-fuse-ld=lld")
 set(WARNINGS " -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
