@@ -6,6 +6,8 @@ __attribute__((noinline)) int *source(void) { return malloc(sizeof(int)); }
 int *test() {
   int *x = source();
   *x += 12;
+  *x /= 12;
+  *x <<= 12;
 	if (rand()) *x *= 4;
   return x;
 }

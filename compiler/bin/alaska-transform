@@ -21,7 +21,7 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
 # Run a cleanup pass on the bitcode
-# $OPT --instnamer
+$OPT --instnamer
 # $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg # -lcssa -gvn
 
 # run some loop adjustments

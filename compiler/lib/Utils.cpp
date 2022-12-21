@@ -13,7 +13,7 @@
 
 // Insert the call to alaska_get or alaska_unlock, but inline the handle guard
 // as a new basic block. This improves performance quite a bit :)
-llvm::Value *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc loc) {
+llvm::Instruction *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc loc) {
   using namespace llvm;
 
   // The original basic block

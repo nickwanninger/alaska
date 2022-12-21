@@ -18,26 +18,12 @@ namespace alaska {
       // which siblings does this node postdominate in the cfg
       std::unordered_set<Node *> postdominates;
       llvm::Value *val;
-      llvm::Value *translated = nullptr;  // filled in by the flow forest transformation
+			// If this node performs a lock on incoming data, this is where it is located.
+			llvm::Instruction *incoming_lock = nullptr;
+      llvm::Instruction *translated = nullptr;  // filled in by the flow forest transformation
       Node(alaska::FlowNode *val, Node *parent = nullptr);
       int depth(void);
-			Node *compute_shared_lock(void) {
-				if (share_lock_with) {
-					auto *s = share_lock_with->compute_shared_lock();
-					if (s) return s;
-					return share_lock_with;
-				}
-				return nullptr;
-			}
-
-      void dump(int d = 0) {
-        for (int i = 0; i < d; i++)
-          errs() << "    ";
-        alaska::println(*val);
-        for (auto &c : children)
-          c->dump(d + 1);
-      }
-
+			Node *compute_shared_lock(void);
       llvm::Instruction *effective_instruction(void);
     };
 

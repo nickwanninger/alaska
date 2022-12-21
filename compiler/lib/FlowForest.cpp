@@ -19,6 +19,15 @@ int alaska::FlowForest::Node::depth(void) {
   return parent->depth() + 1;
 }
 
+alaska::FlowForest::Node *alaska::FlowForest::Node::compute_shared_lock(void) {
+  if (share_lock_with) {
+    auto *s = share_lock_with->compute_shared_lock();
+    if (s) return s;
+    return share_lock_with;
+  }
+  return nullptr;
+}
+
 llvm::Instruction *alaska::FlowForest::Node::effective_instruction(void) {
   if (auto inst = dyn_cast<llvm::Instruction>(val)) {
     if (auto phi = dyn_cast<llvm::PHINode>(val)) {
@@ -48,6 +57,8 @@ alaska::FlowForest::Node::Node(alaska::FlowNode *val, alaska::FlowForest::Node *
 
 
 alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT) : func(G.func()) {
+  // Compute the dominator tree.
+  // TODO: take this as an argument instead.
   llvm::DominatorTree DT(func);
   // The nodes which have no in edges that it post dominates
   std::unordered_set<alaska::FlowNode *> roots;
@@ -59,7 +70,7 @@ alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
   for (auto *root : roots) {
     auto node = std::make_unique<Node>(root);
 
-  	// compute which children dominate which siblings
+    // compute which children dominate which siblings
     std::unordered_set<Node *> nodes;
     extract_nodes(node.get(), nodes);
     for (auto *node : nodes) {
@@ -106,6 +117,12 @@ void alaska::FlowForest::dump_dot(void) {
   for (auto node : nodes) {
     errs() << "  n" << node << " [label=\"";
     errs() << "{" << *node->val;
+
+		if (node->translated) {
+      errs() << "|{tx:";
+			errs() << *node->translated;
+      errs() << "}";
+		}
     if (node->parent == NULL && node->children.size() > 0) {
       errs() << "|{";
       int i = 0;
@@ -117,13 +134,18 @@ void alaska::FlowForest::dump_dot(void) {
 
         errs() << "<n" << child.get() << ">";
         if (child->share_lock_with == NULL) {
-          errs() << "lock";
+					if (child->incoming_lock) {
+          	errs() << *child->incoming_lock;
+					} else {
+          	errs() << "lock";
+					}
         } else {
           errs() << "-";
         }
       }
       errs() << "}";
     }
+
     errs() << "}";
     errs() << "\", shape=record";
     errs() << "];\n";

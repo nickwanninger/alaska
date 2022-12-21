@@ -98,18 +98,4 @@ private:
   std::unordered_map<llvm::Value *, std::unique_ptr<FlowNode>> m_sinks;
 };
 
-inline void println() {
-#ifdef ALASKA_DEBUG
-  // base case
-  llvm::errs() << "\n";
-#endif
-}
-
-template <class T, class... Ts>
-inline void println(T const &first, Ts const &... rest) {
-#ifdef ALASKA_DEBUG
-  llvm::errs() << first;
-  alaska::println(rest...);
-#endif
-}
 } // namespace alaska
