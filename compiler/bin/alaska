@@ -53,6 +53,9 @@ do
     esac
 done
 
+# COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone")
+# COLLECT_CLANG_ARGS += ("-gdwarf-4 ")
+
 
 ALASKA_LIBS=""
 # ALASKA_LIBS+="-nostdlib ${PFX}/lib/libc.o ${PFX}/lib/libc.a "
@@ -67,12 +70,12 @@ GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
 
 if [ "$phase" = "compile" ]; then
-	$GCLANG -g3 -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]}
+	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]}
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -g3 -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
+	$GCLANG -pthread -lm -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ALASKA_LIBS}
 
 	get-bc $OUTFILE >/dev/null
 	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
@@ -83,11 +86,12 @@ else
 
 	# link the alaska bitcode file
 	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
+	opt -enable-new-pm=0 ${TMPFILE} -o ${TMPFILE} --inline --always-inline
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 	$GCLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
-		 -O3 -g3 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
+		 -O3 -gdwarf-4 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
 
 	rm ${TMPFILE}
 fi
