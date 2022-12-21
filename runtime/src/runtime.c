@@ -213,17 +213,17 @@ void *alaska_guarded_lock(void *ptr) {
   // if the pointer is NULL, we need to perform a "handle fault" This
   // is to allow the runtime to fully deallocate unused handles, but it
   // is a relatively expensive check on some architectures...
-  // if (unlikely(ent->ptr == NULL)) {
-  //   alaska_fault(ent, NOT_PRESENT, off);
-  // }
+  if (unlikely(ent->ptr == NULL)) {
+    alaska_fault(ent, NOT_PRESENT, h.offset);
+  }
 
 
   ALASKA_SANITY(
       h.offset <= ent->size, "out of bounds access.\nAttempt to access offset %u in an object of size %u. Handle = %p", h.offset, ent->size, ptr);
 
 
-  // ent->usage_timestamp = next_usage_timestamp++;
-  // ent->locks++;
+  ent->usage_timestamp = next_usage_timestamp++;
+  ent->locks++;
 
   // Return the address of the pointer plus the offset we are locking at.
   return (void *)((uint64_t)ent->ptr + h.offset);

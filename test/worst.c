@@ -27,7 +27,7 @@ struct node {
   struct node *next;
   int val;
 };
-#define NODE_SIZE sizeof(struct node)
+#define NODE_SIZE 128 // sizeof(struct node)
 
 
 struct node *reverse_list(struct node *root) {
@@ -78,7 +78,7 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
   // Ideally, we'd see the alaska runtime do this for us, but that
   // part isn't written yet so this is a proxy for what that part
   // can do.
-  if (_malloc == halloc) root = reverse_list(root);
+  // if (_malloc == halloc) root = reverse_list(root);
 
   test(root, trials);
 
