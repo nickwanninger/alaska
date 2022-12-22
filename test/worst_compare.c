@@ -1,5 +1,5 @@
+#include <alaska.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -27,7 +27,7 @@ struct node {
   struct node *next;
   int val;
 };
-#define NODE_SIZE 128  // sizeof(struct node)
+#define NODE_SIZE 128 // sizeof(struct node)
 
 
 struct node *reverse_list(struct node *root) {
@@ -94,12 +94,36 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 }
 
 int main(int argc, char **argv) {
-  printf("results\n");
-  uint64_t *res = run_test(malloc, free);
+  printf("baseline,alaska\n");
+  uint64_t *baseline = run_test(malloc, free);
+  uint64_t *alaska = run_test(halloc, hfree);
+
+
+  float slowdowns[TRIALS];
+  float sum_slowdowns = 0.0f;
   for (int i = 0; i < TRIALS; i++) {
-    printf("%lu\n", res[i]);
+    uint64_t a = alaska[i];
+    uint64_t b = baseline[i];
+    float slowdown = (float)a / (float)b;
+    slowdowns[i] = slowdown;
+    sum_slowdowns += slowdown;
+    printf("%lu,%lu\n", b, a);
   }
-  free(res);
+
+
+  // Compute standard deviation
+  float mean = sum_slowdowns / (float)TRIALS;
+  float stddev = 0.0;
+  for (int i = 0; i < TRIALS; i++) {
+    stddev += pow(slowdowns[i] - mean, 2);
+  }
+  stddev = sqrt(stddev / (float)TRIALS);
+
+
+  fprintf(stderr, "µ:%.3fx σ:%.2f\n", mean, stddev);
+
+  free(alaska);
+  free(baseline);
 
   return 0;
 }
