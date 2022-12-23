@@ -1,10 +1,10 @@
-#include <stdio.h>
+#include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <math.h>
 
 uint64_t timestamp() {
 #if defined(__x86_64__)
@@ -19,20 +19,18 @@ uint64_t timestamp() {
 #endif
 }
 
-
 #define TRIALS 1000
 #define LENGTH 10000
 
 struct node {
-  struct node *next;
+  struct node* next;
   int val;
 };
 #define NODE_SIZE 128  // sizeof(struct node)
 
-
-struct node *reverse_list(struct node *root) {
+struct node* reverse_list(struct node* root) {
   // Initialize current, previous and next pointers
-  struct node *current = root;
+  struct node* current = root;
   struct node *prev = NULL, *next = NULL;
 
   while (current != NULL) {
@@ -47,11 +45,11 @@ struct node *reverse_list(struct node *root) {
   return prev;
 }
 
-int test(struct node *root, uint64_t *out) {
+int test(struct node* root, uint64_t* out) {
   volatile int sum = 0;
   for (int i = 0; i < TRIALS; i++) {
     uint64_t start = timestamp();
-    struct node *cur = root;
+    struct node* cur = root;
     while (cur != NULL) {
       sum += cur->val;
       cur = cur->next;
@@ -62,13 +60,12 @@ int test(struct node *root, uint64_t *out) {
   return sum;
 }
 
+uint64_t* run_test(void* (*_malloc)(size_t), void (*_free)(void*)) {
+  uint64_t* trials = (uint64_t*)calloc(TRIALS, sizeof(uint64_t));
 
-uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
-  uint64_t *trials = (uint64_t *)calloc(TRIALS, sizeof(uint64_t));
-
-  struct node *root = NULL;
+  struct node* root = NULL;
   for (int i = 0; i < LENGTH; i++) {
-    struct node *n = (struct node *)_malloc(NODE_SIZE);
+    struct node* n = (struct node*)_malloc(NODE_SIZE);
     n->next = root;
     n->val = i;
     root = n;
@@ -82,20 +79,19 @@ uint64_t *run_test(void *(*_malloc)(size_t), void (*_free)(void *)) {
 
   test(root, trials);
 
-
-  struct node *cur = root;
+  struct node* cur = root;
   cur = root;
   while (cur != NULL) {
-    struct node *prev = cur;
+    struct node* prev = cur;
     cur = cur->next;
     _free(prev);
   }
   return trials;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   printf("results\n");
-  uint64_t *res = run_test(malloc, free);
+  uint64_t* res = run_test(malloc, free);
   for (int i = 0; i < TRIALS; i++) {
     printf("%lu\n", res[i]);
   }

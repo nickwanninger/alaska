@@ -37,7 +37,7 @@ local/bin/clang:
 deps: local/bin/clang
 
 sanity: alaska
-	@local/bin/alaska test/unit/sanity.c -o build/sanity
+	@local/bin/alaska -O3 test/sanity.c -o build/sanity
 	@build/sanity
 
 test: alaska
