@@ -192,7 +192,7 @@ __declspec(noinline) void alaska_barrier(void) {}
 
 // The core function to lock a handle. This is called only once we know
 // that @ptr is a handle (indicated by the top bit being set to 1).
-void* alaska_guarded_lock(void* ptr) {
+void* alaska_guarded_lock(void* restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   alaska_mapping_t* ent = (alaska_mapping_t*)(uint64_t)h.handle;
@@ -220,7 +220,7 @@ void* alaska_guarded_lock(void* ptr) {
   return (void*)((uint64_t)ent->ptr + h.offset);
 }
 
-void alaska_guarded_unlock(void* ptr) {
+void alaska_guarded_unlock(void* restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   alaska_mapping_t* ent = (alaska_mapping_t*)(uint64_t)h.handle;
@@ -229,7 +229,7 @@ void alaska_guarded_unlock(void* ptr) {
 
 // These functions are simple wrappers around the guarded version of the
 // same name. These versions just check if `ptr` is a handle before locking.
-__declspec(alwaysinline) void* alaska_lock(void* ptr) {
+__declspec(alwaysinline) void* alaska_lock(void* restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
@@ -238,7 +238,7 @@ __declspec(alwaysinline) void* alaska_lock(void* ptr) {
   return ptr;
 }
 
-void alaska_unlock(void* ptr) {
+void alaska_unlock(void* restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
@@ -269,7 +269,6 @@ void alaska_classify(void* ptr, uint8_t c) {
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
     alaska_mapping_t* ent = GET_ENTRY(ptr);
-
     ent->object_class = c;
   }
 #endif

@@ -28,10 +28,15 @@ llvm::Instruction *get_incoming_translated_value(alaska::FlowForest::Node &node)
   ALASKA_SANITY(node.parent->translated != NULL, "Parent of node does not have a translated value");
   return node.parent->translated;
 }
+
+
 alaska::FlowForestTransformation::FlowForestTransformation(llvm::Function &F)
-    : flow_graph(F), pdt(F), forest(flow_graph, pdt) {
+    : flow_graph(F), pdt(F), dt(F), loops(dt), forest(flow_graph, pdt) {
   // everything is done in the constructor initializer list
 }
+
+
+
 
 
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
@@ -57,19 +62,6 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
     I.setOperand(1, t);
   }
 
-
-  // void visitPHINode(llvm::PHINode &I) {
-  //   IRBuilder<> b(I.getNextNode());
-  //   auto p = b.CreatePHI(I.getType(), I.getNumIncomingValues());
-  //   // set early, as there could be loops
-  //   setAssociated(&I, p);
-  //
-  //   for (unsigned int i = 0; i < I.getNumIncomingValues(); i++) {
-  //     auto v = getAssociated(I.getIncomingValue(i));
-  //     p->addIncoming(v, I.getIncomingBlock(i));
-  //   }
-  // }
-
   void visitInstruction(llvm::Instruction &I) {
     alaska::println("dunno how to handle this: ", I);
     ALASKA_SANITY(node.translated != NULL, "Dunno how to handle this node");
@@ -77,6 +69,55 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
 };
 
 
+static llvm::Loop *get_outermost_loop_for_lock(
+    llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
+  // first, check the `loopToCheck` loop. If it fits the requirements we are looking for, early return and don't check
+  // subloops. If it doesn't, recurse down to the subloops and see if they fit.
+	//
+	// 1. if the loop contains the user but not the pointer, this is the best loop.
+	//    (we want to lock right before the loop header)
+	if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
+		return loopToCheck;
+	}
+
+  for (auto *subLoop : loopToCheck->getSubLoops()) {
+    if (auto *loop = get_outermost_loop_for_lock(subLoop, pointer, user)) {
+      return loop;
+    }
+  }
+  return nullptr;
+}
+
+llvm::Instruction *alaska::FlowForestTransformation::compute_lock_insertion_location(
+    llvm::Value *pointerToLock, llvm::Instruction *lockUser) {
+  // the instruction to consider as the "location of the pointer". This is done for things like arguments.
+  llvm::Instruction *effectivePointerInstruction = NULL;
+  if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
+    effectivePointerInstruction = pointerToLockInst;
+  } else if (auto pointerToLockArg = dyn_cast<llvm::Argument>(pointerToLock)) {
+    // get the first instruction in the function the argument is a part of;
+    effectivePointerInstruction = pointerToLockArg->getParent()->front().getFirstNonPHI();
+  }
+  ALASKA_SANITY(effectivePointerInstruction != NULL, "No effective instruction for pointerToLock");
+
+	llvm::Loop *targetLoop = NULL;
+	for (auto loop : loops) {
+		targetLoop = get_outermost_loop_for_lock(loop, effectivePointerInstruction, lockUser);
+		if (targetLoop != NULL) break;
+	}
+
+	// If no loop was found, lock at the lockUser.
+	if (targetLoop == NULL) return lockUser;
+
+	llvm::BasicBlock *incoming, *back;
+	targetLoop->getIncomingAndBackEdge(incoming, back);
+	errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
+	if (incoming && incoming->getTerminator()) {
+		return incoming->getTerminator();
+	}
+
+  return lockUser;
+}
 
 bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
   if (node.parent == NULL) {
@@ -89,9 +130,15 @@ bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
       // first, if the child does not share a lock with anyone, and
       // it's parent is a source, create the incoming lock
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
+        auto lockLocation = compute_lock_insertion_location(node.val, inst);
+
+        // errs() << "Lock:   " << *node.val << "\n";
+        // errs() << "User:   " << *inst << "\n";
+        // errs() << "Before: " << *lockLocation << "\n";
         // create a lock instruction right before this one, and use it in
         // creating the `translated` value.
-        child->incoming_lock = insertGuardedRTCall(alaska::InsertionType::Lock, node.val, inst, inst->getDebugLoc());
+        child->incoming_lock =
+            insertGuardedRTCall(alaska::InsertionType::Lock, node.val, lockLocation, inst->getDebugLoc());
       }
     }
   } else {
@@ -106,6 +153,8 @@ bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
     // go down to the children
     apply(*child);
   }
+
+
   return true;
 }
 

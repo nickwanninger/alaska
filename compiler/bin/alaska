@@ -23,6 +23,10 @@ phase="link"
 while [[ $# -gt 0 ]]
 do
     case $1 in
+			-g*)
+				ldKEEP="true"
+				shift
+				;;
 			-b|--baseline)
 				BASELINE="true"
 				shift
@@ -53,7 +57,7 @@ do
     esac
 done
 
-# COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone")
+COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone")
 # COLLECT_CLANG_ARGS += ("-gdwarf-4 ")
 
 
