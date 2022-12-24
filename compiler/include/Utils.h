@@ -4,6 +4,8 @@
 #include <Graph.h>
 
 namespace alaska {
+
+	llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
   enum InsertionType { Lock, Unlock };
 
   // Split the basic block before the instruction and insert a guarded

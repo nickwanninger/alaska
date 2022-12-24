@@ -27,7 +27,7 @@ struct node {
   struct node *next;
   int val;
 };
-#define NODE_SIZE 128 // sizeof(struct node)
+#define NODE_SIZE sizeof(struct node)
 
 
 struct node *reverse_list(struct node *root) {

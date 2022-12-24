@@ -51,8 +51,6 @@ namespace {
           F.setSection("");
           continue;
         }
-    		// if (F.getName() != "sumarray") return false;
-				// errs() << F << "\n";
 
 #ifdef ALASKA_CONSERVATIVE
         alaska::PointerFlowGraph graph(F);

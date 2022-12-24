@@ -11,9 +11,26 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+
+llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+  auto *headBB = inst->getParent();
+  auto &F = *headBB->getParent();
+  auto &M = *F.getParent();
+  LLVMContext &ctx = M.getContext();
+  auto ptrType = PointerType::get(ctx, 0);
+  auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+  auto lockFunction = M.getOrInsertFunction("alaska_lock", lockFunctionType).getCallee();
+
+  IRBuilder<> b(inst);
+  auto locked = b.CreateCall(lockFunctionType, lockFunction, {pointer});
+	locked->setName("locked");
+	return locked;
+}
+
 // Insert the call to alaska_get or alaska_unlock, but inline the handle guard
 // as a new basic block. This improves performance quite a bit :)
-llvm::Instruction *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc loc) {
+llvm::Instruction *alaska::insertGuardedRTCall(
+    InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc loc) {
   using namespace llvm;
 
   // The original basic block
@@ -24,7 +41,7 @@ llvm::Instruction *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *
   auto ptrType = PointerType::get(ctx, 0);
 
   IRBuilder<> b(inst);
-	b.SetCurrentDebugLocation(loc);
+  b.SetCurrentDebugLocation(loc);
   auto sltInst = b.CreateICmpSLT(handle, ConstantPointerNull::get(ptrType));
 
 
@@ -38,7 +55,7 @@ llvm::Instruction *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *
     auto lockFunction = M.getOrInsertFunction("alaska_guarded_lock", lockFunctionType).getCallee();
     b.SetInsertPoint(getTerminator);
     auto getned = b.CreateCall(lockFunctionType, lockFunction, {handle});
-		getned->setDebugLoc(loc);
+    getned->setDebugLoc(loc);
     // Create a PHI node between `handle` and `getned`
     b.SetInsertPoint(termBB->getFirstNonPHI());
     auto phiNode = b.CreatePHI(ptrType, 2);
@@ -55,7 +72,7 @@ llvm::Instruction *alaska::insertGuardedRTCall(InsertionType type, llvm::Value *
     auto unlockFunction = M.getOrInsertFunction("alaska_guarded_unlock", unlockFunctionType).getCallee();
     b.SetInsertPoint(getTerminator);
     auto c = b.CreateCall(unlockFunctionType, unlockFunction, {handle});
-		c->setDebugLoc(loc);
+    c->setDebugLoc(loc);
     return nullptr;
   }
 
@@ -74,7 +91,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
     if (node->type != alaska::Sink) continue;
     auto inst = dyn_cast<Instruction>(node->value);
 
-		auto dbg = inst->getDebugLoc();
+    auto dbg = inst->getDebugLoc();
     // Insert the get/unlock.
     // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
     if (auto *load = dyn_cast<LoadInst>(inst)) {
@@ -94,4 +111,3 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
     }
   }
 }
-
