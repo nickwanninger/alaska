@@ -5,6 +5,19 @@
 #include <stdint.h>
 #include <alaska/list_head.h>
 
+#define likely(x) __builtin_expect((x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
+#define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
+
+typedef union {
+  struct {
+    unsigned offset : 32;  // the offset into the handle
+    unsigned handle : 31;  // the translation in the translation table
+    unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
+  };
+  void* ptr;
+} handle_t;
+
 
 // This file contains structures that the the translation subsystem uses
 #ifdef __cplusplus
@@ -58,6 +71,11 @@ alaska_mapping_t *alaska_table_get(void);
 // free a handle id
 void alaska_table_put(alaska_mapping_t *ent);
 
+
+#ifdef ALASKA_CLASS_TRACKING
+void alaska_classify_init(void);
+void alaska_classify_deinit(void);
+#endif
 
 #define HANDLE_MARKER (1LLU << 63)
 #define GET_ENTRY(handle) ((alaska_mapping_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))

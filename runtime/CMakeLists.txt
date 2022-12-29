@@ -72,6 +72,9 @@ set(SRC_FILES
 	# The core runtime implementation
 	src/runtime.c
 	src/table.c
+	src/lock.c
+	src/halloc.c
+	src/barrier.c
 
 	# libc functions that we wrap
 	src/compat.c   
