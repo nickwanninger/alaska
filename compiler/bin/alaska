@@ -86,11 +86,11 @@ else
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
-	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 	opt -enable-new-pm=0 ${TMPFILE} -o ${TMPFILE} --dce --adce
 	# link the alaska bitcode file
 	llvm-link -o ${TMPFILE} ${TMPFILE} ${PFX}/lib/alaska.bc
 	opt -enable-new-pm=0 ${TMPFILE} -o ${TMPFILE} --inline --always-inline
+	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 	$GCLANG -T "${PFX}/share/alaska/ldscripts/alaska-$(uname -m).ld" \
 		 -O3 -gdwarf-4 -lm -ldl -pthread ${TMPFILE} ${ALASKA_LIBS} -o $OUTFILE
