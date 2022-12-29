@@ -112,7 +112,7 @@ llvm::Instruction *alaska::FlowForestTransformation::compute_lock_insertion_loca
 
   llvm::BasicBlock *incoming, *back;
   targetLoop->getIncomingAndBackEdge(incoming, back);
-  errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
+  // errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
   if (incoming && incoming->getTerminator()) {
     return incoming->getTerminator();
   }
@@ -141,7 +141,6 @@ bool alaska::FlowForestTransformation::apply(void) {
     for (auto &child : root->children) {
       auto *inst = dyn_cast<llvm::Instruction>(child->val);
       if (inst == NULL) {
-        errs() << "expected an instruction as a value if there wasn't a parent\n";
         exit(EXIT_FAILURE);
       }
       // first, if the child does not share a lock with anyone, and
@@ -149,19 +148,8 @@ bool alaska::FlowForestTransformation::apply(void) {
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
         auto *lockLocation = inst;
         lockLocation = compute_lock_insertion_location(root->val, inst);
-        if (lockLocation != inst)
-          errs() << "would hoist\n";
-        else
-          errs() << "not hoist\n";
-        // if (!this->dt.dominates(lockLocation, inst)) {
-        // 	lockLocation = inst;
-        // }
-				// lockLocation = inst;
 
 				child->incoming_lock = alaska::insertLockBefore(lockLocation, root->val);
-				errs() << *child->incoming_lock << "\n";
-        // child->incoming_lock =
-        //     insertGuardedRTCall(alaska::InsertionType::Lock, root->val, lockLocation, inst->getDebugLoc());
       }
     }
 
