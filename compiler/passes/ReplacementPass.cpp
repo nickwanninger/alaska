@@ -73,6 +73,9 @@ namespace {
         replace_function(M, "malloc_usable_size", "alaska_usable_size");
       }
 
+      replace_function(M, "_Znwm", "halloc");
+			replace_function(M, "_ZdlPv", "hfree");
+
       for (auto *name : alaska::wrapped_functions) {
         replace_function(M, name);
       }
