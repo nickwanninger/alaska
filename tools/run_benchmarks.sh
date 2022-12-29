@@ -23,6 +23,7 @@ do
 	echo "nas/$bench,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
 done
 
+exit
 
 
 # run gap

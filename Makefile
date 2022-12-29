@@ -68,7 +68,7 @@ bench/gap/%: alaska
 	@echo "  CC  " $@
 	@local/bin/alaska++ -std=c++11 -k -b -O3 -Wall test/gapbs/src/$*.cc -o $@
 
-bench: alaska $(NAS_BENCHMARKS) $(GAP_BENCHMARKS)
+bench: alaska $(NAS_BENCHMARKS) # $(GAP_BENCHMARKS)
 
 clean:
 	rm -rf build .*.o*
