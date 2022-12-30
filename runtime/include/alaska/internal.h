@@ -59,11 +59,13 @@ typedef struct {
 } alaska_mapping_t;
 
 
+// src/halloc.c
+void alaska_halloc_init(void);
+void alaska_halloc_deinit(void);
 
 // src/table.c
 void alaska_table_init(void);    // initialize the global table
 void alaska_table_deinit(void);  // teardown the global table
-
 unsigned alaska_table_get_canonical(alaska_mapping_t *);
 alaska_mapping_t *alaska_table_from_canonical(unsigned canon);
 // allocate a handle id

@@ -18,9 +18,8 @@
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 static void __attribute__((constructor(102))) alaska_init(void) {
-  // initialize the translation table first
   alaska_table_init();
-
+	alaska_halloc_init();
 #ifdef ALASKA_CLASS_TRACKING
   alaska_classify_init();
 #endif
@@ -30,8 +29,7 @@ static void __attribute__((destructor)) alaska_deinit(void) {
 #ifdef ALASKA_CLASS_TRACKING
   alaska_classify_deinit();
 #endif
-
-  // delete the table at the end
+	alaska_halloc_deinit();
   alaska_table_deinit();
 }
 
