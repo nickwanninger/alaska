@@ -12,7 +12,6 @@ config DUMP_FLOW_GRAPH
 	depends on DEBUG
 	default n
 
-
 config DUMP_FLOW_FOREST
 	bool "Dump flow forests after they are constructed"
 	depends on DEBUG
@@ -22,6 +21,9 @@ config CONSERVATIVE
 	bool "Conservatively pin all loads and stores"
 	default y
 
+config ESCAPE_PASS
+	bool "Lock before argument escapes"
+	default y
 
 config CLASS_TRACKING
 	bool "Track allocation classes and record access counts in a histogram"

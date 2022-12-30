@@ -46,8 +46,11 @@ namespace {
 
 
     bool runOnModule(Module &M) override {
-      std::set<std::string> functions_to_ignore = {
-          "halloc", "hrealloc", "hcalloc", "hfree", "alaska_lock", "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock"};
+#ifndef ALASKA_ESCAPE_PASS
+      return false;
+#endif
+      std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hcalloc", "hfree", "alaska_lock",
+          "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock"};
 
 
       for (auto r : alaska::wrapped_functions) {
@@ -86,7 +89,8 @@ namespace {
     }
   };  // namespace
 
-  static RegisterPass<AlaskaPass> X("alaska-escape", "Handle escapes", false /* Only looks at CFG */, false /* Analysis Pass */);
+  static RegisterPass<AlaskaPass> X(
+      "alaska-escape", "Handle escapes", false /* Only looks at CFG */, false /* Analysis Pass */);
 
   char AlaskaPass::ID = 0;
   // static RegisterPass<AlaskaPass> X("Alaska", "Handle based memory with Alaska");

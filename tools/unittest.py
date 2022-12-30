@@ -35,6 +35,7 @@ def run_test(path):
     odir = f'artifacts/unit/{name}'
     os.system(f'mkdir -p {odir}')
     out = subprocess.run(f'local/bin/clang -O3 -emit-llvm -c -o {odir}/in.bc {path}', shell=True, capture_output=True)
+    # print(out)
     if out.returncode != 0:
         return (path, False)
     os.system(f'cp {odir}/in.bc {odir}/out.bc')
@@ -59,10 +60,11 @@ with multiprocessing.Pool(parallelism) as pool:
         path, success = res
         progress = f'{math.ceil(i/len(paths) * 100):3}%'
         if success:
-            print(f'{progress} \033[32m PASS \033[0m {path}')
+            print(f'[\033[32mok\033[0m]: {path} {progress}')
         else:
             fails.append(path)
-            print(f'{progress} \033[30;41m FAIL \033[0m {path}')
+            print(f'[\033[31mfail\033[0m]: {path} {progress}')
+            # print(f'{progress} \033[30;41m FAIL \033[0m {path}')
     print(f'{len(fails)} of {len(paths)} tests failed:')
     for fail in fails:
         print(fail)
