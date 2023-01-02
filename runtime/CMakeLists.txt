@@ -76,8 +76,12 @@ set(SRC_FILES
 	src/halloc.c
 	src/barrier.c
 
+	# Replacing c++ new/delete in a more reasonable way
+	src/glue.cpp
+
 	# libc functions that we wrap
 	src/compat.c   
+	# src/malloc.c   
 	
 )
 
