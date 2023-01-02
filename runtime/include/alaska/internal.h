@@ -9,6 +9,8 @@
 #define unlikely(x) __builtin_expect((x), 0)
 #define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
 
+#define ALASKA_EXPORT __attribute__((visibility("default")))
+
 typedef union {
   struct {
     unsigned offset : 32;  // the offset into the handle
