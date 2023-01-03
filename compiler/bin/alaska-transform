@@ -21,7 +21,7 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
 # Run a cleanup pass on the bitcode
-$OPT --strip-debug
+# $OPT --strip-debug
 # make sure mem2reg is on :)
 $OPT --mem2reg --lowerinvoke # $LOOPS --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
 
@@ -39,9 +39,9 @@ $OPT                                                \
 	$AA $@                                            \
 	--alaska
 
-# $OPT -loop-rotate -loop-simplify -indvars -lcssa -licm
-
-# $OPT --dce --dse --adce
-# $OPT --strip-debug --dot-cfg
-# cat .test.dot
-# rm .*.dot
+# Perform a bit of cleanup
+$OPT --dce --adce
+# link the alaska bitcode file
+llvm-link -o ${INPUT} ${INPUT} ${PFX}/lib/alaska.bc
+# run the inliner
+$OPT --inline --always-inline
