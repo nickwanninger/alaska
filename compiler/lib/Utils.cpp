@@ -12,6 +12,16 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
+
+llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
+	for (auto &BB : *F) {
+		for (auto &I : BB) {
+			if (I.getDebugLoc()) return I.getDebugLoc();
+		}
+	}
+	return NULL;
+}
+
 llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
@@ -20,9 +30,18 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
   auto lockFunction = M.getOrInsertFunction("alaska_lock", lockFunctionType).getCallee();
+	// if (auto func = dyn_cast<llvm::Function>(lockFunction)) {
+	// 	func->setSubprogram(inst->getParent()->getParent()->getSubprogram());
+	// }
 
   IRBuilder<> b(inst);
+  b.SetCurrentDebugLocation(inst->getDebugLoc());
   auto locked = b.CreateCall(lockFunctionType, lockFunction, {pointer});
+	// locked->setDebugLoc(DILocation::get(ctx, 0, 0, inst->getFunction()->getSubprogram()->getScope()));
+	locked->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+	if (!locked->getDebugLoc()) {
+		errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
+	}
 	locked->setName("locked");
 	return locked;
 }
