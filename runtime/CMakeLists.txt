@@ -77,7 +77,7 @@ set(SRC_FILES
 	src/barrier.c
 
 	# Replacing c++ new/delete in a more reasonable way
-	src/glue.cpp
+	# src/glue.cpp
 
 	# libc functions that we wrap
 	src/compat.c   

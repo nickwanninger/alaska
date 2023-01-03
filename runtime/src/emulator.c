@@ -36,7 +36,7 @@ static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
   void* ptr = alaska_lock(addr);
   uint64_t val = 0;
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (addr != ptr) {
+  if (true || addr != ptr) {
     fprintf(stderr, "alaska: ld%c %016zx(%p) -> ", byte_size_human(size), (off_t)addr, ptr);
     fflush(stdout);
   }
@@ -56,7 +56,7 @@ static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
       break;
   }
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (addr != ptr) {
+  if (true || addr != ptr) {
     fprintf(stderr, "%0*zx", size * 2, val);
     if (size == 1) fprintf(stderr, "  '%c'", val);
     fprintf(stderr, "\n");
@@ -71,7 +71,7 @@ static inline void alaska_emulate_store(void* addr, uint64_t val, size_t size) {
   void* ptr = alaska_lock(addr);
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (addr != ptr) {
+  if (true || addr != ptr) {
     fprintf(stderr, "alaska: st%c %016zx(%p) <- %0*zx\n", byte_size_human(size), (off_t)addr, ptr, size * 2, val);
   }
 #endif
@@ -99,8 +99,8 @@ void uc_err_check(const char* name, uc_err err) {
     exit(EXIT_FAILURE);
   }
 }
-__thread uc_engine* uc = NULL;
-__thread volatile ucontext_t* faulting_context = false;
+static __thread uc_engine* uc = NULL;
+static __thread volatile ucontext_t* faulting_context = false;
 
 __declspec(noinline) void alaska_real_segfault_handler(ucontext_t* ucontext) {
   fprintf(stderr, "segfault while performing a correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc,

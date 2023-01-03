@@ -45,7 +45,14 @@ static void alaska_table_grow() {
   size_t oldbytes = table.size * MAP_ENTRY_SIZE;
   size_t newbytes = oldbytes * 2;
 
-  table.map = (alaska_mapping_t *)mremap(table.map, oldbytes, newbytes, 0, table.map);
+  if (table.map == NULL) {
+    newbytes = MAP_GRANULARITY;
+    // TODO: use hugetlbfs or something similar
+    table.map = (alaska_mapping_t *)mmap(
+        (void *)0x200000LU, newbytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+  } else {
+    table.map = (alaska_mapping_t *)mremap(table.map, oldbytes, newbytes, 0, table.map);
+  }
   if (table.map == MAP_FAILED) {
     fprintf(stderr, "could not resize table!\n");
     abort();
@@ -54,7 +61,7 @@ static void alaska_table_grow() {
   size_t newsize = newbytes / MAP_ENTRY_SIZE;
 
   for (size_t i = table.size; i < newsize; i++) {
-		alaska_table_put(&table.map[i]);
+    alaska_table_put(&table.map[i]);
   }
 
   // update the total size
@@ -66,16 +73,18 @@ static void alaska_table_grow() {
 void alaska_table_init(void) {
   memset(&table, 0, sizeof(table));
 
+  alaska_table_grow();
+	return;
+
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
   size_t sz = MAP_GRANULARITY;
 
   // TODO: do this using hugetlbfs :)
   table.map = (alaska_mapping_t *)mmap((void *)0x200000LU, sz, PROT_READ | PROT_WRITE, flags | MAP_FIXED, -1, 0);
-  printf("init table: %p\n", table.map);
   table.size = sz / MAP_ENTRY_SIZE;
-	table.nfree = 0;
+  table.nfree = 0;
   for (size_t i = 0; i < table.size; i++) {
-		alaska_table_put(&table.map[i]);
+    alaska_table_put(&table.map[i]);
   }
 }
 
@@ -83,10 +92,10 @@ void alaska_table_deinit(void) { munmap(table.map, table.size * MAP_ENTRY_SIZE);
 
 
 unsigned alaska_table_get_canonical(alaska_mapping_t *ent) { return (unsigned)(ent - table.map); }
-
 alaska_mapping_t *alaska_table_from_canonical(unsigned canon) { return &table.map[canon]; }
 
 
+// allocate a table entry
 alaska_mapping_t *alaska_table_get(void) {
   // slow and bad, but correct
   for (size_t i = 0; i < table.size; i++) {
@@ -105,7 +114,7 @@ alaska_mapping_t *alaska_table_get(void) {
   return NULL;
 }
 
-
+// free a table entry
 void alaska_table_put(alaska_mapping_t *ent) {
   table.nfree++;
   ent->size = -1;

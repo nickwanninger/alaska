@@ -402,7 +402,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
             catched = true;
         }
         // Unicorn: If un-catched interrupt, stop executions.
-        if (!catched) {
+        if (false && !catched) {
             // printf("AAAAAAAAAAAA\n"); qq
             uc->invalid_error = UC_ERR_EXCEPTION;
             cpu->halted = 1;
