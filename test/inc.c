@@ -19,8 +19,9 @@ void inc_y(struct data *d) {
 int main(int argc, char **argv) {
   int *ptr = (int *)malloc(sizeof(int));
   *ptr = 0;
-  printf("%p\n", ptr);
+  printf("%d\n", *ptr);
   inc(ptr);
+  printf("%d\n", *ptr);
 
   free(ptr);
   return 0;

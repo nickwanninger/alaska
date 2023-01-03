@@ -19,7 +19,7 @@ uint64_t timestamp() {
 #endif
 }
 
-#define TRIALS 1000
+#define TRIALS 100
 #define LENGTH 10000
 
 struct node {
@@ -70,12 +70,6 @@ uint64_t* run_test(void* (*_malloc)(size_t), void (*_free)(void*)) {
     n->val = i;
     root = n;
   }
-
-  // Hacky way to "manufacture locality" without a fancy runtime.
-  // Ideally, we'd see the alaska runtime do this for us, but that
-  // part isn't written yet so this is a proxy for what that part
-  // can do.
-  // if (_malloc == halloc) root = reverse_list(root);
 
   test(root, trials);
 

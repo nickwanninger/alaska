@@ -89,7 +89,7 @@ redis: alaska
 	$(MAKE) -C test/redis
 
 lua: alaska
-	local/bin/alaska -O1 -b -k test/lua/onelua.c -o build/lua
+	local/bin/alaska -O2 -b -k test/lua/onelua.c -o build/lua
 #
 # libc/src:
 # 	mkdir -p libc
