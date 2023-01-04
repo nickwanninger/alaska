@@ -40,7 +40,7 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
 	// locked->setDebugLoc(DILocation::get(ctx, 0, 0, inst->getFunction()->getSubprogram()->getScope()));
 	locked->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
 	if (!locked->getDebugLoc()) {
-		errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
+		// errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
 	}
 	locked->setName("locked");
 	return locked;
