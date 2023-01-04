@@ -20,8 +20,6 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 }
 
 
-
-
 WEAK void *memset(void *s, int c, size_t n) {
   uint8_t *p = (uint8_t *)alaska_lock(s);
   for (size_t i = 0; i < n; i++)

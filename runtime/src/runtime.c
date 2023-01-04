@@ -35,7 +35,6 @@ static void __attribute__((destructor)) alaska_deinit(void) {
 
 #define BT_BUF_SIZE 100
 void alaska_dump_backtrace(void) {
-	return;
   int nptrs;
 
   void* buffer[BT_BUF_SIZE];
@@ -43,9 +42,6 @@ void alaska_dump_backtrace(void) {
 
   nptrs = backtrace(buffer, BT_BUF_SIZE);
   printf("Backtrace:\n", nptrs);
-
-  // The call backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO)
-  // would produce similar output to the following:
 
   strings = backtrace_symbols(buffer, nptrs);
   if (strings == NULL) {

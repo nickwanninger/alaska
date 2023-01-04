@@ -102,8 +102,8 @@ void* alaska_guarded_lock(void* restrict ptr) {
       "object of size %u. Handle = %p",
       h.offset, ent->size, ptr);
 
-  // ent->usage_timestamp = next_usage_timestamp++;
-  // ent->locks++;
+  ent->usage_timestamp = next_usage_timestamp++;
+  ent->locks++;
 
   // Return the address of the pointer plus the offset we are locking at.
   return (void*)((uint64_t)ent->ptr + h.offset);
