@@ -115,17 +115,17 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
     // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
     if (auto *load = dyn_cast<LoadInst>(inst)) {
       auto ptr = load->getPointerOperand();
-      auto t = insertGuardedRTCall(alaska::InsertionType::Lock, ptr, inst, dbg);
+      auto t = insertLockBefore(inst, ptr);
       load->setOperand(0, t);
-      insertGuardedRTCall(alaska::InsertionType::Unlock, ptr, inst->getNextNode(), dbg);
+			// TODO: unlock
       continue;
     }
 
     if (auto *store = dyn_cast<StoreInst>(inst)) {
       auto ptr = store->getPointerOperand();
-      auto t = insertGuardedRTCall(alaska::InsertionType::Lock, ptr, inst, dbg);
+      auto t = insertLockBefore(inst, ptr);
       store->setOperand(1, t);
-      insertGuardedRTCall(alaska::InsertionType::Unlock, ptr, inst->getNextNode(), dbg);
+			// TODO: unlock
       continue;
     }
   }
