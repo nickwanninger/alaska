@@ -80,59 +80,54 @@ __declspec(noinline) void alaska_fault(alaska_mapping_t* ent, enum alaska_fault_
   exit(-1);
 }
 
-// The core function to lock a handle. This is called only once we know
-// that @ptr is a handle (indicated by the top bit being set to 1).
-void* alaska_guarded_lock(void* restrict ptr) {
+
+alaska_mapping_t *alaska_get_mapping(void *restrict ptr) {
   handle_t h;
   h.ptr = ptr;
-  alaska_mapping_t* ent = (alaska_mapping_t*)(uint64_t)h.handle;
+  if (likely(h.flag != 0)) {
+ 		return (alaska_mapping_t*)(uint64_t)h.handle;
+	}
+	return NULL;
+}
 
+void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
+  handle_t h;
+  h.ptr = ptr;
+  ALASKA_SANITY(h.offset <= m->size,
+      "out of bounds access.\nAttempt to access offset %u in an "
+      "object of size %u. Handle = %p",
+      h.offset, m->size, ptr);
+  return (void*)((uint64_t)m->ptr + h.offset);
+}
+
+void alaska_track_access(alaska_mapping_t *m) {
 #ifdef ALASKA_CLASS_TRACKING
   alaska_class_access_counts[ent->object_class]++;
 #endif
-  // if the pointer is NULL, we need to perform a "handle fault" This
-  // is to allow the runtime to fully deallocate unused handles, but it
-  // is a relatively expensive check on some architectures...
-  // if (unlikely(ent->ptr == NULL)) {
-  //   alaska_fault(ent, NOT_PRESENT, h.offset);
-  // }
-
-  ALASKA_SANITY(h.offset <= ent->size,
-      "out of bounds access.\nAttempt to access offset %u in an "
-      "object of size %u. Handle = %p",
-      h.offset, ent->size, ptr);
-
-  ent->usage_timestamp = next_usage_timestamp++;
-  ent->locks++;
-
-  // Return the address of the pointer plus the offset we are locking at.
-  return (void*)((uint64_t)ent->ptr + h.offset);
+  m->usage_timestamp = next_usage_timestamp++;
 }
-
-void alaska_guarded_unlock(void* restrict ptr) {
-  handle_t h;
-  h.ptr = ptr;
-  alaska_mapping_t* ent = (alaska_mapping_t*)(uint64_t)h.handle;
-  ent->locks--;
+void alaska_track_lock(alaska_mapping_t *m) {
+  m->locks++;
+}
+void alaska_track_unlock(alaska_mapping_t *m) {
+  m->locks--;
 }
 
 // These functions are simple wrappers around the guarded version of the
 // same name. These versions just check if `ptr` is a handle before locking.
 __declspec(alwaysinline) void* alaska_lock(void* restrict ptr) {
-  handle_t h;
-  h.ptr = ptr;
-  if (likely(h.flag != 0)) {
-    return alaska_guarded_lock(ptr);
-  }
-  return ptr;
+	alaska_mapping_t *m = alaska_get_mapping(ptr);
+	if (m == NULL) return ptr;
+
+	alaska_track_access(m);
+	alaska_track_lock(m);
+	return alaska_translate(ptr, m);
 }
 
 void alaska_unlock(void* restrict ptr) {
-  handle_t h;
-  h.ptr = ptr;
-  if (likely(h.flag != 0)) {
-    alaska_guarded_unlock(ptr);
-  }
+	alaska_mapping_t *m = alaska_get_mapping(ptr);
+	if (m == NULL) return;
+	alaska_track_unlock(m);
 }
 
 // This function exists to lock on extern escapes.

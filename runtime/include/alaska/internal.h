@@ -60,6 +60,17 @@ typedef struct {
 #endif
 } alaska_mapping_t;
 
+// src/lock.c
+void *alaska_lock(void *restrict ptr);
+void alaska_unlock(void *restrict ptr);
+
+alaska_mapping_t *alaska_get_mapping(void *restrict ptr);
+void *alaska_translate(void *restrict ptr, alaska_mapping_t *m);
+// bookkeeping functions inserted by the compiler
+void alaska_track_access(alaska_mapping_t *m);
+void alaska_track_lock(alaska_mapping_t *m);
+void alaska_track_unlock(alaska_mapping_t *m);
+
 
 // src/halloc.c
 void alaska_halloc_init(void);
