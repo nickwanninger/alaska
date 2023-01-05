@@ -1,6 +1,6 @@
 #include <Graph.h>
 #include <Utils.h>
-#include <FlowForestTransformation.h>
+#include <LockForestTransformation.h>
 #include <assert.h>
 
 #include "llvm/IR/Operator.h"
@@ -15,7 +15,7 @@
 
 
 // Either get the `incoming_lock` of this node or the node it shares with, or the parent's translated
-llvm::Instruction *get_incoming_translated_value(alaska::FlowForest::Node &node) {
+llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node) {
   if (node.incoming_lock != NULL) return node.incoming_lock;
 
   if (node.parent->parent == NULL) {
@@ -30,7 +30,7 @@ llvm::Instruction *get_incoming_translated_value(alaska::FlowForest::Node &node)
 }
 
 
-alaska::FlowForestTransformation::FlowForestTransformation(llvm::Function &F)
+alaska::LockForestTransformation::LockForestTransformation(llvm::Function &F)
     : flow_graph(F), pdt(F), dt(F), loops(dt), forest(flow_graph, pdt) {
   // everything is done in the constructor initializer list
 }
@@ -39,8 +39,8 @@ alaska::FlowForestTransformation::FlowForestTransformation(llvm::Function &F)
 
 
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
-  alaska::FlowForest::Node &node;
-  TranslationVisitor(alaska::FlowForest::Node &node) : node(node) {}
+  alaska::LockForest::Node &node;
+  TranslationVisitor(alaska::LockForest::Node &node) : node(node) {}
 
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
@@ -87,7 +87,7 @@ static llvm::Loop *get_outermost_loop_for_lock(
   return nullptr;
 }
 
-llvm::Instruction *alaska::FlowForestTransformation::compute_lock_insertion_location(
+llvm::Instruction *alaska::LockForestTransformation::compute_lock_insertion_location(
     llvm::Value *pointerToLock, llvm::Instruction *lockUser) {
   // the instruction to consider as the "location of the pointer". This is done for things like arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
@@ -98,8 +98,6 @@ llvm::Instruction *alaska::FlowForestTransformation::compute_lock_insertion_loca
     effectivePointerInstruction = lockUser->getParent()->getParent()->front().getFirstNonPHI();
   }
   ALASKA_SANITY(effectivePointerInstruction != NULL, "No effective instruction for pointerToLock");
-
-  // return effectivePointerInstruction->getNextNode();
 
   llvm::Loop *targetLoop = NULL;
   for (auto loop : loops) {
@@ -120,7 +118,7 @@ llvm::Instruction *alaska::FlowForestTransformation::compute_lock_insertion_loca
   return lockUser;
 }
 
-bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
+bool alaska::LockForestTransformation::apply(alaska::LockForest::Node &node) {
   auto *inst = dyn_cast<llvm::Instruction>(node.val);
   // apply transformation
   TranslationVisitor vis(node);
@@ -136,7 +134,7 @@ bool alaska::FlowForestTransformation::apply(alaska::FlowForest::Node &node) {
   return true;
 }
 
-bool alaska::FlowForestTransformation::apply(void) {
+bool alaska::LockForestTransformation::apply(void) {
   for (auto &root : forest.roots) {
     for (auto &child : root->children) {
       auto *inst = dyn_cast<llvm::Instruction>(child->val);

@@ -2,18 +2,18 @@
 
 #include "Graph.h"
 #include "llvm/Analysis/PostDominators.h"
-#include <FlowForest.h>
+#include <LockForest.h>
 
 namespace alaska {
-  class FlowForestTransformation {
+  class LockForestTransformation {
     alaska::PointerFlowGraph flow_graph;
     llvm::PostDominatorTree pdt;
     llvm::DominatorTree dt;
     llvm::LoopInfo loops;
-    alaska::FlowForest forest;
+    alaska::LockForest forest;
 
    public:
-    FlowForestTransformation(llvm::Function &F);
+    LockForestTransformation(llvm::Function &F);
 
     bool apply(void);
 
@@ -28,6 +28,6 @@ namespace alaska {
 		//   - else, lock at @lockUser
     llvm::Instruction *compute_lock_insertion_location(llvm::Value *pointerToLock, llvm::Instruction *lockUser);
 
-    bool apply(alaska::FlowForest::Node &);
+    bool apply(alaska::LockForest::Node &);
   };
 }  // namespace alaska

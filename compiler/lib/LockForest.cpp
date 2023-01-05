@@ -1,4 +1,4 @@
-#include <FlowForest.h>
+#include <LockForest.h>
 #include <Graph.h>
 #include <Utils.h>
 #include <deque>
@@ -6,7 +6,7 @@
 #include "llvm/IR/Instructions.h"
 
 
-static void extract_nodes(alaska::FlowForest::Node *node, std::unordered_set<alaska::FlowForest::Node *> &nodes) {
+static void extract_nodes(alaska::LockForest::Node *node, std::unordered_set<alaska::LockForest::Node *> &nodes) {
   nodes.insert(node);
 
   for (auto &child : node->children) {
@@ -14,12 +14,12 @@ static void extract_nodes(alaska::FlowForest::Node *node, std::unordered_set<ala
   }
 }
 
-int alaska::FlowForest::Node::depth(void) {
+int alaska::LockForest::Node::depth(void) {
   if (parent == NULL) return 0;
   return parent->depth() + 1;
 }
 
-alaska::FlowForest::Node *alaska::FlowForest::Node::compute_shared_lock(void) {
+alaska::LockForest::Node *alaska::LockForest::Node::compute_shared_lock(void) {
   if (share_lock_with) {
     auto *s = share_lock_with->compute_shared_lock();
     if (s) return s;
@@ -28,7 +28,7 @@ alaska::FlowForest::Node *alaska::FlowForest::Node::compute_shared_lock(void) {
   return nullptr;
 }
 
-llvm::Instruction *alaska::FlowForest::Node::effective_instruction(void) {
+llvm::Instruction *alaska::LockForest::Node::effective_instruction(void) {
   if (auto inst = dyn_cast<llvm::Instruction>(val)) {
     if (auto phi = dyn_cast<llvm::PHINode>(val)) {
       return phi->getParent()->getFirstNonPHI();
@@ -45,7 +45,7 @@ llvm::Instruction *alaska::FlowForest::Node::effective_instruction(void) {
   return NULL;
 }
 
-alaska::FlowForest::Node::Node(alaska::FlowNode *val, alaska::FlowForest::Node *parent) {
+alaska::LockForest::Node::Node(alaska::FlowNode *val, alaska::LockForest::Node *parent) {
   this->val = val->value;
   this->parent = parent;
   for (auto *out : val->get_out_nodes()) {
@@ -56,7 +56,7 @@ alaska::FlowForest::Node::Node(alaska::FlowNode *val, alaska::FlowForest::Node *
 
 
 
-alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT) : func(G.func()) {
+alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT) : func(G.func()) {
   // Compute the dominator tree.
   // TODO: take this as an argument instead.
   llvm::DominatorTree DT(func);
@@ -101,7 +101,7 @@ alaska::FlowForest::FlowForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 
 
 
-void alaska::FlowForest::dump_dot(void) {
+void alaska::LockForest::dump_dot(void) {
   alaska::println("------------------- { Flow forest for function ", func.getName(), " } -------------------");
   alaska::println("digraph {");
   alaska::println("  label=\"flow forest for ", func.getName(), "\";");
@@ -118,11 +118,11 @@ void alaska::FlowForest::dump_dot(void) {
     errs() << "  n" << node << " [label=\"";
     errs() << "{" << *node->val;
 
-		if (node->translated) {
+    if (node->translated) {
       errs() << "|{tx:";
-			errs() << *node->translated;
+      errs() << *node->translated;
       errs() << "}";
-		}
+    }
     if (node->parent == NULL && node->children.size() > 0) {
       errs() << "|{";
       int i = 0;
@@ -134,11 +134,11 @@ void alaska::FlowForest::dump_dot(void) {
 
         errs() << "<n" << child.get() << ">";
         if (child->share_lock_with == NULL) {
-					if (child->incoming_lock) {
-          	errs() << *child->incoming_lock;
-					} else {
-          	errs() << "lock";
-					}
+          if (child->incoming_lock) {
+            errs() << *child->incoming_lock;
+          } else {
+            errs() << "lock";
+          }
         } else {
           errs() << "-";
         }
@@ -162,13 +162,13 @@ void alaska::FlowForest::dump_dot(void) {
     }
 
 
-    // for (auto *dom : node->dominates) {
-    //   errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
-    // }
+    for (auto *dom : node->dominates) {
+      errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
+    }
 
-    // for (auto *dom : node->postdominates) {
-    //   errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
-    // }
+    for (auto *dom : node->postdominates) {
+      errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
+    }
   }
 
 

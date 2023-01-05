@@ -1,8 +1,8 @@
 // Alaska includes
-#include <FlowForest.h>
+#include <LockForest.h>
 #include <Graph.h>
 #include <Utils.h>
-#include <FlowForestTransformation.h>
+#include <LockForestTransformation.h>
 
 // C++ includes
 #include <cassert>
@@ -56,7 +56,7 @@ namespace {
         alaska::PointerFlowGraph graph(F);
         alaska::insertConservativeTranslations(graph);
 #else
-        alaska::FlowForestTransformation fftx(F);
+        alaska::LockForestTransformation fftx(F);
         fftx.apply();
 #endif
       }

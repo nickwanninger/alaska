@@ -8,8 +8,8 @@ install(DIRECTORY ldscripts DESTINATION share/alaska)
 add_library(AlaskaCompilerLibrary OBJECT 
 	lib/Graph.cpp
 	lib/Utils.cpp
-	lib/FlowForest.cpp
-	lib/FlowForestTransformation.cpp
+	lib/LockForest.cpp
+	lib/LockForestTransformation.cpp
 
 	lib/noelle/MetadataEntry.cpp
 	lib/noelle/MetadataManager_Instruction.cpp
