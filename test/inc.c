@@ -5,15 +5,12 @@
 #include <time.h>
 
 
-struct data {
-  int x;
-  int y;
-};
 
-void inc(int *x) { (*x) += 1; }
-void inc_y(struct data *d) {
-  d->x--;
-  d->y++;
+void inc(int *x) {
+	(*x) += 1;
+	if (rand()) {
+		(*x) *= 2;
+	}
 }
 
 int main(int argc, char **argv) {
