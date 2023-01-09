@@ -90,6 +90,7 @@ alaska_mapping_t *alaska_get_mapping(void *restrict ptr) {
 	return NULL;
 }
 
+// Once you have a mapping entry for a handle, compute the pointer it should use.
 void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
   handle_t h;
   h.ptr = ptr;
@@ -102,23 +103,26 @@ void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 void alaska_track_access(alaska_mapping_t *m) {
 #ifdef ALASKA_CLASS_TRACKING
-  alaska_class_access_counts[ent->object_class]++;
+  alaska_class_access_counts[m->object_class]++;
 #endif
+
+	// atomic_get_inc(next_usage_timestamp, m->usage_timestamp, 1);
   m->usage_timestamp = next_usage_timestamp++;
 }
+
 void alaska_track_lock(alaska_mapping_t *m) {
+	// atomic_inc(m->locks, 1);
   m->locks++;
 }
+
 void alaska_track_unlock(alaska_mapping_t *m) {
+	// atomic_dec(m->locks, 1);
   m->locks--;
 }
 
-// These functions are simple wrappers around the guarded version of the
-// same name. These versions just check if `ptr` is a handle before locking.
-__declspec(alwaysinline) void* alaska_lock(void* restrict ptr) {
+void* alaska_lock(void* restrict ptr) {
 	alaska_mapping_t *m = alaska_get_mapping(ptr);
 	if (m == NULL) return ptr;
-
 	alaska_track_access(m);
 	alaska_track_lock(m);
 	return alaska_translate(ptr, m);
