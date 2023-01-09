@@ -5,9 +5,9 @@ import sys
 import glob
 import subprocess
 import multiprocessing
-import math
 import argparse
 import time
+
 
 
 sys.path.insert(0,'local/bin/')
@@ -66,10 +66,10 @@ with multiprocessing.Pool(parallelism) as pool:
         progress = f'({i:4}/{len(paths):4})'
         times.append((path, time))
         if success:
-            print(f'[\033[32mok\033[0m]: {progress} {time:5}ms {path}')
+            print(f'\033[2K[\033[32mok\033[0m]: {progress} {time:5}ms {path}', end='\r')
         else:
             fails.append(path)
-            print(f'[\033[31m!!\033[0m]: {progress} {time:5}ms {path}')
+            print(f'\033[2K[\033[31m!!\033[0m]: {progress} {time:5}ms {path}')
             # print(f'{progress} \033[30;41m FAIL \033[0m {path}')
     
     times.sort(reverse=True, key=lambda a: a[1])
