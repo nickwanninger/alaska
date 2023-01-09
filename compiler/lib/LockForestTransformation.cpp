@@ -31,7 +31,7 @@ llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node)
 
 
 alaska::LockForestTransformation::LockForestTransformation(llvm::Function &F)
-    : flow_graph(F), pdt(F), dt(F), loops(dt), forest(flow_graph, pdt) {
+    : flow_graph(F), pdt(F), forest(flow_graph, pdt) {
   // everything is done in the constructor initializer list
 }
 
@@ -41,7 +41,6 @@ alaska::LockForestTransformation::LockForestTransformation(llvm::Function &F)
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   alaska::LockForest::Node &node;
   TranslationVisitor(alaska::LockForest::Node &node) : node(node) {}
-
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     // create a new GEP right after this one.
@@ -67,56 +66,6 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   }
 };
 
-
-static llvm::Loop *get_outermost_loop_for_lock(
-    llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
-  // first, check the `loopToCheck` loop. If it fits the requirements we are looking for, early return and don't check
-  // subloops. If it doesn't, recurse down to the subloops and see if they fit.
-  //
-  // 1. if the loop contains the user but not the pointer, this is the best loop.
-  //    (we want to lock right before the loop header)
-  if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
-    return loopToCheck;
-  }
-
-  for (auto *subLoop : loopToCheck->getSubLoops()) {
-    if (auto *loop = get_outermost_loop_for_lock(subLoop, pointer, user)) {
-      return loop;
-    }
-  }
-  return nullptr;
-}
-
-llvm::Instruction *alaska::LockForestTransformation::compute_lock_insertion_location(
-    llvm::Value *pointerToLock, llvm::Instruction *lockUser) {
-  // the instruction to consider as the "location of the pointer". This is done for things like arguments.
-  llvm::Instruction *effectivePointerInstruction = NULL;
-  if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
-    effectivePointerInstruction = pointerToLockInst;
-  } else {
-    // get the first instruction in the function the argument is a part of;
-    effectivePointerInstruction = lockUser->getParent()->getParent()->front().getFirstNonPHI();
-  }
-  ALASKA_SANITY(effectivePointerInstruction != NULL, "No effective instruction for pointerToLock");
-
-  llvm::Loop *targetLoop = NULL;
-  for (auto loop : loops) {
-    targetLoop = get_outermost_loop_for_lock(loop, effectivePointerInstruction, lockUser);
-    if (targetLoop != NULL) break;
-  }
-
-  // If no loop was found, lock at the lockUser.
-  if (targetLoop == NULL) return lockUser;
-
-  llvm::BasicBlock *incoming, *back;
-  targetLoop->getIncomingAndBackEdge(incoming, back);
-  // errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
-  if (incoming && incoming->getTerminator()) {
-    return incoming->getTerminator();
-  }
-
-  return lockUser;
-}
 
 bool alaska::LockForestTransformation::apply(alaska::LockForest::Node &node) {
   auto *inst = dyn_cast<llvm::Instruction>(node.val);
@@ -144,10 +93,8 @@ bool alaska::LockForestTransformation::apply(void) {
       // first, if the child does not share a lock with anyone, and
       // it's parent is a source, create the incoming lock
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
-        auto *lockLocation = inst;
-        lockLocation = compute_lock_insertion_location(root->val, inst);
-
-				child->incoming_lock = alaska::insertLockBefore(lockLocation, root->val);
+				auto &bounds = forest.get_lockbounds(child->lock_id);
+        child->incoming_lock = alaska::insertLockBefore(bounds.lockBefore, root->val);
       }
     }
 

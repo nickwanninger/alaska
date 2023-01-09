@@ -5,7 +5,7 @@
 
 namespace alaska {
 
-	llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
   enum InsertionType { Lock, Unlock };
 
   // Split the basic block before the instruction and insert a guarded
@@ -17,6 +17,8 @@ namespace alaska {
   // Insert get/puts for a graph conservatively (every load and store)
   void insertConservativeTranslations(alaska::PointerFlowGraph &G);
   void insertNaiveFlowBasedTranslations(alaska::PointerFlowGraph &G);
+
+  void dumpBacktrace(void);
 
   inline void println() {
 #ifdef ALASKA_DEBUG
@@ -42,6 +44,7 @@ namespace alaska {
       fprintf(stderr, "%s line %d\n", __FILE__, __LINE__);                                      \
       fprintf(stderr, "Check, `%s`, failed\n", #c, ##__VA_ARGS__);                              \
       fprintf(stderr, msg "\n", ##__VA_ARGS__);                                                 \
+      alaska::dumpBacktrace();                                                                  \
       fprintf(stderr, "\x1b[31m----------------------------------------------------\x1b[0m\n"); \
       exit(EXIT_FAILURE);                                                                       \
     }                                                                                           \

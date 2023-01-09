@@ -1,5 +1,6 @@
 #include <Utils.h>
 
+#include <execinfo.h>
 
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/InstVisitor.h"
@@ -12,14 +13,36 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
+#define BT_BUF_SIZE 100
+void alaska::dumpBacktrace(void) {
+  int nptrs;
+
+  void *buffer[BT_BUF_SIZE];
+  char **strings;
+
+  nptrs = backtrace(buffer, BT_BUF_SIZE);
+  fprintf(stderr, "Backtrace:\n");
+
+  strings = backtrace_symbols(buffer, nptrs);
+  if (strings == NULL) {
+    perror("backtrace_symbols");
+    exit(EXIT_FAILURE);
+  }
+
+  for (int j = 0; j < nptrs; j++)
+    fprintf(stderr, "\x1b[92m%d\x1b[0m: %s\n", j, strings[j]);
+
+  free(strings);
+}
+
 
 llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
-	for (auto &BB : *F) {
-		for (auto &I : BB) {
-			if (I.getDebugLoc()) return I.getDebugLoc();
-		}
-	}
-	return NULL;
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (I.getDebugLoc()) return I.getDebugLoc();
+    }
+  }
+  return NULL;
 }
 
 llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
@@ -30,20 +53,20 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
   auto lockFunction = M.getOrInsertFunction("alaska_lock", lockFunctionType).getCallee();
-	// if (auto func = dyn_cast<llvm::Function>(lockFunction)) {
-	// 	func->setSubprogram(inst->getParent()->getParent()->getSubprogram());
-	// }
+  // if (auto func = dyn_cast<llvm::Function>(lockFunction)) {
+  // 	func->setSubprogram(inst->getParent()->getParent()->getSubprogram());
+  // }
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
   auto locked = b.CreateCall(lockFunctionType, lockFunction, {pointer});
-	// locked->setDebugLoc(DILocation::get(ctx, 0, 0, inst->getFunction()->getSubprogram()->getScope()));
-	locked->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
-	if (!locked->getDebugLoc()) {
-		// errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
-	}
-	locked->setName("locked");
-	return locked;
+  // locked->setDebugLoc(DILocation::get(ctx, 0, 0, inst->getFunction()->getSubprogram()->getScope()));
+  locked->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+  if (!locked->getDebugLoc()) {
+    // errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
+  }
+  locked->setName("locked");
+  return locked;
 }
 
 // Insert the call to alaska_get or alaska_unlock, but inline the handle guard
@@ -117,7 +140,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = load->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       load->setOperand(0, t);
-			// TODO: unlock
+      // TODO: unlock
       continue;
     }
 
@@ -125,7 +148,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = store->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       store->setOperand(1, t);
-			// TODO: unlock
+      // TODO: unlock
       continue;
     }
   }
