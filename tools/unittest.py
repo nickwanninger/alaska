@@ -5,6 +5,7 @@ import sys
 import glob
 import subprocess
 import multiprocessing
+import math
 import argparse
 import time
 
@@ -22,11 +23,13 @@ parser.add_argument('-v', '--verbose',
                     action='store_true')  # on/off flag
 
 args, remain = parser.parse_known_args()
-print(args, remain)
+
+parallelism = 1
 
 paths = remain
 
 if len(paths) == 0:
+    parallelism = None # use all the cores, counterintuitively
     paths = list(glob.glob('test/unit/*.c'))
 
 def run_test(path):
@@ -52,36 +55,39 @@ def run_test(path):
 
 
 
-parallelism = None
 
 
-with multiprocessing.Pool(parallelism) as pool:
-    results = pool.imap_unordered(run_test, paths)
-    fails = []
+def progress_bar(current, total):
+    p = current / float(total)
+    l = 20
+    hashes = math.ceil(p * l)
+    return f'{int(p * 100):3}% [\033[32m' + ('|' * hashes) + (' ' * (l - hashes)) + '\033[0m]'
 
-    times = []
-    for i, res in enumerate(results):
-        path, success, time = res
-        time = int(time / 1000.0 / 1000.0)
-        progress = f'({i:4}/{len(paths):4})'
-        times.append((path, time))
-        if success:
-            print(f'\033[2K[\033[32mok\033[0m]: {progress} {time:5}ms {path}', end='\r')
-        else:
-            fails.append(path)
-            print(f'\033[2K[\033[31m!!\033[0m]: {progress} {time:5}ms {path}')
-            # print(f'{progress} \033[30;41m FAIL \033[0m {path}')
-    
-    times.sort(reverse=True, key=lambda a: a[1])
+try:
+    with multiprocessing.Pool(parallelism) as pool:
+        results = pool.imap_unordered(run_test, paths)
 
-    print()
-    print("Slowest 10 tests:")
-    for test, time in times[0:10]:
-        print(f'{time:5}ms: {test}')
+        fails = 0
+        times = []
+        for i, res in enumerate(results):
+            path, success, time = res
+            time = int(time / 1000.0 / 1000.0)
+            progress = f'({i:4}/{len(paths):4})'
+            progress = progress_bar(i, len(paths))
+            times.append((path, time))
+            if success:
+                print(f'\033[2K{progress} {path}', end='\r')
+            else:
+                fails += 1
+                print(f'\033[2K\033[31mFAIL\033[0m: {path}')
+                # print(f'{progress} \033[30;41m FAIL \033[0m {path}')
+        
+        times.sort(reverse=True, key=lambda a: a[1])
 
-    print(f'{len(fails)} of {len(paths)} tests failed:')
-    for fail in fails:
-        print(fail)
-    
-
-
+        print('\033[2K', end='\r')
+        print(f'{fails} tests failed.')
+        print("Slowest 10 tests:")
+        for test, time in times[0:10]:
+            print(f'{time:5}ms: {test}')
+except:
+    pass
