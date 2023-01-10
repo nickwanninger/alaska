@@ -53,9 +53,6 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
   auto lockFunction = M.getOrInsertFunction("alaska_lock", lockFunctionType).getCallee();
-  // if (auto func = dyn_cast<llvm::Function>(lockFunction)) {
-  // 	func->setSubprogram(inst->getParent()->getParent()->getSubprogram());
-  // }
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
@@ -68,6 +65,23 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   locked->setName("locked");
   return locked;
 }
+
+void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+  auto *headBB = inst->getParent();
+  auto &F = *headBB->getParent();
+  auto &M = *F.getParent();
+  LLVMContext &ctx = M.getContext();
+  auto ptrType = PointerType::get(ctx, 0);
+  auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
+  auto func = M.getOrInsertFunction("alaska_unlock", ftype).getCallee();
+
+  IRBuilder<> b(inst);
+  b.SetCurrentDebugLocation(inst->getDebugLoc());
+  auto unlock = b.CreateCall(ftype, func, {pointer});
+  unlock->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+}
+
+
 
 // Insert the call to alaska_get or alaska_unlock, but inline the handle guard
 // as a new basic block. This improves performance quite a bit :)

@@ -6,6 +6,7 @@
 namespace alaska {
 
   llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  void insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
   enum InsertionType { Lock, Unlock };
 
   // Split the basic block before the instruction and insert a guarded
@@ -28,7 +29,7 @@ namespace alaska {
   }
 
   template <class T, class... Ts>
-  inline void println(T const &first, Ts const &...rest) {
+  inline void println(T const &first, Ts const &... rest) {
 #ifdef ALASKA_DEBUG
     llvm::errs() << first;
     alaska::println(rest...);
