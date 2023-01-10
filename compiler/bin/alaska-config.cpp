@@ -29,6 +29,7 @@ void ldflags(void) {
   printf("-Wl,-rpath=%s/lib\n", local);
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
+  printf("-lpthread\n");
   printf("-lalaska_support\n");
   printf("-lunicorn\n");
 }
