@@ -19,15 +19,14 @@ static uint64_t next_usage_timestamp = 0;
 static uint64_t alaska_class_access_counts[256];
 #endif
 
-static uint64_t foo;
 
-void alaska_classify(void* ptr, uint8_t c) {
-	foo += 1;
+void alaska_classify(void *ptr, uint8_t c) {
+  //
 #ifdef ALASKA_CLASS_TRACKING
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
-    alaska_mapping_t* ent = GET_ENTRY(ptr);
+    alaska_mapping_t *ent = GET_ENTRY(ptr);
     ent->object_class = c;
   }
 #endif
@@ -37,7 +36,12 @@ void alaska_classify(void* ptr, uint8_t c) {
 void alaska_classify_init(void) {}
 
 void alaska_classify_deinit(void) {
-  if (getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL) {
+  int do_dump = getenv("ALASKA_DUMP_OBJECT_CLASSES") != NULL;
+#ifdef ALASKA_CLASS_TRACKING_ALWAYS_DUMP
+  do_dump = 1;
+#endif
+
+  if (do_dump) {
     printf("class,accesses\n");
     for (int i = 0; i < 256; i++) {
       if (alaska_class_access_counts[i] != 0) {
@@ -61,7 +65,7 @@ enum alaska_fault_reason {
 //
 // This, and alaska_barrier are the main locations where the runtime can be
 // customized
-__declspec(noinline) void alaska_fault(alaska_mapping_t* ent, enum alaska_fault_reason reason, off_t offset) {
+__declspec(noinline) void alaska_fault(alaska_mapping_t *ent, enum alaska_fault_reason reason, off_t offset) {
   if (reason == OUT_OF_BOUNDS) {
     fprintf(stderr,
         "[FATAL] alaska: out of bound access of handle %ld. Attempt to "
@@ -85,9 +89,9 @@ alaska_mapping_t *alaska_get_mapping(void *restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
- 		return (alaska_mapping_t*)(uint64_t)h.handle;
-	}
-	return NULL;
+    return (alaska_mapping_t *)(uint64_t)h.handle;
+  }
+  return NULL;
 }
 
 // Once you have a mapping entry for a handle, compute the pointer it should use.
@@ -98,7 +102,7 @@ void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
       "out of bounds access.\nAttempt to access offset %u in an "
       "object of size %u. Handle = %p",
       h.offset, m->size, ptr);
-  return (void*)((uint64_t)m->ptr + h.offset);
+  return (void *)((uint64_t)m->ptr + h.offset);
 }
 
 void alaska_track_access(alaska_mapping_t *m) {
@@ -106,45 +110,45 @@ void alaska_track_access(alaska_mapping_t *m) {
   alaska_class_access_counts[m->object_class]++;
 #endif
 
-	// atomic_get_inc(next_usage_timestamp, m->usage_timestamp, 1);
+  // atomic_get_inc(next_usage_timestamp, m->usage_timestamp, 1);
   m->usage_timestamp = next_usage_timestamp++;
 }
 
 void alaska_track_lock(alaska_mapping_t *m) {
-	// atomic_inc(m->locks, 1);
+  // atomic_inc(m->locks, 1);
   m->locks++;
 }
 
 void alaska_track_unlock(alaska_mapping_t *m) {
-	// atomic_dec(m->locks, 1);
+  // atomic_dec(m->locks, 1);
   m->locks--;
 }
 
-void* alaska_lock(void* restrict ptr) {
-	alaska_mapping_t *m = alaska_get_mapping(ptr);
-	if (m == NULL) return ptr;
-	alaska_track_access(m);
-	alaska_track_lock(m);
-	return alaska_translate(ptr, m);
+void *alaska_lock(void *restrict ptr) {
+  alaska_mapping_t *m = alaska_get_mapping(ptr);
+  if (m == NULL) return ptr;
+  alaska_track_access(m);
+  alaska_track_lock(m);
+  return alaska_translate(ptr, m);
 }
 
-void alaska_unlock(void* restrict ptr) {
-	alaska_mapping_t *m = alaska_get_mapping(ptr);
-	if (m == NULL) return;
-	alaska_track_unlock(m);
+void alaska_unlock(void *restrict ptr) {
+  alaska_mapping_t *m = alaska_get_mapping(ptr);
+  if (m == NULL) return;
+  alaska_track_unlock(m);
 }
 
 // This function exists to lock on extern escapes.
 // TODO: determine if we should lock it forever or not...
 static uint64_t escape_locks = 0;
-void* alaska_lock_for_escape(void* ptr) {
+void *alaska_lock_for_escape(void *ptr) {
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
     atomic_inc(escape_locks, 1);
     // escape_locks++;
     // its easier to do this than to duplicate efforts and inline.
-    void* t = alaska_lock(ptr);
+    void *t = alaska_lock(ptr);
     alaska_unlock(ptr);
     return t;
   }
