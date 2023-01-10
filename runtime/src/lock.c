@@ -28,7 +28,6 @@ void alaska_classify(void *ptr, uint8_t c) {
   if (likely(h.flag != 0)) {
     alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
     ent->object_class = c;
-	printf("classify %p as %02x\n", ptr, c);
   }
 #endif
 }
