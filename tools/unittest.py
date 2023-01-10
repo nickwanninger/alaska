@@ -22,6 +22,9 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-v', '--verbose',
                     action='store_true')  # on/off flag
 
+
+parser.add_argument('-s', '--slowest',
+                    action='store_true')  # on/off flag
 args, remain = parser.parse_known_args()
 
 parallelism = 1
@@ -76,18 +79,26 @@ try:
             progress = progress_bar(i, len(paths))
             times.append((path, time))
             if success:
-                print(f'\033[2K{progress} {path}', end='\r')
+                print(f'\033[2K{progress} {path}', end='\n' if args.verbose else '\r')
             else:
                 fails += 1
                 print(f'\033[2K\033[31mFAIL\033[0m: {path}')
                 # print(f'{progress} \033[30;41m FAIL \033[0m {path}')
         
-        times.sort(reverse=True, key=lambda a: a[1])
 
+        
+        # clear the last line
         print('\033[2K', end='\r')
-        print(f'{fails} tests failed.')
-        print("Slowest 10 tests:")
-        for test, time in times[0:10]:
-            print(f'{time:5}ms: {test}')
+        if fails > 0:
+            print(f'Failed tests: {fails}')
+        else:
+            print('Success!')
+        # cleanup the terminal output
+        # print('\033[2K', end='\r' if args.slowest else '\n')
+        if args.slowest:
+            times.sort(reverse=True, key=lambda a: a[1])
+            print("Slowest 10 tests:")
+            for test, time in times[0:10]:
+                print(f'{time:5}ms: {test}')
 except:
     pass
