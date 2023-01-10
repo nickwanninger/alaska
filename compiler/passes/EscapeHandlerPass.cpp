@@ -50,7 +50,7 @@ namespace {
       return false;
 #endif
       std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hcalloc", "hfree", "alaska_lock",
-          "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock"};
+          "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock", "alaska_classify"};
 
 
       for (auto r : alaska::wrapped_functions) {
