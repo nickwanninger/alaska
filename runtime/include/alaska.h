@@ -21,7 +21,18 @@ extern void hfree(void *ptr);
 
 // "Go do something in the runtime", whatever that means right now
 extern void alaska_barrier(void);
+
+
+
+// Classify an allocation with a certain object class
 extern void alaska_classify(void *ptr, uint8_t c);
+
+enum alaska_classes {
+#define __CLASS(name, val) ALASKA_CLASS_##name = val,
+#include "./classes.inc"
+#undef __CLASS
+};
+
 
 #ifdef __cplusplus
 }

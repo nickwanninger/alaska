@@ -103,12 +103,18 @@ static __thread uc_engine* uc = NULL;
 static __thread volatile ucontext_t* faulting_context = false;
 
 __declspec(noinline) void alaska_real_segfault_handler(ucontext_t* ucontext) {
+#ifdef __aarch64__
   fprintf(stderr, "segfault while performing a correctness emulation at pc:%p, fa:%p!\n", ucontext->uc_mcontext.pc,
       ucontext->uc_mcontext.fault_address);
+#else
+  fprintf(stderr, "segfault while performing a correctness emulation!\n");
+#endif
   exit(-1);
 }
 
 #ifdef __aarch64__
+#define UC_ARCH_CURRENT UC_ARCH_ARM64
+#define UC_MODE_CURRENT UC_MODE_ARM
 
 static void aarch64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* vsync) {
   uc_err (*uc_sync)(uc_engine*, int, void*);
@@ -150,9 +156,51 @@ static void emu_run(ucontext_t* ucontext) {
   aarch64_emu_register_sync(ucontext, uc, uc_reg_read);
 }
 #elif defined(__x86_64__)
+
+#define UC_ARCH_CURRENT UC_ARCH_X86
+#define UC_MODE_CURRENT UC_MODE_64
+
+static void amd64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* vsync) {
+  uc_err (*uc_sync)(uc_engine*, int, void*);
+  uc_sync = vsync;
+
+  // UC_X86_REG_RIP;
+#define DO_SYNC2(reg1, reg2) uc_sync(uc, UC_X86_REG_##reg1, &ucontext->uc_mcontext.gregs[REG_##reg2])
+#define DO_SYNC(reg) DO_SYNC2(reg, reg)
+	DO_SYNC(RIP);
+	DO_SYNC(RSP);
+
+  DO_SYNC(R8);
+  DO_SYNC(R9);
+  DO_SYNC(R10);
+  DO_SYNC(R11);
+  DO_SYNC(R12);
+  DO_SYNC(R13);
+  DO_SYNC(R14);
+  DO_SYNC(R15);
+  DO_SYNC(RDI);
+  DO_SYNC(RSI);
+  DO_SYNC(RBP);
+  DO_SYNC(RBX);
+  DO_SYNC(RDX);
+  DO_SYNC(RAX);
+  DO_SYNC(RCX);
+  DO_SYNC(RSP);
+  DO_SYNC(RIP);
+  DO_SYNC2(EFLAGS, EFL);
+
+  // for (int i = 0; i < 31; i++)
+  //   uc_sync(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
+  // uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
+  // uc_sync(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
+}
+
 static void emu_run(ucontext_t* ucontext) {
-  fprintf(stderr, "not done yet!\n");
-  exit(-1);
+  off_t pc = ucontext->uc_mcontext.gregs[REG_RIP];
+  amd64_emu_register_sync(ucontext, uc, uc_reg_write);
+  // Emulate a single instruction
+  uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
+  amd64_emu_register_sync(ucontext, uc, uc_reg_read);
 }
 #else
 #error hmm
@@ -173,7 +221,7 @@ void alaska_sigsegv_handler(int sig, siginfo_t* info, void* ptr) {
   faulting_context = ucontext;
 
   if (uc == NULL) {
-    uc_err_check("uc_open", uc_open(UC_ARCH_ARM64, UC_MODE_ARM, &uc));
+    uc_err_check("uc_open", uc_open(UC_ARCH_CURRENT, UC_MODE_CURRENT, &uc));
     uc_alaska_set_memory_emulation(uc, alaska_emulate_load, alaska_emulate_store);
   }
 
