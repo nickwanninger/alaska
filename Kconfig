@@ -1,4 +1,3 @@
-
 config USE_NINJA
 	bool "Use the Ninja build system instead of Make"
 	default n
@@ -29,16 +28,13 @@ config CLASS_TRACKING
 	bool "Track allocation classes and record access counts in a histogram"
 	default n
 
-
-
 config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
 	default n
 
-
 config CORRECTNESS_EMULATOR
 	bool "Enable the correctness emulator"
-	default y
+	default n
 
 config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
