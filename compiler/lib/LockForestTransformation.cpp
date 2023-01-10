@@ -84,6 +84,8 @@ bool alaska::LockForestTransformation::apply(alaska::LockForest::Node &node) {
 }
 
 bool alaska::LockForestTransformation::apply(void) {
+
+
   for (auto &root : forest.roots) {
     for (auto &child : root->children) {
       auto *inst = dyn_cast<llvm::Instruction>(child->val);
@@ -95,6 +97,7 @@ bool alaska::LockForestTransformation::apply(void) {
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
 				auto &bounds = forest.get_lockbounds(child->lock_id);
         child->incoming_lock = alaska::insertLockBefore(bounds.lockBefore, root->val);
+
       }
     }
 
@@ -102,6 +105,19 @@ bool alaska::LockForestTransformation::apply(void) {
       apply(*child);
     }
   }
+
+
+	// finally, insert unlocks
+	for (auto &[id, bounds] : forest.locks) {
+		alaska::println(id, " has ", bounds->unlocks.size(), " unlock vals"); 
+		for (auto *position : bounds->unlocks) {
+			// if (auto phi = dyn_cast<PHINode>(position)) {
+			// 	position = phi->getParent()->getFirstNonPHI();
+			// }
+			alaska::insertUnlockBefore(position, bounds->pointer);
+			alaska::println("   ", *position);
+		}
+	}
 
   return true;
 }

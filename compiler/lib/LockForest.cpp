@@ -100,6 +100,8 @@ static llvm::Instruction *compute_lock_insertion_location(
 
   llvm::BasicBlock *incoming, *back;
   targetLoop->getIncomingAndBackEdge(incoming, back);
+
+
   // errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
   if (incoming && incoming->getTerminator()) {
     return incoming->getTerminator();
@@ -160,6 +162,7 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     for (auto &child : root->children) {
       if (child->share_lock_with == NULL) {
         auto &lb = get_lockbounds();
+        lb.pointer = root->val;
         child->lock_id = lb.id;
       }
     }
@@ -198,6 +201,9 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 
 
 
+  ///////////////////////////////////////////////////////////////////////////
+  //                      Compute unlock locations                         //
+  ///////////////////////////////////////////////////////////////////////////
 
   // used to compute GEN: (which node does an instruction use?)
   std::unordered_map<Instruction *, LockBounds *> inst2bounds;
@@ -230,8 +236,6 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     return f->second->lockBefore;
   };
 
-
-
   auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
     if (auto *used = get_used(s)) {
       df->GEN(s).insert(used);
@@ -252,8 +256,8 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 
   auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
     // IN[s] = GEN[s] U (OUT[s] - KILL[s])
-    
-		auto &gen = df->GEN(s);
+
+    auto &gen = df->GEN(s);
     auto &out = df->OUT(s);
     auto &kill = df->KILL(s);
 
@@ -281,35 +285,36 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 
 
 
-  auto get_lid = [&](llvm::Value *inst) {
-    for (auto &[id, bounds] : locks) {
-      if (bounds->lockBefore == inst) return id;
-    }
-    return UINT_MAX;
-  };
+  // auto get_lid = [&](llvm::Value *inst) {
+  //   for (auto &[id, bounds] : locks) {
+  //     if (bounds->lockBefore == inst) return id;
+  //   }
+  //   return UINT_MAX;
+  // };
+  //
+  // auto dump_set = [&](const char *name, std::set<Value *> &s) {
+  //   if (s.empty()) return;
+  //   errs() << "    " << name << ":";
+  //   for (auto v : s) {
+  //     errs() << " " << get_lid(v);
+  //     // errs() << " [" << *v << "]";
+  //   }
+  //   errs() << "\n";
+  // };
+  //
+  // for (auto &BB : func) {
+  //   for (auto &I : BB) {
+  //     errs() << I << "\n";
+  //     dump_set("GEN", df->GEN(&I));
+  //     dump_set("KILL", df->KILL(&I));
+  //     dump_set("IN", df->IN(&I));
+  //     dump_set("OUT", df->OUT(&I));
+  //   }
+  // }
 
-  auto dump_set = [&](const char *name, std::set<Value *> &s) {
-    if (s.empty()) return;
-    errs() << "    " << name << ":";
-    for (auto v : s) {
-      errs() << " " << get_lid(v);
-      // errs() << " [" << *v << "]";
-    }
-    errs() << "\n";
-  };
-
-  for (auto &BB : func) {
-    for (auto &I : BB) {
-      errs() << I << "\n";
-      dump_set("GEN", df->GEN(&I));
-      dump_set("KILL", df->KILL(&I));
-      dump_set("IN", df->IN(&I));
-      dump_set("OUT", df->OUT(&I));
-    }
-  }
 
 
-
+#if 0
   // using the dataflow result, insert unlock locations into the corresponding lockbounds
   // The way this works is we go over each lockbound, and find the instructions which
   // contain it's lockBefore instruction in the IN set, but not in their OUT set. These
@@ -332,33 +337,33 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
           continue;
         }
 
-        // special case for branches
-        // insert an unlock on the "exit edge" of a branch if the branch has the value in the OUT, but the branched-to
-        // instruction does not have it in the IN.
+        // special case for branches: insert an unlock on the "exit edge" of a branch
+				// if the branch has the value in the OUT, but the branched-to instruction does
+				// not have it in the IN.
         if (auto *branch = dyn_cast<BranchInst>(&I)) {
           for (auto succ : branch->successors()) {
             auto succInst = &succ->front();
             auto &succIN = df->IN(succInst);
             // if it's not in the IN of succ, lock on the edge
             if (succIN.find(lockbounds->lockBefore) == succIN.end()) {
-              lockbounds->unlocks.insert(succInst);
+              lockbounds->unlocks.insert(&I);
             }
           }
         }
       }
     }
   }
+#endif
 
-  errs() << func << "\n";
-  for (auto &[id, lb] : locks) {
-    errs() << "lid" << id << "\n";
-    if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
-
-    // ALASKA_SANITY(!lb->unlocks.empty(), "unlock set is empty");
-    for (auto *before : lb->unlocks) {
-      errs() << " - unlock: " << *before << "\n";
-    }
-  }
+  // errs() << func << "\n";
+  // for (auto &[id, lb] : locks) {
+  //   errs() << "lid" << id << "\n";
+  //   if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
+  //
+  //   for (auto *before : lb->unlocks) {
+  //     errs() << " - unlock: " << *before << "\n";
+  //   }
+  // }
 
   delete df;
 
@@ -437,11 +442,11 @@ void alaska::LockForest::dump_dot(void) {
 
   for (auto node : nodes) {
     if (node->parent) {
-      errs() << "  n" << node->parent << ":n" << node << " -> n" << node << "\n";
-
       if (node->parent->parent == NULL && node->share_lock_with) {
         errs() << "  n" << node->parent << ":n" << node->compute_shared_lock() << " -> n" << node
                << " [style=\"dashed\", color=orange]\n";
+      } else {
+        errs() << "  n" << node->parent << ":n" << node << " -> n" << node << "\n";
       }
     }
 
@@ -450,9 +455,9 @@ void alaska::LockForest::dump_dot(void) {
       errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
     }
 
-    // for (auto *dom : node->postdominates) {
-    //   errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
-    // }
+    for (auto *dom : node->postdominates) {
+      errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
+    }
   }
 
 
