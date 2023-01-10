@@ -97,6 +97,7 @@ set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 
 
 install(FILES include/alaska.h DESTINATION include)
+install(FILES include/alaska.hpp DESTINATION include)
 
 install(
   TARGETS alaska_support
