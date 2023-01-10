@@ -63,6 +63,7 @@ namespace {
         if (!F.empty()) continue;
         if (functions_to_ignore.find(std::string(F.getName())) != functions_to_ignore.end()) continue;
         if (F.getName().startswith("llvm.lifetime")) continue;
+        if (F.getName().startswith("llvm.dbg")) continue;
 
         for (auto user : F.users()) {
           if (auto call = dyn_cast<CallInst>(user)) {
