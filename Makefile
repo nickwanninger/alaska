@@ -41,8 +41,7 @@ sanity: alaska
 	@build/sanity
 
 test: alaska
-	@python3 tools/unittest.py
-
+	@python3 tools/unittest.py -s
 
 .PHONY: alaska all bench bench/nas libc
 
@@ -72,6 +71,12 @@ bench: alaska $(NAS_BENCHMARKS) # $(GAP_BENCHMARKS)
 
 clean:
 	rm -rf build .*.o*
+
+
+defconfig:
+	@rm -f .config
+	@echo "Using default configuration"
+	@echo "q" | python3 tools/menuconfig.py >/dev/null
 
 cfg: menuconfig
 menuconfig:
