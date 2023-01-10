@@ -26,13 +26,21 @@ void alaska_classify(void *ptr, uint8_t c) {
   handle_t h;
   h.ptr = ptr;
   if (likely(h.flag != 0)) {
-    alaska_mapping_t *ent = GET_ENTRY(ptr);
+    alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
     ent->object_class = c;
+	printf("classify %p as %02x\n", ptr, c);
   }
 #endif
 }
 
+
+
 #ifdef ALASKA_CLASS_TRACKING
+
+void alaska_classify_track(uint8_t object_class) {
+  alaska_class_access_counts[object_class]++;
+}
+
 void alaska_classify_init(void) {}
 
 void alaska_classify_deinit(void) {
@@ -107,7 +115,7 @@ void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 void alaska_track_access(alaska_mapping_t *m) {
 #ifdef ALASKA_CLASS_TRACKING
-  alaska_class_access_counts[m->object_class]++;
+	alaska_classify_track(m->object_class);
 #endif
 
   // atomic_get_inc(next_usage_timestamp, m->usage_timestamp, 1);
