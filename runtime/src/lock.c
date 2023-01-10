@@ -36,9 +36,7 @@ void alaska_classify(void *ptr, uint8_t c) {
 
 #ifdef ALASKA_CLASS_TRACKING
 
-void alaska_classify_track(uint8_t object_class) {
-  alaska_class_access_counts[object_class]++;
-}
+void alaska_classify_track(uint8_t object_class) { alaska_class_access_counts[object_class]++; }
 
 void alaska_classify_init(void) {}
 
@@ -50,11 +48,11 @@ void alaska_classify_deinit(void) {
 
   if (do_dump) {
     printf("class,accesses\n");
-    for (int i = 0; i < 256; i++) {
-      if (alaska_class_access_counts[i] != 0) {
-        printf("%d,%zu\n", i, alaska_class_access_counts[i]);
-      }
-    }
+
+#define __CLASS(name, id) \
+  if (alaska_class_access_counts[id] != 0) printf(#name ",%zu\n", alaska_class_access_counts[id]);
+#include "../include/classes.inc"
+#undef __CLASS
   }
 }
 #endif
@@ -114,7 +112,7 @@ void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 void alaska_track_access(alaska_mapping_t *m) {
 #ifdef ALASKA_CLASS_TRACKING
-	alaska_classify_track(m->object_class);
+  alaska_classify_track(m->object_class);
 #endif
 
   // atomic_get_inc(next_usage_timestamp, m->usage_timestamp, 1);
