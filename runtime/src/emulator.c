@@ -36,7 +36,7 @@ static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
   void* ptr = alaska_lock(addr);
   uint64_t val = 0;
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (true || addr != ptr) {
+  if (addr != ptr) {
     fprintf(stderr, "alaska: ld%c %016zx(%p) -> ", byte_size_human(size), (off_t)addr, ptr);
     fflush(stdout);
   }
@@ -56,7 +56,7 @@ static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
       break;
   }
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (true || addr != ptr) {
+  if (addr != ptr) {
     fprintf(stderr, "%0*zx", size * 2, val);
     if (size == 1) fprintf(stderr, "  '%c'", val);
     fprintf(stderr, "\n");
@@ -71,7 +71,7 @@ static inline void alaska_emulate_store(void* addr, uint64_t val, size_t size) {
   void* ptr = alaska_lock(addr);
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
-  if (true || addr != ptr) {
+  if (addr != ptr) {
     fprintf(stderr, "alaska: st%c %016zx(%p) <- %0*zx\n", byte_size_human(size), (off_t)addr, ptr, size * 2, val);
   }
 #endif
@@ -167,9 +167,6 @@ static void amd64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* v
   // UC_X86_REG_RIP;
 #define DO_SYNC2(reg1, reg2) uc_sync(uc, UC_X86_REG_##reg1, &ucontext->uc_mcontext.gregs[REG_##reg2])
 #define DO_SYNC(reg) DO_SYNC2(reg, reg)
-	DO_SYNC(RIP);
-	DO_SYNC(RSP);
-
   DO_SYNC(R8);
   DO_SYNC(R9);
   DO_SYNC(R10);
@@ -189,6 +186,18 @@ static void amd64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* v
   DO_SYNC(RIP);
   DO_SYNC2(EFLAGS, EFL);
 
+
+  for (int i = 0; i < 16; i++) {
+    // printf("xmm%-2d = {", i);
+    // for (int j = 0; j < 4; j++) {
+    //   printf(" %08x", ucontext->uc_mcontext.fpregs->_xmm[i].element[j]);
+    // }
+    // printf(" }\n");
+    uc_sync(uc, UC_X86_REG_XMM0 + i, &ucontext->uc_mcontext.fpregs->_xmm[i]);
+  }
+
+  uc_sync(uc, UC_X86_REG_MXCSR, &ucontext->uc_mcontext.fpregs->mxcsr);
+
   // for (int i = 0; i < 31; i++)
   //   uc_sync(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
   // uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
@@ -203,7 +212,7 @@ static void emu_run(ucontext_t* ucontext) {
   amd64_emu_register_sync(ucontext, uc, uc_reg_read);
 }
 #else
-#error hmm
+#error unsupported architecture.
 #endif
 
 void alaska_sigsegv_handler(int sig, siginfo_t* info, void* ptr) {
