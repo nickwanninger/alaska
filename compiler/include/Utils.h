@@ -21,12 +21,18 @@ namespace alaska {
 
   void dumpBacktrace(void);
 
+
+	void runReplacementPass(llvm::Module &M);
+
   inline void println() {
 #ifdef ALASKA_DEBUG
     // base case
     llvm::errs() << "\n";
 #endif
   }
+
+
+
 
   template <class T, class... Ts>
   inline void println(T const &first, Ts const &... rest) {

@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+echo "warning: alaska-clang is experimental and likely won't work for you due to how argument escapes are handled"
+
 
 LINKER_ARGS=$(local/bin/alaska-config --ldflags)
 # prevent clang from running the linker (and erroring) on no input.

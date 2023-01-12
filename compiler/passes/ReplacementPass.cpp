@@ -25,7 +25,7 @@
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Support/CommandLine.h"
 
-#include <WrappedFunctions.h>
+#include <Utils.h>
 
 #define ADDR_SPACE 0
 
@@ -33,58 +33,14 @@ using namespace llvm;
 // This pass runs by default, but can be disabled with --alaska-no-replace
 
 
-cl::opt<bool> keep_malloc("alaska-keep-malloc", cl::desc("Don't replace malloc/free with halloc/hfree"));
-
 namespace {
   struct AlaskaPass : public ModulePass {
     static char ID;
-    llvm::Type *int64Type;
-    llvm::Type *voidPtrType;
-    llvm::Type *voidPtrTypePinned;
-    llvm::Value *translateFunction;
     AlaskaPass() : ModulePass(ID) {}
-
     bool doInitialization(Module &M) override { return false; }
 
-
-
-    // Take any calls to a function called `original_name` and
-    // replace them with a call to `new_name` instead.
-    void replace_function(Module &M, std::string original_name, std::string new_name = "") {
-      if (new_name == "") {
-        new_name = "alaska_wrapped_" + original_name;
-      }
-      auto oldFunction = M.getFunction(original_name);
-      if (oldFunction) {
-        auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
-        oldFunction->replaceAllUsesWith(newFunction);
-        oldFunction->eraseFromParent();
-      }
-      // delete oldFunction;
-    }
-
     bool runOnModule(Module &M) override {
-      if (!keep_malloc) {
-        // replace
-        replace_function(M, "malloc", "halloc");
-        replace_function(M, "calloc", "hcalloc");
-        replace_function(M, "realloc", "hrealloc");
-        replace_function(M, "free", "hfree");
-        replace_function(M, "malloc_usable_size", "alaska_usable_size");
-      }
-
-      // replace_function(M, "_Znwm", "halloc");
-      // replace_function(M, "_Znwj", "halloc");
-      // replace_function(M, "_Znaj", "halloc");
-      //
-      // replace_function(M, "_ZdlPv", "hfree");
-      // replace_function(M, "_ZdaPv", "hfree");
-      // replace_function(M, "_ZdaPv", "hfree");
-      
-			for (auto *name : alaska::wrapped_functions) {
-        replace_function(M, name);
-      }
-
+			alaska::runReplacementPass(M);
       return true;
     }
   };

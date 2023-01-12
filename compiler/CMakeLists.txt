@@ -19,6 +19,15 @@ add_library(AlaskaCompilerLibrary OBJECT
 	lib/noelle/DataFlowResult.cpp
 )
 
+
+add_llvm_library(AlaskaCombined MODULE
+	passes/Combined.cpp
+	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+
+	PLUGIN_TOOL
+	opt
+)
+
 add_llvm_library(Alaska MODULE
 	passes/TranslatePass.cpp
 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
