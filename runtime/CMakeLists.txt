@@ -75,6 +75,7 @@ set(SRC_FILES
 	src/lock.c
 	src/halloc.c
 	src/barrier.c
+	src/classify.c
 
 	# Replacing c++ new/delete in a more reasonable way
 	# src/glue.cpp
@@ -93,6 +94,12 @@ endif()
 add_library(alaska_core STATIC ${SRC_FILES})
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+
+
+
+add_library(alaska_inline_lock_native STATIC src/lock.c)
+target_include_directories(alaska_inline_lock_native PUBLIC include/)
+set_target_properties(alaska_inline_lock_native PROPERTIES LINKER_LANGUAGE C)
 
 
 
@@ -122,6 +129,17 @@ install(
 #   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 #   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+
+llvmir_attach_bc_target(
+  TARGET alaska_inline_lock_bitcodes
+  DEPENDS alaska_inline_lock_native)
+llvmir_attach_link_target(
+  TARGET alaska_inline_lock
+  DEPENDS alaska_inline_lock_bitcodes
+  OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
+
+
+
 llvmir_attach_bc_target(
   TARGET alaska_bitcodes
   DEPENDS alaska_core)
@@ -134,6 +152,7 @@ llvmir_attach_link_target(
 add_dependencies(alaska alaska_core)
 
 
+set_property(TARGET alaska_inline_lock PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska_bitcodes PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska PROPERTY EXCLUDE_FROM_ALL OFF)
 

@@ -11,6 +11,8 @@
 
 #define ALASKA_EXPORT __attribute__((visibility("default")))
 
+#define ALASKA_INLINE __attribute__((always_inline))
+
 typedef union {
   struct {
     unsigned offset : 32;  // the offset into the handle

@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 
+uint64_t alaska_next_usage_timestamp = 0;
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 static void __attribute__((constructor(102))) alaska_init(void) {

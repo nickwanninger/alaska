@@ -45,6 +45,11 @@ test: alaska
 
 .PHONY: alaska all bench bench/nas libc
 
+
+newtest: alaska
+	./alaska-clang -O3 test/worst.c -c -o build/worst.o
+	./alaska-clang -O3 build/worst.o -o build/worst
+
 	
 # targets to build benchmarks
 NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/bt bench/nas/is bench/nas/ep bench/nas/cg
@@ -148,3 +153,5 @@ local/lib/lib%.o: alaska build/lib%.bc
 	@cp build/lib$*.o local/lib/
 	@cp musl/lib/lib$*.a local/lib/
 libc: local/lib/libc.o
+
+
