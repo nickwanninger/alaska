@@ -1,0 +1,40 @@
+#!/usr/bin/bash
+
+
+LINKER_ARGS=$(local/bin/alaska-config --ldflags)
+# prevent clang from running the linker (and erroring) on no input.
+sflags=
+eflags=
+
+for arg in $@; do
+	case "$arg" in
+		-l*) input=1 ;;
+		*) input= ;;
+	esac
+	if test "$input" ; then
+		sflags="-l-user-start"
+		eflags="-l-user-end"
+		break
+	fi
+
+
+	case $arg in
+		-c)
+			LINKER_ARGS=""
+			;;
+		*)
+			# nothing.
+			;;
+	esac
+done
+
+
+ARGS=
+ARGS+="$(local/bin/alaska-config --cflags) "
+ARGS+="-Xclang -fpass-plugin=local/lib/AlaskaCombined.so "
+ARGS+="-fplugin=local/lib/AlaskaCombined.so "
+ARGS+="-L-user-start $sflags $@ $eflags $LINKER_ARGS "
+ARGS+="-Wno-unused-command-line-argument "
+
+echo local/bin/clang $ARGS
+exec local/bin/clang $ARGS
