@@ -1,0 +1,70 @@
+#!/usr/bin/bash
+#!/bin/sh
+
+PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
+
+
+export PATH=$PFX/bin:$PATH
+export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
+
+cc="clang"
+libc="$PFX"
+libc_inc="$PFX/include"
+libc_lib="$PFX/lib"
+
+ldso="$PFX/lib/ld-musl-x86_64.so.1"
+cleared=
+shared=
+userlinkdir=
+userlink=
+
+for x ; do
+    test "$cleared" || set -- ; cleared=1
+
+    case "$x" in
+        -L-user-start)
+            userlinkdir=1
+            ;;
+        -L-user-end)
+            userlinkdir=
+            ;;
+        -L*)
+            test "$userlinkdir" && set -- "$@" "$x"
+            ;;
+        -l-user-start)
+            userlink=1
+            ;;
+        -l-user-end)
+            userlink=
+            ;;
+        crtbegin*.o|crtend*.o)
+            set -- "$@" $($cc -print-file-name=$x)
+            ;;
+        -lgcc|-lgcc_eh)
+            file=lib${x#-l}.a
+            set -- "$@" $($cc -print-file-name=$file)
+            ;;
+        -l*)
+            test "$userlink" && set -- "$@" "$x"
+            ;;
+        -shared)
+            shared=1
+            set -- "$@" -shared
+            ;;
+        -sysroot=*|--sysroot=*)
+            ;;
+        *)
+            set -- "$@" "$x"
+            ;;
+    esac
+done
+
+ARGS=
+ARGS+="-nostdlib $@ -lc "
+ARGS+="-lm -lpthread -lalaska_support -lunicorn "
+ARGS+="-dynamic-linker $ldso "
+
+# ARGS+="$(local/bin/alaska-config --cflags) "
+# echo exec $($cc -print-prog-name=ld) -nostdlib "$@" -lc -dynamic-linker "$ldso" $(alaska-
+echo exec $($cc -print-prog-name=ld) $ARGS
+exec $($cc -print-prog-name=ld) $ARGS

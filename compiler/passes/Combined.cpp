@@ -32,6 +32,7 @@
 #include "noelle/core/DataFlow.hpp"
 #include "noelle/core/MetadataManager.hpp"
 
+#include <optional>
 
 class ProgressPass : public PassInfoMixin<ProgressPass> {
  public:
@@ -47,7 +48,7 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
 class AlaskaReplacementPass : public PassInfoMixin<AlaskaReplacementPass> {
  public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-		alaska::runReplacementPass(M);
+    alaska::runReplacementPass(M);
     return PreservedAnalyses::none();
   }
 };
@@ -57,6 +58,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   bool hoist = false;
   AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+		hoist = false;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) return PreservedAnalyses::all();
     mdm.addMetadata("alaska", "did run");
@@ -78,6 +80,8 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         alaska::PointerFlowGraph graph(F);
         alaska::insertConservativeTranslations(graph);
       }
+
+			errs() << F << "\n";
     }
 
     return PreservedAnalyses::none();
@@ -169,37 +173,39 @@ class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
   }
 };
 
+
+
+
+template <typename T>
+auto adapt(T &&fp) {
+  FunctionPassManager FPM;
+  FPM.addPass(llvm::LowerInvokePass());  // Invoke sucks and we don't support it yet.
+  return createModuleToFunctionPassAdaptor(std::move(FPM));
+}
+
+
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-              {
-                // Run preparation passes
-                FunctionPassManager FPM;
-                FPM.addPass(llvm::LowerInvokePass());  // Invoke sucks and we don't support it yet.
-                MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-              }
+              MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaReplacementPass());
 
               // Then Alaska specific passes
-              if (optLevel.getSpeedupLevel() == 0) {
-                // on unoptimized builds, don't hoist
-                MPM.addPass(AlaskaTranslatePass(false));
-              } else {
-                // on optimized builds, hoist with the lock forest
-                MPM.addPass(AlaskaTranslatePass(true));
-                // Link the library
-                MPM.addPass(AlaskaLinkLibrary());
+              // if (optLevel.getSpeedupLevel() == 0) {
+              //   // on unoptimized builds, don't hoist
+              //   MPM.addPass(AlaskaTranslatePass(false));
+              // } else {
+              // on optimized builds, hoist with the lock forest
+              MPM.addPass(AlaskaTranslatePass(true));
+              // Link the library
+              MPM.addPass(AlaskaLinkLibrary());
 
-                {
-                  // attempt to inline the library stuff
-                  FunctionPassManager FPM;
-                  FPM.addPass(llvm::DCEPass());
-                  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-                  MPM.addPass(llvm::GlobalDCEPass());
-                  MPM.addPass(llvm::AlwaysInlinerPass());
-                }
-              }
+              // attempt to inline the library stuff
+              MPM.addPass(adapt(llvm::DCEPass()));
+              MPM.addPass(llvm::GlobalDCEPass());
+              MPM.addPass(llvm::AlwaysInlinerPass());
+              // }
 
 
               // For good measures, re-optimize
