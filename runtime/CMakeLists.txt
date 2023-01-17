@@ -76,6 +76,7 @@ set(SRC_FILES
 	src/halloc.c
 	src/barrier.c
 	src/classify.c
+	src/rbtree.c
 
 	src/trace.c
 
@@ -104,6 +105,13 @@ target_include_directories(alaska_inline_lock_native PUBLIC include/)
 set_target_properties(alaska_inline_lock_native PROPERTIES LINKER_LANGUAGE C)
 
 
+SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+
+add_executable(alaska-sim bin/sim.c)
+target_link_libraries(alaska-sim alaska_core alaska_support unicorn)
+set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 
 install(FILES include/alaska.h DESTINATION include)
 install(FILES include/classes.inc DESTINATION include)
@@ -121,6 +129,14 @@ install(
   TARGETS alaska_core
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+install(
+  TARGETS alaska-sim
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
