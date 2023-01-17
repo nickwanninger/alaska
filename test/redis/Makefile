@@ -4,12 +4,10 @@
 src:
 	git clone git@github.com:redis/redis.git src --recursive
 
+src/src/redis-server: src
+	$(MAKE) -C src USE_JEMALLOC=no CC=gclang OPTIMIZATION=-O0 "CFLAGS=-gdwarf-4 -Wno-strict-prototypes"
 
-
-src/src/redis-server:
-	$(MAKE) -C src USE_JEMALLOC=no CC=alaska OPTIMIZATION=-O0 "CFLAGS=-gdwarf-4 -Wno-strict-prototypes"
-
-src/src/redis-servr.bc: src/src/redis-server
+src/src/redis-server.bc: src/src/redis-server
 
 redis: src/src/redis-server
 	@mkdir -p build

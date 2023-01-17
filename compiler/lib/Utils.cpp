@@ -14,6 +14,10 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
+static bool is_tracing(void) {
+	return getenv("ALASKA_COMPILER_TRACE") != NULL;
+}
+
 #define BT_BUF_SIZE 100
 void alaska::dumpBacktrace(void) {
   int nptrs;
@@ -53,7 +57,9 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-  auto lockFunction = M.getOrInsertFunction("alaska_lock", lockFunctionType).getCallee();
+	std::string name = "alaska_lock";
+	if (is_tracing()) name += "_trace";
+  auto lockFunction = M.getOrInsertFunction(name, lockFunctionType).getCallee();
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
@@ -74,7 +80,10 @@ void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
   auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
-  auto func = M.getOrInsertFunction("alaska_unlock", ftype).getCallee();
+
+	std::string name = "alaska_unlock";
+	if (is_tracing()) name += "_trace";
+  auto func = M.getOrInsertFunction(name, ftype).getCallee();
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
@@ -185,12 +194,21 @@ static void replace_function(Module &M, std::string original_name, std::string n
   // delete oldFunction;
 }
 void alaska::runReplacementPass(llvm::Module &M) {
+	bool tracing = getenv("ALASKA_COMPILER_TRACE") != NULL;
+
   // replace
-  replace_function(M, "malloc", "halloc");
-  replace_function(M, "calloc", "hcalloc");
-  replace_function(M, "realloc", "hrealloc");
-  replace_function(M, "free", "hfree");
-  replace_function(M, "malloc_usable_size", "alaska_usable_size");
+	if (tracing) {
+		replace_function(M, "malloc", "halloc_trace");
+		replace_function(M, "calloc", "hcalloc_trace");
+		replace_function(M, "realloc", "hrealloc_trace");
+		replace_function(M, "free", "hfree_trace");
+	} else {
+		replace_function(M, "malloc", "halloc");
+		replace_function(M, "calloc", "hcalloc");
+		replace_function(M, "realloc", "hrealloc");
+		replace_function(M, "free", "hfree");
+		replace_function(M, "malloc_usable_size", "alaska_usable_size");
+	}
 
   // replace_function(M, "_Znwm", "halloc");
   // replace_function(M, "_Znwj", "halloc");

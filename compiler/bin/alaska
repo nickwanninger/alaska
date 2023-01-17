@@ -23,6 +23,10 @@ phase="link"
 while [[ $# -gt 0 ]]
 do
     case $1 in
+			-T)
+				export ALASKA_COMPILER_TRACE=yes
+				shift
+				;;
 			-g*)
 				shift
 				;;

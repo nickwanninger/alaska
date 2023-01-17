@@ -77,6 +77,8 @@ set(SRC_FILES
 	src/barrier.c
 	src/classify.c
 
+	src/trace.c
+
 	# Replacing c++ new/delete in a more reasonable way
 	# src/glue.cpp
 

@@ -34,6 +34,7 @@
 
 #include <optional>
 
+
 class ProgressPass : public PassInfoMixin<ProgressPass> {
  public:
   const char *message;
@@ -58,7 +59,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   bool hoist = false;
   AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-		hoist = false;
+    hoist = false;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) return PreservedAnalyses::all();
     mdm.addMetadata("alaska", "did run");
@@ -80,8 +81,6 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         alaska::PointerFlowGraph graph(F);
         alaska::insertConservativeTranslations(graph);
       }
-
-			errs() << F << "\n";
     }
 
     return PreservedAnalyses::none();
@@ -116,7 +115,7 @@ class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // link the alaska.bc file
 
-    auto buf = llvm::MemoryBuffer::getFile("local/lib/alaska_inline_lock.bc");
+    auto buf = llvm::MemoryBuffer::getFile(ALASKA_INSTALL_PREFIX "/lib/alaska_inline_lock.bc");
     auto other = llvm::parseBitcodeFile(*buf.get(), M.getContext());
 
     auto other_module = std::move(other.get());
@@ -191,22 +190,16 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaReplacementPass());
 
-              // Then Alaska specific passes
-              // if (optLevel.getSpeedupLevel() == 0) {
-              //   // on unoptimized builds, don't hoist
-              //   MPM.addPass(AlaskaTranslatePass(false));
-              // } else {
               // on optimized builds, hoist with the lock forest
               MPM.addPass(AlaskaTranslatePass(true));
-              // Link the library
+
+              // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibrary());
 
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
               MPM.addPass(llvm::GlobalDCEPass());
               MPM.addPass(llvm::AlwaysInlinerPass());
-              // }
-
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimize(optLevel));
