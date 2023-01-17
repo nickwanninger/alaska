@@ -49,9 +49,9 @@ namespace {
 #ifndef ALASKA_ESCAPE_PASS
       return false;
 #endif
-      std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hcalloc", "hfree", "alaska_lock",
-          "alaska_guarded_lock", "alaska_unlock", "alaska_guarded_unlock", "alaska_classify"};
-
+      std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hrealloc_trace", "hcalloc", "hfree",
+          "hfree_trace", "alaska_lock", "alaska_lock_trace", "alaska_unlock", "alaska_unlock_trace", "alaska_classify",
+          "alaska_classify_trace"};
 
       for (auto r : alaska::wrapped_functions) {
         functions_to_ignore.insert(r);
@@ -78,11 +78,12 @@ namespace {
         int i = 0;
         for (auto &arg : call->args()) {
           if (arg->getType()->isPointerTy()) {
-
-						auto translated = alaska::insertLockBefore(call, arg);;
-            // auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call, call->getDebugLoc());
+            auto translated = alaska::insertLockBefore(call, arg);
+            ;
+            // auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call,
+            // call->getDebugLoc());
             call->setArgOperand(i, translated);
-						// TODO: UNLOCK
+            // TODO: UNLOCK
           }
           i++;
         }

@@ -73,11 +73,11 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         continue;
       }
       if (hoist) {
-        errs() << "hoisting in " << F.getName() << "\n";
+        // errs() << "hoisting in " << F.getName() << "\n";
         alaska::LockForestTransformation fftx(F);
         fftx.apply();
       } else {
-        errs() << "not hoisting in " << F.getName() << "\n";
+        // errs() << "not hoisting in " << F.getName() << "\n";
         alaska::PointerFlowGraph graph(F);
         alaska::insertConservativeTranslations(graph);
       }
@@ -191,7 +191,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(AlaskaReplacementPass());
 
               // on optimized builds, hoist with the lock forest
-              MPM.addPass(AlaskaTranslatePass(true));
+              MPM.addPass(AlaskaTranslatePass(false));
 
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibrary());

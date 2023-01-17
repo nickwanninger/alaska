@@ -93,58 +93,6 @@ void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
 
 
 
-// Insert the call to alaska_get or alaska_unlock, but inline the handle guard
-// as a new basic block. This improves performance quite a bit :)
-llvm::Instruction *alaska::insertGuardedRTCall(
-    InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc loc) {
-  using namespace llvm;
-
-  // The original basic block
-  auto *headBB = inst->getParent();
-  auto &F = *headBB->getParent();
-  auto &M = *F.getParent();
-  LLVMContext &ctx = M.getContext();
-  auto ptrType = PointerType::get(ctx, 0);
-
-  IRBuilder<> b(inst);
-  b.SetCurrentDebugLocation(loc);
-  auto sltInst = b.CreateICmpSLT(handle, ConstantPointerNull::get(ptrType));
-
-
-  // a pointer to the terminator of the "Then" block
-  auto getTerminator = SplitBlockAndInsertIfThen(sltInst, inst, false);
-  auto termBB = dyn_cast<BranchInst>(getTerminator)->getSuccessor(0);
-
-  // Insert a call to `alaska_get` and return the getned pointer
-  if (type == InsertionType::Lock) {
-    auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-    auto lockFunction = M.getOrInsertFunction("alaska_guarded_lock", lockFunctionType).getCallee();
-    b.SetInsertPoint(getTerminator);
-    auto getned = b.CreateCall(lockFunctionType, lockFunction, {handle});
-    getned->setDebugLoc(loc);
-    // Create a PHI node between `handle` and `getned`
-    b.SetInsertPoint(termBB->getFirstNonPHI());
-    auto phiNode = b.CreatePHI(ptrType, 2);
-
-    phiNode->addIncoming(handle, headBB);
-    phiNode->addIncoming(getned, getned->getParent());
-
-    return phiNode;
-  }
-
-  // Insert a call to `alaska_unlock`, and return nothing
-  if (type == InsertionType::Unlock) {
-    auto unlockFunctionType = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
-    auto unlockFunction = M.getOrInsertFunction("alaska_guarded_unlock", unlockFunctionType).getCallee();
-    b.SetInsertPoint(getTerminator);
-    auto c = b.CreateCall(unlockFunctionType, unlockFunction, {handle});
-    c->setDebugLoc(loc);
-    return nullptr;
-  }
-
-  return NULL;
-}
-
 
 
 
@@ -164,7 +112,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = load->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       load->setOperand(0, t);
-      // TODO: unlock
+			insertUnlockBefore(inst->getNextNode(), ptr);
       continue;
     }
 
@@ -172,7 +120,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = store->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       store->setOperand(1, t);
-      // TODO: unlock
+			insertUnlockBefore(inst->getNextNode(), ptr);
       continue;
     }
   }
