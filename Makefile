@@ -134,7 +134,7 @@ musl:
 	git clone git://git.musl-libc.org/musl --depth 1 musl
 
 musl/lib/libc.a: musl
-	cd musl && CC=gclang ./configure --prefix=$(PWD)/local --syslibdir=$(PWD)/local/lib
+	cd musl && CC=gclang ./configure --prefix=$(PWD)/local/sysroot --syslibdir=$(PWD)/local/sysroot/lib
 	CC=gclang $(MAKE) -C musl install
 
 musl/lib/lib%.a.bc: musl/lib/libc.a # everyone relies on libc.a, as we build all of them at the same time
@@ -147,11 +147,11 @@ build/lib%.bc: musl/lib/lib%.a.bc
 	@llvm-dis build/lib$*.bc
 
 # code to build libc with alaska :)
-local/lib/lib%.o: alaska build/lib%.bc
+local/sysroot/lib/lib%.o: alaska build/lib%.bc
 	@echo " CC lib$*"
 	@clang -O3 -c -o build/lib$*.o build/lib$*.bc
 	@cp build/lib$*.o local/lib/
 	@cp musl/lib/lib$*.a local/lib/
-libc: local/lib/libc.o
+libc: local/sysroot/lib/libc.o
 
 
