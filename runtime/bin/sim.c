@@ -10,13 +10,14 @@
 
 
 struct rb_root root = RB_ROOT;
+static uint64_t handle_count = 0;
 
 // an allocation in the trace simulator
 typedef struct {
   struct rb_node node;
   uint64_t ptr;
   size_t size;
-	void *handle; // internal trace handle
+  void *handle;  // internal trace handle
 } alloc_t;
 
 
@@ -24,9 +25,6 @@ typedef struct {
 static alloc_t *trace_find(uint64_t va) {
   // walk...
   struct rb_node **n = &(root.rb_node);
-  struct rb_node *parent = NULL;
-
-  int steps = 0;
 
   /* Figure out where to put new node */
   while (*n != NULL) {
@@ -34,9 +32,6 @@ static alloc_t *trace_find(uint64_t va) {
 
     off_t start = (off_t)r->ptr;
     off_t end = start + r->size;
-    parent = *n;
-
-    steps++;
 
     if (va < start) {
       n = &((*n)->rb_left);
@@ -74,56 +69,61 @@ void trace_alloc(struct alaska_trace_alloc *op) {
   a->ptr = op->ptr;
   a->size = op->size;
 
-	a->handle = halloc(a->size);
+  a->handle = halloc(a->size);
+  handle_count++;
   // printf("A %p\n", a->handle);
 
   rb_insert(&root, &a->node, __insert_callback, (void *)a);
 }
 
 void trace_realloc(struct alaska_trace_realloc *op) {
-	alloc_t *a = trace_find(op->old_ptr);
-	if (a == NULL) return;
+  alloc_t *a = trace_find(op->old_ptr);
+  if (a == NULL) return;
 
-	// remove the value from the tree
-	rb_erase(&a->node, &root);
+  // remove the value from the tree
+  rb_erase(&a->node, &root);
 
-	// update it's size and location
-	a->ptr = op->new_ptr;
-	a->size = op->new_size;
-	a->handle = hrealloc(a->handle, a->size);
-	// printf("R %p\n", a->handle);
+  // update it's size and location
+  a->ptr = op->new_ptr;
+  a->size = op->new_size;
+  a->handle = hrealloc(a->handle, a->size);
+  // printf("R %p\n", a->handle);
 
-	// and add it again
+  // and add it again
   rb_insert(&root, &a->node, __insert_callback, (void *)a);
 }
 
 void trace_free(struct alaska_trace_free *op) {
-	alloc_t *a = trace_find(op->ptr);
-	if (a == NULL) return;
+  alloc_t *a = trace_find(op->ptr);
+  if (a == NULL) return;
   // printf("F %p\n", a->handle);
 
-	// remove the value from the tree
-	rb_erase(&a->node, &root);
-	hfree(a->handle);
-	free(a);
-
-
+  // remove the value from the tree
+  rb_erase(&a->node, &root);
+  handle_count--;
+  hfree(a->handle);
+  free(a);
 }
 
+static uint64_t access_index = 0;
 void trace_lock(struct alaska_trace_lock *op) {
-	alloc_t *a = trace_find(op->ptr);
-	if (a == NULL) return;
-	alaska_lock(a->handle);
+  alloc_t *a = trace_find(op->ptr);
+  if (a == NULL) return;
+	fprintf(stderr, "%zu,%zu\n", access_index++, (uint64_t)op->ptr);
+  alaska_lock(a->handle);
 }
 
 void trace_unlock(struct alaska_trace_unlock *op) {
-	alloc_t *a = trace_find(op->ptr);
-	if (a == NULL) return;
-	alaska_unlock(a->handle);
+  alloc_t *a = trace_find(op->ptr);
+  if (a == NULL) return;
+  alaska_unlock(a->handle);
 }
 
-int main() {
+int main(int argc, char **argv) {
   const char *path = "alaska.trace";
+	if (argc == 2) {
+		path = argv[1];
+	}
   int ret;
   size_t len_file;
   struct stat st;
@@ -157,7 +157,7 @@ int main() {
   while (cur < end) {
     float progress = 1.0f - (float)(end - cur) / (float)len_file;
     if (iter++ > 10000000) {
-      printf("%6.2f%%\n", progress * 100.0f);
+      printf("%6.2f%% %zu\n", progress * 100.0f, handle_count);
       iter = 0;
     }
     uint8_t action = *cur;
@@ -184,7 +184,22 @@ int main() {
         cur += sizeof(struct alaska_trace_unlock);
         break;
       default:
-        fprintf(stderr, "unhandled op %02x %c\n", action, action);
+        fprintf(stderr, "unhandled op %02x %zd\n", action, (ssize_t)(cur - (char*)addr));
+        for (int i = -16; i < 16; i++) {
+					if (i == 0) fprintf(stderr, "\033[31m");
+          fprintf(stderr, "%02x ", (uint8_t)cur[i]);
+					if (i == 0) fprintf(stderr, "\033[0m");
+        }
+        fprintf(stderr, "  ");
+
+        for (int i = -16; i < 16; i++) {
+          char c = cur[i];
+					if (i == 0) fprintf(stderr, "\033[31m");
+          fprintf(stderr, "%c", (c < 0x20) || (c > 0x7e) ? '.' : c);
+					if (i == 0) fprintf(stderr, "\033[0m");
+        }
+        fprintf(stderr, "\n");
+        // cur++;
         exit(EXIT_FAILURE);
     }
   }

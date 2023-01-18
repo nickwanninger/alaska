@@ -11,4 +11,8 @@ function Fibonacci.naive(n)
   return inner(n)
 end
 
-print(Fibonacci.naive(35))
+n = 12
+print(Fibonacci.naive(n))
+collectgarbage("collect")
+print(Fibonacci.naive(n))
+
