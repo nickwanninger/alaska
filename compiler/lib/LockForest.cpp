@@ -79,6 +79,7 @@ static llvm::Loop *get_outermost_loop_for_lock(
 
 static llvm::Instruction *compute_lock_insertion_location(
     llvm::Value *pointerToLock, llvm::Instruction *lockUser, llvm::LoopInfo &loops) {
+	// return lockUser;
   // the instruction to consider as the "location of the pointer". This is done for things like arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
   if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
@@ -285,36 +286,36 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
 
 
 
-  // auto get_lid = [&](llvm::Value *inst) {
-  //   for (auto &[id, bounds] : locks) {
-  //     if (bounds->lockBefore == inst) return id;
-  //   }
-  //   return UINT_MAX;
-  // };
-  //
-  // auto dump_set = [&](const char *name, std::set<Value *> &s) {
-  //   if (s.empty()) return;
-  //   errs() << "    " << name << ":";
-  //   for (auto v : s) {
-  //     errs() << " " << get_lid(v);
-  //     // errs() << " [" << *v << "]";
-  //   }
-  //   errs() << "\n";
-  // };
-  //
-  // for (auto &BB : func) {
-  //   for (auto &I : BB) {
-  //     errs() << I << "\n";
-  //     dump_set("GEN", df->GEN(&I));
-  //     dump_set("KILL", df->KILL(&I));
-  //     dump_set("IN", df->IN(&I));
-  //     dump_set("OUT", df->OUT(&I));
-  //   }
-  // }
+  auto get_lid = [&](llvm::Value *inst) {
+    for (auto &[id, bounds] : locks) {
+      if (bounds->lockBefore == inst) return id;
+    }
+    return UINT_MAX;
+  };
+
+  auto dump_set = [&](const char *name, std::set<Value *> &s) {
+    if (s.empty()) return;
+    errs() << "    " << name << ":";
+    for (auto v : s) {
+      errs() << " " << get_lid(v);
+      // errs() << " [" << *v << "]";
+    }
+    errs() << "\n";
+  };
+
+  for (auto &BB : func) {
+    for (auto &I : BB) {
+      errs() << I << "\n";
+      dump_set("GEN", df->GEN(&I));
+      dump_set("KILL", df->KILL(&I));
+      dump_set("IN", df->IN(&I));
+      dump_set("OUT", df->OUT(&I));
+    }
+  }
 
 
 
-#if 0
+#if 1
   // using the dataflow result, insert unlock locations into the corresponding lockbounds
   // The way this works is we go over each lockbound, and find the instructions which
   // contain it's lockBefore instruction in the IN set, but not in their OUT set. These
@@ -337,33 +338,35 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
           continue;
         }
 
-        // special case for branches: insert an unlock on the "exit edge" of a branch
-				// if the branch has the value in the OUT, but the branched-to instruction does
-				// not have it in the IN.
-        if (auto *branch = dyn_cast<BranchInst>(&I)) {
-          for (auto succ : branch->successors()) {
-            auto succInst = &succ->front();
-            auto &succIN = df->IN(succInst);
-            // if it's not in the IN of succ, lock on the edge
-            if (succIN.find(lockbounds->lockBefore) == succIN.end()) {
-              lockbounds->unlocks.insert(&I);
-            }
-          }
-        }
+    //     // special case for branches: insert an unlock on the "exit edge" of a branch
+				// // if the branch has the value in the OUT, but the branched-to instruction does
+				// // not have it in the IN.
+    //     if (auto *branch = dyn_cast<BranchInst>(&I)) {
+    //       for (auto succ : branch->successors()) {
+    //         auto succInst = &succ->front();
+    //         auto &succIN = df->IN(succInst);
+    //         // if it's not in the IN of succ, lock on the edge
+    //         if (succIN.find(lockbounds->lockBefore) == succIN.end()) {
+    //           lockbounds->unlocks.insert(&I);
+    //         }
+    //       }
+    //     }
       }
     }
   }
 #endif
 
-  // errs() << func << "\n";
-  // for (auto &[id, lb] : locks) {
-  //   errs() << "lid" << id << "\n";
-  //   if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
-  //
-  //   for (auto *before : lb->unlocks) {
-  //     errs() << " - unlock: " << *before << "\n";
-  //   }
-  // }
+	errs() << func << "\n";
+  for (auto &[id, lb] : locks) {
+    errs() << "lid" << id << "\n";
+    if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
+
+    for (auto *before : lb->unlocks) {
+      errs() << " - unlock: " << *before << "\n";
+
+			ALASKA_SANITY(PDT.dominates(before, lb->lockBefore), "invalid unlock location");
+    }
+  }
 
   delete df;
 
