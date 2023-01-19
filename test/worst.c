@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <alaska.h>
 
 uint64_t timestamp() {
 #if defined(__x86_64__)
@@ -20,7 +21,7 @@ uint64_t timestamp() {
 }
 
 #define TRIALS 10
-#define LENGTH 100
+#define LENGTH 1000
 
 struct node {
   struct node* next;
@@ -85,11 +86,11 @@ uint64_t* run_test(void* (*_malloc)(size_t), void (*_free)(void*)) {
 
 int main(int argc, char** argv) {
   printf("results\n");
-  uint64_t* res = run_test(malloc, free);
   for (int i = 0; i < TRIALS; i++) {
-    printf("%lu\n", res[i]);
+    uint64_t* res = run_test(malloc, free);
+    // printf("%lu\n", res[i]);
+    free(res);
   }
-  free(res);
 
   return 0;
 }
