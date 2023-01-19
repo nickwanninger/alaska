@@ -1,0 +1,30 @@
+name: Sanity Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: configure
+      run: ./configure
+
+    - name: Configure
+      run: make defconfig
+
+    - name: Dependency Pulling
+      run: make deps
+
+    - name: Build
+      run: make
+
+    - name: Sanity Test
+      run: make sanity
