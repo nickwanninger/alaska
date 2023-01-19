@@ -3,6 +3,7 @@
 # Alaska
 A compiler and runtime framework for handle based memory management.
 
+![Sanity Test](https://github.com/nickwanninger/alaska/actions/workflows/sanity.yml/badge.svg)
 
 ## Building
 
