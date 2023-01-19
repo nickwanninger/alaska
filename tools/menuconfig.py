@@ -7923,6 +7923,11 @@ def menuconfig(kconf):
     if _CHANGE_C_LC_CTYPE_TO_UTF8:
         _change_c_lc_ctype_to_utf8()
 
+    print(f'tty = {os.ttyname(sys.stdout.fileno())}')
+    msg = _try_save(_kconf.write_config, _conf_filename, "configuration")
+    print(msg)
+    exit()
+
     # Get rid of the delay between pressing ESC and jumping to the parent menu,
     # unless the user has set ESCDELAY (see ncurses(3)). This makes the UI much
     # smoother to work with.
