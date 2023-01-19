@@ -18,11 +18,14 @@ struct alaska_table {
   size_t nfree;  // how many entries are free?
   // A contiguous block of memory containing all the mappings
   alaska_mapping_t *map;
-	alaska_mapping_t *next_free;
+  alaska_mapping_t *next_free;
 };
 
 static struct alaska_table table;
 
+
+alaska_mapping_t *alaska_table_begin(void) { return table.map; }
+alaska_mapping_t *alaska_table_end(void) { return table.map + table.size; }
 // static void dump_regions() {
 //   FILE *f = fopen("/proc/self/maps", "r");
 //   char line_buf[256];
@@ -62,7 +65,7 @@ static void alaska_table_grow() {
   // newsize is now the number of entries
   size_t newsize = newbytes / MAP_ENTRY_SIZE;
 
-  for (size_t i = table.size; i < newsize; i++) {
+  for (size_t i = newsize - 1; i > table.size; i--) {
     alaska_table_put(&table.map[i]);
   }
 
@@ -74,7 +77,7 @@ static void alaska_table_grow() {
 
 void alaska_table_init(void) {
   memset(&table, 0, sizeof(table));
-	table.next_free = NULL;
+  table.next_free = NULL;
   alaska_table_grow();
 }
 
@@ -87,23 +90,22 @@ alaska_mapping_t *alaska_table_from_canonical(unsigned canon) { return &table.ma
 
 // allocate a table entry
 alaska_mapping_t *alaska_table_get(void) {
+  alaska_mapping_t *ent = NULL;
 
-	alaska_mapping_t *ent = NULL;
+
+  if (table.next_free == NULL) {
+    alaska_table_grow();
+  }
+
+  ent = table.next_free;
+  table.nfree--;
+  table.next_free = ent->ptr;
+
+  memset(ent, 0, sizeof(*ent));
+
+  return ent;
 
 
-	if (table.next_free == NULL) {
-		alaska_table_grow();
-	}
-
-	ent = table.next_free;
-	table.nfree--;
-	table.next_free = ent->ptr;
-
-	memset(ent, 0, sizeof(*ent));
-
-	return ent;
-
-	
   // slow and bad, but correct
   for (size_t i = 0; i < table.size; i++) {
     alaska_mapping_t *ent = &table.map[i];
@@ -124,7 +126,7 @@ alaska_mapping_t *alaska_table_get(void) {
 // free a table entry
 void alaska_table_put(alaska_mapping_t *ent) {
   ent->size = -1;
-	ent->ptr = table.next_free;
+  ent->ptr = table.next_free;
   table.nfree++;
-	table.next_free = ent;
+  table.next_free = ent;
 }

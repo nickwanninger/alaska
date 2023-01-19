@@ -31,3 +31,15 @@ struct alaska_trace_unlock {
 	uint8_t type; // 'U'
 	uint64_t ptr;
 };
+
+
+struct alaska_trace_classify {
+	uint8_t type; // 'C'
+	uint64_t ptr;
+	uint8_t class_id;
+};
+
+
+struct alaska_trace_barrier {
+	uint8_t type; // 'B'
+};

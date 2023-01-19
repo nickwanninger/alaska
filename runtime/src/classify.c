@@ -25,6 +25,7 @@ void alaska_classify_deinit(void) {
 #endif
 
 void alaska_classify(void *ptr, uint8_t c) {
+	if (c == 255) c = 0;
   //
 #ifdef ALASKA_CLASS_TRACKING
   handle_t h;
@@ -36,3 +37,14 @@ void alaska_classify(void *ptr, uint8_t c) {
 #endif
 }
 
+uint8_t alaska_get_classification(void *ptr) {
+#ifdef ALASKA_CLASS_TRACKING
+  handle_t h;
+  h.ptr = ptr;
+  if (likely(h.flag != 0)) {
+    alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
+    return ent->object_class;
+  }
+#endif
+	return 0;
+}

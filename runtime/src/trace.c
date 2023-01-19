@@ -58,7 +58,7 @@ static void close_trace_file(void);
 static FILE *get_trace_file(void) {
   static FILE *stream = NULL;
   if (stream == NULL) {
-		tracing_pid = getpid();
+    tracing_pid = gettid();
     atexit(close_trace_file);
     stream = fopen("alaska.trace", "w");
   }
@@ -70,11 +70,13 @@ static void close_trace_file(void) { fclose(get_trace_file()); }
 static void trace_write(void *data, size_t sz) {
   char c = *(char *)data;
   switch (c) {
-    case 'A':
-    case 'R':
-    case 'F':
-    case 'L':
-    case 'U':
+    case 'A': // alloc
+    case 'R': // realloc
+    case 'F': // free
+    case 'L': // lock
+    case 'U': // unlock
+    case 'C': // classify
+    case 'B': // barrier
       break;
 
     default:
@@ -83,8 +85,8 @@ static void trace_write(void *data, size_t sz) {
       break;
   }
 
-	FILE *stream = get_trace_file();
-	if (getpid() != tracing_pid) return;
+  FILE *stream = get_trace_file();
+  if (gettid() != tracing_pid) return;
   fwrite(data, sz, 1, stream);
 }
 
@@ -117,7 +119,7 @@ void *hcalloc_trace(size_t nmemb, size_t size) {
 
 
 void *hrealloc_trace(void *ptr, size_t new_size) {
-	if (ptr == NULL) return halloc_trace(new_size);
+  if (ptr == NULL) return halloc_trace(new_size);
 
   void *new_ptr = realloc(ptr, new_size);
 
@@ -182,4 +184,23 @@ void alaska_unlock_trace(void *restrict ptr) {
     t.ptr = (uint64_t)ptr;
     TRACE(t);
   }
+}
+
+
+void alaska_classify_trace(void *restrict ptr, uint8_t c) {
+  alloc_t *a = trace_find((uint64_t)ptr);
+  if (a != NULL) {
+    struct alaska_trace_classify t;
+    t.type = 'C';
+    t.ptr = (uint64_t)ptr;
+    t.class_id = c;
+    TRACE(t);
+  }
+}
+
+void alaska_barrier_trace(void) {
+	// just write out that we did a barrier
+  struct alaska_trace_barrier t;
+  t.type = 'B';
+  TRACE(t);
 }

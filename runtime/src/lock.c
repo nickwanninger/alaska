@@ -69,19 +69,20 @@ ALASKA_INLINE void alaska_track_access(alaska_mapping_t *m) {
 }
 
 ALASKA_INLINE void alaska_track_lock(alaska_mapping_t *m) {
-  atomic_inc(m->locks, 1);
-  // m->locks++;
+  // atomic_inc(m->locks, 1);
+  m->locks++;
 }
 
 ALASKA_INLINE void alaska_track_unlock(alaska_mapping_t *m) {
-  atomic_dec(m->locks, 1);
-  // m->locks--;
+	ALASKA_SANITY(m->locks != 0, "lock value is too low!");
+  // atomic_dec(m->locks, 1);
+  m->locks--;
 }
 
 ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
   alaska_mapping_t *m = alaska_get_mapping(ptr);
   if (m == NULL) return ptr;
-  alaska_track_access(m);
+  // alaska_track_access(m);
   alaska_track_lock(m);
   return alaska_translate(ptr, m);
 }

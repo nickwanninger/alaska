@@ -19,7 +19,7 @@ typedef union {
     unsigned handle : 31;  // the translation in the translation table
     unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
   };
-  void* ptr;
+  void *ptr;
 } handle_t;
 
 
@@ -87,6 +87,8 @@ alaska_mapping_t *alaska_table_from_canonical(unsigned canon);
 alaska_mapping_t *alaska_table_get(void);
 // free a handle id
 void alaska_table_put(alaska_mapping_t *ent);
+alaska_mapping_t *alaska_table_begin(void);
+alaska_mapping_t *alaska_table_end(void);
 
 
 #ifdef ALASKA_CLASS_TRACKING

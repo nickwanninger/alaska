@@ -9,6 +9,8 @@
 #include <alaska/rbtree.h>
 
 
+extern void (*alaska_barrier_hook)(void*, void *, size_t);
+
 struct rb_root root = RB_ROOT;
 static uint64_t handle_count = 0;
 
@@ -45,7 +47,6 @@ static alloc_t *trace_find(uint64_t va) {
   return NULL;
 }
 
-
 static inline int __insert_callback(struct rb_node *n, void *arg) {
   alloc_t *allocation = arg;
   alloc_t *other = rb_entry(n, alloc_t, node);
@@ -61,8 +62,20 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
   return RB_INSERT_GO_HERE;
 }
 
+void *translate(void *p) {
+  handle_t h;
+  h.ptr = p;
+  if (likely(h.flag != 0)) {
+    alaska_mapping_t *ent = (alaska_mapping_t *)(uint64_t)h.handle;
+    return (void *)((uint64_t)ent->ptr + h.offset);
+  }
+  return p;
+}
 
-
+void log_action(void *ptr, size_t size, const char *c) {
+  static uint64_t access_index = 0;
+  fprintf(stderr, "%zu,%zu,%zu,%s\n", access_index++, (uint64_t)ptr, size, c);
+}
 
 void trace_alloc(struct alaska_trace_alloc *op) {
   alloc_t *a = calloc(1, sizeof(*a));
@@ -71,7 +84,7 @@ void trace_alloc(struct alaska_trace_alloc *op) {
 
   a->handle = halloc(a->size);
   handle_count++;
-  // printf("A %p\n", a->handle);
+  log_action(translate(a->handle), a->size, "alloc");
 
   rb_insert(&root, &a->node, __insert_callback, (void *)a);
 }
@@ -84,10 +97,12 @@ void trace_realloc(struct alaska_trace_realloc *op) {
   rb_erase(&a->node, &root);
 
   // update it's size and location
+  log_action(translate(a->handle), a->size, "free");
   a->ptr = op->new_ptr;
   a->size = op->new_size;
   a->handle = hrealloc(a->handle, a->size);
-  // printf("R %p\n", a->handle);
+  log_action(translate(a->handle), a->size, "alloc");
+
 
   // and add it again
   rb_insert(&root, &a->node, __insert_callback, (void *)a);
@@ -96,7 +111,8 @@ void trace_realloc(struct alaska_trace_realloc *op) {
 void trace_free(struct alaska_trace_free *op) {
   alloc_t *a = trace_find(op->ptr);
   if (a == NULL) return;
-  // printf("F %p\n", a->handle);
+
+  log_action(translate(a->handle), a->size, "free");
 
   // remove the value from the tree
   rb_erase(&a->node, &root);
@@ -105,12 +121,24 @@ void trace_free(struct alaska_trace_free *op) {
   free(a);
 }
 
-static uint64_t access_index = 0;
 void trace_lock(struct alaska_trace_lock *op) {
   alloc_t *a = trace_find(op->ptr);
   if (a == NULL) return;
-	fprintf(stderr, "%zu,%zu\n", access_index++, (uint64_t)op->ptr);
-  alaska_lock(a->handle);
+  void *ptr = alaska_lock(a->handle);
+  (void)ptr;
+  //   uint8_t cls = alaska_get_classification(a->handle);
+  //   const char *cls_string = "lock_UNDEFINED";
+  //
+  //   switch (cls) {
+  // #define __CLASS(name, id)       \
+//   case id:                      \
+//     cls_string = "lock_" #name; \
+//     break;
+  // #include "../include/classes.inc"
+  // #undef __CLASS
+  //   }
+  // ptr = (void*)((uint64_t)a->handle >> 32);
+  log_action(ptr, a->size, "lock");
 }
 
 void trace_unlock(struct alaska_trace_unlock *op) {
@@ -119,11 +147,28 @@ void trace_unlock(struct alaska_trace_unlock *op) {
   alaska_unlock(a->handle);
 }
 
+
+void trace_classify(struct alaska_trace_classify *op) {
+  alloc_t *a = trace_find(op->ptr);
+  if (a == NULL) return;
+  // apply classification
+  alaska_classify(a->handle, op->class_id);
+}
+
+
+void trace_defrag_hook(void *oldptr, void *newptr, size_t size) {
+  log_action(oldptr, size, "free");
+  log_action(newptr, size, "alloc");
+}
+
+void trace_barrier(struct alaska_trace_barrier *op) { alaska_barrier(); }
+
 int main(int argc, char **argv) {
   const char *path = "alaska.trace";
-	if (argc == 2) {
-		path = argv[1];
-	}
+
+  if (argc == 2) {
+    path = argv[1];
+  }
   int ret;
   size_t len_file;
   struct stat st;
@@ -149,17 +194,18 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+	alaska_barrier_hook = trace_defrag_hook;
 
   char *cur = addr;
   char *end = cur + len_file;
 
   long iter = 0;
   while (cur < end) {
-    float progress = 1.0f - (float)(end - cur) / (float)len_file;
-    if (iter++ > 10000000) {
-      printf("%6.2f%% %zu\n", progress * 100.0f, handle_count);
-      iter = 0;
-    }
+    if (iter++ % 100000 == 0) {  // every so often, run a barrier
+    	// alaska_barrier();
+		}
+
+    // if (iter > 1000000) break;
     uint8_t action = *cur;
 
     switch (action) {
@@ -183,20 +229,29 @@ int main(int argc, char **argv) {
         trace_unlock((void *)cur);
         cur += sizeof(struct alaska_trace_unlock);
         break;
+      case 'C':  // classify
+        trace_classify((void *)cur);
+        cur += sizeof(struct alaska_trace_classify);
+        break;
+      case 'B':  // barrier
+        trace_barrier((void *)cur);
+        cur += sizeof(struct alaska_trace_barrier);
+        break;
       default:
-        fprintf(stderr, "unhandled op %02x %zd\n", action, (ssize_t)(cur - (char*)addr));
+        exit(EXIT_FAILURE);
+        fprintf(stderr, "unhandled op %02x %zd\n", action, (ssize_t)(cur - (char *)addr));
         for (int i = -16; i < 16; i++) {
-					if (i == 0) fprintf(stderr, "\033[31m");
+          if (i == 0) fprintf(stderr, "\033[31m");
           fprintf(stderr, "%02x ", (uint8_t)cur[i]);
-					if (i == 0) fprintf(stderr, "\033[0m");
+          if (i == 0) fprintf(stderr, "\033[0m");
         }
         fprintf(stderr, "  ");
 
         for (int i = -16; i < 16; i++) {
           char c = cur[i];
-					if (i == 0) fprintf(stderr, "\033[31m");
+          if (i == 0) fprintf(stderr, "\033[31m");
           fprintf(stderr, "%c", (c < 0x20) || (c > 0x7e) ? '.' : c);
-					if (i == 0) fprintf(stderr, "\033[0m");
+          if (i == 0) fprintf(stderr, "\033[0m");
         }
         fprintf(stderr, "\n");
         // cur++;
