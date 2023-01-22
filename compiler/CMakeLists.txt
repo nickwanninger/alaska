@@ -20,46 +20,45 @@ add_library(AlaskaCompilerLibrary OBJECT
 )
 
 
-add_llvm_library(AlaskaCombined MODULE
-	passes/Combined.cpp
-	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-
-	PLUGIN_TOOL
-	opt
-)
-
 add_llvm_library(Alaska MODULE
-	passes/TranslatePass.cpp
+	passes/Alaska.cpp
 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
 
 	PLUGIN_TOOL
 	opt
 )
-
-add_llvm_library(AlaskaNormalize MODULE
-	passes/NormalizePass.cpp
-	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-
-	PLUGIN_TOOL
-	opt
-)
-
-
-add_llvm_library(AlaskaReplacement MODULE
-	passes/ReplacementPass.cpp
-	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-
-	PLUGIN_TOOL
-	opt
-)
-
-add_llvm_library(AlaskaEscapeHandler MODULE
-	passes/EscapeHandlerPass.cpp
-	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-
-	PLUGIN_TOOL
-	opt
-)
+# add_llvm_library(Alaska MODULE
+# 	passes/TranslatePass.cpp
+# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+#
+# 	PLUGIN_TOOL
+# 	opt
+# )
+#
+# add_llvm_library(AlaskaNormalize MODULE
+# 	passes/NormalizePass.cpp
+# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+#
+# 	PLUGIN_TOOL
+# 	opt
+# )
+#
+#
+# add_llvm_library(AlaskaReplacement MODULE
+# 	passes/ReplacementPass.cpp
+# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+#
+# 	PLUGIN_TOOL
+# 	opt
+# )
+#
+# add_llvm_library(AlaskaEscapeHandler MODULE
+# 	passes/EscapeHandlerPass.cpp
+# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+#
+# 	PLUGIN_TOOL
+# 	opt
+# )
 
 
 add_subdirectory(bin)

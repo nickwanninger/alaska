@@ -33,6 +33,7 @@
 #include "noelle/core/MetadataManager.hpp"
 
 #include <optional>
+#include <WrappedFunctions.h>
 
 
 class ProgressPass : public PassInfoMixin<ProgressPass> {
@@ -45,6 +46,56 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
   }
 };
 
+
+
+class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
+ public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+#ifndef ALASKA_ESCAPE_PASS
+    return false;
+#endif
+    std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hrealloc_trace", "hcalloc", "hfree",
+        "hfree_trace", "alaska_lock", "alaska_lock_trace", "alaska_unlock", "alaska_unlock_trace", "alaska_classify",
+        "alaska_classify_trace"};
+
+    for (auto r : alaska::wrapped_functions) {
+      functions_to_ignore.insert(r);
+    }
+
+    std::vector<llvm::CallInst *> escapes;
+    for (auto &F : M) {
+      // if the function is defined (has a body) skip it
+      if (!F.empty()) continue;
+      if (functions_to_ignore.find(std::string(F.getName())) != functions_to_ignore.end()) continue;
+      if (F.getName().startswith("llvm.lifetime")) continue;
+      if (F.getName().startswith("llvm.dbg")) continue;
+
+      for (auto user : F.users()) {
+        if (auto call = dyn_cast<CallInst>(user)) {
+          if (call->getCalledFunction() == &F) {
+            escapes.push_back(call);
+          }
+        }
+      }
+    }
+
+    for (auto *call : escapes) {
+      int i = 0;
+      for (auto &arg : call->args()) {
+        if (arg->getType()->isPointerTy()) {
+          auto translated = alaska::insertLockBefore(call, arg);
+          // auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call,
+          // call->getDebugLoc());
+          call->setArgOperand(i, translated);
+          // TODO: UNLOCK
+        }
+        i++;
+      }
+    }
+
+    return PreservedAnalyses::none();
+  }
+};
 
 class AlaskaReplacementPass : public PassInfoMixin<AlaskaReplacementPass> {
  public:
@@ -189,9 +240,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaReplacementPass());
+              MPM.addPass(AlaskaEscapePass());
 
               // on optimized builds, hoist with the lock forest
               MPM.addPass(AlaskaTranslatePass(false));
+
+
 
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibrary());

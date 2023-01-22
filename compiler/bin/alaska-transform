@@ -29,8 +29,8 @@ $OPT --mem2reg --lowerinvoke # $LOOPS --mem2reg -lcssa -gvn --instnamer -sink -s
 # $OPT ${AA} -loop-rotate -loop-simplify -indvars -lcssa -llicm
 
 clang -O3 \
-	-Xclang -fpass-plugin=${PFX}/lib/AlaskaCombined.so \
-	-fplugin=${PFX}/lib/AlaskaCombined.so \
+	-Xclang -fpass-plugin=${PFX}/lib/Alaska.so \
+	-fplugin=${PFX}/lib/Alaska.so \
 	-c -emit-llvm $INPUT -o $INPUT
 
 # $OPT                                                \
