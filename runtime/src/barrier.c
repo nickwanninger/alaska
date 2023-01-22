@@ -5,10 +5,10 @@ extern uint64_t alaska_next_usage_timestamp;
 
 extern void* alaska_defrag(alaska_mapping_t* ent);
 
-extern void trace_defrag_hook(void *oldptr, void *newptr, size_t size);
+extern void trace_defrag_hook(void* oldptr, void* newptr, size_t size);
 
 
-void (*alaska_barrier_hook)(void*, void *, size_t) = NULL;
+void (*alaska_barrier_hook)(void*, void*, size_t) = NULL;
 
 
 // This just means that the application has decided it is willing to let alaska
@@ -36,13 +36,14 @@ __declspec(noinline) void alaska_barrier(void) {
     void* ptr = cur->ptr;
     void* newptr = alaska_defrag(cur);
     if (newptr != ptr) {
-			if (alaska_barrier_hook) alaska_barrier_hook(ptr, newptr, cur->size);
+      if (alaska_barrier_hook) alaska_barrier_hook(ptr, newptr, cur->size);
       hit++;
     } else {
       miss++;
     }
   }
   float rss_after = alaska_get_rss_kb() / 1024.0;
-  printf("[barrier] hit: %-7zu miss: %-7zu locked: %-7zu(%6.2f%% hitrate)  save: %.3f MB (%6.2f%% from %.3f MB)\n", hit, miss, locked,
-      (float)hit / (float)total * 100, rss_before - rss_after, (1 - (rss_after / rss_before)) * 100.0, rss_before);
+  printf("[barrier] hit: %-7zu miss: %-7zu locked: %-7zu(%6.2f%% hitrate)  save: %.3f MB (%6.2f%% from %.3f MB)\n", hit,
+      miss, locked, (float)hit / (float)total * 100, rss_before - rss_after, (1 - (rss_after / rss_before)) * 100.0,
+      rss_before);
 }

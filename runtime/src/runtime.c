@@ -93,6 +93,6 @@ long alaska_get_rss_kb() {
 
   return static_cast<int>(info.resident_size);
 #else
-	return 0;
+  return 0;
 #endif
 }
