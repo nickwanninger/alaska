@@ -78,10 +78,6 @@ class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
 namespace {
   struct AlaskaPass : public ModulePass {
     static char ID;
-    llvm::Type *int64Type;
-    llvm::Type *voidPtrType;
-    llvm::Type *voidPtrTypePinned;
-    llvm::Value *translateFunction;
     AlaskaPass() : ModulePass(ID) {}
 
 
@@ -130,8 +126,9 @@ namespace {
         }
       }
 
-      for (auto *I : insts)
+      for (auto *I : insts) {
         v.visit(I);
+      }
 
 
       for (auto &F : M)
