@@ -249,57 +249,30 @@ class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
   void prepareLibrary(Module &M) {
     auto linkage = GlobalValue::WeakAnyLinkage;
 
-    for (auto &G : M.globals()) {
+    for (auto &G : M.globals())
       if (!G.isDeclaration()) G.setLinkage(linkage);
-    }
 
-    for (auto &A : M.aliases()) {
+    for (auto &A : M.aliases())
       if (!A.isDeclaration()) A.setLinkage(linkage);
-    }
 
     for (auto &F : M) {
       if (!F.isDeclaration()) F.setLinkage(linkage);
       F.setLinkage(linkage);
     }
-
-    // auto lockFunc = M.getFunction("alaska_lock");
-    // auto unlockFunc = M.getFunction("alaska_unlock");
-    // ALASKA_SANITY(lockFunc != NULL, "unable to find alaska_lock in the library");
-    // ALASKA_SANITY(unlockFunc != NULL, "unable to find alaska_unlock in the library");
-    // errs() << *lockFunc << "\n";
-    // errs() << *unlockFunc << "\n";
   }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // link the alaska.bc file
-
     auto buf = llvm::MemoryBuffer::getFile(ALASKA_INSTALL_PREFIX "/lib/alaska_inline_lock.bc");
     auto other = llvm::parseBitcodeFile(*buf.get(), M.getContext());
-
     auto other_module = std::move(other.get());
+
     prepareLibrary(*other_module);
-
-    // In alaska, we only care about inlining alaska_lock and alaska_unlock.
-    // here, we remove all the globals (unconditinally) and the functions which
-    // are not called by alaska_{un,}lock or the functions called
-
-
-    // for (auto &G : other_module->globals()) {
-    //   if (auto *variable = dyn_cast<GlobalVariable>(&G)) {
-    //     errs() << "global: " << *variable << "\n";
-    //     // variable->setInitializer(nullptr);
-    //     // variable->setLinkage(GlobalVariable::ExternalLinkage);
-    //   }
-    // }
-    //
-    // for (auto &F : *other_module) {
-    //   errs() << "function: " << F.getName() << "\n";
-    // }
-
     llvm::Linker::linkModules(M, std::move(other_module));
-
     return PreservedAnalyses::none();
   }
 };
+
+
 
 class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
  public:
@@ -313,9 +286,6 @@ class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
     ModuleAnalysisManager MAM;
 
     // Create the new pass manager builder.
-    // Take a look at the PassBuilder constructor parameters for more
-    // customization, e.g. specifying a TargetMachine or various debugging
-    // options.
     PassBuilder PB;
 
     // Register all the basic analyses with the managers.
@@ -350,8 +320,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(AlaskaEscapePass());
 
               // on optimized builds, hoist with the lock forest
-              MPM.addPass(AlaskaTranslatePass(false));
+              MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
+              MPM.addPass(AlaskaReoptimize(optLevel));
 
 
               // Link the library (just runtime/src/lock.c)
@@ -364,7 +335,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimize(optLevel));
-
 
               return true;
             });
