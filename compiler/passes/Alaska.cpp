@@ -49,7 +49,7 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
 
 
 
-class NormalizePass : public PassInfoMixin<NormalizePass> {
+class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
  public:
   // Compute parent and type for instructions before inserting them into the trace.
   class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
@@ -216,7 +216,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   bool hoist = false;
   AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    hoist = false;
+    hoist = true;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) return PreservedAnalyses::all();
     mdm.addMetadata("alaska", "did run");
@@ -244,7 +244,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   }
 };
 
-class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
+class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
  public:
   void prepareLibrary(Module &M) {
     auto linkage = GlobalValue::WeakAnyLinkage;
@@ -274,10 +274,10 @@ class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
 
 
 
-class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
+class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
  public:
   OptimizationLevel optLevel;
-  AlaskaReoptimize(OptimizationLevel optLevel) : optLevel(optLevel) {}
+  AlaskaReoptimizePass(OptimizationLevel optLevel) : optLevel(optLevel) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // Create the analysis managers.
     LoopAnalysisManager LAM;
@@ -315,26 +315,23 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               MPM.addPass(adapt(llvm::LowerInvokePass()));
-              MPM.addPass(NormalizePass());
+              MPM.addPass(AlaskaNormalizePass());
               MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
 
               // on optimized builds, hoist with the lock forest
               MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
-              MPM.addPass(AlaskaReoptimize(optLevel));
-
-
               // Link the library (just runtime/src/lock.c)
-              MPM.addPass(AlaskaLinkLibrary());
+              MPM.addPass(AlaskaLinkLibraryPass());
 
               // attempt to inline the library stuff
-              MPM.addPass(adapt(llvm::DCEPass()));
-              MPM.addPass(llvm::GlobalDCEPass());
-              MPM.addPass(llvm::AlwaysInlinerPass());
+              // MPM.addPass(adapt(llvm::DCEPass()));
+              // MPM.addPass(llvm::GlobalDCEPass());
+              // MPM.addPass(llvm::AlwaysInlinerPass());
 
               // For good measures, re-optimize
-              MPM.addPass(AlaskaReoptimize(optLevel));
+              MPM.addPass(AlaskaReoptimizePass(optLevel));
 
               return true;
             });
