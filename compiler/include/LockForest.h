@@ -20,7 +20,7 @@ namespace alaska {
     // The value that is being locked
     llvm::Value *pointer;
     // The result of the lock once it has been inserted
-    llvm::Value *locked;
+    llvm::Instruction *locked;
     // The location to lock at
     llvm::Instruction *lockBefore;
     // The locations to unlock
@@ -71,11 +71,11 @@ namespace alaska {
 		// get a lockbounds by id
 		LockBounds &get_lockbounds(unsigned id);
 
+    llvm::Function &func;
    private:
 		// allocate a new lockbounds
 		LockBounds &get_lockbounds(void);
     unsigned next_lock_id = 0;
-    llvm::Function &func;
   };
 
 };  // namespace alaska

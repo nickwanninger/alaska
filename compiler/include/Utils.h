@@ -22,7 +22,7 @@ namespace alaska {
   void dumpBacktrace(void);
 
 
-	void runReplacementPass(llvm::Module &M);
+  void runReplacementPass(llvm::Module &M);
 
   inline void println() {
 #ifdef ALASKA_DEBUG
@@ -31,14 +31,22 @@ namespace alaska {
 #endif
   }
 
-
-
-
   template <class T, class... Ts>
-  inline void println(T const &first, Ts const &... rest) {
+  inline void println(T const &first, Ts const &...rest) {
 #ifdef ALASKA_DEBUG
     llvm::errs() << first;
     alaska::println(rest...);
+#endif
+  }
+
+  inline void print() {
+    // base case
+  }
+  template <class T, class... Ts>
+  inline void print(T const &first, Ts const &...rest) {
+#ifdef ALASKA_DEBUG
+    llvm::errs() << first;
+    alaska::print(rest...);
 #endif
   }
 }  // namespace alaska

@@ -3,6 +3,7 @@
 #include <Utils.h>
 #include <deque>
 #include <unordered_set>
+#include <sstream>
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include <noelle/core/DataFlow.hpp>
@@ -79,7 +80,7 @@ static llvm::Loop *get_outermost_loop_for_lock(
 
 static llvm::Instruction *compute_lock_insertion_location(
     llvm::Value *pointerToLock, llvm::Instruction *lockUser, llvm::LoopInfo &loops) {
-	// return lockUser;
+  // return lockUser;
   // the instruction to consider as the "location of the pointer". This is done for things like arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
   if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
@@ -109,6 +110,31 @@ static llvm::Instruction *compute_lock_insertion_location(
   }
 
   return lockUser;
+}
+
+
+static std::string escape(Instruction &I) {
+  std::string raw;
+  llvm::raw_string_ostream raw_writer(raw);
+  I.print(raw_writer);
+
+  std::string out;
+
+  for (auto c : raw) {
+    switch (c) {
+      case '<':
+        out += "&lt;";
+        break;
+      case '>':
+        out += "&gt;";
+        break;
+      default:
+        out += c;
+        break;
+    }
+  }
+
+  return out;
 }
 
 
@@ -201,7 +227,6 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
   }
 
 
-
   ///////////////////////////////////////////////////////////////////////////
   //                      Compute unlock locations                         //
   ///////////////////////////////////////////////////////////////////////////
@@ -227,6 +252,7 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
   }
 
 
+#if 0
   // given an instruction, return the instruction that represents the lockbound value that it uses
   auto get_used = [&](Instruction *user) -> llvm::Value * {
     auto f = inst2bounds.find(user);
@@ -236,13 +262,11 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     }
     return f->second->lockBefore;
   };
-
   auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
     if (auto *used = get_used(s)) {
       df->GEN(s).insert(used);
     }
   };
-
   auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
     // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
     // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
@@ -253,14 +277,14 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
       }
     }
   };
-
-
   auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
+    // return;
     // IN[s] = GEN[s] U (OUT[s] - KILL[s])
 
     auto &gen = df->GEN(s);
     auto &out = df->OUT(s);
     auto &kill = df->KILL(s);
+    IN.clear();
 
     // everything in GEN...
     IN.insert(gen.begin(), gen.end());
@@ -275,42 +299,89 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     }
   };
 
-  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
+  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *succ, noelle::DataFlowResult *df) {
+    // return;
     // OUT[s] = IN[p] where p is every successor of s
-    auto &INp = df->IN(p);
+    auto &INp = df->IN(succ);
     OUT.insert(INp.begin(), INp.end());
   };
-
-  auto *df = noelle::DataFlowEngine().applyBackward(&func, computeGEN, computeKILL, computeIN, computeOUT);
-
+#endif
 
 
+  std::map<Instruction *, std::set<unsigned>> GEN;
+  std::map<Instruction *, std::set<unsigned>> KILL;
+  std::map<Instruction *, std::set<unsigned>> IN;
+  std::map<Instruction *, std::set<unsigned>> OUT;
 
-  auto get_lid = [&](llvm::Value *inst) {
-    for (auto &[id, bounds] : locks) {
-      if (bounds->lockBefore == inst) return id;
-    }
-    return UINT_MAX;
-  };
+  std::set<Instruction *> todo;
 
-  auto dump_set = [&](const char *name, std::set<Value *> &s) {
-    if (s.empty()) return;
-    errs() << "    " << name << ":";
-    for (auto v : s) {
-      errs() << " " << get_lid(v);
-      // errs() << " [" << *v << "]";
-    }
-    errs() << "\n";
-  };
+  // here, we do something horrible. we insert lock instructions just so we can do analysis. Later we will delete them
+  for (auto &[lid, lock] : locks) {
+    lock->locked = insertLockBefore(lock->lockBefore, lock->pointer);
+    KILL[lock->locked].insert(lid);
+  }
 
+  // initialize gen sets
   for (auto &BB : func) {
     for (auto &I : BB) {
-      errs() << I << "\n";
-      dump_set("GEN", df->GEN(&I));
-      dump_set("KILL", df->KILL(&I));
-      dump_set("IN", df->IN(&I));
-      dump_set("OUT", df->OUT(&I));
+      todo.insert(&I);
+      auto f = inst2bounds.find(&I);
+      if (f != inst2bounds.end()) {
+        auto &lb = f->second;
+        GEN[&I].insert(lb->id);
+      }
     }
+  }
+
+
+  while (!todo.empty()) {
+    // Grab some instruction from worklist...
+    auto i = *todo.begin();
+    // ...remove it from the worklist
+    todo.erase(i);
+
+    auto old_out = OUT[i];
+    auto old_in = IN[i];
+    // IN = GEN U (OUT - KILL);
+    IN[i] = GEN[i];
+    for (auto &v : OUT[i])
+      if (KILL[i].find(v) == KILL[i].end()) IN[i].insert(v);
+
+    OUT[i].clear();
+
+    // successor updating
+    // errs() << "succ of " << *i << "\n";
+    if (auto *next_node = i->getNextNode()) {
+      // errs() << "  - " << *next_node << "\n";
+      for (auto &v : IN[next_node])
+        OUT[i].insert(v);
+    } else {
+      // end of a basic block, get all successor basic blocks
+      for (auto *bb : successors(i)) {
+        // errs() << "  - " << bb->front() << "\n";
+        for (auto &v : IN[&bb->front()])
+          OUT[i].insert(v);
+      }
+    }
+
+    if (old_out != OUT[i] || old_in != IN[i]) {
+      todo.insert(i);
+      // add all preds to the workqueue
+      if (auto *prev_node = i->getPrevNode()) {
+        todo.insert(prev_node);
+      } else {
+        // start of a basic block, get all predecessor basic blocks
+        for (auto *bb : predecessors(i->getParent())) {
+          todo.insert(bb->getTerminator());
+        }
+      }
+    }
+  }
+
+
+  for (auto &[lid, lock] : locks) {
+    lock->locked->eraseFromParent();
+    lock->locked = NULL;
   }
 
 
@@ -324,54 +395,177 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
   for (auto &[id, lockbounds] : locks) {
     for (auto &BB : func) {
       for (auto &I : BB) {
-        auto &IN = df->IN(&I);
-        auto &OUT = df->OUT(&I);
+        auto &iIN = IN[&I];
+        auto &iOUT = OUT[&I];
 
         // if the value is not in the IN, skip
-        if (IN.find(lockbounds->lockBefore) == IN.end()) {
+        if (iIN.find(lockbounds->id) == iIN.end()) {
           continue;
         }
 
+        // in the IN
+
         // if the value is not in the OUT, lock after this instruction
-        if (OUT.find(lockbounds->lockBefore) == OUT.end()) {
+        if (iOUT.find(lockbounds->id) == iOUT.end()) {
           lockbounds->unlocks.insert(I.getNextNode());
           continue;
         }
 
-    //     // special case for branches: insert an unlock on the "exit edge" of a branch
-				// // if the branch has the value in the OUT, but the branched-to instruction does
-				// // not have it in the IN.
-    //     if (auto *branch = dyn_cast<BranchInst>(&I)) {
-    //       for (auto succ : branch->successors()) {
-    //         auto succInst = &succ->front();
-    //         auto &succIN = df->IN(succInst);
-    //         // if it's not in the IN of succ, lock on the edge
-    //         if (succIN.find(lockbounds->lockBefore) == succIN.end()) {
-    //           lockbounds->unlocks.insert(&I);
-    //         }
-    //       }
-    //     }
+        // in the IN, also in the OUT
+
+        // special case for branches: insert an unlock on the "exit edge" of a branch
+        // if the branch has the value in the OUT, but the branched-to instruction does
+        // not have it in the IN.
+        if (auto *branch = dyn_cast<BranchInst>(&I)) {
+          for (auto succ : branch->successors()) {
+            auto succInst = &succ->front();
+            auto &succIN = IN[succInst];
+            // if it's not in the IN of succ, lock on the edge
+            if (succIN.find(lockbounds->id) == succIN.end()) {
+							// HACK: split the edge and insert on the branch
+							BasicBlock *from = I.getParent();
+							BasicBlock *to = succ;
+							auto trampoline = llvm::SplitEdge(from, to);
+
+              lockbounds->unlocks.insert(trampoline->getTerminator());
+            }
+          }
+        }
       }
     }
   }
 #endif
 
-	errs() << func << "\n";
-  for (auto &[id, lb] : locks) {
-    errs() << "lid" << id << "\n";
-    if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
 
-    for (auto *before : lb->unlocks) {
-      errs() << " - unlock: " << *before << "\n";
-
-			ALASKA_SANITY(PDT.dominates(before, lb->lockBefore), "invalid unlock location");
+  // if (func.getName() == "sum")  // only print for certain functions
+  {
+    std::unordered_set<Node *> nodes;
+    for (auto &root : this->roots) {
+      extract_nodes(root.get(), nodes);
     }
+    std::map<Value *, Node *> inst2node;
+    for (auto &node : nodes) {
+      inst2node[node->val] = node;
+    }
+    alaska::println("------------------- { Analysis for lock forest: ", func.getName(), " } -------------------");
+    alaska::println("digraph {");
+    alaska::println("  label=\"lock forest for ", func.getName(), "\";");
+    alaska::println("  compound=true;");
+    alaska::println("  graph[nodesep=1];");
+    alaska::println("  node[fontsize=9,shape=none,style=filled,fillcolor=white];");
+
+
+    auto end_row = "</td></tr>";
+
+    for (auto &BB : func) {
+      alaska::print("  n", &BB, " [label=<<table border=\"1\" cellspacing=\"0\" padding=\"0\">");
+
+      // generate the label
+      //
+      alaska::print("<tr><td align=\"left\" port=\"header\" border=\"0\">basic block: ");
+      BB.printAsOperand(errs(), false);
+      alaska::print(end_row);
+      for (auto &I : BB) {
+        // before printing the instruction, insert any lock/unlock calls before this instruction
+        for (auto &[lid, lock] : this->locks) {
+          // if (lock->pointer == &I) {
+          //   // alaska::print("\\l|");
+          //   alaska::print(" src", lid);
+          // }
+          if (lock->lockBefore == &I) {
+            alaska::print("<tr><td align=\"left\" border=\"0\" bgcolor=\"green\">");
+            alaska::print("lock lid", lid, " (");
+            lock->pointer->printAsOperand(errs(), false);
+            alaska::print(")", end_row);
+          }
+
+          for (auto &unlock : lock->unlocks) {
+            if (unlock == &I) {
+              alaska::print("<tr><td align=\"left\" border=\"0\" bgcolor=\"orange\">");
+              alaska::print("unlock lid", lid, " (");
+              lock->pointer->printAsOperand(errs(), false);
+              alaska::print(")", end_row);
+            }
+          }
+        }
+        alaska::print("<tr><td align=\"left\"  port=\"n", &I, "\" border=\"0\">", escape(I), "</td>");
+
+        alaska::print("<td align=\"left\" border=\"0\">");
+
+
+
+        auto dump_set = [&](const char *name, std::set<unsigned> &s) {
+          if (s.empty()) return;
+          errs() << "" << name << ":";
+          for (auto v : s) {
+            errs() << " " << v;
+          }
+          errs() << "  ";
+        };
+
+
+        dump_set("GEN", GEN[&I]);
+        dump_set("KILL", KILL[&I]);
+        dump_set("IN", IN[&I]);
+        dump_set("OUT", OUT[&I]);
+
+        alaska::print("</td>");
+        alaska::print("</tr>");
+
+        // auto *node = inst2node[&I];
+        // alaska::print("\\l|");
+        // if (node) {
+        //   if (node->lock_id != UINT_MAX) {
+        //     alaska::print(" use", node->lock_id);
+        //   }
+        // }
+        //
+        // // go through lock locations
+        // for (auto &[lid, lock] : this->locks) {
+        //   if (lock->pointer == &I) {
+        //     // alaska::print("\\l|");
+        //     alaska::print(" src", lid);
+        //   }
+        // }
+      }
+
+
+      alaska::print("</table>>");  // end label
+      alaska::print("];\n");
+    }
+
+
+    for (auto &BB : func) {
+      auto *term = BB.getTerminator();
+      for (unsigned i = 0; i < term->getNumSuccessors(); i++) {
+        auto *other = term->getSuccessor(i);
+        alaska::println("  n", &BB, ":n", term, " -> n", other);
+      }
+
+
+      // for (auto &I : BB) {
+      //   auto *node = inst2node[&I];
+      //   if (node) {
+      //     if (node->lock_id != UINT_MAX) {
+      //       auto &lock = locks[node->lock_id];
+      //       auto *lock_bb = lock->lockBefore->getParent();
+      //
+      //       alaska::println("  n", &BB, ":n", &I, " -> n", lock_bb, ":lock", node->lock_id, " [color=orange]");
+      //     }
+      //   }
+      // }
+    }
+
+
+    alaska::println("}\n\n\n");
   }
 
-  delete df;
+
+  // delete df;
+
 
 #ifdef ALASKA_DUMP_FLOW_FOREST
-  dump_dot();
+  if (false) dump_dot();
 #endif
 }
 
