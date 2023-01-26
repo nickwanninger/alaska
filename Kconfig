@@ -1,37 +1,62 @@
-config USE_NINJA
-	bool "Use the Ninja build system instead of Make"
-	default n
+menu "Build"
+	config USE_NINJA
+		bool "Use the Ninja build system instead of Make"
+		default n
+endmenu
 
-config DEBUG
-	bool "Enable debug Logging"
-	default n
 
-config DUMP_FLOW_GRAPH
-	bool "Dump flow graphs after they are constructed"
-	depends on DEBUG
-	default n
+menu "Debug"
+	config DEBUG
+		bool "Enable debug Logging"
+		default n
 
-config DUMP_FLOW_FOREST
-	bool "Dump flow forests after they are constructed"
-	depends on DEBUG
-	default n
+	config DUMP_FLOW_GRAPH
+		bool "Dump flow graphs after they are constructed"
+		depends on DEBUG
+		default n
 
-config CONSERVATIVE
-	bool "Conservatively pin all loads and stores"
-	default y
+	config DUMP_FLOW_FOREST
+		bool "Dump flow forests after they are constructed"
+		depends on DEBUG
+		default n
+endmenu
+
+choice
+	prompt "Runtime Personality"
+	default PERSONALITY_ANCHORAGE
+
+	config PERSONALITY_ANCHORAGE
+		bool "Anchorage allocator and defragmentation"
+
+	# config PERSONALITY_CLASSIFY
+	# 	bool "Object type classification"
+
+	config PERSONALITY_NONE
+		bool "No personality (use system malloc, no defrag)"
+
+endchoice
+
+
+menu "Anchorage Configuration"
+
+	depends on PERSONALITY_ANCHORAGE
+
+	config CLASS_TRACKING
+		bool "Track allocation classes and record access counts in a histogram"
+		default n
+
+	config CLASS_TRACKING_ALWAYS_DUMP
+		bool "Always dump class tracking information"
+		depends on CLASS_TRACKING
+		default n
+
+endmenu
+
 
 config ESCAPE_PASS
 	bool "Lock before argument escapes"
 	default y
 
-config CLASS_TRACKING
-	bool "Track allocation classes and record access counts in a histogram"
-	default n
-
-config CLASS_TRACKING_ALWAYS_DUMP
-	bool "Always dump class tracking information"
-	depends on CLASS_TRACKING
-	default n
 
 config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"

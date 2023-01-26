@@ -77,7 +77,6 @@ set(SRC_FILES
 	src/barrier.c
 	src/classify.c
 	src/rbtree.c
-
 	src/trace.c
 
 	# Replacing c++ new/delete in a more reasonable way
@@ -88,6 +87,13 @@ set(SRC_FILES
 	# src/malloc.c   
 	
 )
+
+if (ALASKA_PERSONALITY_ANCHORAGE)
+set(SRC_FILES ${SRC_FILES} src/personality/anchorage.c)
+endif()
+if (ALASKA_PERSONALITY_NONE)
+set(SRC_FILES ${SRC_FILES} src/personality/none.c)
+endif()
 
 if(ALASKA_CORRECTNESS_EMULATOR)
 	# The correctness fallback (emulate using TCG)
