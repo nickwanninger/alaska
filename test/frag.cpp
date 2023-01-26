@@ -106,7 +106,7 @@ void NOINLINE basic_fragment(int64_t n, size_t m_total) {
 int main(int argc, char *argv[]) {
   print_rss();
 
-  basic_fragment(512, 1 * MB);
+  basic_fragment(512, 128 * MB);
 
   print_rss();
 
