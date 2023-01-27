@@ -68,11 +68,10 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
         if (inst->getCalledFunction() == unlockFunction) {
           for (auto &lk : locks) {
             if (lk->getPointer() == inst->getOperand(0)) {
-              alaska::println("associate unlock:");
-              alaska::println(*lk->lock);
-              alaska::println(*inst);
-              alaska::println();
-
+              // alaska::println("associate unlock:");
+              // alaska::println(*lk->lock);
+              // alaska::println(*inst);
+              // alaska::println();
               lk->unlocks.insert(inst);
             }
           }
@@ -161,16 +160,18 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
 
       for (auto &[lock, lcolor] : colors) {
         if (lock->lock == &I) {
-          color = lcolor;
+          // color = lcolor;
+          color = "green";
         }
 
         if (lock->isUser(&I)) {
-          color = lcolor;
+          // color = lcolor;
         }
 
         for (auto &unlock : lock->unlocks) {
           if (unlock == &I) {
-            color = lcolor;
+            color = "orange";
+            // color = lcolor;
           }
         }
       }

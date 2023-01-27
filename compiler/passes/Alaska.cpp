@@ -48,11 +48,23 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
 class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
  public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    std::set<std::string> focus_on;
+    std::string focus = ALASKA_DUMP_LOCKS_FOCUS;
+
+    size_t pos = 0, found;
+    while ((found = focus.find(",", pos)) != std::string::npos) {
+      focus_on.insert(focus.substr(pos, found - pos));
+      pos = found + 1;
+    }
+    focus_on.insert(focus.substr(pos));
+
     for (auto &F : M) {
-      alaska::println(F);
-      auto l = alaska::extractLocks(F);
-      if (l.size() > 0) {
-        alaska::printLockDot(F, l);
+      if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
+        alaska::println(F);
+        auto l = alaska::extractLocks(F);
+        if (l.size() > 0) {
+          alaska::printLockDot(F, l);
+        }
       }
     }
     return PreservedAnalyses::all();

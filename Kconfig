@@ -10,13 +10,16 @@ menu "Debug"
 		bool "Enable debug Logging"
 		default n
 
-	config DUMP_FLOW_GRAPH
-		bool "Dump flow graphs after they are constructed"
-		depends on DEBUG
+	config DUMP_LOCKS
+		bool "Dump locks after they are created"
 		default n
 
-	config DUMP_FLOW_FOREST
-		bool "Dump flow forests after they are constructed"
+	config DUMP_LOCKS_FOCUS
+		string "Comma separated list of functions to focus on when dumping locks"
+		default ""
+
+	config DUMP_FLOW_GRAPH
+		bool "Dump flow graphs after they are constructed"
 		depends on DEBUG
 		default n
 endmenu
