@@ -14,9 +14,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
-static bool is_tracing(void) {
-	return getenv("ALASKA_COMPILER_TRACE") != NULL;
-}
+static bool is_tracing(void) { return getenv("ALASKA_COMPILER_TRACE") != NULL; }
 
 #define BT_BUF_SIZE 100
 void alaska::dumpBacktrace(void) {
@@ -57,8 +55,8 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-	std::string name = "alaska_lock";
-	if (is_tracing()) name += "_trace";
+  std::string name = "alaska_lock";
+  if (is_tracing()) name += "_trace";
   auto lockFunction = M.getOrInsertFunction(name, lockFunctionType).getCallee();
 
   IRBuilder<> b(inst);
@@ -81,8 +79,8 @@ void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto ptrType = PointerType::get(ctx, 0);
   auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
 
-	std::string name = "alaska_unlock";
-	if (is_tracing()) name += "_trace";
+  std::string name = "alaska_unlock";
+  if (is_tracing()) name += "_trace";
   auto func = M.getOrInsertFunction(name, ftype).getCallee();
 
   IRBuilder<> b(inst);
@@ -90,8 +88,6 @@ void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto unlock = b.CreateCall(ftype, func, {pointer});
   unlock->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
 }
-
-
 
 
 
@@ -112,7 +108,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = load->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       load->setOperand(0, t);
-			insertUnlockBefore(inst->getNextNode(), ptr);
+      insertUnlockBefore(inst->getNextNode(), ptr);
       continue;
     }
 
@@ -120,7 +116,7 @@ void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
       auto ptr = store->getPointerOperand();
       auto t = insertLockBefore(inst, ptr);
       store->setOperand(1, t);
-			insertUnlockBefore(inst->getNextNode(), ptr);
+      insertUnlockBefore(inst->getNextNode(), ptr);
       continue;
     }
   }
@@ -142,23 +138,23 @@ static void replace_function(Module &M, std::string original_name, std::string n
   // delete oldFunction;
 }
 void alaska::runReplacementPass(llvm::Module &M) {
-	bool tracing = getenv("ALASKA_COMPILER_TRACE") != NULL;
+  bool tracing = getenv("ALASKA_COMPILER_TRACE") != NULL;
 
   // replace
-	if (tracing) {
-		replace_function(M, "malloc", "halloc_trace");
-		replace_function(M, "calloc", "hcalloc_trace");
-		replace_function(M, "realloc", "hrealloc_trace");
-		replace_function(M, "free", "hfree_trace");
-		replace_function(M, "alaska_classify", "alaska_classify_trace");
-		replace_function(M, "alaska_barrier", "alaska_barrier_trace");
-	} else {
-		replace_function(M, "malloc", "halloc");
-		replace_function(M, "calloc", "hcalloc");
-		replace_function(M, "realloc", "hrealloc");
-		replace_function(M, "free", "hfree");
-		replace_function(M, "malloc_usable_size", "alaska_usable_size");
-	}
+  if (tracing) {
+    replace_function(M, "malloc", "halloc_trace");
+    replace_function(M, "calloc", "hcalloc_trace");
+    replace_function(M, "realloc", "hrealloc_trace");
+    replace_function(M, "free", "hfree_trace");
+    replace_function(M, "alaska_classify", "alaska_classify_trace");
+    replace_function(M, "alaska_barrier", "alaska_barrier_trace");
+  } else {
+    replace_function(M, "malloc", "halloc");
+    replace_function(M, "calloc", "hcalloc");
+    replace_function(M, "realloc", "hrealloc");
+    replace_function(M, "free", "hfree");
+    replace_function(M, "malloc_usable_size", "alaska_usable_size");
+  }
 
   // replace_function(M, "_Znwm", "halloc");
   // replace_function(M, "_Znwj", "halloc");

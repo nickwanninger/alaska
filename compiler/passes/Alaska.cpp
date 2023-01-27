@@ -1,8 +1,7 @@
 // Alaska includes
-#include <LockForest.h>
 #include <Graph.h>
 #include <Utils.h>
-#include <LockForestTransformation.h>
+#include <Locks.h>
 
 // C++ includes
 #include <cassert>
@@ -42,6 +41,20 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
   ProgressPass(const char *message) : message(message) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     printf("message: %s\n", message);
+    return PreservedAnalyses::all();
+  }
+};
+
+class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
+ public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      alaska::println(F);
+      auto l = alaska::extractLocks(F);
+      if (l.size() > 0) {
+        alaska::printLockDot(F, l);
+      }
+    }
     return PreservedAnalyses::all();
   }
 };
@@ -190,10 +203,8 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
       for (auto &arg : call->args()) {
         if (arg->getType()->isPointerTy()) {
           auto translated = alaska::insertLockBefore(call, arg);
-          // auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call,
-          // call->getDebugLoc());
+          alaska::insertUnlockBefore(call->getNextNode(), arg);
           call->setArgOperand(i, translated);
-          // TODO: UNLOCK
         }
         i++;
       }
@@ -230,15 +241,12 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         continue;
       }
       if (hoist) {
-        // errs() << "hoisting in " << F.getName() << "\n";
-        alaska::LockForestTransformation fftx(F);
-        fftx.apply();
+        alaska::insertHoistedLocks(F);
       } else {
-        // errs() << "not hoisting in " << F.getName() << "\n";
-        alaska::PointerFlowGraph graph(F);
-        alaska::insertConservativeTranslations(graph);
+        alaska::insertConservativeLocks(F);
       }
     }
+
 
     return PreservedAnalyses::none();
   }
@@ -322,13 +330,16 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               // on optimized builds, hoist with the lock forest
               MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
+              MPM.addPass(AlaskaReoptimizePass(optLevel));
+              MPM.addPass(LockPrinterPass());
+
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibraryPass());
 
               // attempt to inline the library stuff
-              // MPM.addPass(adapt(llvm::DCEPass()));
-              // MPM.addPass(llvm::GlobalDCEPass());
-              // MPM.addPass(llvm::AlwaysInlinerPass());
+              MPM.addPass(adapt(llvm::DCEPass()));
+              MPM.addPass(llvm::GlobalDCEPass());
+              MPM.addPass(llvm::AlwaysInlinerPass());
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimizePass(optLevel));

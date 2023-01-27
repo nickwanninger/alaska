@@ -7,12 +7,6 @@ namespace alaska {
 
   llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
   void insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
-  enum InsertionType { Lock, Unlock };
-
-  // Split the basic block before the instruction and insert a guarded
-  // call to lock or unlock, based on if the `handle` is a handle or not
-  llvm::Instruction *insertGuardedRTCall(
-      InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc dbg);
 
 
   // Insert get/puts for a graph conservatively (every load and store)
