@@ -74,6 +74,13 @@ bench/gap/%: alaska
 
 bench: alaska $(NAS_BENCHMARKS) # $(GAP_BENCHMARKS)
 
+
+
+
+
+spec: alaska
+	@bash tools/build_spec.sh $(SPECTAR)
+
 clean:
 	rm -rf build .*.o*
 
@@ -81,7 +88,7 @@ clean:
 defconfig:
 	@rm -f .config
 	@echo "Using default configuration"
-	@echo "q" | env TERM=xterm-256color python3 tools/menuconfig.py >/dev/null
+	@echo "q" | env TERM=xterm-256color p:thon3 tools/menuconfig.py >/dev/null
 
 cfg: menuconfig
 menuconfig:
@@ -153,5 +160,6 @@ local/sysroot/lib/lib%.o: alaska build/lib%.bc
 	@cp build/lib$*.o local/lib/
 	@cp musl/lib/lib$*.a local/lib/
 libc: local/sysroot/lib/libc.o
+
 
 

@@ -1753,6 +1753,7 @@ class Kconfig(object):
             elif sym.orig_type is STRING:
                 add('set({}{} "{}")\n'
                     .format(self.config_prefix, sym.name, escape(val)))
+                add("add_compile_definitions({}{}=\"{}\")\n".format(self.config_prefix, sym.name, escape(val)))
 
             else:  # sym.orig_type in _INT_HEX:
                 if sym.orig_type is HEX and \

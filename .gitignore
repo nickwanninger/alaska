@@ -22,4 +22,4 @@ tools/.ipynb_checkpoints
 
 /musl
 
-libc
+/test/SPEC2017/SPEC2017
