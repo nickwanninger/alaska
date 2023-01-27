@@ -49,8 +49,12 @@ ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
   }
   alaska_mapping_t *m = (alaska_mapping_t *)(uint64_t)h.handle;
 
+	if (m->locks <= 0) {
+		printf("%d\n", m->locks);
+	}
+
 	// Perform the unlock
-  ALASKA_SANITY(m->locks != 0, "lock value is too low!");
+  ALASKA_SANITY(m->locks > 0, "lock value is too low!");
   // atomic_dec(m->locks, 1);
   m->locks--;
 
