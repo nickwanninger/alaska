@@ -19,29 +19,21 @@ namespace alaska {
   void runReplacementPass(llvm::Module &M);
 
   inline void println() {
-#ifdef ALASKA_DEBUG
     // base case
     llvm::errs() << "\n";
-#endif
   }
 
   template <class T, class... Ts>
   inline void println(T const &first, Ts const &...rest) {
-#ifdef ALASKA_DEBUG
     llvm::errs() << first;
     alaska::println(rest...);
-#endif
   }
 
-  inline void print() {
-    // base case
-  }
+  inline void print() { /* Base case. */ }
   template <class T, class... Ts>
   inline void print(T const &first, Ts const &...rest) {
-#ifdef ALASKA_DEBUG
     llvm::errs() << first;
     alaska::print(rest...);
-#endif
   }
 }  // namespace alaska
 

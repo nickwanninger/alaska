@@ -6,9 +6,6 @@ endmenu
 
 
 menu "Debug"
-	config DEBUG
-		bool "Enable debug Logging"
-		default n
 
 	config DUMP_LOCKS
 		bool "Dump locks after they are created"
@@ -16,11 +13,11 @@ menu "Debug"
 
 	config DUMP_LOCKS_FOCUS
 		string "Comma separated list of functions to focus on when dumping locks"
+		depends on DUMP_LOCKS
 		default ""
 
 	config DUMP_FLOW_GRAPH
 		bool "Dump flow graphs after they are constructed"
-		depends on DEBUG
 		default n
 endmenu
 
