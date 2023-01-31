@@ -49,7 +49,11 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
  public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     std::set<std::string> focus_on;
-    std::string focus = ALASKA_DUMP_LOCKS_FOCUS;
+    std::string focus;
+
+#ifdef ALASKA_DUMP_LOCKS_FOCUS
+		focus = ALASKA_DUMP_LOCKS_FOCUS;
+#endif
 
     size_t pos = 0, found;
     while ((found = focus.find(",", pos)) != std::string::npos) {
