@@ -1,6 +1,5 @@
 #!/usr/bin/bash
 
-set -x
 set -e
 
 PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
