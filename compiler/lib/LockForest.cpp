@@ -314,7 +314,17 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
     // successor updating
     // errs() << "succ of " << *i << "\n";
-    if (auto *next_node = i->getNextNode()) {
+    if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
+      if (auto normal_bb = invoke_inst->getNormalDest()) {
+        for (auto &v : IN[&normal_bb->front()])
+          OUT[i].insert(v);
+      }
+
+      if (auto unwind_bb = invoke_inst->getUnwindDest()) {
+        for (auto &v : IN[&unwind_bb->front()])
+          OUT[i].insert(v);
+      }
+    } else if (auto *next_node = i->getNextNode()) {
       // errs() << "  - " << *next_node << "\n";
       for (auto &v : IN[next_node])
         OUT[i].insert(v);
