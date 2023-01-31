@@ -32,7 +32,9 @@ void ldflags(void) {
   printf("-lpthread\n");
   // printf("-lalaska_support\n");
   printf("-lalaska_core\n");
+#ifdef ALASKA_CORRECTNESS_EMULATOR
   printf("-lunicorn\n");
+#endif
 }
 
 

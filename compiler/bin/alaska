@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 
+set -x
 set -e
 
 PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
@@ -83,7 +84,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -O3 -gdwarf-4 ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags`
+	$CLANG -pg -O3 -gdwarf-4 ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags`
 	rm ${TMPFILE}
 fi
 

@@ -12,7 +12,11 @@ include_directories(
 	emu/include/
 )
 
+
+
+if(ALASKA_CORRECTNESS_EMULATOR)
 add_subdirectory(emu)
+endif()
 
 # HACK: this just makes it work
 set(CMAKE_C_COMPILER_ID "Clang")
@@ -100,7 +104,12 @@ endif()
 add_library(alaska_core SHARED ${SRC_FILES})
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska_core unicorn pthread)
+target_link_libraries(alaska_core pthread)
+
+
+if(ALASKA_CORRECTNESS_EMULATOR)
+target_link_libraries(alaska_core unicorn)
+endif()
 
 
 
@@ -113,7 +122,7 @@ SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 add_executable(alaska-sim bin/sim.c)
-target_link_libraries(alaska-sim alaska_core unicorn) # alaska_support
+target_link_libraries(alaska-sim alaska_core) # alaska_support
 set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
