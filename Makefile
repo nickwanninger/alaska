@@ -88,7 +88,7 @@ clean:
 defconfig:
 	@rm -f .config
 	@echo "Using default configuration"
-	@echo "q" | env TERM=xterm-256color p:thon3 tools/menuconfig.py >/dev/null
+	@echo "q" | env TERM=xterm-256color python3 tools/menuconfig.py >/dev/null
 
 cfg: menuconfig
 menuconfig:
