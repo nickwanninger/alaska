@@ -158,50 +158,12 @@ static llvm::Instruction *compute_lock_insertion_location(
 
 
 
-
-static std::string escape(Instruction &I) {
-  std::string raw;
-  llvm::raw_string_ostream raw_writer(raw);
-  I.print(raw_writer);
-
-  std::string out;
-
-  for (auto c : raw) {
-    switch (c) {
-      case '<':
-        out += "&lt;";
-        break;
-      case '>':
-        out += "&gt;";
-        break;
-      default:
-        out += c;
-        break;
-    }
-  }
-
-  return out;
-}
-
-
-
 alaska::LockForest::LockForest(llvm::Function &F) : func(F) {}
 
 
-void alaska::LockForest::apply(alaska::LockForest::Node &node) {
-  auto *inst = dyn_cast<llvm::Instruction>(node.val);
-  // apply transformation
-  TranslationVisitor vis(node);
-  vis.visit(inst);
 
-  // go over children and apply their transformation
-  for (auto &child : node.children) {
-    // go down to the children
-    apply(*child);
-  }
-}
 
-void alaska::LockForest::apply(void) {
+std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
   alaska::PointerFlowGraph G(func);
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
@@ -427,6 +389,22 @@ void alaska::LockForest::apply(void) {
     }
   }
 
+  std::vector<std::unique_ptr<alaska::Lock>> out;
+
+  // convert the LockBounds structure to a Lock
+  for (auto &[lid, lock] : locks) {
+    auto l = std::make_unique<alaska::Lock>();
+    l->lock = dyn_cast<CallInst>(lock->locked);
+    for (auto *position : lock->unlocks) {
+      if (auto phi = dyn_cast<PHINode>(position)) {
+        position = phi->getParent()->getFirstNonPHI();
+      }
+      alaska::insertUnlockBefore(position, lock->pointer);
+      l->unlocks.insert(dyn_cast<CallInst>(position->getPrevNode()));
+    }
+    // out.push_back(std::move(l));
+  }
+
 
   for (auto &root : this->roots) {
     for (auto &child : root->children) {
@@ -441,19 +419,38 @@ void alaska::LockForest::apply(void) {
         child->incoming_lock = bounds.locked;
       }
     }
+
     for (auto &child : root->children) {
       apply(*child);
     }
   }
 
+  return out;
+
+
+
   // finally, insert unlocks
-  for (auto &[id, bounds] : this->locks) {
-    for (auto *position : bounds->unlocks) {
-      if (auto phi = dyn_cast<PHINode>(position)) {
-        position = phi->getParent()->getFirstNonPHI();
-      }
-      alaska::insertUnlockBefore(position, bounds->pointer);
-    }
+  // for (auto &[id, bounds] : this->locks) {
+  //   for (auto *position : bounds->unlocks) {
+  //     if (auto phi = dyn_cast<PHINode>(position)) {
+  //       position = phi->getParent()->getFirstNonPHI();
+  //     }
+  //     alaska::insertUnlockBefore(position, bounds->pointer);
+  //   }
+  // }
+}
+
+
+void alaska::LockForest::apply(alaska::LockForest::Node &node) {
+  auto *inst = dyn_cast<llvm::Instruction>(node.val);
+  // apply transformation
+  TranslationVisitor vis(node);
+  vis.visit(inst);
+
+  // go over children and apply their transformation
+  for (auto &child : node.children) {
+    // go down to the children
+    apply(*child);
   }
 }
 

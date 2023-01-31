@@ -60,10 +60,16 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
 
     for (auto &F : M) {
       if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
-        alaska::println(F);
+        errs() << F << "\n";
         auto l = alaska::extractLocks(F);
         if (l.size() > 0) {
           alaska::printLockDot(F, l);
+
+          // errs() << F << "\n";
+          // for (auto &lk : l) {
+          // 	lk->remove();
+          // }
+          // errs() << F << "\n";
         }
       }
     }
@@ -252,6 +258,8 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         F.setSection("");
         continue;
       }
+
+      alaska::println("running translate on ", F.getName());
       if (hoist) {
         alaska::insertHoistedLocks(F);
       } else {
@@ -339,11 +347,15 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
 
-              // on optimized builds, hoist with the lock forest
+              // Insert lock calls
               MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
-              MPM.addPass(AlaskaReoptimizePass(optLevel));
+      // TODO: perform the
+
+#ifdef ALASKA_DUMP_LOCKS
               MPM.addPass(LockPrinterPass());
+#endif
+
 
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibraryPass());

@@ -4,17 +4,109 @@
 #include "Graph.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include <noelle/core/DataFlow.hpp>
 
 llvm::Value *alaska::Lock::getHandle(void) {
-  // the handle is the return value of the lock call
-  return lock;
-}
-
-llvm::Value *alaska::Lock::getPointer(void) {
   // the pointer for this lock is simply the first argument of the lock call
   return lock->getOperand(0);
 }
 
+llvm::Value *alaska::Lock::getPointer(void) {
+  // the handle is the return value of the lock call
+  return lock;
+}
+
+
+llvm::Function *alaska::Lock::getFunction(void) {
+  if (lock == NULL) return NULL;
+  return lock->getFunction();
+}
+
+
+
+// static void apply_lock_r(alaska::Lock &lock, llvm::Value *incoming, llvm::Instruction *inst);
+
+struct LockApplicationVisitor : public llvm::InstVisitor<LockApplicationVisitor> {
+  alaska::Lock &lock;
+  llvm::Value *incoming = NULL;
+
+  LockApplicationVisitor(alaska::Lock &lock, llvm::Value *incoming) : lock(lock), incoming(incoming) {}
+
+  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+    // create a new GEP right after this one.
+    IRBuilder<> b(I.getNextNode());
+
+    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
+    auto new_incoming =
+        dyn_cast<Instruction>(b.CreateGEP(I.getSourceElementType(), incoming, inds, "", I.isInBounds()));
+
+    LockApplicationVisitor vis(lock, new_incoming);
+    for (auto user : I.users()) {
+      vis.visit(dyn_cast<Instruction>(user));
+    }
+  }
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    lock.users.insert(&I);
+    I.setOperand(0, incoming);
+  }
+  void visitStoreInst(llvm::StoreInst &I) {
+    lock.users.insert(&I);
+    I.setOperand(1, incoming);
+  }
+
+  void visitInstruction(llvm::Instruction &I) { alaska::println("dunno how to handle this: ", I); }
+};
+
+
+// static void apply_lock_r(alaska::Lock &lock, llvm::Value *incoming, llvm::Instruction *inst) {
+//   if (lock.users.find(inst) != lock.users.end()) {
+//     return;
+//   }
+//   lock.users.insert(inst);
+//   LockApplicationVisitor vis(lock, incoming);
+//   for (auto user : inst->users()) {
+//     vis.visit(dyn_cast<Instruction>(user));
+//   }
+// }
+
+void alaska::Lock::apply() {
+  // don't apply the lock if it was already applied (has users)
+  if (users.size() != 0) {
+    return;
+  }
+}
+
+
+
+void alaska::Lock::computeLiveness(void) {
+  if (auto *func = getFunction()) {
+    std::vector<alaska::Lock *> lps = {this};
+    alaska::computeLockLiveness(*func, lps);
+  }
+}
+
+
+void alaska::Lock::remove(void) {
+  auto *handle = getHandle();
+  auto *pointer = getPointer();
+
+  pointer->replaceAllUsesWith(handle);
+
+
+
+  // erase lock and unlock calls from the parent
+  for (auto u : unlocks) {
+    u->eraseFromParent();
+  }
+  lock->eraseFromParent();
+
+
+  this->lock = nullptr;
+  this->unlocks.clear();
+  this->users.clear();
+  this->liveInstructions.clear();
+}
 
 
 bool alaska::Lock::isUser(llvm::Instruction *inst) { return users.find(inst) != users.end(); }
@@ -60,19 +152,16 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
     }
   }
 
-
   // associate unlocks
-  for (auto user : unlockFunction->users()) {
-    if (auto inst = dyn_cast<CallInst>(user)) {
-      if (inst->getFunction() == &F) {
-        if (inst->getCalledFunction() == unlockFunction) {
-          for (auto &lk : locks) {
-            if (lk->getPointer() == inst->getOperand(0)) {
-              // alaska::println("associate unlock:");
-              // alaska::println(*lk->lock);
-              // alaska::println(*inst);
-              // alaska::println();
-              lk->unlocks.insert(inst);
+  if (unlockFunction != NULL) {
+    for (auto user : unlockFunction->users()) {
+      if (auto inst = dyn_cast<CallInst>(user)) {
+        if (inst->getFunction() == &F) {
+          if (inst->getCalledFunction() == unlockFunction) {
+            for (auto &lk : locks) {
+              if (lk->getHandle() == inst->getOperand(0)) {
+                lk->unlocks.insert(inst);
+              }
             }
           }
         }
@@ -84,8 +173,101 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
     extract_users(lk->lock, lk->users);
   }
 
+  computeLockLiveness(F, locks);
 
   return locks;
+}
+
+
+void alaska::computeLockLiveness(llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks) {
+  std::vector<alaska::Lock *> lps;
+
+  for (auto &l : locks)
+    lps.push_back(l.get());
+  return computeLockLiveness(F, lps);
+}
+
+void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> &locks) {
+  // mapping from instructions to the lock they use.
+  std::map<llvm::Instruction *, std::set<alaska::Lock *>> inst_to_lock;
+  // map from the call to alaska_lock to the lock structure it belongs to.
+  std::map<llvm::Instruction *, alaska::Lock *> lock_inst_to_lock;
+  for (auto &lock : locks) {
+    // clear the existing liveness info
+    lock->liveInstructions.clear();
+    lock_inst_to_lock[lock->lock] = lock;
+
+    for (auto &user : lock->users) {
+      inst_to_lock[user].insert(lock);
+    }
+  }
+
+
+  // given an instruction, return the instruction that represents the lockbound value that it uses
+  auto get_used = [&](Instruction *user) -> std::set<alaska::Lock *> {
+    if (inst_to_lock.find(user) != inst_to_lock.end()) {
+      return inst_to_lock[user];  // SLOW: double lookups
+    }
+    return {};
+  };
+
+  auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
+    for (auto *lock : get_used(s)) {
+      df->GEN(s).insert(lock->lock);
+    }
+  };
+
+  auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
+    // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
+    // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
+    // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
+    for (auto *lock : get_used(s)) {
+      auto used = lock->lock;
+      if (used == s) {
+        df->KILL(s).insert(used);
+      }
+    }
+  };
+
+
+  auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
+    // IN[s] = GEN[s] U (OUT[s] - KILL[s])
+
+    auto &gen = df->GEN(s);
+    auto &out = df->OUT(s);
+    auto &kill = df->KILL(s);
+
+    // everything in GEN...
+    IN.insert(gen.begin(), gen.end());
+
+    // ...and everything in OUT that isn't in KILL
+    for (auto o : out) {
+      // if o is not found in KILL...
+      if (kill.find(o) == kill.end()) {
+        // ...add to IN
+        IN.insert(o);
+      }
+    }
+  };
+
+  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
+    // OUT[s] = IN[p] where p is every successor of s
+    auto &INp = df->IN(p);
+    OUT.insert(INp.begin(), INp.end());
+  };
+
+  auto *df = noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
+
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      for (auto l : df->IN(&I)) {
+        auto inst = dyn_cast<Instruction>(l);
+        lock_inst_to_lock[inst]->liveInstructions.insert(&I);
+      }
+    }
+  }
+
+  delete df;
 }
 
 
@@ -194,7 +376,11 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
 
 void alaska::insertHoistedLocks(llvm::Function &F) {
   alaska::LockForest forest(F);
-  forest.apply();
+  auto locks = forest.apply();
+
+  // for (auto &l : locks) {
+  //   l->apply();
+  // }
 }
 
 

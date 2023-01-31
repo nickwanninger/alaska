@@ -52,6 +52,14 @@ menu "Anchorage Configuration"
 
 endmenu
 
+config SIM_MODE
+	bool "Run Alaska in a 'simulator' mode"
+	default n
+	help
+		Running Alaska in simulator mode means the system never exposes handles to the end
+		user, and instead emulates their accesses at runtime by tracking malloc and free
+		calls in an internal red-black tree. The benefit of using this is it simplifies
+		porting benchmarks (mostly for the classification effort)
 
 config ESCAPE_PASS
 	bool "Lock before argument escapes"

@@ -23,41 +23,55 @@
  */
 
 
-ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
+ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
+#ifdef ALASKA_SIM_MODE
+  extern alaska_mapping_t *sim_lookup(void *restrict ptr);
+  return sim_lookup(ptr);
+#else
   handle_t h;
   h.ptr = ptr;
   if (unlikely(h.flag == 0)) {
-    return ptr;
+    return NULL;
   }
   alaska_mapping_t *m = (alaska_mapping_t *)(uint64_t)h.handle;
+  return m;
+#endif
+}
 
-	// Perform the lock
+ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
+#ifdef ALASKA_SIM_MODE
+  extern void *sim_translate(void *restrict ptr);
+  return sim_translate(ptr);
+#else
+  handle_t h;
+  h.ptr = ptr;
+  return (void *)((uint64_t)m->ptr + h.offset);
+#endif
+}
+
+ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
+  alaska_mapping_t *m = alaska_lookup(ptr);
+  if (m == NULL) return ptr;
+
+  // Perform the lock
   // atomic_inc(m->locks, 1);
   m->locks++;
-	
-  // call personality *after* we lock
-  ALASKA_PERSONALITY_ON_LOCK(m);
 
-  return (void *)((uint64_t)m->ptr + h.offset);
+  // call personality *after* we lock
+  // ALASKA_PERSONALITY_ON_LOCK(m);
+
+  return alaska_translate(ptr, m);
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
-  handle_t h;
-  h.ptr = ptr;
-  if (unlikely(h.flag == 0)) {
-		return;
-  }
-  alaska_mapping_t *m = (alaska_mapping_t *)(uint64_t)h.handle;
+  alaska_mapping_t *m = alaska_lookup(ptr);
+  if (m == NULL) return;
 
-	if (m->locks <= 0) {
-		printf("%d\n", m->locks);
-	}
-
-	// Perform the unlock
+  // Perform the unlock
   ALASKA_SANITY(m->locks > 0, "lock value is too low!");
   // atomic_dec(m->locks, 1);
   m->locks--;
 
   // call personality *after* we unlock
-  ALASKA_PERSONALITY_ON_UNLOCK(m);
+  // ALASKA_PERSONALITY_ON_UNLOCK(m);
 }

@@ -52,8 +52,8 @@ void *alaska_defrag(alaska_mapping_t *ent) {
    * make sure not to use the thread cache. so that we don't get back the same
    * pointers we try to free */
   newptr = je_mallocx(size, MALLOCX_TCACHE_NONE);
-	// printf("%zd\n", (char *)newptr - (char *)ptr);
-	// if we didn't move it down in the address space, give up
+  // printf("%zd\n", (char *)newptr - (char *)ptr);
+  // if we didn't move it down in the address space, give up
   if ((char *)newptr > (char *)ptr) {
     je_dallocx(newptr, MALLOCX_TCACHE_NONE);
     return ptr;
@@ -67,7 +67,6 @@ void *alaska_defrag(alaska_mapping_t *ent) {
 void *halloc(size_t sz) {
   assert(sz < (1LLU << 32));
   alaska_mapping_t *ent = alaska_table_get();
-  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << 32);
 
   if (ent == NULL) {
     fprintf(stderr, "alaska: out of space!\n");
@@ -82,7 +81,15 @@ void *halloc(size_t sz) {
   halloc_calls++;
   update_memory_used(sz);
 
+#ifdef ALASKA_SIM_MODE
+  // record, then return the pointer itself
+  extern void sim_on_alloc(alaska_mapping_t *);
+  sim_on_alloc(ent);
+  return ent->ptr;
+#else
+  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << 32);
   return (void *)handle;
+#endif
 }
 
 void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
@@ -90,46 +97,61 @@ void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
   if (handle == NULL) return halloc(new_size);
-  uint64_t h = (uint64_t)handle;
 
-  if (unlikely((h & HANDLE_MARKER) == 0)) {
+  alaska_mapping_t *m = alaska_lookup(handle);
+  if (m == NULL) {
     return realloc(handle, new_size);
   }
 
-  alaska_mapping_t *ent = GET_ENTRY(handle);
-  long old_size = ent->size;
-  ent->ptr = je_realloc(ent->ptr, new_size);
-  // ent->ptr = bump_realloc(ent->ptr, new_size);
-  ent->size = new_size;
+  long old_size = m->size;
+  void *new_ptr = je_realloc(m->ptr, new_size);
+
+#ifdef ALASKA_SIM_MODE
+  // record, then return the pointer itself
+  extern void sim_on_realloc(alaska_mapping_t *, void *newptr, size_t newsz);
+  sim_on_realloc(m, new_ptr, new_size);
+#endif
+
+  m->ptr = new_ptr;
+  m->size = new_size;
 
   // do some tracking
   hrealloc_calls++;
   update_memory_used(-old_size + new_size);
-
+#ifdef ALASKA_SIM_MODE
+  // record, then return the pointer itself
+  return m->ptr;
+#else
   // realloc in alaska will always return the same pointer...
   // Ahh the benefits of using handles!
   // hopefully, nobody is relying on the output of realloc changing :^)
   return handle;
+#endif
 }
 
 void hfree(void *ptr) {
   if (ptr == NULL) return;
 
-  uint64_t h = (uint64_t)ptr;
-  if (unlikely((h & HANDLE_MARKER) == 0)) {
-    return free(ptr);
+  alaska_mapping_t *m = alaska_lookup(ptr);
+  if (m == NULL) {
+    return;
   }
 
+#ifdef ALASKA_SIM_MODE
+	extern void sim_on_free(alaska_mapping_t *);
+	sim_on_free(m);
+#endif
+
   hfree_calls++;
-  alaska_mapping_t *ent = GET_ENTRY(ptr);
-  long size = ent->size;
+
+  long size = m->size;
   update_memory_used(-size);
 
-  je_free(ent->ptr);
+  je_free(m->ptr);
   // bump_free(ent->ptr);
-  
-	// return the mapping to the table
-  alaska_table_put(ent);
+
+  // return the mapping to the table
+  alaska_table_put(m);
 }
 
 /* Use 'MADV_DONTNEED' to release memory to operating system quickly.

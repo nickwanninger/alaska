@@ -16,9 +16,8 @@ int *test() {
   } else {
 		if (rand()) {
 			*c -= 10;
-		} else {
-			*a /= 10;
 		}
+		*c += 40;
   }
 	if (rand()) return a;
 	if (rand()) return b;

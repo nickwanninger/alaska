@@ -88,6 +88,11 @@ set(SRC_FILES
 	
 )
 
+
+if (ALASKA_SIM_MODE)
+set(SRC_FILES ${SRC_FILES} src/sim.c)
+endif()
+
 if (ALASKA_PERSONALITY_ANCHORAGE)
 set(SRC_FILES ${SRC_FILES} src/personality/anchorage.c)
 endif()

@@ -3,6 +3,7 @@
 #include <Graph.h>
 #include <memory>
 #include <vector>
+#include <Locks.h>
 
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Value.h"
@@ -60,8 +61,11 @@ namespace alaska {
 
     LockForest(llvm::Function &F);
 
-    void apply(void);
-    void apply(Node &n);
+    // void apply(void);
+
+		// Insert locks and unlocks, and return the vector of locks that were inserted
+		void apply(Node &n);
+		std::vector<std::unique_ptr<alaska::Lock>> apply(void);
 
     std::vector<std::unique_ptr<Node>> roots;
     void dump_dot(void);

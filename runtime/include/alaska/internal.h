@@ -95,6 +95,7 @@ typedef struct {
 void *alaska_lock(void *restrict ptr);
 void alaska_unlock(void *restrict ptr);
 
+alaska_mapping_t *alaska_lookup(void *restrict ptr);
 
 // src/halloc.c
 void alaska_halloc_init(void);
