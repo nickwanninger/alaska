@@ -25,12 +25,13 @@ void includedir(void) { printf("%s/include\n", local); }
 void ldflags(void) {
 	printf("-T %s/share/alaska/ldscripts/alaska-%s.ld\n", local, arch);
   printf("-L%s/lib\n", local);
-  printf("%s/lib/libalaska_core.a\n", local);
+	//printf("%s/lib/libalaska_core.a\n", local);
   printf("-Wl,-rpath=%s/lib\n", local);
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
   printf("-lpthread\n");
-  printf("-lalaska_support\n");
+  // printf("-lalaska_support\n");
+  printf("-lalaska_core\n");
   printf("-lunicorn\n");
 }
 

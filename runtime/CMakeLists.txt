@@ -25,7 +25,30 @@ set(CMAKE_CXX_COMPILER_ID "Clang")
 # insensitive parts of alaska. Primarially, it contains the memory allocator
 # (je_malloc), as compiling it into bitcode does not benefit anyone - it just
 # takes more time
+# set(SRC_FILES
+# )
+# add_library(alaska_support SHARED ${SRC_FILES})
+# target_link_libraries(alaska_support pthread) # requires pthread
+
+
 set(SRC_FILES
+	# The core runtime implementation
+	src/runtime.c
+	src/table.c
+	src/lock.c
+	src/halloc.c
+	src/barrier.c
+	# src/classify.c
+	src/rbtree.c
+	src/trace.c
+
+	# Replacing c++ new/delete in a more reasonable way
+	# src/glue.cpp
+
+	# libc functions that we wrap
+	src/compat.c   
+	# src/malloc.c   
+	
 	src/jemalloc/jemalloc.c
 	src/jemalloc/atomic.c
 	src/jemalloc/arena.c
@@ -55,37 +78,6 @@ set(SRC_FILES
 	src/jemalloc/util.c
 	src/jemalloc/witness.c
 	src/jemalloc/valgrind.c
-
-)
-add_library(alaska_support SHARED ${SRC_FILES})
-target_link_libraries(alaska_support pthread) # requires pthread
-
-
-
-
-
-# the target `alaska_core` contains the concrete implementations of `alaska_lock` and co.
-# It also contains the implementation of the fallback correctness trap (outside of the emulator)
-# This library is turned into bitcode and linked directly. The rest of the support code in alaska_support
-# is linked through a dynamic library, as it is not particularly performance sensitive
-set(SRC_FILES
-	# The core runtime implementation
-	src/runtime.c
-	src/table.c
-	src/lock.c
-	src/halloc.c
-	src/barrier.c
-	src/classify.c
-	src/rbtree.c
-	src/trace.c
-
-	# Replacing c++ new/delete in a more reasonable way
-	# src/glue.cpp
-
-	# libc functions that we wrap
-	src/compat.c   
-	# src/malloc.c   
-	
 )
 
 
@@ -105,9 +97,10 @@ if(ALASKA_CORRECTNESS_EMULATOR)
 	set(SRC_FILES ${SRC_FILES} src/emulator.c)
 endif()
 
-add_library(alaska_core STATIC ${SRC_FILES})
+add_library(alaska_core SHARED ${SRC_FILES})
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+target_link_libraries(alaska_core unicorn)
 
 
 
@@ -120,7 +113,7 @@ SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 add_executable(alaska-sim bin/sim.c)
-target_link_libraries(alaska-sim alaska_core alaska_support unicorn)
+target_link_libraries(alaska-sim alaska_core unicorn) # alaska_support
 set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
@@ -128,12 +121,12 @@ install(FILES include/alaska.h DESTINATION include)
 install(FILES include/classes.inc DESTINATION include)
 install(FILES include/alaska.hpp DESTINATION include)
 
-install(
-  TARGETS alaska_support
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# install(
+#   TARGETS alaska_support
+#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 install(

@@ -15,21 +15,19 @@
 #include <unistd.h>
 
 
-uint64_t alaska_next_usage_timestamp = 0;
+extern void alaska_personality_init(void);
+extern void alaska_personality_deinit(void);
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
-static void __attribute__((constructor(102))) alaska_init(void) {
+void __attribute__((constructor(102))) alaska_init(void) {
   alaska_table_init();
   alaska_halloc_init();
-#ifdef ALASKA_CLASS_TRACKING
-  alaska_classify_init();
-#endif
+
+	alaska_personality_init();
 }
 
-static void __attribute__((destructor)) alaska_deinit(void) {
-#ifdef ALASKA_CLASS_TRACKING
-  alaska_classify_deinit();
-#endif
+void __attribute__((destructor)) alaska_deinit(void) {
+	alaska_personality_deinit();
   alaska_halloc_deinit();
   alaska_table_deinit();
 }

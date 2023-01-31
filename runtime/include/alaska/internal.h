@@ -15,15 +15,6 @@
 
 #include <alaska/list_head.h>
 
-// This is the interface for personalities. It may seem like a hack, but it
-// helps implementation and performance (inline stuff in alaska_lock in lock.c)
-#ifndef ALASKA_PERSONALITY_ON_LOCK
-#define ALASKA_PERSONALITY_ON_LOCK(mapping)  // ... nothing ...
-#endif
-
-#ifndef ALASKA_PERSONALITY_ON_UNLOCK
-#define ALASKA_PERSONALITY_ON_UNLOCK(mapping)  // ... nothing ...
-#endif
 
 // extra fields to place in the handle table
 #ifndef ALASKA_PERSONALITY_FIELDS

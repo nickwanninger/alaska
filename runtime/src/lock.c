@@ -16,6 +16,22 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 
+#ifdef ALASKA_PERSONALITY_ANCHORAGE
+// include the inline implementation offered by the personalities
+#include <alaska/personality/anchorage_inl.h>
+#endif
+
+
+// This is the interface for personalities. It may seem like a hack, but it
+// helps implementation and performance (inline stuff in alaska_lock in lock.c)
+#ifndef ALASKA_PERSONALITY_ON_LOCK
+#define ALASKA_PERSONALITY_ON_LOCK(mapping)  // ... nothing ...
+#endif
+
+#ifndef ALASKA_PERSONALITY_ON_UNLOCK
+#define ALASKA_PERSONALITY_ON_UNLOCK(mapping)  // ... nothing ...
+#endif
+
 /**
  * Note: This file is inlined by the compiler to make locks faster.
  * Do not declare any global variables here, as they may get overwritten
@@ -58,7 +74,7 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
   m->locks++;
 
   // call personality *after* we lock
-  // ALASKA_PERSONALITY_ON_LOCK(m);
+  ALASKA_PERSONALITY_ON_LOCK(m);
 
   return alaska_translate(ptr, m);
 }
@@ -73,5 +89,5 @@ ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
   m->locks--;
 
   // call personality *after* we unlock
-  // ALASKA_PERSONALITY_ON_UNLOCK(m);
+  ALASKA_PERSONALITY_ON_UNLOCK(m);
 }

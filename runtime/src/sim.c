@@ -2,6 +2,13 @@
 #include <alaska/rbtree.h>
 
 
+
+#ifdef SIM_DEBUG
+#define PRINT printf
+#else
+#define PRINT(...)
+#endif
+
 static struct rb_root root = RB_ROOT;
 typedef struct {
   struct rb_node node;
@@ -49,14 +56,16 @@ static inline int __insert_callback(struct rb_node *n, void *arg) {
 }
 
 static void dump(void) {
+#ifdef SIM_DEBUG
   struct rb_node *node = rb_first(&root);
-	printf(" == sim dump ==\n");
+	PRINT(" == sim dump ==\n");
   while (node) {
     alloc_t *r = rb_entry(node, alloc_t, node);
-    printf("  %p -> %p, %zu\n", r->handle->ptr, r->handle, r->handle->size);
+    PRINT("  %p -> %p, %zu\n", r->handle->ptr, r->handle, r->handle->size);
     node = rb_next(node);
   }
-	printf(" ==============\n");
+	PRINT(" ==============\n");
+#endif
 }
 
 
@@ -66,13 +75,13 @@ void sim_on_alloc(alaska_mapping_t *m) {
   alloc_t *a = calloc(1, sizeof(*a));
   a->handle = m;
   rb_insert(&root, &a->node, __insert_callback, (void *)a);
-  printf("alloc %p\n", m->ptr);
+  PRINT("alloc %p\n", m->ptr);
   dump();
 }
 
 void sim_on_free(alaska_mapping_t *m) {
   alloc_t *a = trace_find((uint64_t)m->ptr);
-  printf("free %p\n", m->ptr);
+  PRINT("free %p\n", m->ptr);
   if (a != NULL) {
     // simply remove it from the list
     rb_erase(&a->node, &root);
@@ -82,7 +91,7 @@ void sim_on_free(alaska_mapping_t *m) {
 }
 
 void sim_on_realloc(alaska_mapping_t *m, void *new_ptr, size_t new_size) {
-  printf("realloc %p -> %p\n", m->ptr, new_ptr);
+  PRINT("realloc %p -> %p\n", m->ptr, new_ptr);
 	dump();
   alloc_t *a = trace_find((uint64_t)m->ptr);
 
@@ -107,7 +116,7 @@ void *sim_translate(void *ptr) { return ptr; }
 alaska_mapping_t *sim_lookup(void *ptr) {
   alloc_t *a = trace_find((uint64_t)ptr);
   if (a != NULL) {
-    printf("translate %p -> %p\n", ptr, a->handle);
+    PRINT("translate %p -> %p\n", ptr, a->handle);
     dump();
     return a->handle;
   }
