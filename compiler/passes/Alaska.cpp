@@ -337,7 +337,7 @@ class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
-  FPM.addPass(fp);
+  FPM.addPass(std::move(fp));
   return createModuleToFunctionPassAdaptor(std::move(FPM));
 }
 
