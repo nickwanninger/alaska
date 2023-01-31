@@ -337,7 +337,7 @@ class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
-  FPM.addPass(llvm::LowerInvokePass());  // Invoke sucks and we don't support it yet.
+  FPM.addPass(fp);
   return createModuleToFunctionPassAdaptor(std::move(FPM));
 }
 
@@ -348,7 +348,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaNormalizePass());
-              MPM.addPass(AlaskaReplacementPass());
+              // MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
 
               // Insert lock calls
