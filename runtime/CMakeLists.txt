@@ -100,7 +100,7 @@ endif()
 add_library(alaska_core SHARED ${SRC_FILES})
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska_core unicorn)
+target_link_libraries(alaska_core unicorn pthread)
 
 
 
