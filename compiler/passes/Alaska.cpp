@@ -348,7 +348,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaNormalizePass());
-              // MPM.addPass(AlaskaReplacementPass());
+              MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
 
               // Insert lock calls
