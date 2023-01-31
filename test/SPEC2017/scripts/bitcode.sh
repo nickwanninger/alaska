@@ -12,19 +12,9 @@ cd ../../install/bin ;
 export PATH=`pwd`:$PATH ;
 popd ;
 
-if [ ! -d "../bitcodes/" ]; then
-  mkdir ../../bitcodes/
-fi
+mkdir -p bitcodes/LLVM15.0/SPEC2017
 
-if [ ! -d "../bitcodes/LLVM15.0" ]; then
-  mkdir ../bitcodes/LLVM15.0/
-fi
-
-if [ ! -d "../bitcodes/LLVM15.0/SPEC2017" ]; then
-  mkdir ../bitcodes/LLVM15.0/SPEC2017
-fi
-
-cd ../bitcodes/LLVM15.0/SPEC2017
+cd bitcodes/LLVM15.0/SPEC2017
 BITCODE_DIR=`pwd` 
 cd ${BUILD_DIR}
 

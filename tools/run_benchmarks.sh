@@ -4,6 +4,48 @@ set -e
 
 echo "benchmark,baseline,alaska,speedup" > bench/speedup.csv
 
+
+
+function run_spec() {
+	number=$1
+	shift
+	bench=$1
+	shift
+	if [ -f test/SPEC2017/benchmarks/$bench/${bench}_newbin ]; then
+		pushd test/SPEC2017/benchmarks/$bench/test 2>/dev/null
+			pwd
+			echo "RUN spec/$bench (baseline)"
+			/usr/bin/time -f'%e' -o time ../${bench}_newbin.base $@ >/dev/null
+			BASELINE=$(cat time)
+			rm time
+
+
+			echo "RUN spec/$bench (alaska)"
+			/usr/bin/time -f'%e' -o time ../${bench}_newbin $@ >/dev/null
+			ALASKA=$(cat time)
+			rm time
+		popd 2>/dev/null
+		SPEEDUP=$(echo "scale=2; $BASELINE/$ALASKA" | bc)
+		echo "$number.$name,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
+	else
+		echo "SKIP $bench"
+	fi
+}
+
+
+run_spec 605 mcf_s inp.in
+run_spec 625 x264_s --dumpyuv 50 --frames 156 -o BuckBunny_New.264 BuckBunny.yuv 1280x720
+run_spec 657 xz_s cpu2006docs.tar.xz 1 055ce243071129412e9dd0b3b69a21654033a9b723d874b2015c774fac1553d9713be561ca86f74e4f16f22e664fc17a79f30caa5ad2c04fbc447549c2810fae 629064 -1 4e
+
+
+# todo:
+#  useful out of float:
+#   blender_s
+#   imagick_s
+#   lbm_s
+#   cactuBSSN_s
+# 
+
 # run nas
 for bench in ft mg sp lu bt ep cg
 do
@@ -20,7 +62,7 @@ do
 	ALASKA=$(grep 'Time in seconds' $out/stdout.alaska | sed 's/.*=\W*//')
 
 	SPEEDUP=$(echo "scale=2; $BASELINE/$ALASKA" | bc)
-	echo "nas/$bench,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
+	echo "$bench,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
 done
 
 exit

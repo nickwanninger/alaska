@@ -11,7 +11,7 @@ function Fibonacci.naive(n)
   return inner(n)
 end
 
-n = 12
+n = 20
 print(Fibonacci.naive(n))
 collectgarbage("collect")
 print(Fibonacci.naive(n))

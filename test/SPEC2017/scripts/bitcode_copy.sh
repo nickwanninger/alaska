@@ -6,7 +6,7 @@ benchmarkSuiteName="SPEC2017" ;
 
 # Get a list of all generated binaries, we'll use it to extract bitcode files
 llvmVersion=`llvm-config --version` ;
-bitcodesDir="${PWD_PATH}/../../bitcodes/LLVM9.0/${benchmarkSuiteName}" ;
+bitcodesDir="${PWD_PATH}/bitcodes/LLVM15.0/${benchmarkSuiteName}" ;
 
 # Check if bitcode dir exists
 if ! test -d ${bitcodesDir} ; then
