@@ -13,6 +13,10 @@
 #include <alaska/personality/anchorage.h>
 #endif
 
+#ifdef ALASKA_PERSONALITY_NONE
+#include <alaska/personality/none.h>
+#endif
+
 #include <alaska/list_head.h>
 
 
@@ -80,7 +84,7 @@ typedef struct {
 
 	// Cache line 2:
   ALASKA_PERSONALITY_FIELDS; // personality fields.
-} alaska_mapping_t;
+} alaska_mapping_t; // __attribute__((packed));
 
 // src/lock.c
 void *alaska_lock(void *restrict ptr);
