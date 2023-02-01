@@ -1,0 +1,23 @@
+$name             = 'pure_c_cpp_speed';
+$unitbase         = 'NOTAnyKindOfCPUmark';
+$metricbase       = 'some_or_none';
+$metric           = 'CPU2017';
+$ref              = 'ref';
+$train            = 'train';
+$test             = 'test';
+$output           = 0;
+@benchmarks = qw(
+    620.omnetpp_s
+    623.xalancbmk_s
+    631.deepsjeng_s
+    641.leela_s
+    600.perlbench_s
+    605.mcf_s
+    619.lbm_s
+    625.x264_s
+    638.imagick_s
+    644.nab_s
+    657.xz_s
+  );
+
+1;

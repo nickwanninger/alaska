@@ -1,8 +1,7 @@
 // Alaska includes
-#include <LockForest.h>
 #include <Graph.h>
 #include <Utils.h>
-#include <LockForestTransformation.h>
+#include <Locks.h>
 
 // C++ includes
 #include <cassert>
@@ -46,10 +45,46 @@ class ProgressPass : public PassInfoMixin<ProgressPass> {
   }
 };
 
+class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
+ public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    std::set<std::string> focus_on;
+    std::string focus;
+
+#ifdef ALASKA_DUMP_LOCKS_FOCUS
+		focus = ALASKA_DUMP_LOCKS_FOCUS;
+#endif
+
+    size_t pos = 0, found;
+    while ((found = focus.find(",", pos)) != std::string::npos) {
+      focus_on.insert(focus.substr(pos, found - pos));
+      pos = found + 1;
+    }
+    focus_on.insert(focus.substr(pos));
+
+    for (auto &F : M) {
+      if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
+        errs() << F << "\n";
+        auto l = alaska::extractLocks(F);
+        if (l.size() > 0) {
+          alaska::printLockDot(F, l);
+
+          // errs() << F << "\n";
+          // for (auto &lk : l) {
+          // 	lk->remove();
+          // }
+          // errs() << F << "\n";
+        }
+      }
+    }
+    return PreservedAnalyses::all();
+  }
+};
 
 
 
-class NormalizePass : public PassInfoMixin<NormalizePass> {
+
+class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
  public:
   // Compute parent and type for instructions before inserting them into the trace.
   class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
@@ -190,10 +225,8 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
       for (auto &arg : call->args()) {
         if (arg->getType()->isPointerTy()) {
           auto translated = alaska::insertLockBefore(call, arg);
-          // auto *translated = alaska::insertGuardedRTCall(alaska::InsertionType::Lock, arg, call,
-          // call->getDebugLoc());
+          alaska::insertUnlockBefore(call->getNextNode(), arg);
           call->setArgOperand(i, translated);
-          // TODO: UNLOCK
         }
         i++;
       }
@@ -216,7 +249,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   bool hoist = false;
   AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    hoist = false;
+    hoist = true;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) return PreservedAnalyses::all();
     mdm.addMetadata("alaska", "did run");
@@ -229,22 +262,21 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         F.setSection("");
         continue;
       }
+
+      alaska::println("running translate on ", F.getName());
       if (hoist) {
-        // errs() << "hoisting in " << F.getName() << "\n";
-        alaska::LockForestTransformation fftx(F);
-        fftx.apply();
+        alaska::insertHoistedLocks(F);
       } else {
-        // errs() << "not hoisting in " << F.getName() << "\n";
-        alaska::PointerFlowGraph graph(F);
-        alaska::insertConservativeTranslations(graph);
+        alaska::insertConservativeLocks(F);
       }
     }
+
 
     return PreservedAnalyses::none();
   }
 };
 
-class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
+class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
  public:
   void prepareLibrary(Module &M) {
     auto linkage = GlobalValue::WeakAnyLinkage;
@@ -274,10 +306,10 @@ class AlaskaLinkLibrary : public PassInfoMixin<AlaskaLinkLibrary> {
 
 
 
-class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
+class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
  public:
   OptimizationLevel optLevel;
-  AlaskaReoptimize(OptimizationLevel optLevel) : optLevel(optLevel) {}
+  AlaskaReoptimizePass(OptimizationLevel optLevel) : optLevel(optLevel) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // Create the analysis managers.
     LoopAnalysisManager LAM;
@@ -305,7 +337,7 @@ class AlaskaReoptimize : public PassInfoMixin<AlaskaReoptimize> {
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
-  FPM.addPass(llvm::LowerInvokePass());  // Invoke sucks and we don't support it yet.
+  FPM.addPass(std::move(fp));
   return createModuleToFunctionPassAdaptor(std::move(FPM));
 }
 
@@ -315,18 +347,22 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               MPM.addPass(adapt(llvm::LowerInvokePass()));
-              MPM.addPass(NormalizePass());
+              MPM.addPass(AlaskaNormalizePass());
               MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
 
-              // on optimized builds, hoist with the lock forest
+              // Insert lock calls
               MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
-              MPM.addPass(AlaskaReoptimize(optLevel));
+      // TODO: perform the
+
+#ifdef ALASKA_DUMP_LOCKS
+              MPM.addPass(LockPrinterPass());
+#endif
 
 
               // Link the library (just runtime/src/lock.c)
-              MPM.addPass(AlaskaLinkLibrary());
+              MPM.addPass(AlaskaLinkLibraryPass());
 
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
@@ -334,7 +370,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(llvm::AlwaysInlinerPass());
 
               // For good measures, re-optimize
-              MPM.addPass(AlaskaReoptimize(optLevel));
+              MPM.addPass(AlaskaReoptimizePass(optLevel));
 
               return true;
             });

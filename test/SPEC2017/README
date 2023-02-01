@@ -1,0 +1,66 @@
+REQUIREMENTS: 
+  - go 
+  - you have run "make" in the top directory. To check if you have done it, check if you have the file TOPDIR/install/bin/gclang
+
+STEP 1) Install repository
+	Run "make" or "make SPECTAR=YOUR_SPEC_TAR_FILE"
+
+	This will do the following:   
+  - Install a fresh copy of SPEC2017 fetched from /project/benchmarks/SPEC2017.tar.gz (or from what you have specified)
+  - Fix permissions to files in SPEC
+  - Add gclang build config
+
+STEP 2) Generate single bitcode file for every benchmark
+	Run 
+	- "make compile_speed" for speed benchmarks or
+	- "make compile_rate" for rate benchmarks
+	
+	This will do the following:
+	- Build all pure C/C++ speed or rate benchmarks except 'gcc_s/gcc_r' with gclang/gclang++.
+
+STEP 3) Save single bitcode files 
+	Run "make bitcode" to extract bitcodes.
+	- To change version from speed to rate, run "make bitcode VERSION=rate"
+	
+	This will do the following:
+	- Extract single bitcode files 'benchmark.bc' for all built benchmarks at respective directories under 'BenchmarksBitcodes/build/SPEC2017/benchmarks/'. 
+	- Copy over all single bitcode files to '/BenchmarksBitcodes/bitcodes/LLVM9.0/SPEC2017'
+	
+STEP 4) Setup run directories 
+	Run "make setup" to setup run directories for all possible inputs.
+ 	
+	This will do the following:
+  - Create a workload specific run directory for each benchmark under 'BenchmarksBitcodes/build/SPEC2017/benchmarks/'.
+  - Create run script run_workload.sh for each benchmark where workload = [test, train, ref]
+
+STEP 5) Optimization
+	Run "make optimization" 
+	
+	This will do the following:
+	- copy over makefiles/Makefile into every benchmark directory and run make;		
+	- To do this for all benchmarks: "make optimization BENCHMARK=all"
+	- To do this for a specific benchmark such as 'mcf_r': "make optimization BENCHMARK=mcf_r"
+	NOTE: This script is provided as a framework to add in calls to your optimization passes on the single bitcode file. 
+
+STEP 6) Generate binary from the single bitcode file
+	Run "make binary" to generate binary from single bitcode file
+	- To do this for all benchmarks: "make binary BENCHMARK=all"
+	- To do this for a specific benchmark such as 'mcf_r': "make binary BENCHMARK=mcf_r"
+   
+	This will do the following:
+	- Generate a binary 'benchmark_newbin' at respective benchmark directory under 'BenchmarksBitcodes/build/SPEC2017/benchmarks/'.		
+	
+
+STEP 7) Run generated binary
+	Run "make run" to generate binary from single bitcode file
+	- To change input, run "make run INPUT=ref"
+	- To run ref input for all benchmarks: "make run INPUT=ref BENCHMARK=all"
+	- To run a specific benchmark such as 'mcf_r': "make run BENCHMARK=mcf_r"
+	
+	This will do the following:
+	- Run benchmarks with respective workloads and save output 'benchmark_workload_output.txt' at respective run directories.	
+
+
+
+NOTES:
+"make compile_rate", "make compile_speed", "make compile_all" are the ONLY command that forces recompilation of benchmarks in the SPEC2017 suite. 

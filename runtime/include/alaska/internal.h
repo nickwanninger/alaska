@@ -3,7 +3,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+
+#ifdef ALASKA_PERSONALITY_NONE
+#include <alaska/personality/none.h>
+#endif
+
+#ifdef ALASKA_PERSONALITY_ANCHORAGE
+#include <alaska/personality/anchorage.h>
+#endif
+
+#ifdef ALASKA_PERSONALITY_NONE
+#include <alaska/personality/none.h>
+#endif
+
 #include <alaska/list_head.h>
+
+
+// extra fields to place in the handle table
+#ifndef ALASKA_PERSONALITY_FIELDS
+#define ALASKA_PERSONALITY_FIELDS // ... nothing ...
+#endif
+
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
@@ -13,14 +34,7 @@
 
 #define ALASKA_INLINE __attribute__((always_inline))
 
-typedef union {
-  struct {
-    unsigned offset : 32;  // the offset into the handle
-    unsigned handle : 31;  // the translation in the translation table
-    unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
-  };
-  void *ptr;
-} handle_t;
+
 
 
 // This file contains structures that the the translation subsystem uses
@@ -50,29 +64,33 @@ extern void alaska_dump_backtrace(void);
 // exit(EXIT_FAILURE);
 
 
+
+// The definition of what a handle's bits mean when they are used like a pointer
+typedef union {
+  struct {
+    unsigned offset : 32;  // the offset into the handle
+    unsigned handle : 31;  // the translation in the translation table
+    unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
+  };
+  void *ptr;
+} handle_t;
+
 typedef struct {
-  void *ptr;  // The raw backing memory of the handle
-  uint32_t usage_timestamp;
-  // struct list_head lru_ent;
+	// Cache line 1:
+  void *ptr; // backing memory
+  uint32_t locks; // how many users?
+  // size: how big the backing memory is
   uint32_t size;
-  uint64_t locks;  // How many users does this handle have?
-  // uint16_t flags;  // additional flags (idk, tbd)
-#ifdef ALASKA_CLASS_TRACKING
-  uint8_t object_class;
-#endif
-} alaska_mapping_t;
+
+	// Cache line 2:
+  ALASKA_PERSONALITY_FIELDS; // personality fields.
+} alaska_mapping_t; // __attribute__((packed));
 
 // src/lock.c
 void *alaska_lock(void *restrict ptr);
 void alaska_unlock(void *restrict ptr);
 
-alaska_mapping_t *alaska_get_mapping(void *restrict ptr);
-void *alaska_translate(void *restrict ptr, alaska_mapping_t *m);
-// bookkeeping functions inserted by the compiler
-void alaska_track_access(alaska_mapping_t *m);
-void alaska_track_lock(alaska_mapping_t *m);
-void alaska_track_unlock(alaska_mapping_t *m);
-
+alaska_mapping_t *alaska_lookup(void *restrict ptr);
 
 // src/halloc.c
 void alaska_halloc_init(void);

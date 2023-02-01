@@ -74,6 +74,13 @@ bench/gap/%: alaska
 
 bench: alaska $(NAS_BENCHMARKS) # $(GAP_BENCHMARKS)
 
+
+
+
+
+spec: alaska
+	@bash tools/build_spec.sh $(SPECTAR)
+
 clean:
 	rm -rf build .*.o*
 
@@ -153,5 +160,6 @@ local/sysroot/lib/lib%.o: alaska build/lib%.bc
 	@cp build/lib$*.o local/lib/
 	@cp musl/lib/lib$*.a local/lib/
 libc: local/sysroot/lib/libc.o
+
 
 

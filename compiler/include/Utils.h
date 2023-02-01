@@ -7,12 +7,6 @@ namespace alaska {
 
   llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
   void insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
-  enum InsertionType { Lock, Unlock };
-
-  // Split the basic block before the instruction and insert a guarded
-  // call to lock or unlock, based on if the `handle` is a handle or not
-  llvm::Instruction *insertGuardedRTCall(
-      InsertionType type, llvm::Value *handle, llvm::Instruction *inst, llvm::DebugLoc dbg);
 
 
   // Insert get/puts for a graph conservatively (every load and store)
@@ -22,24 +16,24 @@ namespace alaska {
   void dumpBacktrace(void);
 
 
-	void runReplacementPass(llvm::Module &M);
+  void runReplacementPass(llvm::Module &M);
 
   inline void println() {
-#ifdef ALASKA_DEBUG
     // base case
     llvm::errs() << "\n";
-#endif
   }
 
-
-
-
   template <class T, class... Ts>
-  inline void println(T const &first, Ts const &... rest) {
-#ifdef ALASKA_DEBUG
+  inline void println(T const &first, Ts const &...rest) {
     llvm::errs() << first;
     alaska::println(rest...);
-#endif
+  }
+
+  inline void print() { /* Base case. */ }
+  template <class T, class... Ts>
+  inline void print(T const &first, Ts const &...rest) {
+    llvm::errs() << first;
+    alaska::print(rest...);
   }
 }  // namespace alaska
 

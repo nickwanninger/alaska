@@ -1,37 +1,70 @@
-config USE_NINJA
-	bool "Use the Ninja build system instead of Make"
-	default n
+menu "Build"
+	config USE_NINJA
+		bool "Use the Ninja build system instead of Make"
+		default n
+endmenu
 
-config DEBUG
-	bool "Enable debug Logging"
-	default n
 
-config DUMP_FLOW_GRAPH
-	bool "Dump flow graphs after they are constructed"
-	depends on DEBUG
-	default n
+menu "Debug"
 
-config DUMP_FLOW_FOREST
-	bool "Dump flow forests after they are constructed"
-	depends on DEBUG
-	default n
+	config DUMP_LOCKS
+		bool "Dump locks after they are created"
+		default n
 
-config CONSERVATIVE
-	bool "Conservatively pin all loads and stores"
-	default y
+	config DUMP_LOCKS_FOCUS
+		string "Comma separated list of functions to focus on when dumping locks"
+		depends on DUMP_LOCKS
+		default ""
+
+	config DUMP_FLOW_GRAPH
+		bool "Dump flow graphs after they are constructed"
+		default n
+endmenu
+
+choice
+	prompt "Runtime Personality"
+	default PERSONALITY_ANCHORAGE
+
+	config PERSONALITY_ANCHORAGE
+		bool "Anchorage allocator and defragmentation"
+
+	# config PERSONALITY_CLASSIFY
+	# 	bool "Object type classification"
+
+	config PERSONALITY_NONE
+		bool "No personality (use system malloc, no defrag)"
+
+endchoice
+
+
+menu "Anchorage Configuration"
+
+	depends on PERSONALITY_ANCHORAGE
+
+	config CLASS_TRACKING
+		bool "Track allocation classes and record access counts in a histogram"
+		default n
+
+	config CLASS_TRACKING_ALWAYS_DUMP
+		bool "Always dump class tracking information"
+		depends on CLASS_TRACKING
+		default n
+
+endmenu
+
+config SIM_MODE
+	bool "Run Alaska in a 'simulator' mode"
+	default n
+	help
+		Running Alaska in simulator mode means the system never exposes handles to the end
+		user, and instead emulates their accesses at runtime by tracking malloc and free
+		calls in an internal red-black tree. The benefit of using this is it simplifies
+		porting benchmarks (mostly for the classification effort)
 
 config ESCAPE_PASS
 	bool "Lock before argument escapes"
 	default y
 
-config CLASS_TRACKING
-	bool "Track allocation classes and record access counts in a histogram"
-	default n
-
-config CLASS_TRACKING_ALWAYS_DUMP
-	bool "Always dump class tracking information"
-	depends on CLASS_TRACKING
-	default n
 
 config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"

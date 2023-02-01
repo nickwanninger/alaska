@@ -20,7 +20,7 @@ uint64_t timestamp() {
 #endif
 }
 
-#define TRIALS 10
+#define TRIALS 100
 #define LENGTH 1000
 
 struct node {
@@ -86,11 +86,11 @@ uint64_t* run_test(void* (*_malloc)(size_t), void (*_free)(void*)) {
 
 int main(int argc, char** argv) {
   printf("results\n");
+  uint64_t* res = run_test(malloc, free);
   for (int i = 0; i < TRIALS; i++) {
-    uint64_t* res = run_test(malloc, free);
-    // printf("%lu\n", res[i]);
-    free(res);
+    printf("%lu\n", res[i]);
   }
+  free(res);
 
   return 0;
 }

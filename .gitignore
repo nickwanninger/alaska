@@ -22,4 +22,6 @@ tools/.ipynb_checkpoints
 
 /musl
 
-libc
+/test/SPEC2017/SPEC2017
+/test/SPEC2017/benchmarks
+/test/SPEC2017/bitcodes

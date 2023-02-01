@@ -3,6 +3,7 @@
 #include <Graph.h>
 #include <memory>
 #include <vector>
+#include <Locks.h>
 
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Value.h"
@@ -20,20 +21,19 @@ namespace alaska {
     // The value that is being locked
     llvm::Value *pointer;
     // The result of the lock once it has been inserted
-    llvm::Value *locked;
+    llvm::Instruction *locked;
     // The location to lock at
     llvm::Instruction *lockBefore;
     // The locations to unlock
-		std::set<llvm::Instruction *> unlocks;
+    std::set<llvm::Instruction *> unlocks;
   };
 
   struct LockForest {
-
     struct Node {
       Node *share_lock_with = NULL;
       Node *parent;
-			// which of the LockBounds does this node use?
-			unsigned lock_id = UINT_MAX;
+      // which of the LockBounds does this node use?
+      unsigned lock_id = UINT_MAX;
       std::vector<std::unique_ptr<Node>> children;
 
       // which siblings does this node dominates and post dominates in the cfg.
@@ -52,13 +52,21 @@ namespace alaska {
       Node *compute_shared_lock(void);
       llvm::Instruction *effective_instruction(void);
 
-			void set_lockid(unsigned id) {
-				lock_id = id;
-				for (auto &c : children) c->set_lockid(id);
-			}
+      void set_lockid(unsigned id) {
+        lock_id = id;
+        for (auto &c : children)
+          c->set_lockid(id);
+      }
     };
 
-    LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT);
+    LockForest(llvm::Function &F);
+
+    // void apply(void);
+
+		// Insert locks and unlocks, and return the vector of locks that were inserted
+		void apply(Node &n);
+		std::vector<std::unique_ptr<alaska::Lock>> apply(void);
+
     std::vector<std::unique_ptr<Node>> roots;
     void dump_dot(void);
 
@@ -68,14 +76,15 @@ namespace alaska {
     // from
     std::unordered_map<unsigned, std::unique_ptr<LockBounds>> locks;
 
-		// get a lockbounds by id
-		LockBounds &get_lockbounds(unsigned id);
+    // get a lockbounds by id
+    LockBounds &get_lockbounds(unsigned id);
+
+    llvm::Function &func;
 
    private:
-		// allocate a new lockbounds
-		LockBounds &get_lockbounds(void);
+    // allocate a new lockbounds
+    LockBounds &get_lockbounds(void);
     unsigned next_lock_id = 0;
-    llvm::Function &func;
   };
 
 };  // namespace alaska

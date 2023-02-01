@@ -9,7 +9,7 @@ add_library(AlaskaCompilerLibrary OBJECT
 	lib/Graph.cpp
 	lib/Utils.cpp
 	lib/LockForest.cpp
-	lib/LockForestTransformation.cpp
+	lib/Locks.cpp
 
 	lib/noelle/MetadataEntry.cpp
 	lib/noelle/MetadataManager_Instruction.cpp

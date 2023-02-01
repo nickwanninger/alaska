@@ -3,10 +3,55 @@
 #include <Utils.h>
 #include <deque>
 #include <unordered_set>
+#include <sstream>
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include <noelle/core/DataFlow.hpp>
 
+
+
+// Either get the `incoming_lock` of this node or the node it shares with, or the parent's translated
+llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node) {
+  if (node.incoming_lock != NULL) return node.incoming_lock;
+
+  if (node.parent->parent == NULL) {
+    if (auto *shared = node.compute_shared_lock()) {
+      ALASKA_SANITY(shared->incoming_lock != NULL, "Incoming lock on shared lock owner is null");
+      return shared->incoming_lock;
+    }
+  }
+
+  ALASKA_SANITY(node.parent->translated != NULL, "Parent of node does not have a translated value");
+  return node.parent->translated;
+}
+
+struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
+  alaska::LockForest::Node &node;
+  TranslationVisitor(alaska::LockForest::Node &node) : node(node) {}
+
+  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+    // create a new GEP right after this one.
+    IRBuilder<> b(I.getNextNode());
+
+    auto t = get_incoming_translated_value(node);
+    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
+    node.translated = dyn_cast<Instruction>(b.CreateGEP(I.getSourceElementType(), t, inds, "", I.isInBounds()));
+  }
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    auto t = get_incoming_translated_value(node);
+    I.setOperand(0, t);
+  }
+  void visitStoreInst(llvm::StoreInst &I) {
+    auto t = get_incoming_translated_value(node);
+    I.setOperand(1, t);
+  }
+
+  void visitInstruction(llvm::Instruction &I) {
+    alaska::println("dunno how to handle this: ", I);
+    ALASKA_SANITY(node.translated != NULL, "Dunno how to handle this node");
+  }
+};
 
 static void extract_nodes(alaska::LockForest::Node *node, std::unordered_set<alaska::LockForest::Node *> &nodes) {
   nodes.insert(node);
@@ -79,7 +124,7 @@ static llvm::Loop *get_outermost_loop_for_lock(
 
 static llvm::Instruction *compute_lock_insertion_location(
     llvm::Value *pointerToLock, llvm::Instruction *lockUser, llvm::LoopInfo &loops) {
-	// return lockUser;
+  // return lockUser;
   // the instruction to consider as the "location of the pointer". This is done for things like arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
   if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
@@ -113,23 +158,25 @@ static llvm::Instruction *compute_lock_insertion_location(
 
 
 
-alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorTree &PDT) : func(G.func()) {
-  // Compute the dominator tree.
-  // TODO: take this as an argument instead.
+alaska::LockForest::LockForest(llvm::Function &F) : func(F) {}
+
+
+
+
+std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
+  alaska::PointerFlowGraph G(func);
+  // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
+  llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
 
   // The nodes which have no in edges that it post dominates
   std::unordered_set<alaska::FlowNode *> roots;
 
-  // all the sources are roots in the flow tree
+  // all the sources are roots in the pointer flow graph
   for (auto *node : G.get_nodes()) {
     if (node->type == alaska::NodeType::Source) roots.insert(node);
   }
-
-  // TODO: reduce redundant roots with alias analysis
-  // TODO: have good alias analysis
-  // TODO: be better
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
   for (auto *root : roots) {
@@ -196,17 +243,18 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
         auto &lb = get_lockbounds(child->lock_id);
         lb.lockBefore = compute_lock_insertion_location(root->val, inst, loops);
+
+				IRBuilder<> b(lb.lockBefore);
+				lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
       }
     }
   }
-
 
 
   ///////////////////////////////////////////////////////////////////////////
   //                      Compute unlock locations                         //
   ///////////////////////////////////////////////////////////////////////////
 
-  // used to compute GEN: (which node does an instruction use?)
   std::unordered_map<Instruction *, LockBounds *> inst2bounds;
   {
     std::unordered_set<Node *> nodes;
@@ -226,96 +274,87 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
     }
   }
 
+  std::map<Instruction *, std::set<unsigned>> GEN;
+  std::map<Instruction *, std::set<unsigned>> KILL;
+  std::map<Instruction *, std::set<unsigned>> IN;
+  std::map<Instruction *, std::set<unsigned>> OUT;
 
-  // given an instruction, return the instruction that represents the lockbound value that it uses
-  auto get_used = [&](Instruction *user) -> llvm::Value * {
-    auto f = inst2bounds.find(user);
-    if (f == inst2bounds.end()) {
-      // errs() << "user has no bound: " << *user << "\n";
-      return nullptr;
-    }
-    return f->second->lockBefore;
-  };
+  std::set<Instruction *> todo;
 
-  auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
-    if (auto *used = get_used(s)) {
-      df->GEN(s).insert(used);
-    }
-  };
+  // here, we do something horrible. we insert lock instructions just so we can do analysis. Later we will delete them
+  for (auto &[lid, lock] : locks) {
 
-  auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
-    // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
-    // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
-    // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
-    if (auto *used = get_used(s)) {
-      if (used == s) {
-        df->KILL(s).insert(used);
-      }
-    }
-  };
+    lock->locked = insertLockBefore(lock->lockBefore, lock->pointer);
+    KILL[lock->locked].insert(lid);
+  }
 
-
-  auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
-    // IN[s] = GEN[s] U (OUT[s] - KILL[s])
-
-    auto &gen = df->GEN(s);
-    auto &out = df->OUT(s);
-    auto &kill = df->KILL(s);
-
-    // everything in GEN...
-    IN.insert(gen.begin(), gen.end());
-
-    // ...and everything in OUT that isn't in KILL
-    for (auto o : out) {
-      // if o is not found in KILL...
-      if (kill.find(o) == kill.end()) {
-        // ...add to IN
-        IN.insert(o);
-      }
-    }
-  };
-
-  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
-    // OUT[s] = IN[p] where p is every successor of s
-    auto &INp = df->IN(p);
-    OUT.insert(INp.begin(), INp.end());
-  };
-
-  auto *df = noelle::DataFlowEngine().applyBackward(&func, computeGEN, computeKILL, computeIN, computeOUT);
-
-
-
-
-  auto get_lid = [&](llvm::Value *inst) {
-    for (auto &[id, bounds] : locks) {
-      if (bounds->lockBefore == inst) return id;
-    }
-    return UINT_MAX;
-  };
-
-  auto dump_set = [&](const char *name, std::set<Value *> &s) {
-    if (s.empty()) return;
-    errs() << "    " << name << ":";
-    for (auto v : s) {
-      errs() << " " << get_lid(v);
-      // errs() << " [" << *v << "]";
-    }
-    errs() << "\n";
-  };
-
+  // initialize gen sets
   for (auto &BB : func) {
     for (auto &I : BB) {
-      errs() << I << "\n";
-      dump_set("GEN", df->GEN(&I));
-      dump_set("KILL", df->KILL(&I));
-      dump_set("IN", df->IN(&I));
-      dump_set("OUT", df->OUT(&I));
+      todo.insert(&I);
+      auto f = inst2bounds.find(&I);
+      if (f != inst2bounds.end()) {
+        auto &lb = f->second;
+        GEN[&I].insert(lb->id);
+      }
     }
   }
 
 
+  while (!todo.empty()) {
+    // Grab some instruction from worklist...
+    auto i = *todo.begin();
+    // ...remove it from the worklist
+    todo.erase(i);
 
-#if 1
+    auto old_out = OUT[i];
+    auto old_in = IN[i];
+    // IN = GEN U (OUT - KILL);
+    IN[i] = GEN[i];
+    for (auto &v : OUT[i])
+      if (KILL[i].find(v) == KILL[i].end()) IN[i].insert(v);
+
+    OUT[i].clear();
+
+    // successor updating
+    // errs() << "succ of " << *i << "\n";
+    if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
+      if (auto normal_bb = invoke_inst->getNormalDest()) {
+        for (auto &v : IN[&normal_bb->front()])
+          OUT[i].insert(v);
+      }
+
+      if (auto unwind_bb = invoke_inst->getUnwindDest()) {
+        for (auto &v : IN[&unwind_bb->front()])
+          OUT[i].insert(v);
+      }
+    } else if (auto *next_node = i->getNextNode()) {
+      // errs() << "  - " << *next_node << "\n";
+      for (auto &v : IN[next_node])
+        OUT[i].insert(v);
+    } else {
+      // end of a basic block, get all successor basic blocks
+      for (auto *bb : successors(i)) {
+        // errs() << "  - " << bb->front() << "\n";
+        for (auto &v : IN[&bb->front()])
+          OUT[i].insert(v);
+      }
+    }
+
+    if (old_out != OUT[i] || old_in != IN[i]) {
+      todo.insert(i);
+      // add all preds to the workqueue
+      if (auto *prev_node = i->getPrevNode()) {
+        todo.insert(prev_node);
+      } else {
+        // start of a basic block, get all predecessor basic blocks
+        for (auto *bb : predecessors(i->getParent())) {
+          todo.insert(bb->getTerminator());
+        }
+      }
+    }
+  }
+
   // using the dataflow result, insert unlock locations into the corresponding lockbounds
   // The way this works is we go over each lockbound, and find the instructions which
   // contain it's lockBefore instruction in the IN set, but not in their OUT set. These
@@ -324,55 +363,109 @@ alaska::LockForest::LockForest(alaska::PointerFlowGraph &G, llvm::PostDominatorT
   for (auto &[id, lockbounds] : locks) {
     for (auto &BB : func) {
       for (auto &I : BB) {
-        auto &IN = df->IN(&I);
-        auto &OUT = df->OUT(&I);
+        auto &iIN = IN[&I];
+        auto &iOUT = OUT[&I];
 
         // if the value is not in the IN, skip
-        if (IN.find(lockbounds->lockBefore) == IN.end()) {
+        if (iIN.find(lockbounds->id) == iIN.end()) {
           continue;
         }
 
+        // in the IN
+
         // if the value is not in the OUT, lock after this instruction
-        if (OUT.find(lockbounds->lockBefore) == OUT.end()) {
+        if (iOUT.find(lockbounds->id) == iOUT.end()) {
           lockbounds->unlocks.insert(I.getNextNode());
           continue;
         }
 
-    //     // special case for branches: insert an unlock on the "exit edge" of a branch
-				// // if the branch has the value in the OUT, but the branched-to instruction does
-				// // not have it in the IN.
-    //     if (auto *branch = dyn_cast<BranchInst>(&I)) {
-    //       for (auto succ : branch->successors()) {
-    //         auto succInst = &succ->front();
-    //         auto &succIN = df->IN(succInst);
-    //         // if it's not in the IN of succ, lock on the edge
-    //         if (succIN.find(lockbounds->lockBefore) == succIN.end()) {
-    //           lockbounds->unlocks.insert(&I);
-    //         }
-    //       }
-    //     }
+        // in the IN, also in the OUT
+
+        // special case for branches: insert an unlock on the "exit edge" of a branch
+        // if the branch has the value in the OUT, but the branched-to instruction does
+        // not have it in the IN.
+        if (auto *branch = dyn_cast<BranchInst>(&I)) {
+          for (auto succ : branch->successors()) {
+            auto succInst = &succ->front();
+            auto &succIN = IN[succInst];
+            // if it's not in the IN of succ, lock on the edge
+            if (succIN.find(lockbounds->id) == succIN.end()) {
+              // HACK: split the edge and insert on the branch
+              BasicBlock *from = I.getParent();
+              BasicBlock *to = succ;
+              auto trampoline = llvm::SplitEdge(from, to);
+
+              lockbounds->unlocks.insert(trampoline->getTerminator());
+            }
+          }
+        }
       }
     }
   }
-#endif
 
-	errs() << func << "\n";
-  for (auto &[id, lb] : locks) {
-    errs() << "lid" << id << "\n";
-    if (lb->lockBefore) errs() << " - lock:   " << *lb->lockBefore << "\n";
+  std::vector<std::unique_ptr<alaska::Lock>> out;
 
-    for (auto *before : lb->unlocks) {
-      errs() << " - unlock: " << *before << "\n";
+  // convert the LockBounds structure to a Lock
+  for (auto &[lid, lock] : locks) {
+    auto l = std::make_unique<alaska::Lock>();
+    l->lock = dyn_cast<CallInst>(lock->locked);
+    for (auto *position : lock->unlocks) {
+      if (auto phi = dyn_cast<PHINode>(position)) {
+        position = phi->getParent()->getFirstNonPHI();
+      }
+      alaska::insertUnlockBefore(position, lock->pointer);
+      l->unlocks.insert(dyn_cast<CallInst>(position->getPrevNode()));
+    }
+    // out.push_back(std::move(l));
+  }
 
-			ALASKA_SANITY(PDT.dominates(before, lb->lockBefore), "invalid unlock location");
+
+  for (auto &root : this->roots) {
+    for (auto &child : root->children) {
+      auto *inst = dyn_cast<llvm::Instruction>(child->val);
+      if (inst == NULL) {
+        exit(EXIT_FAILURE);
+      }
+      // first, if the child does not share a lock with anyone, and
+      // it's parent is a source, create the incoming lock
+      if (child->share_lock_with == NULL && child->parent->parent == NULL) {
+        auto &bounds = get_lockbounds(child->lock_id);
+        child->incoming_lock = bounds.locked;
+      }
+    }
+
+    for (auto &child : root->children) {
+      apply(*child);
     }
   }
 
-  delete df;
+  return out;
 
-#ifdef ALASKA_DUMP_FLOW_FOREST
-  dump_dot();
-#endif
+
+
+  // finally, insert unlocks
+  // for (auto &[id, bounds] : this->locks) {
+  //   for (auto *position : bounds->unlocks) {
+  //     if (auto phi = dyn_cast<PHINode>(position)) {
+  //       position = phi->getParent()->getFirstNonPHI();
+  //     }
+  //     alaska::insertUnlockBefore(position, bounds->pointer);
+  //   }
+  // }
+}
+
+
+void alaska::LockForest::apply(alaska::LockForest::Node &node) {
+  auto *inst = dyn_cast<llvm::Instruction>(node.val);
+  // apply transformation
+  TranslationVisitor vis(node);
+  vis.visit(inst);
+
+  // go over children and apply their transformation
+  for (auto &child : node.children) {
+    // go down to the children
+    apply(*child);
+  }
 }
 
 
@@ -388,81 +481,4 @@ alaska::LockBounds &alaska::LockForest::get_lockbounds(void) {
   b->id = id;
   locks[id] = std::move(b);
   return get_lockbounds(id);
-}
-
-void alaska::LockForest::dump_dot(void) {
-  alaska::println("------------------- { Flow forest for function ", func.getName(), " } -------------------");
-  alaska::println("digraph {");
-  alaska::println("  label=\"flow forest for ", func.getName(), "\";");
-  alaska::println("  compound=true;");
-  alaska::println("  start=1;");
-
-  std::unordered_set<Node *> nodes;
-  for (auto &root : roots) {
-    extract_nodes(root.get(), nodes);
-  }
-
-
-  for (auto node : nodes) {
-    errs() << "  n" << node << " [label=\"";
-    errs() << "{" << *node->val;
-
-    if (node->parent != NULL) {
-      errs() << "|{lid" << node->lock_id << "}";
-    }
-    if (node->translated) {
-      errs() << "|{tx:";
-      errs() << *node->translated;
-      errs() << "}";
-    }
-    if (node->parent == NULL && node->children.size() > 0) {
-      errs() << "|{";
-      int i = 0;
-
-      for (auto &child : node->children) {
-        if (i++ != 0) {
-          errs() << "|";
-        }
-
-        errs() << "<n" << child.get() << ">";
-        if (child->share_lock_with == NULL) {
-          if (child->incoming_lock) {
-            errs() << *child->incoming_lock;
-          } else {
-            errs() << "lid" << child->lock_id;
-          }
-        } else {
-          errs() << "-";
-        }
-      }
-      errs() << "}";
-    }
-
-    errs() << "}";
-    errs() << "\", shape=record";
-    errs() << "];\n";
-  }
-
-  for (auto node : nodes) {
-    if (node->parent) {
-      if (node->parent->parent == NULL && node->share_lock_with) {
-        errs() << "  n" << node->parent << ":n" << node->compute_shared_lock() << " -> n" << node
-               << " [style=\"dashed\", color=orange]\n";
-      } else {
-        errs() << "  n" << node->parent << ":n" << node << " -> n" << node << "\n";
-      }
-    }
-
-
-    for (auto *dom : node->dominates) {
-      errs() << "  n" << node << " -> n" << dom << " [color=red, label=\"D\", style=\"dashed\"]\n";
-    }
-
-    for (auto *dom : node->postdominates) {
-      errs() << "  n" << node << " -> n" << dom << " [color=blue, label=\"PD\"]\n";
-    }
-  }
-
-
-  alaska::println("}\n\n\n");
 }

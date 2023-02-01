@@ -60,7 +60,7 @@ do
     esac
 done
 
-COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone")
+COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize")
 COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
 
 
@@ -83,7 +83,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -O3 -gdwarf-4 ${TMPFILE}  -o $OUTFILE -ldl `alaska-config --ldflags`
+	$CLANG -O3 -gdwarf-4 ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags`
 	rm ${TMPFILE}
 fi
 
