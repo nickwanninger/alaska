@@ -243,6 +243,9 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
       if (child->share_lock_with == NULL && child->parent->parent == NULL) {
         auto &lb = get_lockbounds(child->lock_id);
         lb.lockBefore = compute_lock_insertion_location(root->val, inst, loops);
+
+				IRBuilder<> b(lb.lockBefore);
+				lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
       }
     }
   }
@@ -280,6 +283,7 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
   // here, we do something horrible. we insert lock instructions just so we can do analysis. Later we will delete them
   for (auto &[lid, lock] : locks) {
+
     lock->locked = insertLockBefore(lock->lockBefore, lock->pointer);
     KILL[lock->locked].insert(lid);
   }
