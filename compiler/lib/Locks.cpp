@@ -221,12 +221,15 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
     // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
     // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
     // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
-    for (auto *lock : get_used(s)) {
-      auto used = lock->lock;
-      if (used == s) {
-        df->KILL(s).insert(used);
-      }
+    if (lock_inst_to_lock.find(s) != lock_inst_to_lock.end()) {
+      df->KILL(s).insert(s);
     }
+    // for (auto *lock : get_used(s)) {
+    //   auto used = lock->lock;
+    //   if (used == s) {
+    //     df->KILL(s).insert(used);
+    //   }
+    // }
   };
 
 
@@ -308,57 +311,80 @@ static std::vector<const char *> graphviz_colors = {
     "darksalmon",
 };
 
+
+static std::string random_background_color() {
+  char buf[16];
+  uint8_t r = rand() | 0x80;
+  uint8_t g = rand() | 0x80;
+  uint8_t b = rand() | 0x80;
+  snprintf(buf, 15, "#%02x%02x%02x", r & 0xf0, g & 0xf0, b & 0xf0);
+  return buf;
+}
+
 void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks) {
-  std::map<alaska::Lock *, const char *> colors;
+  std::map<alaska::Lock *, std::string> colors;
 
   for (size_t i = 0; i < locks.size(); i++) {
-    if (i > graphviz_colors.size()) {
-      colors[locks[i].get()] = "gray";
-    } else {
-      colors[locks[i].get()] = graphviz_colors[i];
-    }
+    colors[locks[i].get()] = random_background_color();
   }
 
 
   alaska::println("digraph {");
   alaska::println("  label=\"Locks in ", F.getName(), "\";");
   alaska::println("  compound=true;");
-  alaska::println("  graph[nodesep=1];");
+  alaska::println("  graph [fontsize=8 fontname=\"Courier\"];");  // splines=\"ortho\"];");
   alaska::println("  node[fontsize=9,shape=none,style=filled,fillcolor=white];");
 
 
   for (auto &BB : F) {
     alaska::println("  n", &BB, " [label=<");
-    alaska::println("    <table border=\"1\" cellspacing=\"0\" padding=\"0\">");
+    alaska::println("    <table fontname=\"Courier\" border=\"1\" cellspacing=\"0\" padding=\"0\">");
 
     // generate the label
     //
     alaska::print("      <tr><td align=\"left\" port=\"header\" border=\"0\">");
     BB.printAsOperand(errs(), false);
-    alaska::println(":</td></tr>");
+    alaska::print(":</td>");
+    for (auto &v : colors) {
+      (void)v;
+      alaska::print("<td align=\"left\" border=\"0\"></td>");
+    }
+    alaska::println("</tr>");
 
     for (auto &I : BB) {
-      const char *color = "white";
+      std::string color = "white";
 
       for (auto &[lock, lcolor] : colors) {
         if (lock->lock == &I) {
-          // color = lcolor;
-          color = "green";
+          color = lcolor;
+          break;
         }
 
-        if (lock->isUser(&I)) {
-          // color = lcolor;
-        }
+        // if (lock->isUser(&I)) {
+        //   color = lcolor;
+        //   break;
+        // }
 
         for (auto &unlock : lock->unlocks) {
           if (unlock == &I) {
-            color = "orange";
-            // color = lcolor;
+            color = lcolor;
           }
         }
       }
-      alaska::println("      <tr><td align=\"left\" port=\"n", &I, "\" border=\"0\" bgcolor=\"", color, "\">  ",
-          escape(I), "</td></tr>");
+      alaska::print("      <tr><td align=\"left\" port=\"n", &I, "\" border=\"0\" bgcolor=\"", color, "\">  ",
+          escape(I), "</td>");
+
+
+      for (auto &[lock, color] : colors) {
+        std::string c = "white";
+
+        if (lock->liveInstructions.find(&I) != lock->liveInstructions.end()) {
+          c = color;
+        }
+        alaska::print("<td align=\"left\" border=\"0\" bgcolor=\"", c, "\">  </td>");
+      }
+
+      alaska::println("</tr>");
     }
     alaska::println("    </table>>];");  // end label
   }
@@ -368,7 +394,7 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
     auto *term = BB.getTerminator();
     for (unsigned i = 0; i < term->getNumSuccessors(); i++) {
       auto *other = term->getSuccessor(i);
-      alaska::println("  n", &BB, ":n", term, " -> n", other);
+      alaska::println("  n", &BB, ":n", term, " -> n", other, ":header");
     }
   }
   alaska::println("}");

@@ -52,7 +52,7 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
     std::string focus;
 
 #ifdef ALASKA_DUMP_LOCKS_FOCUS
-		focus = ALASKA_DUMP_LOCKS_FOCUS;
+    focus = ALASKA_DUMP_LOCKS_FOCUS;
 #endif
 
     size_t pos = 0, found;
@@ -64,16 +64,9 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
 
     for (auto &F : M) {
       if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
-        errs() << F << "\n";
         auto l = alaska::extractLocks(F);
         if (l.size() > 0) {
           alaska::printLockDot(F, l);
-
-          // errs() << F << "\n";
-          // for (auto &lk : l) {
-          // 	lk->remove();
-          // }
-          // errs() << F << "\n";
         }
       }
     }
@@ -251,7 +244,11 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     hoist = true;
     llvm::noelle::MetadataManager mdm(M);
-    if (mdm.doesHaveMetadata("alaska")) return PreservedAnalyses::all();
+    if (mdm.doesHaveMetadata("alaska")) {
+      alaska::println("Alaska has already run on this module!\n");
+      return PreservedAnalyses::all();
+    }
+
     mdm.addMetadata("alaska", "did run");
 
     for (auto &F : M) {
