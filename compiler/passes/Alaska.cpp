@@ -346,7 +346,7 @@ auto adapt(T &&fp) {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-              MPM.addPass(adapt(llvm::LowerInvokePass()));
+              // MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaNormalizePass());
               MPM.addPass(AlaskaReplacementPass());
               MPM.addPass(AlaskaEscapePass());
