@@ -84,7 +84,7 @@ ALASKA_INLINE void alaska_do_unlock(alaska_mapping_t *m, void *restrict ptr) {
   // Perform the unlock
   ALASKA_SANITY(m->locks > 0, "lock value is too low!");
   // atomic_dec(m->locks, 1);
-  // m->locks--;
+  m->locks--;
 
   // call personality *after* we unlock
   ALASKA_PERSONALITY_ON_UNLOCK(m);
@@ -99,7 +99,6 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
-	return;
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
 
