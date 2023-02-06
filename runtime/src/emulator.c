@@ -164,7 +164,6 @@ static void amd64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* v
   uc_err (*uc_sync)(uc_engine*, int, void*);
   uc_sync = vsync;
 
-  // UC_X86_REG_RIP;
 #define DO_SYNC2(reg1, reg2) uc_sync(uc, UC_X86_REG_##reg1, &ucontext->uc_mcontext.gregs[REG_##reg2])
 #define DO_SYNC(reg) DO_SYNC2(reg, reg)
   DO_SYNC(R8);
@@ -186,27 +185,23 @@ static void amd64_emu_register_sync(ucontext_t* ucontext, uc_engine* uc, void* v
   DO_SYNC(RIP);
   DO_SYNC2(EFLAGS, EFL);
 
-
   for (int i = 0; i < 16; i++) {
-    // printf("xmm%-2d = {", i);
-    // for (int j = 0; j < 4; j++) {
-    //   printf(" %08x", ucontext->uc_mcontext.fpregs->_xmm[i].element[j]);
-    // }
-    // printf(" }\n");
     uc_sync(uc, UC_X86_REG_XMM0 + i, &ucontext->uc_mcontext.fpregs->_xmm[i]);
   }
 
   uc_sync(uc, UC_X86_REG_MXCSR, &ucontext->uc_mcontext.fpregs->mxcsr);
-
-  // for (int i = 0; i < 31; i++)
-  //   uc_sync(uc, UC_ARM64_REG_X0 + i, &ucontext->uc_mcontext.regs[i]);
-  // uc_sync(uc, UC_ARM64_REG_SP, &ucontext->uc_mcontext.sp);
-  // uc_sync(uc, UC_ARM64_REG_PC, &ucontext->uc_mcontext.pc);
 }
 
 static void emu_run(ucontext_t* ucontext) {
   off_t pc = ucontext->uc_mcontext.gregs[REG_RIP];
+  // printf("Start emulation at pc=%p\n", pc);
   amd64_emu_register_sync(ucontext, uc, uc_reg_write);
+
+  uint8_t* inst = (uint8_t*)pc;
+  if (*inst == 0xC5 || *inst == 0xC4) {
+    fprintf(stderr, "WARNING: Attempting to execute VEX encoded instruction in the Alaska emulator. This will likely fail!\n");
+  }
+
   // Emulate a single instruction
   uc_err_check("uc_emu_start", uc_emu_start(uc, (uint64_t)pc, (uint64_t)pc + 1000, 0, 1));
   amd64_emu_register_sync(ucontext, uc, uc_reg_read);

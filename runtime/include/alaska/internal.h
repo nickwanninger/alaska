@@ -78,9 +78,9 @@ typedef union {
 typedef struct {
 	// Cache line 1:
   void *ptr; // backing memory
-  uint32_t locks; // how many users?
+  // uint32_t locks; // how many users?
   // size: how big the backing memory is
-  uint32_t size;
+  uint32_t size; // How big is the handle's memory?
 
 	// Cache line 2:
   ALASKA_PERSONALITY_FIELDS; // personality fields.

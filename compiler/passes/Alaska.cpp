@@ -351,12 +351,11 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               // Insert lock calls
               MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
 
-      // TODO: perform the
+              // TODO: perform the
 
 #ifdef ALASKA_DUMP_LOCKS
               MPM.addPass(LockPrinterPass());
 #endif
-
 
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibraryPass());
@@ -368,6 +367,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimizePass(optLevel));
+
+
+
 
               return true;
             });

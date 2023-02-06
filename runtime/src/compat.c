@@ -19,7 +19,7 @@ static void *alaska_lock_for_escape(const void *ptr) {
     alaska_unlock((void *)ptr);
     return t;
   }
-  return (void*)ptr;
+  return (void *)ptr;
 }
 
 int alaska_wrapped_puts(const char *s) { return puts(alaska_lock_for_escape(s)); }
@@ -34,7 +34,55 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 }
 
 
-WEAK void *memset(void *s, int c, size_t n) {
+
+// DONE: memchr
+// TODO: memcmp
+// TODO: memcmpeq
+// DONE: memcpy
+// TODO: memmove
+// TODO: mempcpy
+// TODO: memrchr
+// DONE: memset
+// TODO: rawmemchr
+// TODO: stpcpy
+// TODO: stpncpy
+// TODO: strcasecmp
+// TODO: strcasecmp_l
+// TODO: strcat
+// TODO: strchr
+// TODO: strchrnul
+// TODO: strcmp
+// DONE: strcpy
+// DONE: strlen
+// TODO: strncat
+// TODO: strncmp
+// DONE: strncpy
+// TODO: strnlen
+// TODO: strrchr
+// TODO: wcschr
+// TODO: wcscmp
+// TODO: wcslen
+// TODO: wcsncmp
+// TODO: wcsnlen
+// TODO: wcsrchr
+// TODO: wmemchr
+// TODO: wmemcmp
+// TODO: wmemset
+
+void *memchr(const void *mem, int ch, size_t n) {
+  const unsigned char *c = alaska_lock((void *)mem);
+
+  for (int i = 0; i < n; i++) {
+    if (c[i] == (unsigned char)ch) {
+      alaska_unlock((void *)mem);
+      return (void *)((unsigned char *)mem + i);
+    }
+  }
+	alaska_unlock((void*)mem);
+  return NULL;
+}
+
+void *memset(void *s, int c, size_t n) {
   uint8_t *p = (uint8_t *)alaska_lock(s);
   for (size_t i = 0; i < n; i++)
     p[i] = c;
@@ -43,43 +91,43 @@ WEAK void *memset(void *s, int c, size_t n) {
 }
 
 
-WEAK void *memcpy(void *vdst, const void *vsrc, size_t n) {
+void *memcpy(void *vdst, const void *vsrc, size_t n) {
   uint8_t *dst = (uint8_t *)alaska_lock(vdst);
-  uint8_t *src = (uint8_t *)alaska_lock((void*)vsrc);
+  uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   for (size_t i = 0; i < n; i++) {
     dst[i] = src[i];
   }
   alaska_unlock(vdst);
-  alaska_unlock((void*)vsrc);
+  alaska_unlock((void *)vsrc);
   return vdst;
 }
 
 
 WEAK size_t strlen(const char *vsrc) {
-  uint8_t *src = (uint8_t *)alaska_lock((void*)vsrc);
+  uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t s = 0;
   for (s = 0; src[s]; s++) {
   }
-  alaska_unlock((void*)vsrc);
+  alaska_unlock((void *)vsrc);
   return s;
 }
 
 WEAK char *strcpy(char *vdest, const char *vsrc) {
   uint8_t *dest = (uint8_t *)alaska_lock(vdest);
-  uint8_t *src = (uint8_t *)alaska_lock((void*)vsrc);
+  uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t i;
 
   for (i = 0; src[i] != '\0'; i++)
     dest[i] = src[i];
 
   alaska_unlock(vdest);
-  alaska_unlock((void*)vsrc);
+  alaska_unlock((void *)vsrc);
   return vdest;
 }
 
 WEAK char *strncpy(char *vdest, const char *vsrc, size_t n) {
   uint8_t *dest = (uint8_t *)alaska_lock(vdest);
-  uint8_t *src = (uint8_t *)alaska_lock((void*)vsrc);
+  uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t i;
 
   for (i = 0; i < n && src[i] != '\0'; i++)
@@ -87,7 +135,7 @@ WEAK char *strncpy(char *vdest, const char *vsrc, size_t n) {
   for (; i < n; i++)
     dest[i] = '\0';
   alaska_unlock(vdest);
-  alaska_unlock((void*)vsrc);
+  alaska_unlock((void *)vsrc);
 
   return vdest;
 }

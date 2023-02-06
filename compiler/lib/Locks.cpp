@@ -342,14 +342,10 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
 
     // generate the label
     //
-    alaska::print("      <tr><td align=\"left\" port=\"header\" border=\"0\">");
-    BB.printAsOperand(errs(), false);
-    alaska::print(":</td>");
-    for (auto &v : colors) {
-      (void)v;
-      alaska::print("<td align=\"left\" border=\"0\"></td>");
-    }
-    alaska::println("</tr>");
+    // alaska::print("      <tr><td align=\"left\" port=\"header\" border=\"0\">");
+    // BB.printAsOperand(errs(), false);
+    // alaska::print(":</td>");
+    // alaska::println("</tr>");
 
     for (auto &I : BB) {
       std::string color = "white";
@@ -359,12 +355,6 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
           color = lcolor;
           break;
         }
-
-        // if (lock->isUser(&I)) {
-        //   color = lcolor;
-        //   break;
-        // }
-
         for (auto &unlock : lock->unlocks) {
           if (unlock == &I) {
             color = lcolor;
@@ -376,12 +366,11 @@ void alaska::printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska:
 
 
       for (auto &[lock, color] : colors) {
-        std::string c = "white";
-
-        if (lock->liveInstructions.find(&I) != lock->liveInstructions.end()) {
-          c = color;
+        if (lock->liveInstructions.find(&I) != lock->liveInstructions.end()
+						|| &I == lock->lock
+						|| lock->unlocks.find(dyn_cast<CallInst>(&I)) != lock->unlocks.end()) {
+          alaska::print("<td align=\"left\" border=\"0\" bgcolor=\"", color, "\">  </td>");
         }
-        alaska::print("<td align=\"left\" border=\"0\" bgcolor=\"", c, "\">  </td>");
       }
 
       alaska::println("</tr>");
