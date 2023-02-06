@@ -94,15 +94,14 @@ C_INC = -I../common
 #---------------------------------------------------------------------------
 # Global *compile time* flags for C programs
 #---------------------------------------------------------------------------
-CFLAGS	= -O3 -fPIC
+CFLAGS	= -O3 -fPIC -fopenmp
 # CFLAGS = -g
 
 #---------------------------------------------------------------------------
 # Global *link time* flags. Flags for increasing maximum executable 
 # size usually go here. 
 #---------------------------------------------------------------------------
-CLINKFLAGS = -fPIC
-
+CLINKFLAGS = -fPIC -fopenmp
 
 #---------------------------------------------------------------------------
 # Utilities C:

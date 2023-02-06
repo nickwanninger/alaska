@@ -56,14 +56,14 @@ NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/
 GAP_BENCHMARKS := bench/gap/bfs bench/gap/bc bench/gap/cc bench/gap/cc_sv bench/gap/pr bench/gap/pr_spmv bench/gap/sssp
 
 
-NAS_CLASS=A
+NAS_CLASS=B
 bench/nas/%: alaska
 	@mkdir -p bench/nas
 	@echo "  CC  " $@
 	@$(MAKE) --no-print-directory -C test/npb $* CLASS=$(NAS_CLASS) >/dev/null
 	@mv bench/$*.$(NAS_CLASS) bench/nas/$*.base
 	@get-bc bench/nas/$*.base >/dev/null
-	@local/bin/alaska -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
+	@local/bin/alaska -fopenmp -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
 	@rm bench/nas/$*.base.bc
 
 
@@ -72,7 +72,7 @@ bench/gap/%: alaska
 	@echo "  CC  " $@
 	@local/bin/alaska++ -std=c++11 -k -b -O3 -Wall test/gapbs/src/$*.cc -o $@
 
-bench: alaska $(NAS_BENCHMARKS) # $(GAP_BENCHMARKS)
+bench: alaska $(NAS_BENCHMARKS) $(GAP_BENCHMARKS)
 
 
 
