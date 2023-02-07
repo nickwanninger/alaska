@@ -84,7 +84,7 @@ alaska_mapping_t *alaska_table_from_canonical(unsigned canon) { return &table_me
 
 // allocate a table entry
 alaska_mapping_t *alaska_table_get(void) {
-  pthread_mutex_lock(&table_lock);
+  // pthread_mutex_lock(&table_lock);
   alaska_mapping_t *ent = NULL;
 
   if (next_free == NULL) {
@@ -97,7 +97,7 @@ alaska_mapping_t *alaska_table_get(void) {
 
   memset(ent, 0, sizeof(*ent));
 
-  pthread_mutex_unlock(&table_lock);
+  // pthread_mutex_unlock(&table_lock);
   return ent;
 
   // // slow and bad, but correct
@@ -117,10 +117,10 @@ alaska_mapping_t *alaska_table_get(void) {
 
 // free a table entry
 void alaska_table_put(alaska_mapping_t *ent) {
-  pthread_mutex_lock(&table_lock);
+  // pthread_mutex_lock(&table_lock);
   ent->size = -1;
   ent->ptr = next_free;
   table_nfree++;
   next_free = ent;
-  pthread_mutex_unlock(&table_lock);
+  // pthread_mutex_unlock(&table_lock);
 }
