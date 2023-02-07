@@ -21,32 +21,14 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
 # Run a cleanup pass on the bitcode
-# $OPT --strip-debug
+$OPT --strip-debug
 # make sure mem2reg is on :)
-$OPT --mem2reg # --lowerinvoke # $LOOPS --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
+$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg # --lowerinvoke # $LOOPS --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
 
 # run some loop adjustments
 # $OPT ${AA} -loop-rotate -loop-simplify -indvars -lcssa -llicm
 
-clang -pg -O3 \
+clang -O3 \
 	-Xclang -fpass-plugin=${PFX}/lib/Alaska.so \
 	-fplugin=${PFX}/lib/Alaska.so \
 	-c -emit-llvm $INPUT -o $INPUT
-
-# $OPT                                                \
-# 	-load "${PFX}/lib/Alaska.so"                      \
-# 	-load "${PFX}/lib/AlaskaNormalize.so"             \
-# 	-load "${PFX}/lib/AlaskaReplacement.so"           \
-# 	-load "${PFX}/lib/AlaskaEscapeHandler.so"         \
-# 	--alaska-norm                                     \
-# 	--alaska-replace                                  \
-# 	--alaska-escape                                   \
-# 	$AA $@                                            \
-# 	--alaska
-
-# Perform a bit of cleanup
-$OPT --dce --adce
-# link the alaska bitcode file
-# llvm-link -o ${INPUT} ${INPUT} ${PFX}/lib/alaska.bc
-# run the inliner
-# $OPT --inline --always-inline

@@ -6,7 +6,7 @@
 namespace alaska {
 
   llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
-  void insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  llvm::Instruction *insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
 
 
   // Insert get/puts for a graph conservatively (every load and store)
@@ -17,24 +17,37 @@ namespace alaska {
 
 
   void runReplacementPass(llvm::Module &M);
+	bool bootstrapping(void); // are we bootstrapping?
 
-  inline void println() {
-    // base case
-    llvm::errs() << "\n";
-  }
 
+  inline void fprint(llvm::raw_ostream &out) {}
   template <class T, class... Ts>
-  inline void println(T const &first, Ts const &...rest) {
-    llvm::errs() << first;
-    alaska::println(rest...);
+  inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &...rest) {
+    out << first;
+    alaska::fprint(out, rest...);
   }
 
-  inline void print() { /* Base case. */ }
-  template <class T, class... Ts>
-  inline void print(T const &first, Ts const &...rest) {
-    llvm::errs() << first;
-    alaska::print(rest...);
+
+
+  template <class... Ts>
+  inline void fprintln(llvm::raw_ostream &out, Ts const &...args) {
+    alaska::fprint(out, args..., '\n');
   }
+
+
+
+  template <class... Ts>
+  inline void println(Ts const &...args) {
+    alaska::fprintln(llvm::errs(), args...);
+  }
+
+  template <class... Ts>
+  inline void print(Ts const &...args) {
+    alaska::fprint(llvm::errs(), args...);
+  }
+
+  // format an llvm value in a simpler way
+  std::string simpleFormat(llvm::Value *val);
 }  // namespace alaska
 
 

@@ -1,6 +1,5 @@
-#include <capstone/capstone.h>
-
 #include <alaska.h>
+#include <alaska/internal.h>
 #include <errno.h>
 #include <malloc.h>
 #include <signal.h>
@@ -96,6 +95,7 @@ static inline void alaska_emulate_store(void* addr, uint64_t val, size_t size) {
 void uc_err_check(const char* name, uc_err err) {
   if (err) {
     fprintf(stderr, "Unicorn: %s failed with error returned: %s\n", name, uc_strerror(err));
+		alaska_dump_backtrace();
     exit(EXIT_FAILURE);
   }
 }

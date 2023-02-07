@@ -14,8 +14,51 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 
-static bool is_tracing(void) { return getenv("ALASKA_COMPILER_TRACE") != NULL; }
 
+bool alaska::bootstrapping(void) { return getenv("ALASKA_BOOTSTRAP") != NULL; }
+
+struct SimpleFormatVisitor : public llvm::InstVisitor<SimpleFormatVisitor> {
+  llvm::raw_string_ostream &out;
+  SimpleFormatVisitor(llvm::raw_string_ostream &out) : out(out) {}
+
+  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+    out << "GEP ";
+    //
+  }
+
+  void visitPHINode(llvm::PHINode &I) {
+    out << "PHI ";
+    //
+  }
+
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    I.printAsOperand(out);
+    out << " = load ";
+    I.getPointerOperand()->printAsOperand(out);
+  }
+
+  void visitStoreInst(llvm::StoreInst &I) {
+    out << "store ";
+    I.getPointerOperand()->printAsOperand(out);
+  }
+
+  void visitInstruction(llvm::Instruction &I) { I.print(out); }
+};
+
+
+std::string alaska::simpleFormat(llvm::Value *val) {
+  std::string str;
+  llvm::raw_string_ostream out(str);
+
+  val->print(out);
+
+
+  return str;
+}
+
+
+static bool is_tracing(void) { return getenv("ALASKA_COMPILER_TRACE") != NULL; }
 #define BT_BUF_SIZE 100
 void alaska::dumpBacktrace(void) {
   int nptrs;
@@ -40,6 +83,7 @@ void alaska::dumpBacktrace(void) {
 
 
 llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
+	return nullptr;
   for (auto &BB : *F) {
     for (auto &I : BB) {
       if (I.getDebugLoc()) return I.getDebugLoc();
@@ -57,6 +101,7 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
   std::string name = "alaska_lock";
   if (is_tracing()) name += "_trace";
+	if (bootstrapping()) name = "alaska_lock_bootstrap";
   auto lockFunction = M.getOrInsertFunction(name, lockFunctionType).getCallee();
 
   IRBuilder<> b(inst);
@@ -71,7 +116,7 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   return locked;
 }
 
-void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+llvm::Instruction *alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
@@ -81,12 +126,15 @@ void alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
 
   std::string name = "alaska_unlock";
   if (is_tracing()) name += "_trace";
+	if (bootstrapping()) name = "alaska_unlock_bootstrap";
   auto func = M.getOrInsertFunction(name, ftype).getCallee();
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
   auto unlock = b.CreateCall(ftype, func, {pointer});
   unlock->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+
+	return unlock;
 }
 
 

@@ -107,59 +107,59 @@ redis: alaska
 
 lua: alaska
 	local/bin/alaska -O2 -b -k test/lua/onelua.c -o build/lua
-#
-# libc/src:
-# 	mkdir -p libc
-# 	# git checkout azanella/clang
-# 	git clone git@github.com:bminor/glibc.git --depth 1 $@
-#
-# libc/build/Makefile: libc/src
-# 	mkdir -p libc/build
-# 	cd libc/build && unset LD_LIBRARY_PATH && CC=clang CXX=clang++ ../src/configure \
-# 		--with-lld \
-# 		--verbose \
-# 		--with-default-link \
-# 		--disable-multi-arch \
-# 		--disable-sanity-checks \
-# 		--prefix=$(ROOT)/libc/local
-#
-# libc/build/libc.a: libc/build/Makefile
-# 	$(MAKE) -C libc/build
-#
-# libc/build/libc.bc: libc/build/libc.a
-# 	get-bc -b $<
-# 	@cp $^ $@
-# 	@alaska-transform $@
-# 	@llvm-dis $@
-#
-# local/lib/libc.o: libc/build/lib/libc.a
-#
-# libc: libc/build/Makefile
-#
 
-musl:
-	git clone git://git.musl-libc.org/musl --depth 1 musl
+libc/src:
+	mkdir -p libc
+	git clone git@github.com:bminor/glibc.git --depth 1 $@
+	cd libc/src && git checkout azanella/clang
 
-musl/lib/libc.a: musl
-	cd musl && CC=gclang ./configure --prefix=$(PWD)/local/sysroot --syslibdir=$(PWD)/local/sysroot/lib
-	CC=gclang $(MAKE) -C musl install
+libc/build/Makefile: libc/src
+	mkdir -p libc/build
+	cd libc/build && unset LD_LIBRARY_PATH && CC=clang CXX=clang++ ../src/configure \
+		--with-lld \
+		--verbose \
+		--with-default-link \
+		--disable-multi-arch \
+		--disable-sanity-checks \
+		--prefix=$(ROOT)/libc/local
 
-musl/lib/lib%.a.bc: musl/lib/libc.a # everyone relies on libc.a, as we build all of them at the same time
-	get-bc -b musl/lib/lib$*.a 2>/dev/null # ignore the warnings for asm files
+libc/build/libc.a: libc/build/Makefile
+	$(MAKE) -C libc/build
 
-build/lib%.bc: musl/lib/lib%.a.bc
-	@echo " TX lib$*"
-	@cp musl/lib/lib$*.a.bc build/lib$*.bc
-	@alaska-transform build/lib$*.bc
-	@llvm-dis build/lib$*.bc
+libc/build/libc.bc: libc/build/libc.a
+	get-bc -b $<
+	@cp $^ $@
+	@alaska-transform $@
+	@llvm-dis $@
 
-# code to build libc with alaska :)
-local/sysroot/lib/lib%.o: alaska build/lib%.bc
-	@echo " CC lib$*"
-	@clang -O3 -c -o build/lib$*.o build/lib$*.bc
-	@cp build/lib$*.o local/lib/
-	@cp musl/lib/lib$*.a local/lib/
-libc: local/sysroot/lib/libc.o
+local/lib/libc.o: libc/build/lib/libc.a
+
+libc: libc/build/Makefile
+
+
+# musl:
+# 	git clone git://git.musl-libc.org/musl --depth 1 musl
+#
+# musl/lib/libc.a: musl
+# 	cd musl && CC=gclang ./configure --prefix=$(PWD)/local/sysroot --syslibdir=$(PWD)/local/sysroot/lib
+# 	CC=gclang $(MAKE) -C musl install
+#
+# musl/lib/lib%.a.bc: musl/lib/libc.a # everyone relies on libc.a, as we build all of them at the same time
+# 	get-bc -b musl/lib/lib$*.a 2>/dev/null # ignore the warnings for asm files
+#
+# build/lib%.bc: musl/lib/lib%.a.bc
+# 	@echo " TX lib$*"
+# 	@cp musl/lib/lib$*.a.bc build/lib$*.bc
+# 	@alaska-transform build/lib$*.bc
+# 	@llvm-dis build/lib$*.bc
+#
+# # code to build libc with alaska :)
+# local/sysroot/lib/lib%.o: alaska build/lib%.bc
+# 	@echo " CC lib$*"
+# 	@clang -O3 -c -o build/lib$*.o build/lib$*.bc
+# 	@cp build/lib$*.o local/lib/
+# 	@cp musl/lib/lib$*.a local/lib/
+# libc: local/sysroot/lib/libc.o
 
 
 

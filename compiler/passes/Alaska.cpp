@@ -35,6 +35,7 @@
 #include <WrappedFunctions.h>
 
 
+
 class ProgressPass : public PassInfoMixin<ProgressPass> {
  public:
   const char *message;
@@ -90,7 +91,6 @@ class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
       }
 
       if (auto gep = dyn_cast<GEPOperator>(op)) {
-        // errs() << "found gep operator\n";
         std::vector<llvm::Value *> inds(gep->idx_begin(), gep->idx_end());
         if (gep->isInBounds()) {
           gep->hasIndices();
@@ -185,9 +185,6 @@ class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
 class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
  public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-#ifndef ALASKA_ESCAPE_PASS
-    return false;
-#endif
     std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hrealloc_trace", "hcalloc", "hfree",
         "hfree_trace", "alaska_lock", "alaska_lock_trace", "alaska_unlock", "alaska_unlock_trace", "alaska_classify",
         "alaska_classify_trace"};
@@ -214,14 +211,15 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
     }
 
     for (auto *call : escapes) {
-      int i = 0;
+      int i = -1;
       for (auto &arg : call->args()) {
-        if (arg->getType()->isPointerTy()) {
-          auto translated = alaska::insertLockBefore(call, arg);
-          alaska::insertUnlockBefore(call->getNextNode(), arg);
-          call->setArgOperand(i, translated);
-        }
         i++;
+        if (!arg->getType()->isPointerTy()) continue;
+        if (dyn_cast<GlobalValue>(arg)) continue;
+
+        auto translated = alaska::insertLockBefore(call, arg);
+        alaska::insertUnlockBefore(call->getNextNode(), arg);
+        call->setArgOperand(i, translated);
       }
     }
 
@@ -239,10 +237,9 @@ class AlaskaReplacementPass : public PassInfoMixin<AlaskaReplacementPass> {
 
 class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
  public:
-  bool hoist = false;
-  AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
+  AlaskaTranslatePass() {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    hoist = true;
+    bool hoist = true;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) {
       alaska::println("Alaska has already run on this module!\n");
@@ -260,7 +257,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         continue;
       }
 
-      alaska::println("running translate on ", F.getName());
+      // alaska::println("running translate on ", F.getName());
       if (hoist) {
         alaska::insertHoistedLocks(F);
       } else {
@@ -290,8 +287,14 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
     }
   }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_inline_lock.bc";
+
+    // Use the bootstrap bitcode if we are bootstrapping
+    if (alaska::bootstrapping()) {
+      bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap_lock.bc";
+    }
     // link the alaska.bc file
-    auto buf = llvm::MemoryBuffer::getFile(ALASKA_INSTALL_PREFIX "/lib/alaska_inline_lock.bc");
+    auto buf = llvm::MemoryBuffer::getFile(bitcode_path);
     auto other = llvm::parseBitcodeFile(*buf.get(), M.getContext());
     auto other_module = std::move(other.get());
 
@@ -343,20 +346,24 @@ auto adapt(T &&fp) {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-              // MPM.addPass(adapt(llvm::LowerInvokePass()));
               MPM.addPass(AlaskaNormalizePass());
-              MPM.addPass(AlaskaReplacementPass());
-              MPM.addPass(AlaskaEscapePass());
+              if (!alaska::bootstrapping()) {
+                // run replacement on non-bootstrapped code
+                MPM.addPass(AlaskaReplacementPass());
+              }
+              MPM.addPass(AlaskaTranslatePass());
 
-              // Insert lock calls
-              MPM.addPass(AlaskaTranslatePass(optLevel.getSpeedupLevel() > 0));
-
-              // TODO: perform the
+#ifdef ALASKA_ESCAPE_PASS
+              if (!alaska::bootstrapping()) {
+                MPM.addPass(AlaskaEscapePass());
+              }
+#endif
 
 #ifdef ALASKA_DUMP_LOCKS
               MPM.addPass(LockPrinterPass());
 #endif
 
+#if 1
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibraryPass());
 
@@ -367,9 +374,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimizePass(optLevel));
-
-
-
+#endif
 
               return true;
             });

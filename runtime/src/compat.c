@@ -36,7 +36,7 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 
 
 // DONE: memchr
-// TODO: memcmp
+// DONE: memcmp
 // TODO: memcmpeq
 // DONE: memcpy
 // TODO: memmove
@@ -51,7 +51,7 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 // TODO: strcat
 // TODO: strchr
 // TODO: strchrnul
-// TODO: strcmp
+// DONE: strcmp
 // DONE: strcpy
 // DONE: strlen
 // TODO: strncat
@@ -69,6 +69,46 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 // TODO: wmemcmp
 // TODO: wmemset
 
+
+
+static void *__lock(void *ptr) {
+	void *out = alaska_lock(ptr);
+	alaska_unlock(ptr);
+	return out;
+}
+
+#define LOCK(ptr) __lock((void*)(ptr))
+
+int memcmp(const void *vl, const void *vr, size_t n) {
+  const unsigned char *l = LOCK(vl), *r = LOCK(vr);
+  for (; n && *l == *r; n--, l++, r++)
+    ;
+  return n ? *l - *r : 0;
+}
+
+int bcmp(const void *s1, const void *s2, size_t n) {
+	return memcmp(s1, s2, n);
+}
+
+
+char *__stpcpy(char *restrict d, const char *restrict s) {
+  for (; (*d = *s); s++, d++)
+    ;
+
+  return d;
+}
+
+int strcmp(const char *vl, const char *vr) {
+  const char *l = alaska_lock((void *)vl);
+  const char *r = alaska_lock((void *)vr);
+  for (; *l == *r && *l; l++, r++)
+    ;
+
+  alaska_unlock((void *)vl);
+  alaska_unlock((void *)vr);
+  return *(unsigned char *)l - *(unsigned char *)r;
+}
+
 void *memchr(const void *mem, int ch, size_t n) {
   const unsigned char *c = alaska_lock((void *)mem);
 
@@ -78,7 +118,7 @@ void *memchr(const void *mem, int ch, size_t n) {
       return (void *)((unsigned char *)mem + i);
     }
   }
-	alaska_unlock((void*)mem);
+  alaska_unlock((void *)mem);
   return NULL;
 }
 
@@ -103,7 +143,7 @@ void *memcpy(void *vdst, const void *vsrc, size_t n) {
 }
 
 
-WEAK size_t strlen(const char *vsrc) {
+size_t strlen(const char *vsrc) {
   uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t s = 0;
   for (s = 0; src[s]; s++) {
@@ -112,7 +152,7 @@ WEAK size_t strlen(const char *vsrc) {
   return s;
 }
 
-WEAK char *strcpy(char *vdest, const char *vsrc) {
+char *strcpy(char *vdest, const char *vsrc) {
   uint8_t *dest = (uint8_t *)alaska_lock(vdest);
   uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t i;
@@ -125,7 +165,7 @@ WEAK char *strcpy(char *vdest, const char *vsrc) {
   return vdest;
 }
 
-WEAK char *strncpy(char *vdest, const char *vsrc, size_t n) {
+char *strncpy(char *vdest, const char *vsrc, size_t n) {
   uint8_t *dest = (uint8_t *)alaska_lock(vdest);
   uint8_t *src = (uint8_t *)alaska_lock((void *)vsrc);
   size_t i;
