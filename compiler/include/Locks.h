@@ -50,5 +50,5 @@ namespace alaska {
   void computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> &locks);
 
 
-  void printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks);
+  void printLockDot(llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks, llvm::raw_ostream &out = llvm::errs());
 };  // namespace alaska

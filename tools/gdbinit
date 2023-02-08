@@ -1,1 +1,3 @@
 handle SIGSEGV nostop pass noprint
+
+b exit

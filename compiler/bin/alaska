@@ -5,7 +5,7 @@ set -e
 PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
 
 export PATH=$PFX/bin:$PATH
-export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH:/lib64:/lib
 
 OUTFILE="a.out"
 KEEP="false"
@@ -63,6 +63,14 @@ done
 COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize")
 COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
 
+case $(uname -p) in
+	x86_64)
+		# on x86, prod the backend along a bit more
+		# COLLECT_CLANG_ARGS+=("-march=native ")
+		# COLLECT_CLANG_ARGS+=("-mprefer-vector-width=256 ")
+		# COLLECT_CLANG_ARGS+=("-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd")
+		;;
+esac
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
@@ -83,7 +91,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -O3 -gdwarf-4 ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags`
+	$CLANG -O3 -gdwarf-4 ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags` -lomp
 	rm ${TMPFILE}
 fi
 

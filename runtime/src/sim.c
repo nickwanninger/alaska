@@ -70,8 +70,6 @@ static void dump(void) {
 
 
 void sim_on_alloc(alaska_mapping_t *m) {
-  m->locks = 40000;  // TODO: make this real :)
-
   alloc_t *a = calloc(1, sizeof(*a));
   a->handle = m;
   rb_insert(&root, &a->node, __insert_callback, (void *)a);

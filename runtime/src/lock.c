@@ -72,26 +72,19 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 
 ALASKA_INLINE void *alaska_do_lock(alaska_mapping_t *m, void *restrict ptr) {
-  // Perform the lock
-  m->locks++;
-  // call personality *after* we lock
   ALASKA_PERSONALITY_ON_LOCK(m);
 	// finally, translate
   return alaska_translate(ptr, m);
 }
 
 ALASKA_INLINE void alaska_do_unlock(alaska_mapping_t *m, void *restrict ptr) {
-  // Perform the unlock
-  ALASKA_SANITY(m->locks > 0, "lock value is too low!");
-  // atomic_dec(m->locks, 1);
-  // m->locks--;
-
   // call personality *after* we unlock
   ALASKA_PERSONALITY_ON_UNLOCK(m);
 }
 
 
 ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
+
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
 
@@ -99,7 +92,6 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
-	return;
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
 

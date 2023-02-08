@@ -3,7 +3,7 @@ add_link_options("-fuse-ld=lld")
 set(WARNINGS " -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -gdwarf-4 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O2 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
@@ -118,6 +118,11 @@ target_include_directories(alaska_inline_lock_native PUBLIC include/)
 set_target_properties(alaska_inline_lock_native PROPERTIES LINKER_LANGUAGE C)
 
 
+add_library(alaska_bootstrap_lock_native STATIC src/bootstrap.c)
+target_include_directories(alaska_bootstrap_lock_native PUBLIC include/)
+set_target_properties(alaska_bootstrap_lock_native PROPERTIES LINKER_LANGUAGE C)
+
+
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
@@ -184,6 +189,16 @@ llvmir_attach_link_target(
 
 
 llvmir_attach_bc_target(
+  TARGET alaska_bootstrap_lock_bitcodes
+  DEPENDS alaska_bootstrap_lock_native)
+llvmir_attach_link_target(
+  TARGET alaska_bootstrap_lock
+  DEPENDS alaska_bootstrap_lock_bitcodes
+  OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
+
+
+
+llvmir_attach_bc_target(
   TARGET alaska_bitcodes
   DEPENDS alaska_core)
 
@@ -195,6 +210,7 @@ llvmir_attach_link_target(
 add_dependencies(alaska alaska_core)
 
 
+set_property(TARGET alaska_bootstrap_lock PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska_inline_lock PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska_bitcodes PROPERTY EXCLUDE_FROM_ALL OFF)
 set_property(TARGET alaska PROPERTY EXCLUDE_FROM_ALL OFF)

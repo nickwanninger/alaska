@@ -54,7 +54,6 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
   void visitInstruction(llvm::Instruction &I) {
     node.type = alaska::Source;
     node.colors.insert(node.id);
-    //
   }
 };
 

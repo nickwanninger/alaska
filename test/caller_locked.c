@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <alaska.h>
 
 void square(int *x) {
 	*x *= *x;
@@ -8,15 +9,14 @@ void square(int *x) {
 
 
 int main() {
-	int *x = malloc(sizeof(*x));
-
+	int *x = halloc(sizeof(*x));
 
 	*x = 5;
 	square(x);
 
 	printf("%d\n", *x);
 
-	free(x);
+	hfree(x);
 	return 0;
 
 }
