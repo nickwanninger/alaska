@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <Locks.h>
+#include <config.h>
 
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Value.h"

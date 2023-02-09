@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <config.h>
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Instructions.h"

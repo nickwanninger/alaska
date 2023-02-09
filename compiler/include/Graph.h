@@ -23,6 +23,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
+#include <config.h>
 #include <map>
 #include <memory> // shared_ptr
 #include <set>

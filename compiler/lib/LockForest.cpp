@@ -10,6 +10,7 @@
 
 
 
+
 // Either get the `incoming_lock` of this node or the node it shares with, or the parent's translated
 llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node) {
   if (node.incoming_lock != NULL) return node.incoming_lock;

@@ -257,7 +257,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         continue;
       }
 
-      // alaska::println("running translate on ", F.getName());
+      alaska::println("running translate on ", F.getName());
       if (hoist) {
         alaska::insertHoistedLocks(F);
       } else {
@@ -272,9 +272,12 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
 
 class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
  public:
-  void prepareLibrary(Module &M) {
-    auto linkage = GlobalValue::WeakAnyLinkage;
+  const char *lib_path = NULL;
+  GlobalValue::LinkageTypes linkage;
 
+  AlaskaLinkLibraryPass(const char *lib_path, GlobalValue::LinkageTypes linkage = GlobalValue::WeakAnyLinkage)
+      : lib_path(lib_path), linkage(linkage) {}
+  void prepareLibrary(Module &M) {
     for (auto &G : M.globals())
       if (!G.isDeclaration()) G.setLinkage(linkage);
 
@@ -287,14 +290,7 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
     }
   }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_inline_lock.bc";
-
-    // Use the bootstrap bitcode if we are bootstrapping
-    if (alaska::bootstrapping()) {
-      bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap_lock.bc";
-    }
-    // link the alaska.bc file
-    auto buf = llvm::MemoryBuffer::getFile(bitcode_path);
+    auto buf = llvm::MemoryBuffer::getFile(lib_path);
     auto other = llvm::parseBitcodeFile(*buf.get(), M.getContext());
     auto other_module = std::move(other.get());
 
@@ -346,6 +342,9 @@ auto adapt(T &&fp) {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
+              // MPM.addPass(AlaskaLinkLibraryPass(
+              //     ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc", llvm::GlobalValue::ExternalLinkage));
+
               MPM.addPass(AlaskaNormalizePass());
               if (!alaska::bootstrapping()) {
                 // run replacement on non-bootstrapped code
@@ -363,9 +362,13 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(LockPrinterPass());
 #endif
 
-#if 1
+              const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
+              // Use the bootstrap bitcode if we are bootstrapping
+              if (alaska::bootstrapping()) {
+                bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
+              }
               // Link the library (just runtime/src/lock.c)
-              MPM.addPass(AlaskaLinkLibraryPass());
+              MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
 
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
@@ -374,7 +377,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
               // For good measures, re-optimize
               MPM.addPass(AlaskaReoptimizePass(optLevel));
-#endif
 
               return true;
             });
