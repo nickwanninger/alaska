@@ -28,3 +28,6 @@ tools/.ipynb_checkpoints
 /test/SPEC2017/benchmarks
 /test/SPEC2017/bitcodes
 test/npb/MG/penmp
+
+/runtime/include/alaska/config.h
+/compiler/include/config.h

@@ -1743,7 +1743,7 @@ class Kconfig(object):
             if sym.orig_type in _BOOL_TRISTATE:
                 if val == "y":
                     add("set({}{} TRUE)\n".format(self.config_prefix, sym.name))
-                    add("add_compile_definitions({}{}=1)\n".format(self.config_prefix, sym.name))
+                    # add("add_compile_definitions({}{}=1)\n".format(self.config_prefix, sym.name))
                     enabled.append("{}".format(sym.name))
                 elif val == "m":
                     add("set({}{}_MODULE 1)\n".format(self.config_prefix, sym.name))
@@ -1753,7 +1753,7 @@ class Kconfig(object):
             elif sym.orig_type is STRING:
                 add('set({}{} "{}")\n'
                     .format(self.config_prefix, sym.name, escape(val)))
-                add("add_compile_definitions({}{}=\"{}\")\n".format(self.config_prefix, sym.name, escape(val)))
+                # add("add_compile_definitions({}{}=\"{}\")\n".format(self.config_prefix, sym.name, escape(val)))
 
             else:  # sym.orig_type in _INT_HEX:
                 if sym.orig_type is HEX and \
@@ -1762,8 +1762,8 @@ class Kconfig(object):
 
                 add("set({}{} {})\n"
                     .format(self.config_prefix, sym.name, val))
-                add("add_compile_definitions({}{}={})\n"
-                    .format(self.config_prefix, sym.name, val))
+                # add("add_compile_definitions({}{}={})\n"
+                #     .format(self.config_prefix, sym.name, val))
 
             add('\n')
 
@@ -1849,7 +1849,8 @@ class Kconfig(object):
             f.write(contents)
 
         # write the autoconf file
-        # self.write_autoconf('src/autoconf.h')
+        self.write_autoconf('runtime/include/alaska/config.h')
+        self.write_autoconf('compiler/include/config.h')
         if self._write_if_changed('config.cmake', self._cmake_contents(header)):
             return "config.cmake saved".format(filename)
 

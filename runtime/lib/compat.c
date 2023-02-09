@@ -70,17 +70,16 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 // TODO: wmemset
 
 
+# define weak_alias(name, aliasname) _weak_alias (name, aliasname)
+# define _weak_alias(name, aliasname) \
+  extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 
-static void *__lock(void *ptr) {
-	void *out = alaska_lock(ptr);
-	alaska_unlock(ptr);
-	return out;
-}
 
-#define LOCK(ptr) __lock((void*)(ptr))
+// #define alaska_lock(l) l
+// #define alaska_unlock(l)
 
 int memcmp(const void *vl, const void *vr, size_t n) {
-  const unsigned char *l = LOCK(vl), *r = LOCK(vr);
+  const unsigned char *l = vl, *r = vr;
   for (; n && *l == *r; n--, l++, r++)
     ;
   return n ? *l - *r : 0;
@@ -151,6 +150,9 @@ size_t strlen(const char *vsrc) {
   alaska_unlock((void *)vsrc);
   return s;
 }
+
+weak_alias(strlen, __strlen_avx2);
+weak_alias(strlen, __printf);
 
 char *strcpy(char *vdest, const char *vsrc) {
   uint8_t *dest = (uint8_t *)alaska_lock(vdest);

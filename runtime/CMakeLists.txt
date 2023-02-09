@@ -14,6 +14,9 @@ include_directories(
 
 
 
+
+
+
 if(ALASKA_CORRECTNESS_EMULATOR)
 add_subdirectory(emu)
 endif()
@@ -23,82 +26,101 @@ set(CMAKE_C_COMPILER_ID "Clang")
 set(CMAKE_CXX_COMPILER_ID "Clang")
 
 
+function(add_bitcode name)
+	cmake_parse_arguments(
+		SRC        # prefix of output variables
+		""         # Boolean arguments
+		""         # Single value arguments
+		"SOURCES"  # multi value arguments
+		${ARGN}    # arguments of the function to parse, here we take the all original ones
+		)
 
 
-# The alaska support library implements some of the larger, performance
-# insensitive parts of alaska. Primarially, it contains the memory allocator
-# (je_malloc), as compiling it into bitcode does not benefit anyone - it just
-# takes more time
-# set(SRC_FILES
-# )
-# add_library(alaska_support SHARED ${SRC_FILES})
-# target_link_libraries(alaska_support pthread) # requires pthread
+	add_library(${name}_native STATIC ${SRC_SOURCES})
+	target_include_directories(${name}_native PUBLIC include/)
+	set_target_properties(${name}_native PROPERTIES LINKER_LANGUAGE C)
+
+	llvmir_attach_bc_target(
+		TARGET  ${name}_bitcodes
+		DEPENDS ${name}_native)
+	llvmir_attach_link_target(
+		TARGET  ${name}
+		DEPENDS ${name}_bitcodes
+		OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
+
+	set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
+endfunction(add_bitcode)
+
+
+add_bitcode(alaska_lock SOURCES lib/lock.c)
+add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
+add_bitcode(alaska_compat SOURCES lib/compat.c)
+
 
 
 set(SRC_FILES
 	# The core runtime implementation
-	src/runtime.c
-	src/table.c
-	src/lock.c
-	src/halloc.c
-	src/barrier.c
-	# src/classify.c
-	src/rbtree.c
-	src/trace.c
+	lib/runtime.c
+	lib/table.c
+	lib/lock.c
+	lib/halloc.c
+	lib/barrier.c
+	# lib/classify.c
+	lib/rbtree.c
+	lib/trace.c
 
-	# Replacing c++ new/delete in a more reasonable way
-	# src/glue.cpp
-
-	# libc functions that we wrap
-	src/compat.c   
-	# src/malloc.c   
+	# libc functions that we reimplement to avoid
+	# glibc doing terrible things with AVX512
+	# (The emulator cannot handle them)
+	lib/compat.c
 	
-	src/jemalloc/jemalloc.c
-	src/jemalloc/atomic.c
-	src/jemalloc/arena.c
-	src/jemalloc/base.c
-	src/jemalloc/bitmap.c
-	src/jemalloc/chunk.c
-	src/jemalloc/chunk_dss.c
-	src/jemalloc/chunk_mmap.c
-	src/jemalloc/ckh.c
-	src/jemalloc/ctl.c
-	src/jemalloc/extent.c
-	src/jemalloc/hash.c
-	src/jemalloc/huge.c
-	src/jemalloc/mb.c
-	src/jemalloc/mutex.c
-	src/jemalloc/nstime.c
-	src/jemalloc/pages.c
-	src/jemalloc/prng.c
-	src/jemalloc/prof.c
-	src/jemalloc/quarantine.c
-	src/jemalloc/rtree.c
-	src/jemalloc/stats.c
-	src/jemalloc/spin.c
-	src/jemalloc/tcache.c
-	src/jemalloc/ticker.c
-	src/jemalloc/tsd.c
-	src/jemalloc/util.c
-	src/jemalloc/witness.c
-	src/jemalloc/valgrind.c
+	lib/jemalloc/jemalloc.c
+	lib/jemalloc/atomic.c
+	lib/jemalloc/arena.c
+	lib/jemalloc/base.c
+	lib/jemalloc/bitmap.c
+	lib/jemalloc/chunk.c
+	lib/jemalloc/chunk_dss.c
+	lib/jemalloc/chunk_mmap.c
+	lib/jemalloc/ckh.c
+	lib/jemalloc/ctl.c
+	lib/jemalloc/extent.c
+	lib/jemalloc/hash.c
+	lib/jemalloc/huge.c
+	lib/jemalloc/mb.c
+	lib/jemalloc/mutex.c
+	lib/jemalloc/nstime.c
+	lib/jemalloc/pages.c
+	lib/jemalloc/prng.c
+	lib/jemalloc/prof.c
+	lib/jemalloc/quarantine.c
+	lib/jemalloc/rtree.c
+	lib/jemalloc/stats.c
+	lib/jemalloc/spin.c
+	lib/jemalloc/tcache.c
+	lib/jemalloc/ticker.c
+	lib/jemalloc/tsd.c
+	lib/jemalloc/util.c
+	lib/jemalloc/witness.c
+	lib/jemalloc/valgrind.c
 )
 
 
 if (ALASKA_SIM_MODE)
-set(SRC_FILES ${SRC_FILES} src/sim.c)
+	set(SRC_FILES ${SRC_FILES} lib/sim.c)
 endif()
 
 if (ALASKA_PERSONALITY_ANCHORAGE)
-set(SRC_FILES ${SRC_FILES} src/personality/anchorage.c)
+	set(SRC_FILES ${SRC_FILES} lib/personality/anchorage.c)
 endif()
+
 if (ALASKA_PERSONALITY_NONE)
-set(SRC_FILES ${SRC_FILES} src/personality/none.c)
+	set(SRC_FILES ${SRC_FILES} lib/personality/none.c)
 endif()
 
 if(ALASKA_CORRECTNESS_EMULATOR)
 	# The correctness fallback (emulate using TCG)
-	set(SRC_FILES ${SRC_FILES} src/emulator.c)
+	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
 endif()
 
 add_library(alaska_core SHARED ${SRC_FILES})
@@ -112,17 +134,6 @@ target_link_libraries(alaska_core unicorn)
 endif()
 
 
-
-add_library(alaska_inline_lock_native STATIC src/lock.c)
-target_include_directories(alaska_inline_lock_native PUBLIC include/)
-set_target_properties(alaska_inline_lock_native PROPERTIES LINKER_LANGUAGE C)
-
-
-add_library(alaska_bootstrap_lock_native STATIC src/bootstrap.c)
-target_include_directories(alaska_bootstrap_lock_native PUBLIC include/)
-set_target_properties(alaska_bootstrap_lock_native PROPERTIES LINKER_LANGUAGE C)
-
-
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
@@ -134,14 +145,6 @@ set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(FILES include/alaska.h DESTINATION include)
 install(FILES include/classes.inc DESTINATION include)
 install(FILES include/alaska.hpp DESTINATION include)
-
-# install(
-#   TARGETS alaska_support
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 install(
   TARGETS alaska_core
@@ -169,49 +172,3 @@ install(
 #   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 #   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 #   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-# install(
-#   TARGETS alaska_jemalloc
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
-llvmir_attach_bc_target(
-  TARGET alaska_inline_lock_bitcodes
-  DEPENDS alaska_inline_lock_native)
-llvmir_attach_link_target(
-  TARGET alaska_inline_lock
-  DEPENDS alaska_inline_lock_bitcodes
-  OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
-
-
-
-llvmir_attach_bc_target(
-  TARGET alaska_bootstrap_lock_bitcodes
-  DEPENDS alaska_bootstrap_lock_native)
-llvmir_attach_link_target(
-  TARGET alaska_bootstrap_lock
-  DEPENDS alaska_bootstrap_lock_bitcodes
-  OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
-
-
-
-llvmir_attach_bc_target(
-  TARGET alaska_bitcodes
-  DEPENDS alaska_core)
-
-llvmir_attach_link_target(
-  TARGET alaska
-  DEPENDS alaska_bitcodes
-  OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
-
-add_dependencies(alaska alaska_core)
-
-
-set_property(TARGET alaska_bootstrap_lock PROPERTY EXCLUDE_FROM_ALL OFF)
-set_property(TARGET alaska_inline_lock PROPERTY EXCLUDE_FROM_ALL OFF)
-set_property(TARGET alaska_bitcodes PROPERTY EXCLUDE_FROM_ALL OFF)
-set_property(TARGET alaska PROPERTY EXCLUDE_FROM_ALL OFF)
-

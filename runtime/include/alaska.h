@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <alaska/config.h>
 
 #ifdef __cplusplus
 extern "C" {

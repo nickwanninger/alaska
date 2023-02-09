@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
+#include "./config.h"
 
 #ifdef ALASKA_PERSONALITY_NONE
 #include <alaska/personality/none.h>
