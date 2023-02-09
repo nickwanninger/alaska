@@ -78,3 +78,7 @@ config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
 	depends on CORRECTNESS_EMULATOR
 	default n
+
+config OFFSET_BITS
+	int "Maximum bit size of an allocation (cannot be larger than 36)"
+	default 32

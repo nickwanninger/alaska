@@ -143,6 +143,7 @@ set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 install(FILES include/alaska.h DESTINATION include)
+install(FILES include/alaska/config.h DESTINATION include/alaska)
 install(FILES include/classes.inc DESTINATION include)
 install(FILES include/alaska.hpp DESTINATION include)
 

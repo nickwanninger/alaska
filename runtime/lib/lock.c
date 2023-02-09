@@ -87,6 +87,7 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
+	printf("lock %p\n", ptr);
 
 	return alaska_do_lock(m, ptr);
 }

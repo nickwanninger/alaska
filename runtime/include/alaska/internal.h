@@ -22,7 +22,7 @@
 
 // extra fields to place in the handle table
 #ifndef ALASKA_PERSONALITY_FIELDS
-#define ALASKA_PERSONALITY_FIELDS // ... nothing ...
+#define ALASKA_PERSONALITY_FIELDS  // ... nothing ...
 #endif
 
 
@@ -64,27 +64,26 @@ extern void alaska_dump_backtrace(void);
 // exit(EXIT_FAILURE);
 
 
-
 // The definition of what a handle's bits mean when they are used like a pointer
 typedef union {
   struct {
-    unsigned offset : 32;  // the offset into the handle
-    unsigned handle : 31;  // the translation in the translation table
-    unsigned flag : 1;     // the high bit indicates the `ptr` is a handle
+    unsigned long offset : ALASKA_OFFSET_BITS;             // the offset into the handle
+    unsigned long handle : (64 - 1 - ALASKA_OFFSET_BITS);  // the translation in the translation table
+    unsigned flag : 1;                                     // the high bit indicates the `ptr` is a handle
   };
   void *ptr;
 } handle_t;
 
 typedef struct {
-	// Cache line 1:
-  void *ptr; // backing memory
+  // Cache line 1:
+  void *ptr;  // backing memory
   // uint32_t locks; // how many users?
   // size: how big the backing memory is
-  uint32_t size; // How big is the handle's memory?
+  uint32_t size;  // How big is the handle's memory?
 
-	// Cache line 2:
-  ALASKA_PERSONALITY_FIELDS; // personality fields.
-} alaska_mapping_t; // __attribute__((packed));
+  // Cache line 2:
+  ALASKA_PERSONALITY_FIELDS;  // personality fields.
+} alaska_mapping_t;           // __attribute__((packed));
 
 // src/lock.c
 void *alaska_lock(void *restrict ptr);

@@ -65,7 +65,7 @@ void *alaska_defrag(alaska_mapping_t *ent) {
 }
 
 void *halloc(size_t sz) {
-  assert(sz < (1LLU << 32));
+  assert(sz < (1LLU << ALASKA_OFFSET_BITS));
   alaska_mapping_t *ent = alaska_table_get();
 
   if (ent == NULL) {
@@ -87,7 +87,7 @@ void *halloc(size_t sz) {
   sim_on_alloc(ent);
   return ent->ptr;
 #else
-  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << 32);
+  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << ALASKA_OFFSET_BITS);
   return (void *)handle;
 #endif
 }
