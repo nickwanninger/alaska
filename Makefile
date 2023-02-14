@@ -1,6 +1,9 @@
 #.ONESHELL:
 .DEFAULT_GOAL := alaska
 
+MAKEFLAGS += --no-print-directory
+
+
 ROOT=$(shell pwd)
 export PATH:=$(ROOT)/local/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)

@@ -239,7 +239,6 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
  public:
   AlaskaTranslatePass() {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    bool hoist = true;
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) {
       alaska::println("Alaska has already run on this module!\n");
@@ -258,11 +257,11 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
       }
 
       alaska::println("running translate on ", F.getName());
-      if (hoist) {
+      #ifdef ALASKA_HOIST_LOCKS
         alaska::insertHoistedLocks(F);
-      } else {
+      #else
         alaska::insertConservativeLocks(F);
-      }
+      #endif
     }
 
 

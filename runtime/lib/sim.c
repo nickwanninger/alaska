@@ -1,7 +1,15 @@
+/*
+ * This file is part of the Alaska Handle-Based Memory Management System
+ *
+ * Copyright (c) 2023, Nick Wanninger <ncw@u.northwestern.edu>
+ * Copyright (c) 2023, The Constellation Project
+ * All rights reserved.
+ *
+ * This is free software.  You are permitted to use, redistribute,
+ * and modify it as specified in the file "LICENSE".
+ */
 #include <alaska/internal.h>
 #include <alaska/rbtree.h>
-
-
 
 #ifdef SIM_DEBUG
 #define PRINT printf
@@ -88,18 +96,18 @@ void sim_on_free(alaska_mapping_t *m) {
   dump();
 }
 
-void sim_on_realloc(alaska_mapping_t *m, void *new_ptr, size_t new_size) {
-  PRINT("realloc %p -> %p\n", m->ptr, new_ptr);
+void sim_on_realloc(alaska_mapping_t *m, void *old_ptr, size_t old_size) {
+  PRINT("realloc %p -> %p\n", old_ptr, m->ptr);
 	dump();
-  alloc_t *a = trace_find((uint64_t)m->ptr);
+  alloc_t *a = trace_find((uint64_t)old_ptr);
 
   if (a != NULL) {
     // remove the value from the tree
     rb_erase(&a->node, &root);
 
     // update it's size and location
-    a->handle->ptr = new_ptr;
-    a->handle->size = new_size;
+    a->handle->ptr = m->ptr;
+    a->handle->size = m->size;
     // printf("R %p\n", a->handle);
 
     // and add it again

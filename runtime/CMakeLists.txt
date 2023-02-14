@@ -1,10 +1,14 @@
 add_link_options("-fuse-ld=lld")
 
-set(WARNINGS " -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough")
+set(WARNINGS " -Wall -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough -Wno-gnu-null-pointer-arithmetic")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O2 -gdwarf-4 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
+set(CMAKE_C_COMPILER_ID "Clang")
+set(CMAKE_CXX_COMPILER_ID "Clang")
+SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
 include_directories(
@@ -15,15 +19,85 @@ include_directories(
 
 
 
+set(SRC_FILES
+	# The core of the runtime
+	lib/runtime.c
+	lib/table.c
+	lib/lock.c
+	lib/halloc.c
+	lib/barrier.c
+	lib/rbtree.c
+	lib/trace.c
+	lib/classification.c
+
+	# libc functions that we reimplement to avoid
+	# glibc doing terrible things with AVX512
+	# (The emulator cannot handle those instructions)
+	lib/compat.c
+	
+	# jemalloc/jemalloc.c
+	# jemalloc/atomic.c
+	# jemalloc/arena.c
+	# jemalloc/base.c
+	# jemalloc/bitmap.c
+	# jemalloc/chunk.c
+	# jemalloc/chunk_dss.c
+	# jemalloc/chunk_mmap.c
+	# jemalloc/ckh.c
+	# jemalloc/ctl.c
+	# jemalloc/extent.c
+	# jemalloc/hash.c
+	# jemalloc/huge.c
+	# jemalloc/mb.c
+	# jemalloc/mutex.c
+	# jemalloc/nstime.c
+	# jemalloc/pages.c
+	# jemalloc/prng.c
+	# jemalloc/prof.c
+	# jemalloc/quarantine.c
+	# jemalloc/rtree.c
+	# jemalloc/stats.c
+	# jemalloc/spin.c
+	# jemalloc/tcache.c
+	# jemalloc/ticker.c
+	# jemalloc/tsd.c
+	# jemalloc/util.c
+	# jemalloc/witness.c
+	# jemalloc/valgrind.c
+)
+
+
+if (ALASKA_SIM_MODE)
+	set(SRC_FILES ${SRC_FILES} lib/sim.c)
+endif()
+
+if (ALASKA_SERVICE_ANCHORAGE)
+	set(SRC_FILES ${SRC_FILES}
+		services/anchorage/anchorage.c
+	)
+endif()
+
+if (ALASKA_SERVICE_NONE)
+	set(SRC_FILES ${SRC_FILES} services/none/none.c)
+endif()
+
+if(ALASKA_CORRECTNESS_EMULATOR)
+	# The correctness fallback (emulate using TCG)
+	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
+endif()
+
+add_library(alaska_core SHARED ${SRC_FILES})
+target_include_directories(alaska_core PUBLIC include/)
+set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+target_link_libraries(alaska_core pthread)
 
 
 if(ALASKA_CORRECTNESS_EMULATOR)
-add_subdirectory(emu)
+	add_subdirectory(emu)
+	target_link_libraries(alaska_core unicorn)
 endif()
 
-# HACK: this just makes it work
-set(CMAKE_C_COMPILER_ID "Clang")
-set(CMAKE_CXX_COMPILER_ID "Clang")
+
 
 
 function(add_bitcode name)
@@ -33,12 +107,14 @@ function(add_bitcode name)
 		""         # Single value arguments
 		"SOURCES"  # multi value arguments
 		${ARGN}    # arguments of the function to parse, here we take the all original ones
-		)
-
+	)
 
 	add_library(${name}_native STATIC ${SRC_SOURCES})
 	target_include_directories(${name}_native PUBLIC include/)
-	set_target_properties(${name}_native PROPERTIES LINKER_LANGUAGE C)
+	set_target_properties(${name}_native
+		PROPERTIES LINKER_LANGUAGE C
+		PUBLIC_HEADER "${HEADER_FILES}"
+		PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
 
 	llvmir_attach_bc_target(
 		TARGET  ${name}_bitcodes
@@ -57,89 +133,8 @@ add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 
+target_link_libraries(alaska_core alaska_lock_native)
 
-set(SRC_FILES
-	# The core runtime implementation
-	lib/runtime.c
-	lib/table.c
-	lib/lock.c
-	lib/halloc.c
-	lib/barrier.c
-	# lib/classify.c
-	lib/rbtree.c
-	lib/trace.c
-
-	# libc functions that we reimplement to avoid
-	# glibc doing terrible things with AVX512
-	# (The emulator cannot handle them)
-	lib/compat.c
-	
-	lib/jemalloc/jemalloc.c
-	lib/jemalloc/atomic.c
-	lib/jemalloc/arena.c
-	lib/jemalloc/base.c
-	lib/jemalloc/bitmap.c
-	lib/jemalloc/chunk.c
-	lib/jemalloc/chunk_dss.c
-	lib/jemalloc/chunk_mmap.c
-	lib/jemalloc/ckh.c
-	lib/jemalloc/ctl.c
-	lib/jemalloc/extent.c
-	lib/jemalloc/hash.c
-	lib/jemalloc/huge.c
-	lib/jemalloc/mb.c
-	lib/jemalloc/mutex.c
-	lib/jemalloc/nstime.c
-	lib/jemalloc/pages.c
-	lib/jemalloc/prng.c
-	lib/jemalloc/prof.c
-	lib/jemalloc/quarantine.c
-	lib/jemalloc/rtree.c
-	lib/jemalloc/stats.c
-	lib/jemalloc/spin.c
-	lib/jemalloc/tcache.c
-	lib/jemalloc/ticker.c
-	lib/jemalloc/tsd.c
-	lib/jemalloc/util.c
-	lib/jemalloc/witness.c
-	lib/jemalloc/valgrind.c
-)
-
-
-if (ALASKA_SIM_MODE)
-	set(SRC_FILES ${SRC_FILES} lib/sim.c)
-endif()
-
-if (ALASKA_PERSONALITY_ANCHORAGE)
-	set(SRC_FILES ${SRC_FILES} lib/personality/anchorage.c)
-endif()
-
-if (ALASKA_PERSONALITY_NONE)
-	set(SRC_FILES ${SRC_FILES} lib/personality/none.c)
-endif()
-
-if(ALASKA_CORRECTNESS_EMULATOR)
-	# The correctness fallback (emulate using TCG)
-	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
-endif()
-
-add_library(alaska_core SHARED ${SRC_FILES})
-target_include_directories(alaska_core PUBLIC include/)
-set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska_core pthread)
-
-
-if(ALASKA_CORRECTNESS_EMULATOR)
-target_link_libraries(alaska_core unicorn)
-endif()
-
-
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-
-add_executable(alaska-sim bin/sim.c)
-target_link_libraries(alaska-sim alaska_core) # alaska_support
-set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 install(FILES include/alaska.h DESTINATION include)
@@ -155,21 +150,13 @@ install(
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
+
+add_executable(alaska-sim bin/sim.c)
+target_link_libraries(alaska-sim alaska_core) # alaska_support
+set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(
   TARGETS alaska-sim
   ARCHIVE DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
-
-
-# add_library(frack SHARED lib/frack.c)
-# target_link_libraries(frack dl)
-# install(
-#   TARGETS frack
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

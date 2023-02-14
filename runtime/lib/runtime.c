@@ -1,3 +1,13 @@
+/*
+ * This file is part of the Alaska Handle-Based Memory Management System
+ *
+ * Copyright (c) 2023, Nick Wanninger <ncw@u.northwestern.edu>
+ * Copyright (c) 2023, The Constellation Project
+ * All rights reserved.
+ *
+ * This is free software.  You are permitted to use, redistribute,
+ * and modify it as specified in the file "LICENSE".
+ */
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <assert.h>
@@ -15,21 +25,28 @@
 #include <unistd.h>
 
 
-extern void alaska_personality_init(void);
-extern void alaska_personality_deinit(void);
+extern void alaska_service_init(void);
+extern void alaska_service_deinit(void);
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
   alaska_table_init();
   alaska_halloc_init();
+  alaska_service_init();
 
-	alaska_personality_init();
+#ifdef ALASKA_CLASS_TRACKING
+  alaska_classify_init();
+#endif
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-	alaska_personality_deinit();
+  alaska_service_deinit();
   alaska_halloc_deinit();
   alaska_table_deinit();
+
+#ifdef ALASKA_CLASS_TRACKING
+  alaska_classify_deinit();
+#endif
 }
 
 #define BT_BUF_SIZE 100

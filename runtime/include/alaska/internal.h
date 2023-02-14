@@ -5,24 +5,24 @@
 #include <stdint.h>
 #include "./config.h"
 
-#ifdef ALASKA_PERSONALITY_NONE
-#include <alaska/personality/none.h>
+#ifdef ALASKA_SERVICE_NONE
+#include <alaska/service/none.h>
 #endif
 
-#ifdef ALASKA_PERSONALITY_ANCHORAGE
-#include <alaska/personality/anchorage.h>
+#ifdef ALASKA_SERVICE_ANCHORAGE
+#include <alaska/service/anchorage.h>
 #endif
 
-#ifdef ALASKA_PERSONALITY_NONE
-#include <alaska/personality/none.h>
+#ifdef ALASKA_SERVICE_NONE
+#include <alaska/service/none.h>
 #endif
 
 #include <alaska/list_head.h>
 
 
 // extra fields to place in the handle table
-#ifndef ALASKA_PERSONALITY_FIELDS
-#define ALASKA_PERSONALITY_FIELDS  // ... nothing ...
+#ifndef ALASKA_SERVICE_FIELDS
+#define ALASKA_SERVICE_FIELDS  // ... nothing ...
 #endif
 
 
@@ -80,9 +80,9 @@ typedef struct {
   // uint32_t locks; // how many users?
   // size: how big the backing memory is
   uint32_t size;  // How big is the handle's memory?
-
+  uint8_t object_class;
   // Cache line 2:
-  ALASKA_PERSONALITY_FIELDS;  // personality fields.
+  ALASKA_SERVICE_FIELDS;  // personality fields.
 } alaska_mapping_t;           // __attribute__((packed));
 
 // src/lock.c
@@ -112,6 +112,18 @@ alaska_mapping_t *alaska_table_end(void);
 void alaska_classify_init(void);
 void alaska_classify_deinit(void);
 #endif
+
+
+
+typedef uint32_t alaska_spinlock_t;
+#define ALASKA_SPINLOCK_INIT 0
+inline void alaska_spin_lock(volatile alaska_spinlock_t *lock) {
+  while (__sync_lock_test_and_set(lock, 1)) {
+    // spin away
+  }
+}
+inline int alaska_spin_try_lock(volatile alaska_spinlock_t *lock) { return __sync_lock_test_and_set(lock, 1) ? -1 : 0; }
+inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) { __sync_lock_release(lock); }
 
 #define HANDLE_MARKER (1LLU << 63)
 #define GET_ENTRY(handle) ((alaska_mapping_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))

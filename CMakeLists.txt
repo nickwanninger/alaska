@@ -8,6 +8,8 @@ enable_testing()
 find_program(CLANG_PATH clang)
 find_program(CLANGXX_PATH clang++)
 
+set(CMAKE_VERBOSE_MAKEFILE OFF)
+
 set(CMAKE_C_COMPILER ${CLANG_PATH})
 set(CMAKE_CXX_COMPILER ${CLANGXX_PATH})
 set(CMAKE_ASM_COMPILER ${CLANG_PATH})

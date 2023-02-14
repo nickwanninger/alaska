@@ -20,7 +20,7 @@ extern void *hrealloc(void *handle, size_t sz);
 extern void hfree(void *ptr);
 
 
-// "Go do something in the runtime", whatever that means right now
+// "Go do something in the runtime", whatever that means in the active service
 extern void alaska_barrier(void);
 
 
@@ -30,12 +30,11 @@ extern void alaska_classify(void *ptr, uint8_t c);
 extern uint8_t alaska_get_classification(void *ptr);
 
 
-
 // Helper functions:
 // get the current rss in kb
-long alaska_get_rss_kb(void);
+extern long alaska_get_rss_kb(void);
 // nanoseconds
-unsigned long alaska_timestamp(void);
+extern unsigned long alaska_timestamp(void);
 
 
 enum alaska_classes {
