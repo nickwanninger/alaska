@@ -27,10 +27,8 @@ void alaska_service_init(void) {
 
 
 void alaska_service_deinit(void) {
-
+  // Do nothing
 }
-
-
 
 
 // The implementation for the anchorage allocator
