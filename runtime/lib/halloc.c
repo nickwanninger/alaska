@@ -107,6 +107,9 @@ void hfree(void *ptr) {
 #endif
   // Defer to the personality to free
 	alaska_service_free(m);
-  // return the mapping to the table
-  alaska_table_put(m);
+
+	if (m->ptr == NULL) {
+		// return the mapping to the table
+		alaska_table_put(m);
+	}
 }

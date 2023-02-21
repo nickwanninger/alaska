@@ -1,18 +1,19 @@
-Fibonacci = {}
-
--- Naive recursive
-function Fibonacci.naive(n)
-  local function inner(m)
-    if m < 2 then
-      return m
-    end
-    return inner(m-1) + inner(m-2)
-  end
-  return inner(n)
-end
-
-n = 20
-print(Fibonacci.naive(n))
-collectgarbage("collect")
-print(Fibonacci.naive(n))
+-- print("hello, world")
+-- Fibonacci = {}
+--
+-- -- Naive recursive
+-- function Fibonacci.naive(n)
+--   local function inner(m)
+--     if m < 2 then
+--       return m
+--     end
+--     return inner(m-1) + inner(m-2)
+--   end
+--   return inner(n)
+-- end
+--
+-- n = 10
+-- print(Fibonacci.naive(n))
+-- collectgarbage("collect")
+-- print(Fibonacci.naive(n))
 

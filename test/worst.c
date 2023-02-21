@@ -27,7 +27,7 @@ struct node {
   struct node* next;
   int val;
 };
-#define NODE_SIZE 128  // sizeof(struct node)
+#define NODE_SIZE sizeof(struct node)
 
 struct node* reverse_list(struct node* root) {
   // Initialize current, previous and next pointers
@@ -91,6 +91,5 @@ int main(int argc, char** argv) {
     printf("%lu\n", res[i]);
   }
   free(res);
-
   return 0;
 }

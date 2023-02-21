@@ -1,10 +1,10 @@
 add_link_options("-fuse-ld=lld")
 
-set(WARNINGS " -Wall -Wno-reorder -Wno-format -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough -Wno-gnu-null-pointer-arithmetic")
+set(WARNINGS " -Wall -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough -Wno-gnu-null-pointer-arithmetic")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib++ ")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated -fno-exceptions -fno-rtti ")
 set(CMAKE_C_COMPILER_ID "Clang")
 set(CMAKE_CXX_COMPILER_ID "Clang")
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -28,42 +28,13 @@ set(SRC_FILES
 	lib/barrier.c
 	lib/rbtree.c
 	lib/trace.c
+	lib/vec.c
 	lib/classification.c
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
 	# (The emulator cannot handle those instructions)
 	lib/compat.c
-	
-	# jemalloc/jemalloc.c
-	# jemalloc/atomic.c
-	# jemalloc/arena.c
-	# jemalloc/base.c
-	# jemalloc/bitmap.c
-	# jemalloc/chunk.c
-	# jemalloc/chunk_dss.c
-	# jemalloc/chunk_mmap.c
-	# jemalloc/ckh.c
-	# jemalloc/ctl.c
-	# jemalloc/extent.c
-	# jemalloc/hash.c
-	# jemalloc/huge.c
-	# jemalloc/mb.c
-	# jemalloc/mutex.c
-	# jemalloc/nstime.c
-	# jemalloc/pages.c
-	# jemalloc/prng.c
-	# jemalloc/prof.c
-	# jemalloc/quarantine.c
-	# jemalloc/rtree.c
-	# jemalloc/stats.c
-	# jemalloc/spin.c
-	# jemalloc/tcache.c
-	# jemalloc/ticker.c
-	# jemalloc/tsd.c
-	# jemalloc/util.c
-	# jemalloc/witness.c
-	# jemalloc/valgrind.c
 )
 
 
@@ -73,7 +44,18 @@ endif()
 
 if (ALASKA_SERVICE_ANCHORAGE)
 	set(SRC_FILES ${SRC_FILES}
-		services/anchorage/anchorage.c
+		# written using nostd c++
+		services/anchorage/anchorage.cpp
+		services/anchorage/allocator.cpp
+
+		# # link jemalloc as well
+		# jemalloc/arena.c jemalloc/background_thread.c jemalloc/base.c jemalloc/bin.c
+		# jemalloc/bitmap.c jemalloc/ckh.c jemalloc/ctl.c jemalloc/div.c jemalloc/extent.c
+		# jemalloc/extent_dss.c jemalloc/extent_mmap.c jemalloc/hash.c jemalloc/hook.c jemalloc/jemalloc.c
+		# jemalloc/large.c jemalloc/log.c jemalloc/malloc_io.c jemalloc/mutex.c jemalloc/mutex_pool.c
+		# jemalloc/nstime.c jemalloc/pages.c jemalloc/prng.c jemalloc/prof.c jemalloc/rtree.c
+		# jemalloc/safety_check.c jemalloc/sc.c jemalloc/stats.c jemalloc/sz.c jemalloc/tcache.c
+		# jemalloc/test_hooks.c jemalloc/ticker.c jemalloc/tsd.c jemalloc/witness.c
 	)
 endif()
 

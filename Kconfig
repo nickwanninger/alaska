@@ -34,6 +34,10 @@ endchoice
 
 menu "Anchorage Service Configuration"
 	depends on SERVICE_ANCHORAGE
+
+	config ANCHORAGE_ALLOCATOR
+		bool "Enable the experimental Anchorage allcoator"
+		default n
 endmenu
 
 

@@ -24,6 +24,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef MAX
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#endif
+
 
 extern void alaska_service_init(void);
 extern void alaska_service_deinit(void);
@@ -111,3 +116,97 @@ long alaska_get_rss_kb() {
   return 0;
 #endif
 }
+
+
+
+// char* alaska_randomart(const unsigned char* raw, size_t raw_len, size_t fldbase, const char* palette) {
+//   /*
+// 	 * Chars to be used after each other every time the worm
+// 	 * intersects with itself.  Matter of taste.
+// 	 */
+// 	const char *augmentation_string = " .o+=*BOX@%&#/^SE";
+// 	if (palette != NULL) augmentation_string = palette;
+// 	size_t len = strlen(augmentation_string) - 1;
+//
+// 	char	*retval, *p;
+// 	size_t	b, i, fld_x, fld_y;
+// 	ssize_t	x, y;
+//
+// 	/*
+// 	* Field sizes for the random art.  Have to be odd, so the starting point
+// 	* can be in the exact middle of the picture.
+// 	*/
+// 	fld_x = fldbase * 2 + 1;
+// 	fld_y = fldbase + 1;
+// 	/* make odd */
+// 	if ((fldbase & 1) == 1) {
+// 		fld_x -= 2;
+// 		fld_y--;
+// 	}
+// 	unsigned char field[fld_x][fld_y];
+// 	
+// 	if ((retval = calloc(((size_t)fld_x + 3), ((size_t)fld_y + 2))) == NULL) {
+// 		perror("ERROR calloc()");
+// 		return NULL;
+// 	}
+//
+// 	/* initialize field */
+// 	memset(field, 0, fld_x * fld_y * sizeof(char));
+// 	x = fld_x / 2;
+// 	y = fld_y / 2;
+//
+// 	/* process user's input */
+// 	for (i = 0; i < raw_len; i++) {
+// 		int input;
+// 		input = raw[i];
+// 		/* each input byte conveys four 2-bit move commands */
+// 		for (b = 0; b < 4; b++) {
+// 			/* evaluate 2 bit, rest is shifted later */
+// 			x += (input & 0x1) ? 1 : -1;
+// 			y += (input & 0x2) ? 1 : -1;
+//
+// 			/* assure we are still in bounds */
+// 			x = MAX(x, 0);
+// 			y = MAX(y, 0);
+// 			x = MIN(x, (ssize_t)fld_x - 1);
+// 			y = MIN(y, (ssize_t)fld_y - 1);
+//
+// 			/* augment the field */
+// 			if (field[x][y] < len - 2)
+// 				field[x][y]++;
+// 			input = input >> 2;
+// 		}
+// 	}
+//
+// 	/* mark starting point and end point*/
+// 	field[fld_x / 2][fld_y / 2] = len - 1;
+// 	field[x][y] = len;
+//
+// 	/* output upper border */
+// 	p = retval;
+// 	*p++ = '+';
+// 	for (i = 0; i < fld_x / 2; i++)
+// 		*p++ = '-';
+// 	for (i = p - retval - 1; i < fld_x; i++)
+// 		*p++ = '-';
+// 	*p++ = '+';
+// 	*p++ = '\n';
+//
+// 	/* output content */
+// 	for (y = 0; y < (ssize_t)fld_y; y++) {
+// 		*p++ = '|';
+// 		for (x = 0; x < (ssize_t)fld_x; x++)
+// 			*p++ = augmentation_string[MIN(field[x][y], len)];
+// 		*p++ = '|';
+// 		*p++ = '\n';
+// 	}
+//
+// 	/* output lower border */
+// 	*p++ = '+';
+// 	for (i = 0; i < fld_x; i++)
+// 		*p++ = '-';
+// 	*p++ = '+';
+//
+// 	/* return art */
+// 	return retval;
+// }

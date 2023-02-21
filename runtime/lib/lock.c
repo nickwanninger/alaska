@@ -83,6 +83,7 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 
 ALASKA_INLINE void *alaska_do_lock(alaska_mapping_t *m, void *restrict ptr) {
+	// Do some service stuff *before* translating.
   ALASKA_SERVICE_ON_LOCK(m);
   // finally, translate
   return alaska_translate(ptr, m);
@@ -108,8 +109,6 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
-
-  // __builtin_prefetch(m->ptr);
 
   alaska_do_unlock(m, ptr);
 }

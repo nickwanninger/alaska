@@ -368,7 +368,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               }
               // Link the library (just runtime/src/lock.c)
               MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
-
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
               MPM.addPass(llvm::GlobalDCEPass());

@@ -17,18 +17,11 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 # AA=""
 # LOOPS=""
 
-
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
-# Run a cleanup pass on the bitcode
 $OPT --strip-debug
-# make sure mem2reg is on :)
-$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg # --lowerinvoke # $LOOPS --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
+# $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
 
-# run some loop adjustments
-# $OPT ${AA} -loop-rotate -loop-simplify -indvars -lcssa -llicm
 
-clang -O3 \
-	-Xclang -fpass-plugin=${PFX}/lib/Alaska.so \
-	-fplugin=${PFX}/lib/Alaska.so \
-	-c -emit-llvm $INPUT -o $INPUT
+# opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes
+clang -O3 -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT

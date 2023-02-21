@@ -77,19 +77,20 @@ typedef union {
 typedef struct {
   // Cache line 1:
   void *ptr;  // backing memory
-  // uint32_t locks; // how many users?
   // size: how big the backing memory is
   uint32_t size;  // How big is the handle's memory?
+#ifdef ALASKA_CLASS_TRACKING
   uint8_t object_class;
+#endif
   // Cache line 2:
   ALASKA_SERVICE_FIELDS;  // personality fields.
 } alaska_mapping_t;           // __attribute__((packed));
 
 // src/lock.c
-void *alaska_lock(void *restrict ptr);
-void alaska_unlock(void *restrict ptr);
+void *alaska_lock(void *ptr);
+void alaska_unlock(void *ptr);
 
-alaska_mapping_t *alaska_lookup(void *restrict ptr);
+alaska_mapping_t *alaska_lookup(void *ptr);
 
 // src/halloc.c
 void alaska_halloc_init(void);
@@ -114,6 +115,8 @@ void alaska_classify_deinit(void);
 #endif
 
 
+// Generate a hash that can be displayed
+// extern char *alaska_randomart(const unsigned char *raw, size_t raw_len, size_t fldbase, const char *palette);
 
 typedef uint32_t alaska_spinlock_t;
 #define ALASKA_SPINLOCK_INIT 0
@@ -150,4 +153,10 @@ inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) { __sync_lock_r
 
 #ifdef __cplusplus
 }
+
+namespace alaska {
+	using Mapping = alaska_mapping_t;
+};
+
+
 #endif

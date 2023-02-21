@@ -7,7 +7,10 @@ extern "C" {
 #endif
 
 struct anchorage_metadata {
-	uint32_t locks;
+  int locks;
+  uint8_t flags;
+#define ANCHORAGE_FLAG_LAZY_FREE (1 << 0)
+  uint64_t last_access_time;
 };
 
 #define ALASKA_SERVICE_FIELDS struct anchorage_metadata anchorage;

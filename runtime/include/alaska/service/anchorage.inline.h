@@ -3,8 +3,11 @@
 #include <stdint.h>
 #include <alaska/internal.h>
 
+extern uint64_t next_last_access_time;
+
 extern void alaska_classify_track(uint8_t object_class);
 ALASKA_INLINE void anchorage_on_lock(alaska_mapping_t *m) {
+  // m->anchorage.last_access_time = next_last_access_time++;
   // atomic_inc(m->anchorage.locks, 1);
   m->anchorage.locks++;
 }
