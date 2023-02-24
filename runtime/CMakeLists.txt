@@ -46,16 +46,9 @@ if (ALASKA_SERVICE_ANCHORAGE)
 	set(SRC_FILES ${SRC_FILES}
 		# written using nostd c++
 		services/anchorage/anchorage.cpp
-		services/anchorage/allocator.cpp
-
-		# # link jemalloc as well
-		# jemalloc/arena.c jemalloc/background_thread.c jemalloc/base.c jemalloc/bin.c
-		# jemalloc/bitmap.c jemalloc/ckh.c jemalloc/ctl.c jemalloc/div.c jemalloc/extent.c
-		# jemalloc/extent_dss.c jemalloc/extent_mmap.c jemalloc/hash.c jemalloc/hook.c jemalloc/jemalloc.c
-		# jemalloc/large.c jemalloc/log.c jemalloc/malloc_io.c jemalloc/mutex.c jemalloc/mutex_pool.c
-		# jemalloc/nstime.c jemalloc/pages.c jemalloc/prng.c jemalloc/prof.c jemalloc/rtree.c
-		# jemalloc/safety_check.c jemalloc/sc.c jemalloc/stats.c jemalloc/sz.c jemalloc/tcache.c
-		# jemalloc/test_hooks.c jemalloc/ticker.c jemalloc/tsd.c jemalloc/witness.c
+		# services/anchorage/allocator.cpp
+		services/anchorage/Block.cpp
+		services/anchorage/Chunk.cpp
 	)
 endif()
 

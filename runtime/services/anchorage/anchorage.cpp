@@ -1,19 +1,18 @@
 /*
- * this file is part of the alaska handle-based memory management system
+ * This file is part of the Alaska Handle-Based Memory Management System
  *
- * copyright (c) 2023, nick wanninger <ncw@u.northwestern.edu>
- * copyright (c) 2023, the constellation project
- * all rights reserved.
+ * Copyright (c) 2023, Nick Wanninger <ncw@u.northwestern.edu>
+ * Copyright (c) 2023, The Constellation Project
+ * All rights reserved.
  *
- * this is free software.  you are permitted to use, redistribute,
- * and modify it as specified in the file "license".
+ * This is free software.  You are permitted to use, redistribute,
+ * and modify it as specified in the file "LICENSE".
  */
 
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
 #include <alaska/vec.h>
-#include "./internal.h"
 #include <string.h>
 #include <stdbool.h>
 #include <sys/mman.h>
@@ -51,4 +50,12 @@ extern "C" void alaska_service_init(void) {
 extern "C" void alaska_service_deinit(void) {
   // defer to anchorage
   anchorage::allocator_deinit();
+}
+
+
+
+size_t anchorage::moved_bytes = 0;
+void *anchorage::memmove(void *dst, void *src, size_t size) {
+  anchorage::moved_bytes += size;
+  return ::memmove(dst, src, size);
 }
