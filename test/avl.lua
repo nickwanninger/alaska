@@ -121,12 +121,12 @@ end
 
 local test=AVL:new{1,10,5,15,20,3,5,14,7,13,2,8,3,4,5,10,9,8,7}
 
-test:dump()
+-- test:dump()
 print("\ninsert 17:")
 test=test:insert(17)
-test:dump()
+-- test:dump()
 print("\ndelete 10:")
 test=test:delete(10)
 test:dump()
 print("\nlist:")
-print(unpack(test:toList()))
+-- print(unpack(test:toList()))
