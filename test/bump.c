@@ -93,8 +93,8 @@ int main(int argc, char **argv) {
   //     "-------------------------------------------|--|----|------------|--|---|--|---|---|------------------------|--|-"
   //     "---|------------------------------------------------|---|--|--|---|---|---|---|---|---|--|---|---|---|---|----|-"
   //     "--|----|---|--|---|---|----|--------|--|#|#|####|--|####|---|---|##|#|--|-|--|-|---|----|----");
-  
-	// void *slot = bench_alloc(48);
+
+  // void *slot = bench_alloc(48);
   // void *locked = bench_alloc(16);
   // bench_alloc(32);
   // bench_alloc(48);
@@ -121,17 +121,15 @@ int main(int argc, char **argv) {
     ptrs[i] = NULL;
   }
 
-  for (int i = 0; i < count - 1; i += 2)
-    ptrs[i] = bench_alloc(64);
+  for (int i = 0; i < count - 1; i += 2) {
+    ptrs[i] = bench_alloc(76);
+  }
 
-  alaska_lock(ptrs[count - 1]);
+  // alaska_lock(ptrs[count - 1]);
   // alaska_barrier();
-  // printf("UNLOCKING\n\n\n");
   // alaska_unlock(ptrs[count - 1]);
   alaska_barrier();
 
-  alaska_unlock(ptrs[count - 1]);
-  alaska_barrier();
   for (int i = 0; i < count; i++) {
     bench_free(ptrs[i]);
     ptrs[i] = NULL;
