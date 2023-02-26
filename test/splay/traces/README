@@ -1,0 +1,30 @@
+This folder is intended to contain traces for generating interesting data structures insertion and lookup patterns. A trace must have unique keys being inserted.
+
+
+
+To make a trace, you (or a script) must generate a file that is layed out as follows:
+--------------------------------------------------------------
+<Number of Nodes> <Number of Lookups>
+Insert <Key>
+...
+Lookup <Key>
+...
+-------------------------------------------------------------
+
+
+An example (5 nodes with 5 lookups): 
+--------------------------------------------------------------
+5 5
+Insert 0
+Insert 1
+Insert 2
+Insert 3
+Insert 4
+Lookup 1
+Lookup 1
+Lookup 1
+Lookup 1
+Lookup 1
+--------------------------------------------------------------
+
+Other examples can be found in this directory
