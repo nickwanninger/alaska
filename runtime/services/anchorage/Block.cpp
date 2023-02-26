@@ -11,8 +11,16 @@
 
 #include "./allocator.h"
 #include <alaska/internal.h>
+#include <limits.h>
+#include <string.h>
+
+extern uint64_t next_last_access_time;
 
 
+void anchorage::Block::clear(void) {
+	set_handle(nullptr);
+	m_flags = 0;
+}
 
 bool anchorage::Block::is_free(void) const {
   return handle() == NULL;
@@ -25,12 +33,11 @@ bool anchorage::Block::is_used(void) const {
 
 
 auto anchorage::Block::handle(void) const -> alaska::Mapping * {
-  if (m_handle == -1) return NULL;
-  // cast the 32bit "pointer" into the real pointer
+  if (m_handle == UINT_MAX) return NULL;  // cast the 32bit "pointer" into the real pointer
   return (alaska::Mapping *)(uint64_t)m_handle;
 }
 void anchorage::Block::set_handle(alaska::Mapping *handle) {
-  if (handle == NULL) m_handle = -1;
+  if (handle == NULL) m_handle = UINT_MAX;
   // Assign the packed 32bit "pointer"
   m_handle = (uint32_t)(uint64_t)handle;
 }
@@ -115,6 +122,18 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
 
 
 void anchorage::Block::dump(bool verbose, bool highlight) {
+  if (verbose) {
+    printf("%p sz:%5zu fl:%08x", this, size(), m_flags);
+    if (is_used()) {
+      printf(" h:%8lx", (uint64_t)handle());
+      printf(" lu:%10lu", next_last_access_time - handle()->anchorage.last_access_time);
+      printf(" lk:%10lx", handle()->anchorage.locks);
+      // printf(" sz:%10zu", sizeof(alaska::Mapping));
+    }
+    // return;
+  }
+
+
   int color = 0;
   char c = '#';
 
@@ -122,7 +141,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     auto &handle = *this->handle();
     if (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
       color = 35;  // purple
-      c = '_';
+      c = '#';
     } else if (handle.anchorage.locks > 0) {
       color = 31;  // red
       c = 'X';
@@ -147,15 +166,17 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   printf("\e[%dm", color);
   ssize_t sz = size();
 
-  // for (int i = 0; i < 16; i++)putchar('|');
-  //  for (int i = 0; i <= sz; i++) putchar(c);
-
-  putchar('|');
-  for (int i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
-    putchar(c);
-  printf("\e[0m");
-
-  if (verbose) {
-    printf(" (%zu)", sz);
+  if (verbose && false) {
+    putchar('|');
+    auto *d = (uint64_t *)data();
+    for (int i = 0; i < sz / 8; i++) {
+      // if (i % 8 == 0) printf(" ");
+      printf("%016lx ", d[i]);
+    }
+  } else {
+    putchar('|');
+    for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
+      putchar(c);
   }
+  printf("\e[0m");
 }

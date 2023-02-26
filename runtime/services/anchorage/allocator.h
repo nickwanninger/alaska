@@ -24,6 +24,7 @@ namespace anchorage {
    */
   struct Block {
    public:
+    void clear(void);                    // Initialize the block
     static auto get(void *) -> Block *;  // get a block given it's data
 
     auto size(void) const -> size_t;          // how many bytes is this block?
@@ -49,7 +50,7 @@ namespace anchorage {
     uint32_t m_prev_off;  // how many 16 byte blocks the previous node is
     uint32_t m_next_off;  // how many 16 byte blocks until the next node?
     uint32_t m_handle;    // The handle this block belongs to (basically a 32bit pointer)
-    uint32_t m_padding;   // unused... for now
+    uint32_t m_flags;     // unused... for now
   };
 
   // Assert that the size of the block is what we expect it to be (16 bytes)
@@ -122,9 +123,10 @@ namespace anchorage {
    * success.
    */
   struct Chunk {
-    size_t pages;  // how many 4k pages this chunk uses.
-    Block *front;  // The first block. This is also a pointer to the first byte of the mmap region
-    Block *tos;    // "Top of stack"
+    size_t pages;               // how many 4k pages this chunk uses.
+    Block *front;               // The first block. This is also a pointer to the first byte of the mmap region
+    Block *tos;                 // "Top of stack"
+    size_t high_watermark = 0;  // the highest point this chunk has reached.
 
     // ctor/dtor
     Chunk(size_t pages);
@@ -149,6 +151,9 @@ namespace anchorage {
     int perform_move(Block *free_block, Block *to_move);
     int compact(void);  // perform compaction
     int sweep_freed_but_locked(void);
+
+
+    size_t span(void) const;  // total memory used currently
 
     inline BlockIterator begin(void) {
       return BlockIterator(front);

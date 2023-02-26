@@ -76,11 +76,11 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
 
   auto *blk = anchorage::Block::get(ptr);
 
+  memset(m.ptr, 0xFA, m.size);
   if (m.anchorage.locks > 0) {
     m.anchorage.flags |= ANCHORAGE_FLAG_LAZY_FREE;  // set the flag to indicate that it's free (but someone has a lock)
     printf("freed while locked. TODO!\n");
 
-    memset(m.ptr, 0xFA, m.size);
     return;
   }
 
@@ -128,7 +128,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
   // The distance from the top_of_stack pointer to the end of the chunk
   off_t end_of_chunk = (off_t)this->front + this->pages * anchorage::page_size;
-  off_t space_left = end_of_chunk - (off_t)this->tos;
+  size_t space_left = end_of_chunk - (off_t)this->tos;
   if (space_left < anchorage::size_with_overhead(size)) {
     // Not enough space left at the end of the chunk to allocate!
     return NULL;
@@ -140,6 +140,8 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   tos->set_next(nullptr);
   blk->set_next(tos);
 
+  high_watermark = std::max(span(), high_watermark);
+
   return blk;
 }
 
@@ -150,9 +152,11 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
   printf("%-10s ", message);
-  for (auto &block : *this) {
-    block.dump(false, &block == focus);
-  }
+  // for (auto &block : *this) {
+  //   block.dump(false, &block == focus);
+  // }
+
+  printf("span:%zu, wm:%zu", span(), high_watermark);
   printf("\n");
 }
 
@@ -175,6 +179,11 @@ int anchorage::Chunk::sweep_freed_but_locked(void) {
 }
 
 
+
+
+size_t anchorage::Chunk::span(void) const {
+  return (off_t)tos - (off_t)front;
+}
 
 
 bool anchorage::Chunk::can_move(Block *free_block, Block *to_move) {
@@ -250,20 +259,22 @@ int anchorage::Chunk::perform_move(anchorage::Block *free_block, anchorage::Bloc
     // Update the handle to point to the new location
     // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
     handle->ptr = dst;
+    free_block->clear();
     // move the handle over
     free_block->set_handle(handle);
-
     // now, patch up the next of `cur`
     free_block->set_next(trailing_free);
     // patch with free block
     to_move->set_handle(nullptr);
+
+    trailing_free->clear();
     trailing_free->set_next(new_next);
     trailing_free->set_handle(nullptr);
     return 1;
   } else {
     // if `to_move` is not immediately after `free_block` then we
     // need to do some different operations.
-    bool need_trailing = (trailing_size >= anchorage::block_size);
+    bool need_trailing = (trailing_size >= (ssize_t)anchorage::block_size);
     // you need a trailing block if there is more than `anchorage::block_size` left
     // over after you would have merged the two.
 
@@ -288,8 +299,10 @@ int anchorage::Chunk::perform_move(anchorage::Block *free_block, anchorage::Bloc
       // printf("c)\n");
 
       memmove(dst, src, to_move_size);
+      free_block->clear();
       free_block->set_handle(handle);
       handle->ptr = dst;
+      to_move->clear();
       to_move->set_handle(nullptr);
       return 1;
     }
@@ -336,6 +349,10 @@ int anchorage::Chunk::compact(void) {
     cur = cur->next();
   }
 
+
+  // ssize_t pages_till_wm = (high_watermark - span()) / anchorage::page_size;
+  // printf("pages: %zd\n", pages_till_wm);
+  // TODO: MADV_DONTNEED those leftover pages if they are beyond a certain point
   return changes;
 }
 
@@ -343,20 +360,22 @@ int anchorage::Chunk::compact(void) {
 void anchorage::barrier(bool force) {
   long last_moved = anchorage::moved_bytes;
 
-  // printf("====================== BARRIER ======================\n");
+  printf("====================== BARRIER ======================\n");
 
   for (auto *chunk : *all_chunks) {
     chunk->dump(nullptr, "Before");
 
+    // for (auto &blk : *chunk) {
+    //   blk.dump(true);
+    //   printf("\n");
+    // }
     while (true) {
       chunk->sweep_freed_but_locked();
       auto changed = chunk->compact();
       if (changed == 0) break;
-      chunk->dump(nullptr, "After");
+      // chunk->dump(nullptr, "After");
     }
-
     // for (auto &blk : *chunk) {
-    //   printf("%p: p:%16p n:%16p  ", &blk, blk.prev(), blk.next());
     //   blk.dump(true);
     //   printf("\n");
     // }
