@@ -49,6 +49,7 @@ if (ALASKA_SERVICE_ANCHORAGE)
 		# services/anchorage/allocator.cpp
 		services/anchorage/Block.cpp
 		services/anchorage/Chunk.cpp
+		services/anchorage/Defragmenter.cpp
 	)
 endif()
 

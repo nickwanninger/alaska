@@ -147,13 +147,10 @@ namespace anchorage {
     // dump the chunk to stdout for debugging.
     void dump(Block *focus = NULL, const char *message = "");
 
-    bool can_move(Block *free_block, Block *to_move);
-    int perform_move(Block *free_block, Block *to_move);
-    int compact(void);  // perform compaction
     int sweep_freed_but_locked(void);
 
-
-    size_t span(void) const;  // total memory used currently
+    // the total memory used in this heap
+    size_t span(void) const;
 
     inline BlockIterator begin(void) {
       return BlockIterator(front);
@@ -165,20 +162,20 @@ namespace anchorage {
 
 
   /**
-   * Defragmenter: As the core of the Anchorage service, this class will perform
-   * tracking and functionality required to move memory around using various tracking
+   * Defragmenter: As the core of the Anchorage service, this class will
+   * perform functionality required to move memory around using various tracking
    * mechanisms and heuristics.
    */
   class Defragmenter {
-    // The set of chunks this defragmenter should care about.
-    std::unordered_set<anchorage::Chunk *> chunks;
+   private:
+    bool can_move(Block *free_block, Block *to_move);
+    int perform_move(Block *free_block, Block *to_move);
+    int naive_compact(anchorage::Chunk &chunk);
 
    public:
-    void add_chunk(anchorage::Chunk &chunk);
-    int run(void);
-
-    // ...
+    int run(const std::unordered_set<anchorage::Chunk *> &chunks);
   };
+
 
   // main interface to the allocator
   void *alloc(alaska::Mapping &mapping, size_t size);

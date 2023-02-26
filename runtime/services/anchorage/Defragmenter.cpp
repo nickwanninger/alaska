@@ -11,14 +11,185 @@
 
 #include "./allocator.h"
 #include <alaska/internal.h>
+#include <assert.h>
 
 
-void anchorage::Defragmenter::add_chunk(anchorage::Chunk &chunk) {
-  // Just insert it into the set
-  chunks.insert(&chunk);
+
+bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
+  // we are certain to_move has a handle associated, as we would have merged
+  // all the free blocks up until to_move
+  if (to_move->handle()->anchorage.locks > 0) {
+    // you cannot move a locked pointer
+    return false;
+  }
+
+
+  if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
+    // You can't move a handle which was freed but not unlocked.
+    return false;
+  }
+
+  // return false;
+
+  size_t to_move_size = to_move->size();
+  size_t free_space = free_block->size();
+
+
+  // Don't move if it would leave only enough space for a block's metadata
+  if (free_space - to_move_size == anchorage::block_size) {
+    return false;
+  }
+
+  // bool adjacent = free_block->next() == to_move;
+  // if (adjacent) {
+  //   return true;
+  // }
+
+  // if the slots are the same size, you can move them!
+  if (to_move_size <= free_space) {
+    return true;
+  }
+  return false;
+}
+
+int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorage::Block *to_move) {
+  size_t to_move_size = to_move->size();
+  size_t free_space = free_block->size();
+  ssize_t trailing_size = free_space - to_move_size;
+  void *src = to_move->data();
+  void *dst = free_block->data();  // place the data on `cur`
+  anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + to_move_size);
+
+
+  assert(free_block->is_free() && to_move->is_used());
+
+
+  // grab the handle we are moving before we move, as the
+  // data movement could clobber the block metadata
+  alaska::Mapping *handle = to_move->handle();
+
+  if (free_block->next() == to_move) {
+    // return 0;
+    // printf("a)\n");
+    // This is the most trivial movement. If the blocks are
+    // adjacent to eachother, they effectively swap places.
+    // Lets say you have these blocks:
+    //    |--|########|XXXX
+    // After this operation it should look like this:
+    //    |########|--|XXXX
+    //       ^ to_move metadata clobbered here.
+
+    // This is the |XXXX block above.
+    anchorage::Block *new_next = to_move->next();  // the next of the successor
+    // move the data
+    anchorage::memmove(dst, src, handle->size);
+
+    // Update the handle to point to the new location
+    // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
+    handle->ptr = dst;
+    free_block->clear();
+    // move the handle over
+    free_block->set_handle(handle);
+    // now, patch up the next of `cur`
+    free_block->set_next(trailing_free);
+    // patch with free block
+    to_move->set_handle(nullptr);
+
+    trailing_free->clear();
+    trailing_free->set_next(new_next);
+    trailing_free->set_handle(nullptr);
+    return 1;
+  } else {
+    // if `to_move` is not immediately after `free_block` then we
+    // need to do some different operations.
+    bool need_trailing = (trailing_size >= (ssize_t)anchorage::block_size);
+    // you need a trailing block if there is more than `anchorage::block_size` left
+    // over after you would have merged the two.
+
+
+    if (need_trailing) {
+      // printf("b)\n");
+
+      // initialize the trailing space
+      trailing_free->set_next(free_block->next());
+      trailing_free->set_handle(nullptr);
+      free_block->set_next(trailing_free);
+      // move the data
+      anchorage::memmove(dst, src, to_move_size);
+      // update the handle
+      free_block->set_handle(handle);
+      handle->ptr = dst;
+
+      // invalidate the handle on the moved block
+      to_move->set_handle(nullptr);
+      return 1;
+    } else {
+      // printf("c)\n");
+
+      memmove(dst, src, to_move_size);
+      free_block->clear();
+      free_block->set_handle(handle);
+      handle->ptr = dst;
+      to_move->clear();
+      to_move->set_handle(nullptr);
+      return 1;
+    }
+  }
+
+
+  return 0;
 }
 
 
-void anchorate::Defragmenter::run(void) {
-  //
+int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
+  int changes = 0;
+  // go over every block. If it is free, coalesce with next pointers or
+  // move them into it's place (if they aren't locked).
+  anchorage::Block *cur = chunk.front;
+  while (cur != NULL && cur != chunk.tos) {
+    int old_changes = changes;
+    if (cur->is_free()) {
+      // if this block is unallocated, coalesce all `next` free blocks,
+      // and move allocated blocks forward if you can.
+      cur->coalesce_free(chunk);
+      anchorage::Block *succ = cur->next();
+      anchorage::Block *latest_can_move = NULL;
+      // if there is a successor and it has no locks...
+      while (succ != NULL && succ != chunk.tos) {
+        if (succ->is_used() && can_move(cur, succ)) {
+          latest_can_move = succ;
+          break;
+        }
+        succ = succ->next();
+      }
+
+      if (latest_can_move) {
+        changes += perform_move(cur, latest_can_move);
+      }
+    }
+
+
+    if (changes != old_changes) {
+      // dump(cur, "Move");
+      // printf("      ");
+      // dump();
+    }
+    cur = cur->next();
+  }
+
+  // ssize_t pages_till_wm = (high_watermark - span()) / anchorage::page_size;
+  // printf("pages: %zd\n", pages_till_wm);
+  // TODO: MADV_DONTNEED those leftover pages if they are beyond a certain point
+  return changes;
+}
+
+// Run the defragmentation on the set of chunks chosen before
+int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &chunks) {
+  // printf("[ DEFRAG ]\n");
+  for (auto *chunk : chunks) {
+    chunk->dump(NULL, "Before");
+    naive_compact(*chunk);
+    chunk->dump(NULL, "After");
+  }
+  return 0;
 }
