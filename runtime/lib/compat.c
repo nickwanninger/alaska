@@ -121,7 +121,7 @@ int strcmp(const char *vl, const char *vr) {
 void *memchr(const void *mem, int ch, size_t n) {
   const unsigned char *c = alaska_lock((void *)mem);
 
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (c[i] == (unsigned char)ch) {
       alaska_unlock((void *)mem);
       return (void *)((unsigned char *)mem + i);

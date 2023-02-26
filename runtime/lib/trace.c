@@ -32,8 +32,8 @@ static alloc_t *trace_find(uint64_t va) {
   while (*n != NULL) {
     alloc_t *r = rb_entry(*n, alloc_t, node);
 
-    off_t start = (off_t)r->ptr;
-    off_t end = start + r->size;
+    uint64_t start = (off_t)r->ptr;
+    uint64_t end = start + r->size;
 
     if (va < start) {
       n = &((*n)->rb_left);

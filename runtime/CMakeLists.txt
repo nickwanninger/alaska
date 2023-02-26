@@ -1,6 +1,6 @@
 add_link_options("-fuse-ld=lld")
 
-set(WARNINGS " -Wall -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-fallthrough -Wno-gnu-null-pointer-arithmetic")
+set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
