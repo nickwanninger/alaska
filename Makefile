@@ -108,8 +108,8 @@ notebook:
 redis: alaska
 	$(MAKE) -C test/redis
 
-lua: alaska
-	local/bin/alaska -O2 -b -k test/lua/onelua.c -o build/lua
+build/lua: alaska
+	local/bin/alaska -O2 -b -k test/lua/onelua.c -o $@
 
 libc/src:
 	mkdir -p libc
