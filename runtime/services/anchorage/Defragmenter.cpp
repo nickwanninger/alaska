@@ -94,8 +94,6 @@ int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorag
 
 
     if (need_trailing) {
-      // printf("b)\n");
-
       // initialize the trailing space
       trailing_free->set_next(free_block->next());
       trailing_free->set_handle(nullptr);
@@ -110,8 +108,6 @@ int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorag
       to_move->set_handle(nullptr);
       return 1;
     } else {
-      // printf("c)\n");
-
       anchorage::memmove(dst, src, to_move_size);
       free_block->clear();
       free_block->set_handle(handle);
