@@ -9,17 +9,25 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include "./allocator.h"
+#include <anchorage/Block.hpp>
+#include <anchorage/Chunk.hpp>
 #include <alaska/internal.h>
 #include <limits.h>
 #include <string.h>
 
+#include <anchorage/crc32.h>
+
 extern uint64_t next_last_access_time;
 
 
+uint32_t anchorage::Block::crc(void) {
+  return xcrc32((const unsigned char *)data(), size(), 0xffffffff);
+}
+
+
 void anchorage::Block::clear(void) {
-	set_handle(nullptr);
-	m_flags = 0;
+  clear_handle();
+  m_flags = 0;
 }
 
 bool anchorage::Block::is_free(void) const {
@@ -41,6 +49,11 @@ void anchorage::Block::set_handle(alaska::Mapping *handle) {
   // Assign the packed 32bit "pointer"
   m_handle = (uint32_t)(uint64_t)handle;
 }
+
+void anchorage::Block::clear_handle(void) {
+  set_handle(nullptr);
+}
+
 
 
 auto anchorage::Block::next(void) const -> anchorage::Block * {
@@ -108,7 +121,7 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
       chunk.tos = (Block *)after;
       set_next((Block *)after);
       chunk.tos->set_next(NULL);
-      chunk.tos->set_handle(NULL);
+      chunk.tos->clear_handle();
       changes++;
     } else {
       // 2. The block before `tos` is a free block. This block should become `tos`
@@ -122,14 +135,15 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
 
 
 void anchorage::Block::dump(bool verbose, bool highlight) {
+  // verbose = true;
   if (verbose) {
     printf("%p sz:%5zu fl:%08x", this, size(), m_flags);
-    if (is_used()) {
-      printf(" h:%8lx", (uint64_t)handle());
-      printf(" lu:%10lu", next_last_access_time - handle()->anchorage.last_access_time);
-      printf(" lk:%10lx", handle()->anchorage.locks);
-      // printf(" sz:%10zu", sizeof(alaska::Mapping));
-    }
+    // if (is_used()) {
+    //   printf(" h:%8lx", (uint64_t)handle());
+    //   printf(" lu:%10lu", next_last_access_time - handle()->anchorage.last_access_time);
+    //   printf(" lk:%10lx", handle()->anchorage.locks);
+    //   // printf(" sz:%10zu", sizeof(alaska::Mapping));
+    // }
     // return;
   }
 
@@ -160,23 +174,31 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   }
   (void)c;
 
-  if (highlight) {
-    color = 34;
-  }
+  if (highlight) color = 34;
+
   printf("\e[%dm", color);
   ssize_t sz = size();
 
-  if (verbose && false) {
+  if (verbose) {
     putchar('|');
     auto *d = (uint64_t *)data();
-    for (int i = 0; i < sz / 8; i++) {
+		size_t count = sz / 8;
+		if (count > 8) count = 8;
+		// count = std::min(8, count);
+    for (size_t i = 0; i < count; i++) {
       // if (i % 8 == 0) printf(" ");
       printf("%016lx ", d[i]);
     }
   } else {
     putchar('|');
-    for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
-      putchar(c);
+
+		printf("%zu", size());
+		if (is_used()) printf(",%zu", handle()->size);
+    // printf(",%08x", crc());
+    // for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
+    //   putchar(c);
   }
   printf("\e[0m");
+
+  if (verbose) printf("\n");
 }

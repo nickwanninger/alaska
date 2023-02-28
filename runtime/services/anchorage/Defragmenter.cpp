@@ -9,44 +9,36 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include "./allocator.h"
+
 #include <alaska/internal.h>
 #include <assert.h>
-
-
+#include <anchorage/Anchorage.hpp>
+#include <anchorage/Defragmenter.hpp>
+#include <anchorage/Chunk.hpp>
+#include <anchorage/Block.hpp>
 
 bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
   // we are certain to_move has a handle associated, as we would have merged
   // all the free blocks up until to_move
-  if (to_move->handle()->anchorage.locks > 0) {
-    // you cannot move a locked pointer
-    return false;
-  }
 
+  // First, verify that the handle isn't locked.
+  if (to_move->handle()->anchorage.locks > 0) return false;
 
-  if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
-    // You can't move a handle which was freed but not unlocked.
-    return false;
-  }
-
-  // return false;
-
-  size_t to_move_size = to_move->size();
-  size_t free_space = free_block->size();
+  // Second, check if the handle is one of the buggy handles that was freed before it was unlocked
+  if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) return false;
 
 
   // Don't move if it would leave only enough space for a block's metadata
-  if (free_space - to_move_size == anchorage::block_size) {
+  if (free_block->size() - to_move->size() == anchorage::block_size) {
     return false;
   }
 
-  // bool adjacent = free_block->next() == to_move;
-  // if (adjacent) {
-  //   return true;
-  // }
-
-  // if the slots are the same size, you can move them!
-  if (to_move_size <= free_space) {
+  // Adjacency test
+  if (free_block->next() == to_move) {
+    return true;
+  }
+  // if the slots are at least same size, you can move them!
+  if (to_move->size() <= free_block->size()) {
     return true;
   }
   return false;
@@ -60,17 +52,13 @@ int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorag
   void *dst = free_block->data();  // place the data on `cur`
   anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + to_move_size);
 
-
   assert(free_block->is_free() && to_move->is_used());
-
 
   // grab the handle we are moving before we move, as the
   // data movement could clobber the block metadata
   alaska::Mapping *handle = to_move->handle();
 
   if (free_block->next() == to_move) {
-    // return 0;
-    // printf("a)\n");
     // This is the most trivial movement. If the blocks are
     // adjacent to eachother, they effectively swap places.
     // Lets say you have these blocks:
@@ -79,21 +67,19 @@ int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorag
     //    |########|--|XXXX
     //       ^ to_move metadata clobbered here.
 
+
     // This is the |XXXX block above.
     anchorage::Block *new_next = to_move->next();  // the next of the successor
     // move the data
-    anchorage::memmove(dst, src, handle->size);
+    anchorage::memmove(dst, src, to_move_size);
 
     // Update the handle to point to the new location
     // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
-    handle->ptr = dst;
-    free_block->clear();
-    // move the handle over
-    free_block->set_handle(handle);
-    // now, patch up the next of `cur`
-    free_block->set_next(trailing_free);
-    // patch with free block
-    to_move->set_handle(nullptr);
+    handle->ptr = dst;                    // Update the handle to point to the new block
+    free_block->clear();                  // Clear the old block's metadata
+    free_block->set_handle(handle);       // move the handle over
+    free_block->set_next(trailing_free);  // now, patch up the next of `cur`
+    // to_move->set_handle(nullptr);         // patch with free block
 
     trailing_free->clear();
     trailing_free->set_next(new_next);
@@ -126,7 +112,7 @@ int anchorage::Defragmenter::perform_move(anchorage::Block *free_block, anchorag
     } else {
       // printf("c)\n");
 
-      memmove(dst, src, to_move_size);
+      anchorage::memmove(dst, src, to_move_size);
       free_block->clear();
       free_block->set_handle(handle);
       handle->ptr = dst;
@@ -148,6 +134,8 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
   anchorage::Block *cur = chunk.front;
   while (cur != NULL && cur != chunk.tos) {
     int old_changes = changes;
+    // chunk.dump(cur);
+
     if (cur->is_free()) {
       // if this block is unallocated, coalesce all `next` free blocks,
       // and move allocated blocks forward if you can.
@@ -158,21 +146,28 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
       while (succ != NULL && succ != chunk.tos) {
         if (succ->is_used() && can_move(cur, succ)) {
           latest_can_move = succ;
-          break;
+          // break;
         }
         succ = succ->next();
       }
 
       if (latest_can_move) {
+        auto crc_before = latest_can_move->crc();
+        // chunk.dump(latest_can_move, "Moving");
         changes += perform_move(cur, latest_can_move);
+        auto crc_after = cur->crc();
+        if (crc_before != crc_after) {
+          // chunk.dump(cur, "CRC CHK");
+          // chunk.dump(cur, "CRC CHECK");
+        }
+        assert(crc_before == crc_after && "Invalid crc after move!");
       }
     }
 
 
     if (changes != old_changes) {
-      // dump(cur, "Move");
-      // printf("      ");
-      // dump();
+      // chunk.dump(cur);
+      // chunk.dump(cur, "Move");
     }
     cur = cur->next();
   }
@@ -185,11 +180,14 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 
 // Run the defragmentation on the set of chunks chosen before
 int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &chunks) {
-  // printf("[ DEFRAG ]\n");
+  long start = alaska_timestamp();
+  int changes = 0;
+  // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
     chunk->dump(NULL, "Before");
-    naive_compact(*chunk);
+    changes += naive_compact(*chunk);
     chunk->dump(NULL, "After");
   }
-  return 0;
+  printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
+  return changes;
 }

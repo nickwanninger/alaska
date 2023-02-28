@@ -44,9 +44,7 @@ endif()
 
 if (ALASKA_SERVICE_ANCHORAGE)
 	set(SRC_FILES ${SRC_FILES}
-		# written using nostd c++
-		services/anchorage/anchorage.cpp
-		# services/anchorage/allocator.cpp
+		services/anchorage/Anchorage.cpp
 		services/anchorage/Block.cpp
 		services/anchorage/Chunk.cpp
 		services/anchorage/Defragmenter.cpp
