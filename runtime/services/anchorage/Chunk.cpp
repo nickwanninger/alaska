@@ -89,12 +89,11 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
-  printf("%-10s ", message);
-  for (auto &block : *this) {
-    block.dump(false, &block == focus);
-  }
-
-  printf("span:%zu, wm:%zu", span(), high_watermark);
+  // printf("%-10s ", message);
+  // for (auto &block : *this) {
+  //   block.dump(false, &block == focus);
+  // }
+  printf("chunk %p - span:%zu, wm:%zu", this, span(), high_watermark);
   printf("\n");
 }
 
@@ -126,8 +125,13 @@ size_t anchorage::Chunk::span(void) const {
 
 
 void anchorage::barrier(bool force) {
+	// printf("--- begin defrag\n");
+	// for (auto *chunk : anchorage::Chunk::all()) {
+	// 	printf("chunk %p\n", chunk);
+	// }
   anchorage::Defragmenter defrag;
   defrag.run(*all_chunks);
+	// printf("--- end defrag\n");
 }
 
 

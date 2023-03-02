@@ -180,9 +180,9 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
-    chunk->dump(NULL, "Before");
+    // chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
-    chunk->dump(NULL, "After");
+    // chunk->dump(NULL, "After");
   }
   printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;

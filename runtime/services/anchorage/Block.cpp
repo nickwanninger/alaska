@@ -192,8 +192,8 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   } else {
     putchar('|');
 
-		printf("%zu", size());
-		if (is_used()) printf(",%zu", handle()->size);
+		// printf("%zu", size());
+		// if (is_used()) printf(",%zu", handle()->size);
     // printf(",%08x", crc());
     // for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
     //   putchar(c);

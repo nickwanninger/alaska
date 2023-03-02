@@ -72,8 +72,16 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   (void)new_chunk;
 
   if (new_block == NULL) {
-    printf("could not allocate\n");
-    abort();
+    printf("could not allocate. creating a new block w/ at least enough size for %zu\n", size);
+
+		size_t required_pages = (size / anchorage::page_size) * 2;
+		if (required_pages < anchorage::min_chunk_pages) {
+			required_pages = anchorage::min_chunk_pages;
+		}
+
+		new anchorage::Chunk(required_pages);
+
+		return anchorage::alloc(m, size);
   }
 
   if (m.ptr != NULL) {
