@@ -59,7 +59,7 @@ NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/
 GAP_BENCHMARKS := bench/gap/bfs bench/gap/bc bench/gap/cc bench/gap/cc_sv bench/gap/pr bench/gap/pr_spmv bench/gap/sssp
 
 
-NAS_CLASS=S
+NAS_CLASS=B
 bench/nas/%: alaska
 	@mkdir -p bench/nas
 	@echo "  CC  " $@
