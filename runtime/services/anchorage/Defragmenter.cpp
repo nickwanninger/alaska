@@ -187,13 +187,13 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
-		printf("before:\n");
-		longdump(chunk);
+		// printf("before:\n");
+		// longdump(chunk);
     // chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
     // chunk->dump(NULL, "After");
-		printf("after:\n");
-		longdump(chunk);
+		// printf("after:\n");
+		// longdump(chunk);
   }
   printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;

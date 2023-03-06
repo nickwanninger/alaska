@@ -8,6 +8,7 @@
 struct node {
   struct node *next;
   int val;
+	// char *msg;
 };
 
 void print_list(struct node *root) {
@@ -28,7 +29,7 @@ void print_list(struct node *root) {
 //   }
 //   return sum;
 // }
-//
+
 int main(int argc, char **argv) {
   struct node *root = NULL;
 
@@ -42,6 +43,7 @@ int main(int argc, char **argv) {
     struct node *n = (struct node *)malloc(sizeof(struct node));
     n->next = root;
     n->val = i;
+		// n->msg = strcpy(malloc(4), "abc");
     root = n;
   }
 

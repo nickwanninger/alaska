@@ -25,14 +25,14 @@ ARGS='-x , -r 10 -o tmp.csv '
 
 function run {
 	arg=$1
-	sudo perf stat $ARGS -e "$EVENTS" $PROG $arg >/dev/null
+	sudo perf stat $ARGS -e "$EVENTS" $PROG $arg
 	cat tmp.csv | sed '/^#/d' | sed -r '/^\s*$/d' | sed -e "s/^/$arg,/" >> out.csv
 	rm -f tmp.csv
 }
 
 
 run $CMD1
-run $CMD2
+# run $CMD2
 
 
 

@@ -135,15 +135,18 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
 
 
 void anchorage::Block::dump(bool verbose, bool highlight) {
-  // verbose = true;
   if (verbose) {
-    printf("%p sz:%5zu fl:%08x", this, size());
+    printf("%p sz:%5zu ", this);
     printf(" fl:%08x", m_flags);
     if (is_used()) {
       printf(" h:%8lx", (uint64_t)handle());
       printf(" lu:%10lu", handle()->anchorage.last_access_time);
       printf(" lk:%10lx", handle()->anchorage.locks);
-    }
+    } else {
+      printf(" h:%8lx", (uint64_t)handle());
+      printf(" lu:%10lu", -1);
+      printf(" lk:%10lx", -1);
+		}
     // return;
   }
 
