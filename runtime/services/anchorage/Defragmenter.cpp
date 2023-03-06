@@ -35,8 +35,9 @@ bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
 
   // Adjacency test
   if (free_block->next() == to_move) {
-    return true;
+    // return true;
   }
+
   // if the slots are at least same size, you can move them!
   if (to_move->size() <= free_block->size()) {
     return true;
@@ -148,21 +149,21 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
       }
 
       if (latest_can_move) {
-        auto crc_before = latest_can_move->crc();
+        // auto crc_before = latest_can_move->crc();
         // chunk.dump(latest_can_move, "Moving");
         changes += perform_move(cur, latest_can_move);
-        auto crc_after = cur->crc();
-        if (crc_before != crc_after) {
-          // chunk.dump(cur, "CRC CHK");
-          // chunk.dump(cur, "CRC CHECK");
-        }
-        assert(crc_before == crc_after && "Invalid crc after move!");
+        // auto crc_after = cur->crc();
+        // if (crc_before != crc_after) {
+        //   // chunk.dump(cur, "CRC CHK");
+        //   // chunk.dump(cur, "CRC CHECK");
+        // }
+        // assert(crc_before == crc_after && "Invalid crc after move!");
       }
     }
 
 
     if (changes != old_changes) {
-      // chunk.dump(cur);
+      chunk.dump(cur);
       // chunk.dump(cur, "Move");
     }
     cur = cur->next();
@@ -174,15 +175,25 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
   return changes;
 }
 
+static void longdump(anchorage::Chunk *chunk) {
+	for (auto &block : *chunk) {
+		block.dump(true);
+	}
+}
+
 // Run the defragmentation on the set of chunks chosen before
 int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &chunks) {
   long start = alaska_timestamp();
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
+		printf("before:\n");
+		longdump(chunk);
     // chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
     // chunk->dump(NULL, "After");
+		printf("after:\n");
+		longdump(chunk);
   }
   printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;

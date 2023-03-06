@@ -134,12 +134,12 @@ inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) { __sync_lock_r
 
 
 // stolen from redis, it's just a nicer interface :)
-#define atomic_inc(var, count) __atomic_add_fetch(&var, (count), __ATOMIC_RELAXED)
+#define atomic_inc(var, count) __atomic_add_fetch(&var, (count), __ATOMIC_SEQ_CST)
 #define atomic_get_inc(var, oldvalue_var, count)                        \
   do {                                                                  \
     oldvalue_var = __atomic_fetch_add(&var, (count), __ATOMIC_RELAXED); \
   } while (0)
-#define atomic_dec(var, count) __atomic_sub_fetch(&var, (count), __ATOMIC_RELAXED)
+#define atomic_dec(var, count) __atomic_sub_fetch(&var, (count), __ATOMIC_SEQ_CST)
 #define atomic_get(var, dstvar)                       \
   do {                                                \
     dstvar = __atomic_load_n(&var, __ATOMIC_RELAXED); \

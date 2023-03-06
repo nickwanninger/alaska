@@ -89,11 +89,11 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
-  // printf("%-10s ", message);
-  // for (auto &block : *this) {
-  //   block.dump(false, &block == focus);
-  // }
-  printf("chunk %p - span:%zu, wm:%zu", this, span(), high_watermark);
+  printf("%-10s ", message);
+  for (auto &block : *this) {
+    block.dump(false, &block == focus);
+  }
+  printf(" chunk %p - span:%zu, wm:%zu", this, span(), high_watermark);
   printf("\n");
 }
 
@@ -138,7 +138,7 @@ void anchorage::barrier(bool force) {
 
 void anchorage::allocator_init(void) {
   all_chunks = new std::unordered_set<anchorage::Chunk *>();
-  new Chunk(1024);  // leak, as it will be placed in the global list.
+  new Chunk(anchorage::min_chunk_pages);  // leak, as it will be placed in the global list.
 }
 void anchorage::allocator_deinit(void) {
   anchorage::barrier(true);

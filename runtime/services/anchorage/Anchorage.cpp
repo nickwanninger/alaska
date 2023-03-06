@@ -74,14 +74,15 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   if (new_block == NULL) {
     printf("could not allocate. creating a new block w/ at least enough size for %zu\n", size);
 
-		size_t required_pages = (size / anchorage::page_size) * 2;
-		if (required_pages < anchorage::min_chunk_pages) {
-			required_pages = anchorage::min_chunk_pages;
-		}
+    size_t required_pages = (size / anchorage::page_size) * 2;
+    if (required_pages < anchorage::min_chunk_pages) {
+      required_pages = anchorage::min_chunk_pages;
+    }
 
-		new anchorage::Chunk(required_pages);
+    anchorage::barrier();                  // run a barrier
+    new anchorage::Chunk(required_pages);  // add a chunk
 
-		return anchorage::alloc(m, size);
+    return anchorage::alloc(m, size);
   }
 
   if (m.ptr != NULL) {
@@ -127,7 +128,7 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
   m.ptr = nullptr;
   // tell the block to coalesce the best it can
   blk->coalesce_free(*chunk);
-  anchorage::barrier();
+  // anchorage::barrier();
 }
 
 

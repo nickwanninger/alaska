@@ -137,13 +137,13 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
 void anchorage::Block::dump(bool verbose, bool highlight) {
   // verbose = true;
   if (verbose) {
-    printf("%p sz:%5zu fl:%08x", this, size(), m_flags);
-    // if (is_used()) {
-    //   printf(" h:%8lx", (uint64_t)handle());
-    //   printf(" lu:%10lu", next_last_access_time - handle()->anchorage.last_access_time);
-    //   printf(" lk:%10lx", handle()->anchorage.locks);
-    //   // printf(" sz:%10zu", sizeof(alaska::Mapping));
-    // }
+    printf("%p sz:%5zu fl:%08x", this, size());
+    printf(" fl:%08x", m_flags);
+    if (is_used()) {
+      printf(" h:%8lx", (uint64_t)handle());
+      printf(" lu:%10lu", handle()->anchorage.last_access_time);
+      printf(" lk:%10lx", handle()->anchorage.locks);
+    }
     // return;
   }
 
@@ -182,9 +182,9 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   if (verbose) {
     putchar('|');
     auto *d = (uint64_t *)data();
-		size_t count = sz / 8;
-		if (count > 8) count = 8;
-		// count = std::min(8, count);
+    size_t count = sz / 8;
+    if (count > 8) count = 8;
+    // count = std::min(8, count);
     for (size_t i = 0; i < count; i++) {
       // if (i % 8 == 0) printf(" ");
       printf("%016lx ", d[i]);
@@ -192,11 +192,11 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   } else {
     putchar('|');
 
-		// printf("%zu", size());
-		// if (is_used()) printf(",%zu", handle()->size);
+    // printf("%zu", size());
+    // if (is_used()) printf(",%zu", handle()->size);
     // printf(",%08x", crc());
-    // for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
-    //   putchar(c);
+    for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
+      putchar(c);
   }
   printf("\e[0m");
 
