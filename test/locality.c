@@ -10,16 +10,25 @@ struct node {
   int val;
 };
 
-int sum_list(struct node *root) {
-  int sum = 0;
+void print_list(struct node *root) {
   struct node *cur = root;
   while (cur != NULL) {
-    sum += cur->val;
+		printf("0x%x ", cur->val);
     cur = cur->next;
   }
-  return sum;
+	printf("\n");
 }
 
+// int sum_list(struct node *root) {
+//   int sum = 0;
+//   struct node *cur = root;
+//   while (cur != NULL) {
+//     sum += cur->val;
+//     cur = cur->next;
+//   }
+//   return sum;
+// }
+//
 int main(int argc, char **argv) {
   struct node *root = NULL;
 
@@ -36,9 +45,11 @@ int main(int argc, char **argv) {
     root = n;
   }
 
-  printf("sum = %d\n", sum_list(root));
+	print_list(root);
+  // printf("sum = %d\n", sum_list(root));
   alaska_barrier();
-  printf("sum = %d\n", sum_list(root));
+  // printf("sum = %d\n", sum_list(root));
+	print_list(root);
 
 
   struct node *cur = root;
