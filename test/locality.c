@@ -4,7 +4,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <alaska.h>
-#include <alaska/internal.h>
 
 struct node {
   struct node *next;
@@ -23,7 +22,14 @@ int sum_list(struct node *root) {
 
 int main(int argc, char **argv) {
   struct node *root = NULL;
-  for (int i = 0; i < 10; i++) {
+
+  int len = 10;
+
+  if (argc == 2) {
+    len = atoi(argv[1]);
+  }
+
+  for (int i = 0; i < len; i++) {
     struct node *n = (struct node *)malloc(sizeof(struct node));
     n->next = root;
     n->val = i;
