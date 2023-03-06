@@ -68,9 +68,9 @@ ARCH_FLAGS=""
 case $(uname -p) in
 	x86_64)
 		# on x86, prod the backend along a bit more
-		# COLLECT_CLANG_ARGS+=("-march=native ")
-		# COLLECT_CLANG_ARGS+=("-mprefer-vector-width=256 ")
-		# COLLECT_CLANG_ARGS+=("-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd")
+		ARCH_FLAGS+="-march=native "
+		ARCH_FLAGS+="-mprefer-vector-width=256 "
+		ARCH_FLAGS+="-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd"
 		;;
 	aarch64)
 		ARCH_FLAGS+="-O3 -march=armv8.5-a "
