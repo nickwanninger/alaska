@@ -187,7 +187,7 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hrealloc_trace", "hcalloc", "hfree",
         "hfree_trace", "alaska_lock", "alaska_lock_trace", "alaska_unlock", "alaska_unlock_trace", "alaska_classify",
-        "alaska_classify_trace"};
+        "alaska_classify_trace", "anchorage_manufacture_locality"};
 
     for (auto r : alaska::wrapped_functions) {
       functions_to_ignore.insert(r);

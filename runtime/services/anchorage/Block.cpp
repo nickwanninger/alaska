@@ -136,7 +136,7 @@ int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
 
 void anchorage::Block::dump(bool verbose, bool highlight) {
   if (verbose) {
-    printf("%p sz:%5zu ", this);
+    printf("%p sz:%5zu ", this, size());
     printf(" fl:%08x", m_flags);
     if (is_used()) {
       printf(" h:%8lx", (uint64_t)handle());

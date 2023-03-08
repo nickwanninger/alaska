@@ -11,6 +11,7 @@
 
 
 #include <anchorage/Anchorage.hpp>
+#include <anchorage/LocalityFactory.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
 #include <alaska.h>
@@ -137,4 +138,11 @@ size_t anchorage::moved_bytes = 0;
 void *anchorage::memmove(void *dst, void *src, size_t size) {
   anchorage::moved_bytes += size;
   return ::memmove(dst, src, size);
+}
+
+
+void anchorage_manufacture_locality(void *entrypoint) {
+  anchorage::LocalityFactory factory(entrypoint);
+
+  factory.run();
 }

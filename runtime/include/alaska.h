@@ -37,6 +37,13 @@ extern long alaska_get_rss_kb(void);
 extern unsigned long alaska_timestamp(void);
 
 
+
+#ifdef ALASKA_SERVICE_ANCHORAGE
+// Manufacture locality using `entrypoint` as a root in a conservative reachability
+extern void anchorage_manufacture_locality(void *entrypoint);
+#endif
+
+
 enum alaska_classes {
 #define __CLASS(name, val) ALASKA_CLASS_##name = val,
 #include "./classes.inc"

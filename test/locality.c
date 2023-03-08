@@ -39,19 +39,25 @@ int main(int argc, char **argv) {
     len = atoi(argv[1]);
   }
 
+  printf("bad=%p\n", malloc(512));
+
   for (int i = 0; i < len; i++) {
     struct node *n = (struct node *)malloc(sizeof(struct node));
     n->next = root;
     n->val = i;
-		// n->msg = strcpy(malloc(4), "abc");
     root = n;
   }
 
 	print_list(root);
+
+#ifdef ALASKA_SERVICE_ANCHORAGE
+  anchorage_manufacture_locality((void *)root);
+#endif
+
   // printf("sum = %d\n", sum_list(root));
-  alaska_barrier();
+  // alaska_barrier();
   // printf("sum = %d\n", sum_list(root));
-	print_list(root);
+  print_list(root);
 
 
   struct node *cur = root;
