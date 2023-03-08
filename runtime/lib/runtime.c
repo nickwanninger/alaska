@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <execinfo.h>
 #include <fcntl.h>
-#include <jemalloc/jemalloc.h>
 #include <malloc.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -20,11 +20,16 @@ CMD2=$1
 shift
 
 
+
 echo 'arg,mean,unit,name,stddev,cycles,cycle_fraction,shadow_val,shadow_desc' > out.csv
-ARGS='-x , -r 10 -o tmp.csv '
+# ARGS='-x , -r 10 -o tmp.csv '
+ARGS='-x , -o tmp.csv '
 
 function run {
 	arg=$1
+
+	echo $PROG
+	echo $arg
 	sudo perf stat $ARGS -e "$EVENTS" $PROG $arg
 	cat tmp.csv | sed '/^#/d' | sed -r '/^\s*$/d' | sed -e "s/^/$arg,/" >> out.csv
 	rm -f tmp.csv
