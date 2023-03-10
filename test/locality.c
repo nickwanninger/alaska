@@ -39,8 +39,6 @@ int main(int argc, char **argv) {
     len = atoi(argv[1]);
   }
 
-  printf("bad=%p\n", malloc(512));
-
   for (int i = 0; i < len; i++) {
     struct node *n = (struct node *)malloc(sizeof(struct node));
     n->next = root;
