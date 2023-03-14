@@ -141,7 +141,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     if (is_used()) {
       printf(" h:%8lx", (uint64_t)handle());
       printf(" lu:%10lu", handle()->anchorage.last_access_time);
-      printf(" lk:%10lx", handle()->anchorage.locks);
+      // printf(" lk:%10lx", handle()->anchorage.locks);
     } else {
       printf(" h:%8lx", (uint64_t)handle());
       printf(" lu:%10lu", -1);
@@ -156,10 +156,10 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
 
   if (is_used()) {
     auto &handle = *this->handle();
-    if (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
+    if (0) { // (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
       color = 35;  // purple
       c = '#';
-    } else if (handle.anchorage.locks > 0) {
+    } else if (0) { // (handle.anchorage.locks > 0) {
       color = 31;  // red
       c = 'X';
     } else {

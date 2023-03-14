@@ -22,10 +22,10 @@ bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
   // all the free blocks up until to_move
 
   // First, verify that the handle isn't locked.
-  if (to_move->handle()->anchorage.locks > 0) return false;
+  // if (to_move->handle()->anchorage.locks > 0) return false;
 
   // Second, check if the handle is one of the buggy handles that was freed before it was unlocked
-  if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) return false;
+  // if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) return false;
 
 
   // Don't move if it would leave only enough space for a block's metadata

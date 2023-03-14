@@ -88,11 +88,13 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
 
   if (m.ptr != NULL) {
     Block *old_block = anchorage::Block::get(m.ptr);
+    // auto *old_chunk = anchorage::Chunk::get(m.ptr);
     old_block->clear_handle();
     size_t copy_size = m.size;
     if (size < copy_size) copy_size = size;
     memcpy(new_block->data(), m.ptr, copy_size);
     memset(m.ptr, 0xFA, m.size);
+    // old_block->coalesce_free(*old_chunk);
   }
 
   new_block->set_handle(&m);
@@ -115,13 +117,13 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
   auto *blk = anchorage::Block::get(ptr);
 
   memset(m.ptr, 0xFA, m.size);
-  if (m.anchorage.locks > 0) {
-    // set the flag to indicate that it's free (but someone has a lock)
-    m.anchorage.flags |= ANCHORAGE_FLAG_LAZY_FREE;
-    printf("freed while locked. TODO!\n");
-
-    return;
-  }
+  // if (m.anchorage.locks > 0) {
+  //   // set the flag to indicate that it's free (but someone has a lock)
+  //   // m.anchorage.flags |= ANCHORAGE_FLAG_LAZY_FREE;
+  //   printf("freed while locked. TODO!\n");
+  //
+  //   return;
+  // }
 
 
   blk->clear_handle();
@@ -141,7 +143,7 @@ void *anchorage::memmove(void *dst, void *src, size_t size) {
 }
 
 
-void anchorage_manufacture_locality(void *entrypoint) {
+extern "C" void anchorage_manufacture_locality(void *entrypoint) {
   anchorage::LocalityFactory factory(entrypoint);
 
   factory.run();

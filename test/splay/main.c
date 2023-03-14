@@ -118,15 +118,19 @@ int main(int argc, char *argv[]) {
       struct splay_tree_key_s lookup_key;
       lookup_key.key = value;
       volatile splay_tree_key result = splay_tree_lookup(s, &lookup_key);
-			(void)result;
+      (void)result;
       // printf("get %ld\n", value);
       continue;
     }
 
     fprintf(stderr, "unknown input: %s\n", buf);
 
-		alaska_barrier();
+
+#ifdef ALASKA_SERVICE_ANCHORAGE
+    anchorage_manufacture_locality((void *)s);
+#endif
+
+    // alaska_barrier();
     // coninue and hope it is fine
   }
-
 }

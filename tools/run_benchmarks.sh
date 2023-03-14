@@ -51,7 +51,8 @@ do
 	# 
 
 	# run nas
-	for bench in ft mg sp lu bt ep cg
+	# for bench in ft mg sp lu bt ep cg
+	for bench in ft mg lu bt ep cg
 	do
 		out=bench/results/nas/$bench
 		mkdir -p $out
@@ -71,22 +72,22 @@ do
 
 
 	# run gap
-	for bench in bfs bc cc cc_sv pr pr_spmv sssp # tc
-	do
-		out=bench/results/gap/$bench
-		SIZE=15
-		mkdir -p $out
-		echo "RUN gap/$bench (baseline)"
-		bench/gap/$bench.base -g $SIZE >$out/stdout.base
-		echo "RUN gap/$bench (alaska)"
-		bench/gap/$bench -g $SIZE >$out/stdout.alaska
+	# for bench in bfs bc cc cc_sv pr pr_spmv sssp # tc
+	# do
+	# 	out=bench/results/gap/$bench
+	# 	SIZE=15
+	# 	mkdir -p $out
+	# 	echo "RUN gap/$bench (baseline)"
+	# 	bench/gap/$bench.base -g $SIZE >$out/stdout.base
+	# 	echo "RUN gap/$bench (alaska)"
+	# 	bench/gap/$bench -g $SIZE >$out/stdout.alaska
 
 
-		# # extract the time in seconds from the output
-		BASELINE=$(grep 'Average Time:' $out/stdout.base | sed 's/.*:\W*//')
-		ALASKA=$(grep 'Average Time:' $out/stdout.alaska | sed 's/.*:\W*//')
-		SPEEDUP=$(echo "scale=2; $BASELINE/$ALASKA" | bc)
-		echo "$bench,GAPBS,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
-	done
+	# 	# # extract the time in seconds from the output
+	# 	BASELINE=$(grep 'Average Time:' $out/stdout.base | sed 's/.*:\W*//')
+	# 	ALASKA=$(grep 'Average Time:' $out/stdout.alaska | sed 's/.*:\W*//')
+	# 	SPEEDUP=$(echo "scale=2; $BASELINE/$ALASKA" | bc)
+	# 	echo "$bench,GAPBS,$BASELINE,$ALASKA,$SPEEDUP" >> bench/speedup.csv
+	# done
 done
 # cat bench/speedup.csv

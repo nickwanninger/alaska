@@ -102,15 +102,15 @@ void anchorage::Chunk::dump(Block *focus, const char *message) {
 int anchorage::Chunk::sweep_freed_but_locked(void) {
   int changed = 0;
 
-  for (auto &blk : *this) {
-    if (blk.is_used() && blk.handle()->anchorage.locks <= 0) {
-      if (blk.handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
-        alaska_table_put(blk.handle());
-        changed++;
-        blk.clear_handle();
-      }
-    }
-  }
+  // for (auto &blk : *this) {
+  //   if (blk.is_used() && blk.handle()->anchorage.locks <= 0) {
+  //     if (blk.handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
+  //       alaska_table_put(blk.handle());
+  //       changed++;
+  //       blk.clear_handle();
+  //     }
+  //   }
+  // }
 
   return changed;
 }
@@ -125,6 +125,7 @@ size_t anchorage::Chunk::span(void) const {
 
 
 void anchorage::barrier(bool force) {
+	return;
 	// printf("--- begin defrag\n");
 	// for (auto *chunk : anchorage::Chunk::all()) {
 	// 	printf("chunk %p\n", chunk);
@@ -142,5 +143,5 @@ void anchorage::allocator_init(void) {
 }
 void anchorage::allocator_deinit(void) {
   anchorage::barrier(true);
-  printf("total memmove: %f MB\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0));
+  printf("total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0), anchorage::moved_bytes);
 }

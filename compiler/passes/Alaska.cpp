@@ -39,7 +39,8 @@
 class ProgressPass : public PassInfoMixin<ProgressPass> {
  public:
   const char *message;
-  ProgressPass(const char *message) : message(message) {}
+  ProgressPass(const char *message) : message(message) {
+  }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     printf("message: %s\n", message);
     return PreservedAnalyses::all();
@@ -68,6 +69,35 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
         auto l = alaska::extractLocks(F);
         if (l.size() > 0) {
           alaska::printLockDot(F, l);
+        }
+      }
+    }
+    return PreservedAnalyses::all();
+  }
+};
+
+class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
+ public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    std::string focus;
+    for (auto &F : M) {
+      auto l = alaska::extractLocks(F);
+      if (l.size() > 0) {
+        for (auto &lock : l) {
+          auto locked = lock->getHandle();
+
+
+          IRBuilder<> b(F.front().getFirstNonPHI());
+          auto cell = b.CreateAlloca(locked->getType());
+
+          // insert a store right before the call to the lock
+          b.SetInsertPoint(lock->lock);
+          b.CreateStore(locked, cell, true);
+
+          // for (auto unlock : lock->unlocks) {
+          //   b.SetInsertPoint(unlock->getNextNode());
+          //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(locked->getType())), cell, true);
+          // }
         }
       }
     }
@@ -237,7 +267,8 @@ class AlaskaReplacementPass : public PassInfoMixin<AlaskaReplacementPass> {
 
 class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
  public:
-  AlaskaTranslatePass() {}
+  AlaskaTranslatePass() {
+  }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     llvm::noelle::MetadataManager mdm(M);
     if (mdm.doesHaveMetadata("alaska")) {
@@ -257,11 +288,11 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
       }
 
       alaska::println("running translate on ", F.getName());
-      #ifdef ALASKA_HOIST_LOCKS
-        alaska::insertHoistedLocks(F);
-      #else
-        alaska::insertConservativeLocks(F);
-      #endif
+#ifdef ALASKA_HOIST_LOCKS
+      alaska::insertHoistedLocks(F);
+#else
+      alaska::insertConservativeLocks(F);
+#endif
     }
 
 
@@ -275,7 +306,8 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
   GlobalValue::LinkageTypes linkage;
 
   AlaskaLinkLibraryPass(const char *lib_path, GlobalValue::LinkageTypes linkage = GlobalValue::WeakAnyLinkage)
-      : lib_path(lib_path), linkage(linkage) {}
+      : lib_path(lib_path), linkage(linkage) {
+  }
   void prepareLibrary(Module &M) {
     for (auto &G : M.globals())
       if (!G.isDeclaration()) G.setLinkage(linkage);
@@ -304,7 +336,8 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
 class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
  public:
   OptimizationLevel optLevel;
-  AlaskaReoptimizePass(OptimizationLevel optLevel) : optLevel(optLevel) {}
+  AlaskaReoptimizePass(OptimizationLevel optLevel) : optLevel(optLevel) {
+  }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // Create the analysis managers.
     LoopAnalysisManager LAM;
@@ -356,6 +389,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 MPM.addPass(AlaskaEscapePass());
               }
 #endif
+              MPM.addPass(LockTrackerPass());
 
 #ifdef ALASKA_DUMP_LOCKS
               MPM.addPass(LockPrinterPass());
