@@ -20,8 +20,7 @@ uint64_t timestamp() {
 #endif
 }
 
-#define TRIALS 1000
-#define LENGTH 1000
+#define LENGTH 100000
 
 struct node {
   struct node* next;
@@ -46,50 +45,54 @@ struct node* reverse_list(struct node* root) {
   return prev;
 }
 
-int test(struct node* root, uint64_t* out) {
+int test(volatile struct node* root) {
   volatile int sum = 0;
-  for (int i = 0; i < TRIALS; i++) {
-    uint64_t start = timestamp();
-    struct node* cur = root;
-    while (cur != NULL) {
-      sum += cur->val;
-      cur = cur->next;
-    }
-    uint64_t end = timestamp();
-    out[i] = (end - start);
+  volatile struct node* cur = root;
+  while (cur != NULL) {
+    sum += cur->val;
+    cur = cur->next;
   }
   return sum;
 }
 
-uint64_t* run_test(void* (*_malloc)(size_t), void (*_free)(void*)) {
-  uint64_t* trials = (uint64_t*)calloc(TRIALS, sizeof(uint64_t));
-
+uint64_t run_test(void) {
   struct node* root = NULL;
   for (int i = 0; i < LENGTH; i++) {
-    struct node* n = (struct node*)_malloc(NODE_SIZE);
+    struct node* n = (struct node*)malloc(NODE_SIZE);
     n->next = root;
     n->val = i;
     root = n;
   }
 
-  test(root, trials);
+	root = reverse_list(root);
+  test(root);
+#ifdef ALASKA_SERVICE_ANCHORAGE
+  anchorage_manufacture_locality((void*)root);
+#endif
+
+  uint64_t start = timestamp();
+	for (int i = 0; i < 100; i++) {
+  	test(root);
+	}
+
+
+  uint64_t end = timestamp();
 
   struct node* cur = root;
   cur = root;
   while (cur != NULL) {
     struct node* prev = cur;
     cur = cur->next;
-    _free(prev);
+    free(prev);
   }
-  return trials;
+
+  return end - start;
 }
 
 int main(int argc, char** argv) {
-  printf("results\n");
-  uint64_t* res = run_test(malloc, free);
-  for (int i = 0; i < TRIALS; i++) {
-    printf("%lu\n", res[i]);
-  }
-  free(res);
+	for (int i = 0; i < 10; i++) {
+  	uint64_t res = run_test();
+    printf("%lu\n", res);
+	}
   return 0;
 }

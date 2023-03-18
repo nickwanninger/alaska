@@ -50,13 +50,12 @@ void anchorage::LocalityFactory::mark_reachable(uint64_t possible_handle) {
 
 void anchorage::LocalityFactory::run(void) {
   std::vector<alaska::Mapping *> mappings(reachable.begin(), reachable.end());
-  anchorage::barrier(true);
-
-  for (auto *m : mappings) {
-    printf("Reachable: %p\n", m);
-  }
-
-  printf("sort:\n");
+  // anchorage::barrier(true);
+  // for (auto *m : mappings) {
+  //   printf("Reachable: %p\n", m);
+  // }
+  //
+  // printf("sort:\n");
   std::sort(mappings.begin(), mappings.end(), [&](alaska::Mapping *left, alaska::Mapping *right) {
     return left->anchorage.last_access_time < right->anchorage.last_access_time;
   });

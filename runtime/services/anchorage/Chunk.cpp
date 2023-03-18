@@ -24,6 +24,15 @@
 
 
 
+
+struct anchorage_lock_frame {
+  struct anchorage_lock_frame *prev;
+  uint64_t count;
+  void *locked[];
+};
+
+thread_local struct anchorage_lock_frame *alaska_lock_root_chain = NULL;
+
 // The global set of chunks in the allocator
 static std::unordered_set<anchorage::Chunk *> *all_chunks;
 
@@ -125,14 +134,26 @@ size_t anchorage::Chunk::span(void) const {
 
 
 void anchorage::barrier(bool force) {
-	return;
-	// printf("--- begin defrag\n");
-	// for (auto *chunk : anchorage::Chunk::all()) {
-	// 	printf("chunk %p\n", chunk);
-	// }
+  printf("barrier\n");
+  auto *cur = alaska_lock_root_chain;
+  while (cur) {
+    printf("   %p count:0x%zx prev:%p", cur, cur->count, cur->prev);
+
+    // for (uint64_t i = 0; i < cur->count; i++) {
+    //   printf(" %16llx", cur->locked[i]);
+    //   // printf(" %p", cur->locked[i]);
+    // }
+    printf("\n");
+    cur = cur->prev;
+  }
+  // return;
+  // printf("--- begin defrag\n");
+  // for (auto *chunk : anchorage::Chunk::all()) {
+  // 	printf("chunk %p\n", chunk);
+  // }
   anchorage::Defragmenter defrag;
   defrag.run(*all_chunks);
-	// printf("--- end defrag\n");
+  // printf("--- end defrag\n");
 }
 
 
@@ -143,5 +164,6 @@ void anchorage::allocator_init(void) {
 }
 void anchorage::allocator_deinit(void) {
   anchorage::barrier(true);
-  printf("total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0), anchorage::moved_bytes);
+  printf(
+      "total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0), anchorage::moved_bytes);
 }
