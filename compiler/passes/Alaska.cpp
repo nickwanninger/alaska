@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 // LLVM includes
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -108,93 +109,78 @@ class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
 
     auto pointerType = llvm::PointerType::get(M.getContext(), 0);
     auto i64Ty = IntegerType::get(M.getContext(), 64);
-    auto StackEntryTy = StructType::create(M.getContext(), "alaska_stackentry");
+    auto stackEntryTy = StructType::create(M.getContext(), "alaska_stackentry");
     EltTys.clear();
-    EltTys.push_back(PointerType::getUnqual(StackEntryTy));  // ptr
+    EltTys.push_back(PointerType::getUnqual(stackEntryTy));  // ptr
     EltTys.push_back(i64Ty);                                 // i64
-    StackEntryTy->setBody(EltTys);
+    stackEntryTy->setBody(EltTys);
 
     // Get the root chain if it already exists.
     auto Head = M.getGlobalVariable("alaska_lock_root_chain");
-    if (!Head) {
-      // If the root chain does not exist, insert a new one with linkonce
-      // linkage!
-      Head = new GlobalVariable(M, pointerType, false, GlobalValue::LinkOnceAnyLinkage,
+    if (Head == nullptr) {
+      Head = new GlobalVariable(M, pointerType, false, GlobalValue::ExternalWeakLinkage,
           Constant::getNullValue(pointerType), "alaska_lock_root_chain", nullptr,
           llvm::GlobalValue::InitialExecTLSModel);
-    } else if (Head->hasExternalLinkage() && Head->isDeclaration()) {
-      Head->setInitializer(Constant::getNullValue(StackEntryTy));
-      Head->setThreadLocalMode(llvm::GlobalValue::InitialExecTLSModel);
-      Head->setLinkage(GlobalValue::LinkOnceAnyLinkage);
     }
+    Head->setThreadLocal(true);
     Head->setLinkage(GlobalValue::ExternalWeakLinkage);
     Head->setInitializer(NULL);
 
 
     for (auto &F : M) {
+      if (F.empty()) continue;
       auto l = alaska::extractLocks(F);
 
-      if (l.size() > 0) {
-        EltTys.clear();
-        EltTys.push_back(StackEntryTy);
-        // enough spots for each pointerType
-        for (size_t i = 0; i < l.size(); i++) {
-          EltTys.push_back(pointerType);
-        }
-        auto *concreteStackEntryTy = StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
+      EltTys.clear();
+      EltTys.push_back(stackEntryTy);
+      // enough spots for each pointerType
+      for (size_t i = 0; i < l.size(); i++) {
+        EltTys.push_back(pointerType);
+      }
+      auto *concreteStackEntryTy = StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
 
-        IRBuilder<> atEntry(F.front().getFirstNonPHI());
-        auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "alaska_stack_frame");
+      IRBuilder<> atEntry(F.front().getFirstNonPHI());
+      auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "alaska_stack_frame");
+      // atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry);
 
-        auto *CurrentHead = atEntry.CreateLoad(StackEntryTy->getPointerTo(), Head, "gc_currhead");
+      auto *CurrentHead = atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "alaska_currhead");
 
-        // Push the entry onto the shadow stack.
-        auto *EntryNextPtr =
-            CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, 0, 0, "alaska_frame.next");
+      auto *EntryCountPtr = CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "alaska_frame.count");
+      atEntry.CreateStore(ConstantInt::get(i64Ty, l.size()), EntryCountPtr, true);
 
-        // auto *EntryCountPtr =
-        //     CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, 0, 1, "alaska_frame.count");
+      atEntry.CreateStore(CurrentHead, stackEntry, true);
+      atEntry.CreateStore(stackEntry, Head, true);
 
-        auto *NewHeadVal = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, 0, "alaska_newhead");
-        // atEntry.CreateStore(ConstantInt::get(i64Ty, l.size()), EntryCountPtr);
-        atEntry.CreateStore(CurrentHead, EntryNextPtr);
-        atEntry.CreateStore(NewHeadVal, Head);
-
-        int ind = 0;
-        for (auto &lock : l) {
-          auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, "alaska_root_cell");
-          ind++;
-
-          auto locked = lock->getHandle();
-          atEntry.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(locked->getType())), cell, false);
+      int ind = 0;
+      for (auto &lock : l) {
+        auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, "alaska_root_cell");
+        ind++;
 
 
-          IRBuilder<> b(lock->lock);
-          // insert a store right before the call to the lock (make sure it's volatile so it definitely happens)
-          b.SetInsertPoint(lock->lock);
-          b.CreateStore(locked, cell, true);
+        auto handle = lock->getHandle();
 
-          // // Insert a store right after all the unlocks to say "we're done with this handle".
-          // for (auto unlock : lock->unlocks) {
-          //   b.SetInsertPoint(unlock->getNextNode());
-          //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(locked->getType())), cell, false);
-          // }
-        }
+        IRBuilder<> b(lock->lock);
+        b.SetInsertPoint(lock->lock);
+        b.CreateStore(handle, cell, true);
 
-        // For each instruction that escapes...
-        EscapeEnumerator EE(F, "alaska_cleanup", /*HandleExceptions=*/true, nullptr);
-        while (IRBuilder<> *AtExit = EE.Next()) {
-          // Pop the entry from the shadow stack. Don't reuse CurrentHead from
-          // AtEntry, since that would make the value live for the entire function.
-          Instruction *EntryNextPtr2 =
-              CreateGEP(M.getContext(), *AtExit, concreteStackEntryTy, stackEntry, 0, 0, "alaska_frame.next");
-          Value *SavedHead = AtExit->CreateLoad(StackEntryTy->getPointerTo(), EntryNextPtr2, "alaska_savedhead");
-          AtExit->CreateStore(SavedHead, Head);
-        }
+        // Insert a store right after all the unlocks to say "we're done with this handle".
+        // for (auto unlock : lock->unlocks) {
+        //   b.SetInsertPoint(unlock->getNextNode());
+        //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+        // }
+      }
+
+      // For each instruction that escapes...
+      EscapeEnumerator EE(F, "alaska_cleanup", /*HandleExceptions=*/true, nullptr);
+      while (IRBuilder<> *AtExit = EE.Next()) {
+        // Pop the entry from the shadow stack. Don't reuse CurrentHead from
+        // AtEntry, since that would make the value live for the entire function.
+        Value *SavedHead = AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry, "alaska_savedhead");
+        AtExit->CreateStore(SavedHead, Head);
       }
     }
-
     alaska::println(M);
+
     return PreservedAnalyses::none();
   }
 };
@@ -489,13 +475,14 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(LockPrinterPass());
 #endif
 
-              const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
-              // Use the bootstrap bitcode if we are bootstrapping
-              if (alaska::bootstrapping()) {
-                bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
-              }
-              // Link the library (just runtime/src/lock.c)
-              MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
+              // const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
+              // // Use the bootstrap bitcode if we are bootstrapping
+              // if (alaska::bootstrapping()) {
+              //   bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
+              // }
+              // // Link the library (just runtime/src/lock.c)
+              // MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
+
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
               MPM.addPass(llvm::GlobalDCEPass());

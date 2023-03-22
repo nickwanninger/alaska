@@ -22,11 +22,53 @@
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
+#include <bits/pthreadtypes.h>
+#include <dlfcn.h>
+#include <pthread.h>
 
 #ifndef MAX
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
+
+
+
+struct alaska_pthread_trampoline_arg {
+  void* arg;
+  void* (*start)(void*);
+};
+
+void* alaska_pthread_trampoline(void* varg) {
+  void* (*start)(void*);
+  struct alaska_pthread_trampoline_arg* arg = varg;
+  void* thread_arg = arg->arg;
+  start = arg->start;
+  free(arg);
+
+
+  pthread_t self = pthread_self();
+  alaska_barrier_add_thread(&self);
+  void* ret = start(thread_arg);
+  alaska_barrier_remove_thread(&self);
+
+  return ret;
+}
+
+#undef pthread_create
+
+int pthread_create(
+    pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void* (*start)(void*), void* __restrict arg) {
+  int rc;
+  static int (*real_create)(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void* (*start)(void*),
+      void* __restrict arg) = NULL;
+  if (!real_create) real_create = dlsym(RTLD_NEXT, "pthread_create");
+
+  struct alaska_pthread_trampoline_arg* args = calloc(1, sizeof(struct alaska_pthread_trampoline_arg));
+  args->arg = arg;
+  args->start = start;
+  rc = real_create(thread, attr, alaska_pthread_trampoline, args);
+  return rc;
+}
 
 
 extern void alaska_service_init(void);
@@ -34,6 +76,10 @@ extern void alaska_service_deinit(void);
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
+  // add ourselves to the list of active threads.
+  pthread_t self = pthread_self();
+  alaska_barrier_add_thread(&self);
+
   alaska_table_init();
   alaska_halloc_init();
   alaska_service_init();
@@ -47,6 +93,8 @@ void __attribute__((destructor)) alaska_deinit(void) {
   alaska_service_deinit();
   alaska_halloc_deinit();
   alaska_table_deinit();
+
+  // Note: the main thread never removes itself from the barrier thread list
 
 #ifdef ALASKA_CLASS_TRACKING
   alaska_classify_deinit();
@@ -157,7 +205,7 @@ uint64_t alaska_timestamp() {
 // 		fld_y--;
 // 	}
 // 	unsigned char field[fld_x][fld_y];
-// 	
+//
 // 	if ((retval = calloc(((size_t)fld_x + 3), ((size_t)fld_y + 2))) == NULL) {
 // 		perror("ERROR calloc()");
 // 		return NULL;

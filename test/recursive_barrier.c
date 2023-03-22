@@ -29,19 +29,19 @@ long num_nodes(struct node *tree) {
 }
 
 
-void free_nodes(struct node *tree) {
-  if (tree == NULL) return;
-
-  free_nodes(tree->left);
-  free_nodes(tree->right);
-  free(tree);
-}
+// void free_nodes(struct node *tree) {
+//   if (tree == NULL) return;
+//
+//   free_nodes(tree->left);
+//   free_nodes(tree->right);
+//   free(tree);
+// }
 
 
 int main() {
   srand((unsigned)time(NULL));
-  struct node *tree = create_tree(4);
+  struct node *tree = create_tree(6);
   long nodes = num_nodes(tree);
   printf("nodes: %ld\n", nodes);
-	free_nodes(tree);
+	// free_nodes(tree);
 }

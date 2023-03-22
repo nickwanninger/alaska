@@ -8,7 +8,6 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
-
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
 #include <anchorage/Defragmenter.hpp>
@@ -21,17 +20,10 @@
 #include <sys/mman.h>
 #include <unordered_set>
 #include <assert.h>
+#include <unistd.h>
 
 
 
-
-struct anchorage_lock_frame {
-  struct anchorage_lock_frame *prev;
-  uint64_t count;
-  void *locked[];
-};
-
-thread_local struct anchorage_lock_frame *alaska_lock_root_chain = NULL;
 
 // The global set of chunks in the allocator
 static std::unordered_set<anchorage::Chunk *> *all_chunks;
@@ -134,18 +126,27 @@ size_t anchorage::Chunk::span(void) const {
 
 
 void anchorage::barrier(bool force) {
-  printf("barrier\n");
+  return;
+  // printf("barrier\n");
   auto *cur = alaska_lock_root_chain;
+  int depth = 0;
   while (cur) {
-    printf("   %p count:0x%zx prev:%p", cur, cur->count, cur->prev);
+    int ind = depth++;
+    if (cur->count != 0) {
+      printf("   %6d ", ind);
+      for (uint64_t i = 0; i < cur->count; i++) {
+        if (1 || cur->locked[i]) {
+          printf(" %16llx", cur->locked[i]);
+        }
+        // printf(" %p", cur->locked[i]);
+      }
+      printf("\n");
+    }
 
-    // for (uint64_t i = 0; i < cur->count; i++) {
-    //   printf(" %16llx", cur->locked[i]);
-    //   // printf(" %p", cur->locked[i]);
-    // }
-    printf("\n");
     cur = cur->prev;
   }
+  printf("\n");
+  return;
   // return;
   // printf("--- begin defrag\n");
   // for (auto *chunk : anchorage::Chunk::all()) {

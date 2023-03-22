@@ -20,8 +20,8 @@ uint64_t timestamp() {
 #endif
 }
 
-#define TRIALS 1000
-#define LENGTH 1000
+#define TRIALS 100000
+#define LENGTH 100
 
 struct node {
   struct node* next;

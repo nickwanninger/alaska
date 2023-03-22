@@ -18,11 +18,13 @@
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
 #include <alaska/vec.h>
+#include <pthread.h>
 #include <string.h>
 #include <stdbool.h>
 #include <sys/mman.h>
 
 
+static pthread_mutex_t allocator_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 uint64_t next_last_access_time = 0;
 
@@ -34,14 +36,18 @@ extern "C" void alaska_service_barrier(void) {
 }
 
 extern "C" void alaska_service_alloc(alaska::Mapping *ent, size_t new_size) {
+  pthread_mutex_lock(&allocator_mutex);
   // defer to anchorage
   anchorage::alloc(*ent, new_size);
+  pthread_mutex_unlock(&allocator_mutex);
 }
 
 
 extern "C" void alaska_service_free(alaska::Mapping *ent) {
+  pthread_mutex_lock(&allocator_mutex);
   // defer to anchorage
   anchorage::free(*ent, ent->ptr);
+  pthread_mutex_unlock(&allocator_mutex);
 }
 
 

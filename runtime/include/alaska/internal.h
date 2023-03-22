@@ -133,6 +133,20 @@ inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) { __sync_lock_r
 #define GET_OFFSET(handle) ((off_t)(handle)&0xFFFFFFFF)
 
 
+
+struct alaska_lock_frame {
+  struct alaska_lock_frame *prev;
+  uint64_t count;
+  void *locked[];
+};
+// In barrier.c
+extern __thread struct alaska_lock_frame *alaska_lock_root_chain;
+
+void alaska_barrier_add_thread(pthread_t *thread);
+void alaska_barrier_remove_thread(pthread_t *thread);
+
+
+
 // stolen from redis, it's just a nicer interface :)
 #define atomic_inc(var, count) __atomic_add_fetch(&var, (count), __ATOMIC_SEQ_CST)
 #define atomic_get_inc(var, oldvalue_var, count)                        \

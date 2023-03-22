@@ -31,3 +31,4 @@ test/npb/MG/penmp
 
 /runtime/include/alaska/config.h
 /compiler/include/config.h
+.vscode

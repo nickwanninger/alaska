@@ -7,9 +7,6 @@ extern "C" {
 #endif
 
 struct anchorage_metadata {
-  // int locks;
-  // uint32_t flags;
-#define ANCHORAGE_FLAG_LAZY_FREE (1 << 0)
   uint64_t last_access_time;
 };
 

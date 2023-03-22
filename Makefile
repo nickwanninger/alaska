@@ -66,7 +66,7 @@ bench/nas/%: alaska
 	@$(MAKE) --no-print-directory -C test/npb $* CLASS=$(NAS_CLASS) >/dev/null
 	@mv bench/$*.$(NAS_CLASS) bench/nas/$*.base
 	@get-bc bench/nas/$*.base >/dev/null
-	@local/bin/alaska -fopenmp -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
+	@local/bin/alaska -fopenmp -b -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
 	@rm bench/nas/$*.base.bc
 
 

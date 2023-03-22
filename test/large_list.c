@@ -20,7 +20,7 @@ uint64_t timestamp() {
 #endif
 }
 
-#define LENGTH 100000
+#define LENGTH 10000
 
 struct node {
   struct node* next;

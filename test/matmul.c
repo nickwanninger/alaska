@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <alaska.h>
 
 #define SZ 8
 void matmul(double a[SZ][SZ], double b[SZ][SZ], double c[SZ][SZ]) {
@@ -14,5 +15,10 @@ void matmul(double a[SZ][SZ], double b[SZ][SZ], double c[SZ][SZ]) {
 }
 
 int main() {
+
+	double a[SZ][SZ];
+	double b[SZ][SZ];
+	double c[SZ][SZ];
+	matmul(a, b, c);
 	return 0;
 }

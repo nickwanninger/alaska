@@ -22,6 +22,7 @@ extern void hfree(void *ptr);
 
 // "Go do something in the runtime", whatever that means in the active service
 extern void alaska_barrier(void);
+extern void alaska_signal_barrier(void);
 
 
 
