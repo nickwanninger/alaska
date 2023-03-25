@@ -457,31 +457,33 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               // MPM.addPass(AlaskaLinkLibraryPass(
               //     ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc", llvm::GlobalValue::ExternalLinkage));
 
-              MPM.addPass(AlaskaNormalizePass());
-              if (!alaska::bootstrapping()) {
-                // run replacement on non-bootstrapped code
-                MPM.addPass(AlaskaReplacementPass());
-              }
-              MPM.addPass(AlaskaTranslatePass());
+              if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
+                MPM.addPass(AlaskaNormalizePass());
+                if (!alaska::bootstrapping()) {
+                  // run replacement on non-bootstrapped code
+                  MPM.addPass(AlaskaReplacementPass());
+                }
+                MPM.addPass(AlaskaTranslatePass());
 
 #ifdef ALASKA_ESCAPE_PASS
-              if (!alaska::bootstrapping()) {
-                MPM.addPass(AlaskaEscapePass());
-              }
+                if (!alaska::bootstrapping()) {
+                  MPM.addPass(AlaskaEscapePass());
+                }
 #endif
-              MPM.addPass(LockTrackerPass());
+                MPM.addPass(LockTrackerPass());
 
 #ifdef ALASKA_DUMP_LOCKS
-              MPM.addPass(LockPrinterPass());
+                MPM.addPass(LockPrinterPass());
 #endif
 
-              // const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
-              // // Use the bootstrap bitcode if we are bootstrapping
-              // if (alaska::bootstrapping()) {
-              //   bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
-              // }
-              // // Link the library (just runtime/src/lock.c)
-              // MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
+                const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
+                // Use the bootstrap bitcode if we are bootstrapping
+                if (alaska::bootstrapping()) {
+                  bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
+                }
+                // Link the library (just runtime/src/lock.c)
+                MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
+              }
 
               // attempt to inline the library stuff
               MPM.addPass(adapt(llvm::DCEPass()));
