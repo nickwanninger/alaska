@@ -68,9 +68,9 @@ ARCH_FLAGS=""
 case $(uname -p) in
 	x86_64)
 		# on x86, prod the backend along a bit more
-		ARCH_FLAGS+="-march=native "
-		ARCH_FLAGS+="-mprefer-vector-width=256 "
-		ARCH_FLAGS+="-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd"
+		ARCH_FLAGS+="-O3 -march=native "
+		# ARCH_FLAGS+="-mprefer-vector-width=256 "
+		# ARCH_FLAGS+="-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd"
 		;;
 	aarch64)
 		ARCH_FLAGS+="-O3 -march=armv8.5-a "
@@ -89,7 +89,15 @@ else
 	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ARCH_FLAGS} `alaska-config --cflags --ldflags`
 
 	get-bc $OUTFILE >/dev/null
-	[ "$BASELINE" == "true" ] && mv $OUTFILE $OUTFILE.base
+	if [ "$BASELINE" == "true" ]; then
+
+		mv $OUTFILE $OUTFILE.base_input
+		cp ${OUTFILE}.bc ${OUTFILE}.base.bc
+		TMPFILE=${OUTFILE}.base.bc
+		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
+
+		$CLANG -gdwarf-4 ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags` -lomp
+	fi
 	TMPFILE=${OUTFILE}.bc
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
