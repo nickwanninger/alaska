@@ -56,24 +56,29 @@ newtest: alaska
 	
 # targets to build benchmarks
 NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/bt bench/nas/is bench/nas/ep bench/nas/cg
+# NAS_BENCHMARKS := bench/nas/ft bench/nas/mg bench/nas/sp bench/nas/lu bench/nas/is bench/nas/ep bench/nas/cg
 GAP_BENCHMARKS := bench/gap/bfs bench/gap/bc bench/gap/cc bench/gap/cc_sv bench/gap/pr bench/gap/pr_spmv bench/gap/sssp
 
 
-NAS_CLASS=A
+
+# BENCH_FLAGS=-fopenmp
+BENCH_FLAGS=
+
+NAS_CLASS=B
 bench/nas/%: alaska
 	@mkdir -p bench/nas
 	@echo "  CC  " $@
 	@$(MAKE) --no-print-directory -C test/npb $* CLASS=$(NAS_CLASS) >/dev/null
 	@mv bench/$*.$(NAS_CLASS) bench/nas/$*.base
 	@get-bc bench/nas/$*.base >/dev/null
-	@local/bin/alaska -fopenmp -b -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
+	@local/bin/alaska $(BENCH_FLAGS) -b -O3 bench/nas/$*.base.bc -k -lm -o $@ >/dev/null
 	@rm bench/nas/$*.base.bc
 
 
 bench/gap/%: alaska
 	@mkdir -p bench/gap
 	@echo "  CC  " $@
-	@local/bin/alaska++ -std=c++11 -k -b -O3 -Wall test/gapbs/src/$*.cc -o $@
+	@local/bin/alaska++ $(BENCH_FLAGS) -std=c++11 -k -b -O3 -Wall test/gapbs/src/$*.cc -o $@
 
 bench: alaska $(NAS_BENCHMARKS) $(GAP_BENCHMARKS)
 
