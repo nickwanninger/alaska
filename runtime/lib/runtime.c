@@ -180,6 +180,13 @@ uint64_t alaska_timestamp() {
 
 
 
+
+void alaska_swap_in(alaska_mapping_t *m) {
+	while(1) {}
+  // printf("swap in %p\n", m);
+}
+
+
 // char* alaska_randomart(const unsigned char* raw, size_t raw_len, size_t fldbase, const char* palette) {
 //   /*
 // 	 * Chars to be used after each other every time the worm

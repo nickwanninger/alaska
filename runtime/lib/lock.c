@@ -70,18 +70,16 @@ ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 #endif
 }
 
-void alaska_swap_in(alaska_mapping_t *m) {
-  printf("swap in %p\n", m);
-}
+extern void alaska_swap_in(alaska_mapping_t *m);
 
 ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 #ifdef ALASKA_SIM_MODE
   extern void *sim_translate(void *restrict ptr);
   return sim_translate(ptr);
 #else
-  if (unlikely(m->ptr == NULL)) {
-    alaska_swap_in(m);
-  }
+  // if (unlikely(m->ptr == NULL)) {
+  //   alaska_swap_in(m);
+  // }
   handle_t h;
   h.ptr = ptr;
   return (void *)((uint64_t)m->ptr + h.offset);
