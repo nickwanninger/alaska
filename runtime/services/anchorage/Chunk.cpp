@@ -67,7 +67,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
   // The distance from the top_of_stack pointer to the end of the chunk
   off_t end_of_chunk = (off_t)this->front + this->pages * anchorage::page_size;
-  size_t space_left = end_of_chunk - (off_t)this->tos;
+  size_t space_left = end_of_chunk - (off_t)this->tos - block_size;
   if (space_left < anchorage::size_with_overhead(size)) {
     // Not enough space left at the end of the chunk to allocate!
     return NULL;
@@ -91,10 +91,19 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
   printf("%-10s ", message);
+  uint64_t free_bytes = 0;
   for (auto &block : *this) {
+    if (block.is_free()) {
+      free_bytes += block_size + block.size();
+    }
     block.dump(false, &block == focus);
   }
-  printf(" chunk %p - span:%zu, wm:%zu", this, span(), high_watermark);
+  uint64_t current_span = span();
+  float free_perc = 0.0;
+  if (current_span > 0) {
+    free_perc = (free_bytes / (float)current_span) * 100.0f;
+  }
+  printf(" chunk %p - span:%zu free:%6.2f%% wm:%zu", this, current_span, free_perc, high_watermark);
   printf("\n");
 }
 
@@ -126,35 +135,8 @@ size_t anchorage::Chunk::span(void) const {
 
 
 void anchorage::barrier(bool force) {
-  return;
-  // printf("barrier\n");
-  auto *cur = alaska_lock_root_chain;
-  int depth = 0;
-  while (cur) {
-    int ind = depth++;
-    if (cur->count != 0) {
-      printf("   %6d ", ind);
-      for (uint64_t i = 0; i < cur->count; i++) {
-        if (1 || cur->locked[i]) {
-          printf(" %16llx", cur->locked[i]);
-        }
-        // printf(" %p", cur->locked[i]);
-      }
-      printf("\n");
-    }
-
-    cur = cur->prev;
-  }
-  printf("\n");
-  return;
-  // return;
-  // printf("--- begin defrag\n");
-  // for (auto *chunk : anchorage::Chunk::all()) {
-  // 	printf("chunk %p\n", chunk);
-  // }
   anchorage::Defragmenter defrag;
   defrag.run(*all_chunks);
-  // printf("--- end defrag\n");
 }
 
 

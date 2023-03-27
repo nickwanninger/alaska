@@ -47,7 +47,7 @@ static long barrier_last_num_threads = 0;
 
 
 
-static void record_handle(void* possible_handle) {
+static void record_handle(void* possible_handle, bool marked) {
   alaska_mapping_t* m = alaska_lookup(possible_handle);
 
   // It wasn't a handle, don't consider it.
@@ -58,18 +58,21 @@ static void record_handle(void* possible_handle) {
     return;
   }
 
-  // printf("handle %p\n", m);
+  printf("handle %p %d\n", m, marked);
+  alaska_service_commit_lock_status(m, marked);
 }
 
 
 static void alaska_do_barrier(bool is_leader) {
   // Now that we are here, we need to go and commit our active lock chain / lock set to the global structure
 
-  struct alaska_lock_frame* cur = alaska_lock_root_chain;
+  struct alaska_lock_frame* cur;
+
+  cur = alaska_lock_root_chain;
   while (cur != NULL) {
     for (uint64_t i = 0; i < cur->count; i++) {
       if (cur->locked[i]) {
-        record_handle(cur->locked[i]);
+        record_handle(cur->locked[i], true);
         // TODO: commit!
       }
     }
@@ -78,18 +81,30 @@ static void alaska_do_barrier(bool is_leader) {
 
 
   // Wait on the barrier so everyone's state has been commited.
-  pthread_barrier_wait(&the_barrier);
 
-  // if (is_leader) {
-  //   printf("In the barrier as a leader (%d)\n", gettid());
-  // }
+  if (num_threads > 1) {
+    pthread_barrier_wait(&the_barrier);
+  }
 
+  if (is_leader) {
+    alaska_service_barrier();
+  }
 
 
   // wait for the leader to do it's thing.
   // pthread_barrier_wait(&the_barrier);
 
   // go and clean up our commits to the global structure.
+  cur = alaska_lock_root_chain;
+  while (cur != NULL) {
+    for (uint64_t i = 0; i < cur->count; i++) {
+      if (cur->locked[i]) {
+        record_handle(cur->locked[i], false);
+        // TODO: commit!
+      }
+    }
+    cur = cur->prev;
+  }
 }
 
 
@@ -162,6 +177,7 @@ void alaska_barrier_remove_thread(pthread_t* thread) {
 // potentially stop the world and do what it needs to do. This function doesn't
 // do anything yet, but it could :)
 __declspec(noinline) void alaska_barrier(void) {
+  printf("Barrier!\n");
   pthread_mutex_lock(&barrier_lock);
   // also lock the thread list! Nobody is allowed to create a thread right now.
   pthread_mutex_lock(&all_threads_lock);

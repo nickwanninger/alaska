@@ -62,6 +62,11 @@ extern "C" void alaska_service_deinit(void) {
 }
 
 
+extern "C" void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked) {
+  auto *block = anchorage::Block::get(ent->ptr);
+  block->mark_locked(locked);
+}
+
 
 void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   // anchorage::barrier();

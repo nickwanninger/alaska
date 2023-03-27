@@ -12,6 +12,7 @@
 
 
 #include <alaska/internal.h>
+#include <stdbool.h>
 
 // This file contains the interface that a service must implement to be a
 // complete service under Alaska.
@@ -30,3 +31,6 @@ extern void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size);
 // free `ent->ptr` which was previously allocated by the personality.
 extern void alaska_service_free(alaska_mapping_t *ent);
 extern void alaska_service_barrier(void);
+
+
+extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked);

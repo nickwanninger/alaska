@@ -22,7 +22,7 @@ bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
   // all the free blocks up until to_move
 
   // First, verify that the handle isn't locked.
-  // if (to_move->handle()->anchorage.locks > 0) return false;
+  if (to_move->is_locked()) return false;
 
   // Second, check if the handle is one of the buggy handles that was freed before it was unlocked
   // if (to_move->handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) return false;
@@ -143,7 +143,9 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
       while (succ != NULL && succ != chunk.tos) {
         if (succ->is_used() && can_move(cur, succ)) {
           latest_can_move = succ;
+#ifndef ALASKA_ANCHORAGE_DEFRAG_REORDER
           break;
+#endif
         }
         succ = succ->next();
       }
@@ -164,7 +166,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 
     if (changes != old_changes) {
       // chunk.dump(cur);
-      // chunk.dump(cur, "Move");
+      chunk.dump(cur, "Move");
     }
     cur = cur->next();
   }
@@ -191,11 +193,11 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   for (auto *chunk : chunks) {
     // printf("before:\n");
     // longdump(chunk);
-    // chunk->dump(NULL, "Before");
+    chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
     // printf("after:\n");
     // longdump(chunk);
-    // chunk->dump(NULL, "After");
+    chunk->dump(NULL, "After");
   }
   // printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;

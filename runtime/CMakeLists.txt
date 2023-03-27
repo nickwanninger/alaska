@@ -49,6 +49,7 @@ if (ALASKA_SERVICE_ANCHORAGE)
 		services/anchorage/Chunk.cpp
 		services/anchorage/Defragmenter.cpp
 		services/anchorage/LocalityFactory.cpp
+		services/anchorage/Swapper.cpp
 	)
 endif()
 

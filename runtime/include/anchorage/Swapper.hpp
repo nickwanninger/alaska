@@ -16,16 +16,6 @@
 #include <unordered_set>
 
 namespace anchorage {
-
-  // This class performs all operations relating to manufacturing locality
-  class LocalityFactory {
-    std::unordered_set<alaska::Mapping *> reachable;
-
-    void mark_reachable(uint64_t possible_handle);
-
-   public:
-    LocalityFactory(void *root);  // TODO: shape analysis stuff in the compiler
-    void run();
-  };
+  class Swapper {};
 
 }  // namespace anchorage

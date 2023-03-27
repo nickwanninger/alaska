@@ -18,33 +18,70 @@
 #include <pthread.h>
 #include <string.h>
 #include <vector>
+#include <deque>
 
-anchorage::LocalityFactory::LocalityFactory(void *root) {
-  // go perform a mark of (conservatively) reachable allocations
-  mark_reachable((uint64_t)root);
-}
 
-void anchorage::LocalityFactory::mark_reachable(uint64_t possible_handle) {
+static alaska::Mapping *safe_lookup(void *possible_handle) {
   alaska::Mapping *m = alaska_lookup((void *)possible_handle);
 
   // It wasn't a handle, don't mark.
-  if (m == NULL) return;
+  if (m == NULL) return NULL;
 
   // Was it well formed (allocated?)
   if (m < alaska_table_begin() || m >= alaska_table_end() || m->size == (uint32_t)-1) {
-    return;
+    return NULL;
   }
 
-  // Don't mark again.
-  if (reachable.count(m) != 0) return;
-  // "Mark"
-  // TODO: do this less shit.
-  reachable.insert(m);
+  return m;
+}
 
-  auto data = (uint64_t *)m->ptr;
-  for (uint64_t i = 0; i < m->size; i += sizeof(uint64_t)) {
-    mark_reachable(data[i]);
+
+anchorage::LocalityFactory::LocalityFactory(void *root) {
+  printf("starting\n");
+  std::deque<alaska::Mapping *> todo;
+
+  auto track = [&](void *possible_handle) {
+    auto *m = safe_lookup(possible_handle);
+    if (m == NULL || reachable.count(m) != 0) return;
+    reachable.insert(m);
+    todo.push_back(m);
+  };
+
+  track(root);
+
+  while (!todo.empty()) {
+    alaska::Mapping *m = todo.back();
+    todo.pop_back();
+
+    auto data = (uint64_t *)m->ptr;
+    for (uint64_t i = 0; i < m->size; i += sizeof(uint64_t)) {
+      track((void *)data[i]);
+    }
   }
+  printf("ending\n");
+}
+
+void anchorage::LocalityFactory::mark_reachable(uint64_t possible_handle) {
+  // alaska::Mapping *m = alaska_lookup((void *)possible_handle);
+
+  // // It wasn't a handle, don't mark.
+  // if (m == NULL) return;
+
+  // // Was it well formed (allocated?)
+  // if (m < alaska_table_begin() || m >= alaska_table_end() || m->size == (uint32_t)-1) {
+  //   return;
+  // }
+
+  // // Don't mark again.
+  // if (reachable.count(m) != 0) return;
+  // // "Mark"
+  // // TODO: do this less shit.
+  // reachable.insert(m);
+
+  // auto data = (uint64_t *)m->ptr;
+  // for (uint64_t i = 0; i < m->size; i += sizeof(uint64_t)) {
+  //   mark_reachable(data[i]);
+  // }
 }
 
 

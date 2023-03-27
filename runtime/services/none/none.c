@@ -11,6 +11,7 @@
 #include <alaska/personality/none.h>
 #include <alaska/internal.h>
 #include <stdint.h>
+#include <alaska/service.h>
 
 
 void alaska_service_init(void) {
@@ -35,4 +36,9 @@ void alaska_service_free(alaska_mapping_t *ent) {
 
 void alaska_service_barrier(void) {
 	// Do nothing.
+}
+
+
+extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked) {
+  // do nothing
 }

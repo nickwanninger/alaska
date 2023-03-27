@@ -46,12 +46,23 @@ namespace anchorage {
 
     auto crc(void) -> uint32_t;                       // compute the crc32 of the data in the block
     void dump(bool verbose, bool highlight = false);  // print a block in the fancy Chunk::dump format :)
+
+
+    void mark_locked(bool); // Mark the locked status of this allocation (cannot move)
+    bool is_locked(void); // Can this block move? (locked=no, unlocked=yes)
+
    private:
     // Strict byte layout here. Must be 16 bytes
     uint32_t m_prev_off;  // how many 16 byte blocks the previous node is
     uint32_t m_next_off;  // how many 16 byte blocks until the next node?
     uint32_t m_handle;    // The handle this block belongs to (basically a 32bit pointer)
-    uint32_t m_flags;     // unused... for now
+
+    union {
+      uint32_t m_flags;
+      struct {
+        bool m_locked : 1;
+      };
+    };
   };
 
 

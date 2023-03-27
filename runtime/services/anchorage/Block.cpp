@@ -40,6 +40,14 @@ bool anchorage::Block::is_used(void) const {
 }
 
 
+void anchorage::Block::mark_locked(bool locked) {
+  m_locked = locked;
+}
+
+bool anchorage::Block::is_locked(void) {
+  return m_locked;
+}
+
 auto anchorage::Block::handle(void) const -> alaska::Mapping * {
   if (m_handle == UINT_MAX) return NULL;  // cast the 32bit "pointer" into the real pointer
   return (alaska::Mapping *)(uint64_t)m_handle;
@@ -159,7 +167,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     if (0) { // (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
       color = 35;  // purple
       c = '#';
-    } else if (0) { // (handle.anchorage.locks > 0) {
+    } else if (is_locked()) { // (handle.anchorage.locks > 0) {
       color = 31;  // red
       c = 'X';
     } else {

@@ -38,6 +38,11 @@ menu "Anchorage Service Configuration"
 	config ANCHORAGE_ALLOCATOR
 		bool "Enable the experimental Anchorage allcoator"
 		default n
+
+	config ANCHORAGE_DEFRAG_REORDER
+		bool "Permit heap reordering when performing defragmentation"
+		default y
+
 endmenu
 
 
