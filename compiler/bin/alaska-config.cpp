@@ -42,6 +42,12 @@ void ldflags(void) {
 void includeflags(void) { printf("-I%s/include\n", local); }
 
 void cflags(void) {
+
+#if defined(__aarch64__)
+	printf("-march=armv8.5-a\n");
+#elif defined(__x86_64__)
+	printf("-march=native\n");
+#endif
 	includeflags();
 }
 

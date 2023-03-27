@@ -18,6 +18,9 @@ if [ "$(uname)" == "Darwin" ]; then
 	SO="dylib"
 fi
 
+
+OPT="-O3"
+
 phase="link"
 
 while [[ $# -gt 0 ]]
@@ -38,6 +41,12 @@ do
 				KEEP="true"
 				shift
 				;;
+
+			-O*)
+				OPT="$1"
+				shift
+				;;
+
 			-o)
 				OUTFILE="$2"
 				shift
@@ -62,20 +71,10 @@ done
 
 COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize")
 COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
+COLLECT_CLANG_ARGS+=("$OPT ")
 
-ARCH_FLAGS=""
 
-case $(uname -p) in
-	x86_64)
-		# on x86, prod the backend along a bit more
-		ARCH_FLAGS+="-O3 -march=native "
-		# ARCH_FLAGS+="-mprefer-vector-width=256 "
-		# ARCH_FLAGS+="-mno-avx -mno-avx2 -mno-avx512f -mno-avx512pf -mno-avx512er -mno-avx512cd"
-		;;
-	aarch64)
-		ARCH_FLAGS+="-O3 -march=armv8.5-a "
-		;;
-esac
+echo $COLLECT_CLANG_ARGS
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
@@ -86,7 +85,7 @@ if [ "$phase" = "compile" ]; then
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} ${ARCH_FLAGS} `alaska-config --cflags --ldflags`
+	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
 
 	get-bc $OUTFILE >/dev/null
 	if [ "$BASELINE" == "true" ]; then
@@ -96,7 +95,7 @@ else
 		TMPFILE=${OUTFILE}.base.bc
 		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
-		$CLANG -gdwarf-4 ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags` -lomp
+		$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags` -lomp
 	fi
 	TMPFILE=${OUTFILE}.bc
 
@@ -104,7 +103,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags` -lomp
+	$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags --cflags` -lomp
 	rm ${TMPFILE}
 fi
 

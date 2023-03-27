@@ -42,6 +42,10 @@ endmenu
 
 
 
+config SWAP_SUPPORT
+	bool "Enable swap-in checking in the translation operation"
+	default n
+
 
 config CLASS_TRACKING
 	bool "Track allocation classes and record access counts in a histogram"
