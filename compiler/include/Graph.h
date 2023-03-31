@@ -27,8 +27,6 @@
 #include <map>
 #include <memory> // shared_ptr
 #include <set>
-#include <unordered_map>
-#include <unordered_set>
 
 using namespace llvm;
 
@@ -50,29 +48,28 @@ struct FlowNode {
   PointerFlowGraph &graph;
   llvm::Value *value = NULL;
   llvm::Value *pinned_value = NULL; // HACK: abstraction leakage
-  std::unordered_set<int> colors;
+  std::set<int> colors;
 
   FlowNode(PointerFlowGraph &graph, llvm::Value *value);
   void add_in_edge(llvm::Use *);
 
-  std::unordered_set<FlowNode *> get_in_nodes(void) const;
-  std::unordered_set<FlowNode *> get_out_nodes(void) const;
+  std::set<FlowNode *> get_in_nodes(void) const;
+  std::set<FlowNode *> get_out_nodes(void) const;
   // get the nodes which this node dominates (out edges that it dominates)
-  std::unordered_set<FlowNode *> get_dominated(llvm::DominatorTree &DT) const;
+  std::set<FlowNode *> get_dominated(llvm::DominatorTree &DT) const;
   // get the nodes which this node is dominated by (in edges that dominates
   // this)
-  std::unordered_set<FlowNode *> get_dominators(llvm::DominatorTree &DT) const;
+  std::set<FlowNode *> get_dominators(llvm::DominatorTree &DT) const;
 
   // get the nodes which this node postdominates
-  std::unordered_set<FlowNode *>
-  get_postdominated(llvm::PostDominatorTree &PDT) const;
+  std::set<FlowNode *> get_postdominated(llvm::PostDominatorTree &PDT) const;
 
-protected:
+ protected:
   friend class PointerFlowGraph;
 
   // edges to other nodes
-  std::unordered_set<llvm::Use *> in;
-  std::unordered_set<llvm::Use *> out;
+  std::set<llvm::Use *> in;
+  std::set<llvm::Use *> out;
   void populate_edges(void);
 };
 
@@ -82,9 +79,9 @@ public:
   auto &func(void) { return m_func; }
 
   // get just the nodes that we care about (skip alloca and globals)
-  std::unordered_set<alaska::FlowNode *> get_nodes(void) const;
+  std::set<alaska::FlowNode *> get_nodes(void) const;
   // get all nodes, including those we don't really care about.
-  std::unordered_set<alaska::FlowNode *> get_all_nodes(void) const;
+  std::set<alaska::FlowNode *> get_all_nodes(void) const;
   void dump_dot(DominatorTree &DT, PostDominatorTree &PDT) const;
 
 protected:
@@ -95,8 +92,8 @@ protected:
 
 private:
   llvm::Function &m_func;
-  std::unordered_map<llvm::Value *, std::unique_ptr<FlowNode>> m_nodes;
-  std::unordered_map<llvm::Value *, std::unique_ptr<FlowNode>> m_sinks;
+  std::map<llvm::Value *, std::unique_ptr<FlowNode>> m_nodes;
+  std::map<llvm::Value *, std::unique_ptr<FlowNode>> m_sinks;
 };
 
 } // namespace alaska

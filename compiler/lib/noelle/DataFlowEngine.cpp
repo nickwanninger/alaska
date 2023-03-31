@@ -107,7 +107,7 @@ namespace llvm::noelle {
      *
      * Create the working list by adding all basic blocks to it.
      */
-    std::unordered_set<BasicBlock *> computedOnce;
+    std::set<BasicBlock *> computedOnce;
     std::list<BasicBlock *> workingList;
     for (auto &bb : *f) {
       workingList.push_front(&bb);
@@ -259,7 +259,7 @@ namespace llvm::noelle {
      * Create the working list by adding all basic blocks to it.
      */
     std::list<BasicBlock *> workingList;
-    std::unordered_map<BasicBlock *, bool> worklingListContent;
+    std::map<BasicBlock *, bool> worklingListContent;
     for (auto &bb : *f) {
       appendBB(workingList, &bb);
       worklingListContent[&bb] = true;
@@ -268,7 +268,7 @@ namespace llvm::noelle {
     /*
      * Compute the INs and OUTs iteratively until the working list is empty.
      */
-    std::unordered_map<Instruction *, bool> alreadyVisited;
+    std::map<Instruction *, bool> alreadyVisited;
     while (!workingList.empty()) {
       /*
        * Fetch a basic block that needs to be processed.

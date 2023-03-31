@@ -5,12 +5,13 @@
 
 // C++ includes
 #include <cassert>
-#include <unordered_set>
+#include <set>
 
 // LLVM includes
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/InstVisitor.h"
+#include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/Casting.h"
@@ -79,6 +80,98 @@ class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
 };
 
 
+class RedundantArgumentLockElisionPass : public PassInfoMixin<RedundantArgumentLockElisionPass> {
+ public:
+  llvm::Value *getRootAllocation(llvm::Value *cur) {
+    while (1) {
+      if (auto gep = dyn_cast<GetElementPtrInst>(cur)) {
+        cur = gep->getPointerOperand();
+      } else {
+        break;
+      }
+    }
+
+    return cur;
+  }
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    // Which arguments does each function lock internally? (Array of true and false for each index of the args)
+    std::map<llvm::Function *, std::vector<bool>> locked_arguments;
+
+    for (auto &F : M) {
+      if (F.empty()) continue;
+      // Which arguments do each function lock?
+      auto locks = alaska::extractLocks(F);
+      std::vector<bool> locked;
+      locked.reserve(F.arg_size());
+      for (unsigned i = 0; i < F.arg_size(); i++)
+        locked.push_back(false);
+
+      for (auto &l : locks) {
+        auto lockedAllocation = getRootAllocation(l->getHandle());
+        for (unsigned i = 0; i < F.arg_size(); i++) {
+          auto *arg = F.getArg(i);
+          if (arg == lockedAllocation) {
+            locked[i] = true;
+          }
+        }
+      }
+
+      locked_arguments[&F] = std::move(locked);
+    }
+
+    for (auto &[func, locked] : locked_arguments) {
+      alaska::println("function: ", func->getName());
+      // fprintf(stderr, "%20s: ", func->getName().data());
+      // alaska::print("locked args for ", func->getName(), "\t");
+
+      alaska::print("\targs:");
+      for (auto b : locked) {
+        alaska::print(" ", b);
+      }
+      alaska::println();
+
+      for (auto *user : func->users()) {
+        if (auto *call = dyn_cast<CallInst>(user)) {
+          if (call->getCalledFunction() != func) continue;
+
+          auto *callFunction = call->getFunction();
+
+          auto fLocks = alaska::extractLocks(*callFunction);
+          alaska::print("\t use:");
+
+          for (unsigned i = 0; i < locked.size(); i++) {
+            bool alreadyLocked = false;
+
+            auto argRoot = getRootAllocation(call->getOperand(i));
+
+            // alaska::println(i, "lock ", *argRoot);
+
+            for (auto &fl : fLocks) {
+              auto *flRoot = getRootAllocation(fl->getHandle());
+              if (flRoot == argRoot) {
+                if (fl->liveInstructions.count(call) != 0) {
+                  alreadyLocked = true;
+                  break;
+                }
+              }
+            }
+
+            alaska::print(" ", alreadyLocked);
+          }
+          // alaska::println("\tfrom ", callFunction->getName());
+          alaska::println();
+          // alaska::println("   call: ", *call);
+        }
+      }
+    }
+
+    return PreservedAnalyses::none();
+  }
+};
+
+
+
 class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
  public:
   GetElementPtrInst *CreateGEP(
@@ -130,7 +223,7 @@ class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
     for (auto &F : M) {
       if (F.empty()) continue;
       auto l = alaska::extractLocks(F);
-
+      if (l.empty()) continue;
       EltTys.clear();
       EltTys.push_back(stackEntryTy);
       // enough spots for each pointerType
@@ -140,22 +233,25 @@ class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
       auto *concreteStackEntryTy = StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
 
       IRBuilder<> atEntry(F.front().getFirstNonPHI());
-      auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "alaska_stack_frame");
-      // atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry);
+      auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "lockStackFrame");
+      atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry, true);
 
-      auto *CurrentHead = atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "alaska_currhead");
 
-      auto *EntryCountPtr = CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "alaska_frame.count");
+      auto *EntryCountPtr = CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.count");
+      // cur->count = N;
       atEntry.CreateStore(ConstantInt::get(i64Ty, l.size()), EntryCountPtr, true);
-
+      // cur->prev = head;
+      auto *CurrentHead = atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "lockStackCurrentHead");
       atEntry.CreateStore(CurrentHead, stackEntry, true);
+      // head = cur;
       atEntry.CreateStore(stackEntry, Head, true);
 
       int ind = 0;
       for (auto &lock : l) {
-        auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, "alaska_root_cell");
+        char buf[512];
+        snprintf(buf, 512, "lockCell.%d", ind);
+        auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, buf);
         ind++;
-
 
         auto handle = lock->getHandle();
 
@@ -164,10 +260,10 @@ class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
         b.CreateStore(handle, cell, true);
 
         // Insert a store right after all the unlocks to say "we're done with this handle".
-        // for (auto unlock : lock->unlocks) {
-        //   b.SetInsertPoint(unlock->getNextNode());
-        //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
-        // }
+        for (auto unlock : lock->unlocks) {
+          b.SetInsertPoint(unlock->getNextNode());
+          b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+        }
       }
 
       // For each instruction that escapes...
@@ -177,9 +273,9 @@ class LockTrackerPass : public PassInfoMixin<LockTrackerPass> {
         // AtEntry, since that would make the value live for the entire function.
         Value *SavedHead = AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry, "alaska_savedhead");
         AtExit->CreateStore(SavedHead, Head);
+        // AtExit->CreateStore(CurrentHead, Head);
       }
     }
-    alaska::println(M);
 
     return PreservedAnalyses::none();
   }
@@ -238,7 +334,7 @@ class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
 
   // Normalize select statements that have a pointer type
   void normalizeSelects(Function &F) {
-    std::unordered_set<llvm::SelectInst *> selects;
+    std::set<llvm::SelectInst *> selects;
 
     for (auto &BB : F) {
       for (auto &I : BB) {
@@ -295,9 +391,23 @@ class AlaskaNormalizePass : public PassInfoMixin<AlaskaNormalizePass> {
 class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
  public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-    std::set<std::string> functions_to_ignore = {"halloc", "hrealloc", "hrealloc_trace", "hcalloc", "hfree",
-        "hfree_trace", "alaska_lock", "alaska_lock_trace", "alaska_unlock", "alaska_unlock_trace", "alaska_classify",
-        "alaska_classify_trace", "anchorage_manufacture_locality"};
+    std::set<std::string> functions_to_ignore = {
+        "halloc",
+        "hrealloc",
+        "hrealloc_trace",
+        "hcalloc",
+        "hfree",
+        "hfree_trace",
+        "alaska_lock",
+        "alaska_lock_trace",
+        "alaska_unlock",
+        "alaska_unlock_trace",
+        "alaska_classify",
+        "alaska_classify_trace",
+        "anchorage_manufacture_locality",
+        "strstr",
+        "strchr",
+    };
 
     for (auto r : alaska::wrapped_functions) {
       functions_to_ignore.insert(r);
@@ -327,8 +437,11 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
         if (!arg->getType()->isPointerTy()) continue;
         if (dyn_cast<GlobalValue>(arg)) continue;
 
-        auto translated = alaska::insertLockBefore(call, arg);
-        alaska::insertUnlockBefore(call->getNextNode(), arg);
+        IRBuilder<> b(call);
+
+        auto val = b.CreateGEP(arg->getType(), arg, {});
+        auto translated = alaska::insertLockBefore(call, val);
+        alaska::insertUnlockBefore(call->getNextNode(), val);
         call->setArgOperand(i, translated);
       }
     }
@@ -367,7 +480,7 @@ class AlaskaTranslatePass : public PassInfoMixin<AlaskaTranslatePass> {
         continue;
       }
 
-      alaska::println("running translate on ", F.getName());
+      // alaska::println("running translate on ", F.getName());
 #ifdef ALASKA_HOIST_LOCKS
       alaska::insertHoistedLocks(F);
 #else
@@ -454,15 +567,19 @@ auto adapt(T &&fp) {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-              // MPM.addPass(AlaskaLinkLibraryPass(
-              //     ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc", llvm::GlobalValue::ExternalLinkage));
+              // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
 
               if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
+                MPM.addPass(ProgressPass("Normalize"));
                 MPM.addPass(AlaskaNormalizePass());
                 if (!alaska::bootstrapping()) {
                   // run replacement on non-bootstrapped code
+                  MPM.addPass(ProgressPass("Replacement"));
+
                   MPM.addPass(AlaskaReplacementPass());
                 }
+                MPM.addPass(ProgressPass("Translate"));
+
                 MPM.addPass(AlaskaTranslatePass());
 
 #ifdef ALASKA_ESCAPE_PASS
@@ -470,19 +587,23 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                   MPM.addPass(AlaskaEscapePass());
                 }
 #endif
+                // MPM.addPass(LockRemoverPass());
+                // MPM.addPass(RedundantArgumentLockElisionPass());
+                MPM.addPass(ProgressPass("LockTracker"));
                 MPM.addPass(LockTrackerPass());
 
 #ifdef ALASKA_DUMP_LOCKS
                 MPM.addPass(LockPrinterPass());
 #endif
+                MPM.addPass(ProgressPass("Linking"));
 
-                const char *bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc";
-                // Use the bootstrap bitcode if we are bootstrapping
                 if (alaska::bootstrapping()) {
-                  bitcode_path = ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc";
+                  // Use the bootstrap bitcode if we are bootstrapping
+                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc"));
+                } else {
+                  // Link the library otherwise (just runtime/src/lock.c)
+                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc"));
                 }
-                // Link the library (just runtime/src/lock.c)
-                MPM.addPass(AlaskaLinkLibraryPass(bitcode_path));
               }
 
               // attempt to inline the library stuff

@@ -3,6 +3,7 @@
 #include <Utils.h>
 #include "Graph.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <noelle/core/DataFlow.hpp>
 
@@ -93,13 +94,11 @@ void alaska::Lock::remove(void) {
 
   pointer->replaceAllUsesWith(handle);
 
-
-
   // erase lock and unlock calls from the parent
-  for (auto u : unlocks) {
-    u->eraseFromParent();
-  }
-  lock->eraseFromParent();
+  // for (auto u : unlocks) {
+  //   u->eraseFromParent();
+  // }
+  // lock->eraseFromParent();
 
 
   this->lock = nullptr;
@@ -110,6 +109,20 @@ void alaska::Lock::remove(void) {
 
 
 bool alaska::Lock::isUser(llvm::Instruction *inst) { return users.find(inst) != users.end(); }
+
+llvm::Value *alaska::Lock::getRootAllocation() {
+  llvm::Value *cur = getHandle();
+
+  while (1) {
+    if (auto gep = dyn_cast<GetElementPtrInst>(cur)) {
+      cur = gep->getPointerOperand();
+    } else {
+      break;
+    }
+  }
+
+  return cur;
+}
 
 static void extract_users(llvm::Instruction *inst, std::set<llvm::Instruction *> &users) {
   for (auto user : inst->users()) {
@@ -392,9 +405,9 @@ void alaska::printLockDot(
 
 
 struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
-  std::unordered_set<llvm::Value *> srcs;
-  std::unordered_set<llvm::Value *> accessed;
-  std::unordered_set<llvm::Value *> seen;
+  std::set<llvm::Value *> srcs;
+  std::set<llvm::Value *> accessed;
+  std::set<llvm::Value *> seen;
 
 
   // returns true if this has been seen or not
@@ -446,6 +459,7 @@ struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
   void visitAllocaInst(llvm::AllocaInst &I) {
     // Nothing. Don't lock allocas
   }
+
   void visitCallInst(llvm::CallInst &I) {
     // TODO: skip lock calls
     auto lock = I.getFunction()->getParent()->getFunction("alaska_lock");
@@ -461,8 +475,8 @@ struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
 
 
 struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisitor> {
-  std::unordered_set<llvm::Instruction *> transients;
-  std::unordered_set<llvm::Value *> seen;
+  std::set<llvm::Instruction *> transients;
+  std::set<llvm::Value *> seen;
 
   // returns true if this has been seen or not
   bool track_seen(llvm::Value &v) {
@@ -508,7 +522,7 @@ void alaska::insertHoistedLocks(llvm::Function &F) {
   std::vector<std::unique_ptr<alaska::Lock>> locks;
   std::map<llvm::Value *, alaska::Lock *> value2lock;
 
-  std::unordered_map<llvm::Value *, std::unordered_set<llvm::Value *>> sourceAliases;
+  std::map<llvm::Value *, std::set<llvm::Value *>> sourceAliases;
 
   auto &sources = s.srcs;
   // alaska::println("Potential sources for ", F.getName(), ":");
@@ -528,6 +542,7 @@ void alaska::insertHoistedLocks(llvm::Function &F) {
     }
   }
 
+
   // alaska::println("Source Aliases:");
   // for (auto &[a, srcs] : sourceAliases) {
   //   alaska::println(*a);
@@ -537,12 +552,13 @@ void alaska::insertHoistedLocks(llvm::Function &F) {
   // }
 
 
-  auto get_used = [&](llvm::Instruction *s) -> std::unordered_set<llvm::Value *> {
+  auto get_used = [&](llvm::Instruction *s) -> std::set<llvm::Value *> {
     if (auto load = dyn_cast<LoadInst>(s)) return sourceAliases[load->getPointerOperand()];
     if (auto store = dyn_cast<StoreInst>(s)) return sourceAliases[store->getPointerOperand()];
     // TODO: handle when it is an argument? Maybe introduce recursive lock call elimination here?
     return {};
   };
+
 
   auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
     for (auto *ptr : get_used(s)) {

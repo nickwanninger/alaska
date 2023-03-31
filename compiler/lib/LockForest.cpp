@@ -2,7 +2,7 @@
 #include <Graph.h>
 #include <Utils.h>
 #include <deque>
-#include <unordered_set>
+#include <set>
 #include <sstream>
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -54,7 +54,7 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   }
 };
 
-static void extract_nodes(alaska::LockForest::Node *node, std::unordered_set<alaska::LockForest::Node *> &nodes) {
+static void extract_nodes(alaska::LockForest::Node *node, std::set<alaska::LockForest::Node *> &nodes) {
   nodes.insert(node);
 
   for (auto &child : node->children) {
@@ -172,11 +172,13 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
   llvm::LoopInfo loops(DT);
 
   // The nodes which have no in edges that it post dominates
-  std::unordered_set<alaska::FlowNode *> roots;
+  std::set<alaska::FlowNode *> roots;
 
   // all the sources are roots in the pointer flow graph
   for (auto *node : G.get_nodes()) {
-    if (node->type == alaska::NodeType::Source) roots.insert(node);
+    if (node->type == alaska::NodeType::Source) {
+      roots.insert(node);
+    }
   }
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
@@ -184,7 +186,7 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
     auto node = std::make_unique<Node>(root);
 
     // compute which children dominate which siblings
-    std::unordered_set<Node *> nodes;
+    std::set<Node *> nodes;
     extract_nodes(node.get(), nodes);
     for (auto *node : nodes) {
       for (auto &child : node->children) {
@@ -226,7 +228,6 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
     }
   }
 
-
   // Compute the instruction at which a lock should be inserted to minimize the
   // number of runtime invocations, but to also minimize the number of handles
   // which are locked when alaska_barrier functions are called. There are a few
@@ -246,7 +247,7 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
         lb.lockBefore = compute_lock_insertion_location(root->val, inst, loops);
 
 				IRBuilder<> b(lb.lockBefore);
-				lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
+        lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
       }
     }
   }
@@ -256,9 +257,9 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
   //                      Compute unlock locations                         //
   ///////////////////////////////////////////////////////////////////////////
 
-  std::unordered_map<Instruction *, LockBounds *> inst2bounds;
+  std::map<Instruction *, LockBounds *> inst2bounds;
   {
-    std::unordered_set<Node *> nodes;
+    std::set<Node *> nodes;
     for (auto &root : this->roots) {
       for (auto &child : root->children) {
         extract_nodes(child.get(), nodes);
@@ -274,6 +275,8 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
       inst2bounds[bounds->lockBefore] = bounds.get();
     }
   }
+
+
 
   std::map<Instruction *, std::set<unsigned>> GEN;
   std::map<Instruction *, std::set<unsigned>> KILL;
@@ -318,7 +321,6 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
     OUT[i].clear();
 
     // successor updating
-    // errs() << "succ of " << *i << "\n";
     if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
       if (auto normal_bb = invoke_inst->getNormalDest()) {
         for (auto &v : IN[&normal_bb->front()])
@@ -330,15 +332,14 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
           OUT[i].insert(v);
       }
     } else if (auto *next_node = i->getNextNode()) {
-      // errs() << "  - " << *next_node << "\n";
       for (auto &v : IN[next_node])
         OUT[i].insert(v);
     } else {
       // end of a basic block, get all successor basic blocks
       for (auto *bb : successors(i)) {
-        // errs() << "  - " << bb->front() << "\n";
-        for (auto &v : IN[&bb->front()])
+        for (auto &v : IN[&bb->front()]) {
           OUT[i].insert(v);
+        }
       }
     }
 
@@ -356,14 +357,13 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
     }
   }
 
+
+  std::map<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>, std::set<alaska::LockBounds *>> unlockTrampolines;
+
   // using the dataflow result, insert unlock locations into the corresponding lockbounds
-  // The way this works is we go over each lockbound, and find the instructions which
-  // contain it's lockBefore instruction in the IN set, but not in their OUT set. These
-  // instructions are the final user of the particular bound. The successor instruction
-  // is the instruction that the unlock call is inserted before.
-  for (auto &[id, lockbounds] : locks) {
-    for (auto &BB : func) {
-      for (auto &I : BB) {
+  for (auto &BB : func) {
+    for (auto &I : BB) {
+      for (auto &[id, lockbounds] : locks) {
         auto &iIN = IN[&I];
         auto &iOUT = OUT[&I];
 
@@ -394,15 +394,27 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
               // HACK: split the edge and insert on the branch
               BasicBlock *from = I.getParent();
               BasicBlock *to = succ;
-              auto trampoline = llvm::SplitEdge(from, to);
-
-              lockbounds->unlocks.insert(trampoline->getTerminator());
+              // we cannot insert the trampoline split here, as we would be modifying the IR while iterating it.
+              // Instead, record that we need to in the unlockTrampolines structure above so we can insert the
+              // trampoline later.
+              unlockTrampolines[std::make_pair(from, to)].insert(lockbounds.get());
             }
           }
         }
       }
     }
   }
+
+  for (auto &[edge, bounds] : unlockTrampolines) {
+    auto from = edge.first;
+    auto to = edge.second;
+    auto trampoline = llvm::SplitEdge(from, to);
+
+    for (auto lockbounds : bounds) {
+      lockbounds->unlocks.insert(trampoline->getTerminator());
+    }
+  }
+
 
   std::vector<std::unique_ptr<alaska::Lock>> out;
 

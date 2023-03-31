@@ -77,23 +77,23 @@ void alaska::FlowNode::populate_edges(void) {
 }
 
 
-std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_in_nodes(void) const {
-  std::unordered_set<alaska::FlowNode *> out;
+std::set<alaska::FlowNode *> alaska::FlowNode::get_in_nodes(void) const {
+  std::set<alaska::FlowNode *> out;
   for (auto e : in) {
     out.insert(&graph.get_node(e->get()));
   }
   return out;
 }
-std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_out_nodes(void) const {
-  std::unordered_set<alaska::FlowNode *> outNodes;
+std::set<alaska::FlowNode *> alaska::FlowNode::get_out_nodes(void) const {
+  std::set<alaska::FlowNode *> outNodes;
   for (auto e : out) {
     outNodes.insert(&graph.get_node_including_sinks(e->getUser()));
   }
   return outNodes;
 }
 
-std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominated(llvm::DominatorTree &DT) const {
-  std::unordered_set<alaska::FlowNode *> dominated;
+std::set<alaska::FlowNode *> alaska::FlowNode::get_dominated(llvm::DominatorTree &DT) const {
+  std::set<alaska::FlowNode *> dominated;
   for (const Use *use : this->out) {
     auto &v = graph.get_node_including_sinks(use->getUser());
     auto I = dyn_cast<Instruction>(v.value);
@@ -106,8 +106,8 @@ std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominated(llvm::Dom
 
 
 
-std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominators(llvm::DominatorTree &DT) const {
-  std::unordered_set<alaska::FlowNode *> dominators;
+std::set<alaska::FlowNode *> alaska::FlowNode::get_dominators(llvm::DominatorTree &DT) const {
+  std::set<alaska::FlowNode *> dominators;
   for (const Use *use : this->in) {
     auto &v = graph.get_node(use->get());
     auto I = dyn_cast<Instruction>(value);
@@ -119,8 +119,8 @@ std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_dominators(llvm::Do
 }
 
 
-std::unordered_set<alaska::FlowNode *> alaska::FlowNode::get_postdominated(llvm::PostDominatorTree &PDT) const {
-  std::unordered_set<alaska::FlowNode *> dominators;
+std::set<alaska::FlowNode *> alaska::FlowNode::get_postdominated(llvm::PostDominatorTree &PDT) const {
+  std::set<alaska::FlowNode *> dominators;
   for (const Use *use : this->in) {
     auto &v = graph.get_node(use->get());
     auto I = dyn_cast<Instruction>(value);
@@ -218,8 +218,8 @@ alaska::FlowNode &alaska::PointerFlowGraph::get_node(llvm::Value *val) {
 }
 
 
-std::unordered_set<alaska::FlowNode *> alaska::PointerFlowGraph::get_nodes(void) const {
-  std::unordered_set<alaska::FlowNode *> nodes;
+std::set<alaska::FlowNode *> alaska::PointerFlowGraph::get_nodes(void) const {
+  std::set<alaska::FlowNode *> nodes;
   for (auto &[value, node] : m_sinks) {
     if (node->colors.size() == 0) continue;
     nodes.insert(node.get());
@@ -231,8 +231,8 @@ std::unordered_set<alaska::FlowNode *> alaska::PointerFlowGraph::get_nodes(void)
   return nodes;
 }
 
-std::unordered_set<alaska::FlowNode *> alaska::PointerFlowGraph::get_all_nodes(void) const {
-  std::unordered_set<alaska::FlowNode *> nodes;
+std::set<alaska::FlowNode *> alaska::PointerFlowGraph::get_all_nodes(void) const {
+  std::set<alaska::FlowNode *> nodes;
   for (auto &[value, node] : m_sinks) {
     nodes.insert(node.get());
   }

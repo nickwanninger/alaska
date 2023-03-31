@@ -39,8 +39,8 @@ namespace alaska {
 
       // which siblings does this node dominates and post dominates in the cfg.
       // This is used to share locks among multiple subtrees in the forest.
-      std::unordered_set<Node *> dominates;
-      std::unordered_set<Node *> postdominates;
+      std::set<Node *> dominates;
+      std::set<Node *> postdominates;
 
 
       llvm::Value *val;
@@ -75,7 +75,7 @@ namespace alaska {
     // Nodes in the flow forest are assigned a lock location, which after analysis is completed
     // determine the location of alaska_lock and alaska_unlock calls. They are simply a mapping
     // from
-    std::unordered_map<unsigned, std::unique_ptr<LockBounds>> locks;
+    std::map<unsigned, std::unique_ptr<LockBounds>> locks;
 
     // get a lockbounds by id
     LockBounds &get_lockbounds(unsigned id);

@@ -37,6 +37,9 @@ namespace alaska {
 		// If `users` is empty, apply the lock to the function to transform
 		// all 
 		void apply(void);
+
+    // get the root (static) allocation that this lock is locking.
+    llvm::Value *getRootAllocation(void);
   };
 
 
