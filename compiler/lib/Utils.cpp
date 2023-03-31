@@ -112,7 +112,7 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   if (!locked->getDebugLoc()) {
     // errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
   }
-  locked->setName("locked");
+  // locked->setName("locked");
   return locked;
 }
 
@@ -197,9 +197,14 @@ void alaska::runReplacementPass(llvm::Module &M) {
     replace_function(M, "alaska_classify", "alaska_classify_trace");
     replace_function(M, "alaska_barrier", "alaska_barrier_trace");
   } else {
-    replace_function(M, "malloc", "halloc");
-    replace_function(M, "calloc", "hcalloc");
-    replace_function(M, "realloc", "hrealloc");
+    if (getenv("ALASKA_NO_REPLACE_MALLOC") == NULL) {
+      replace_function(M, "malloc", "halloc");
+      replace_function(M, "calloc", "hcalloc");
+      replace_function(M, "realloc", "hrealloc");
+    }
+
+    // even if calls to malloc are not replaced, we still ought to replace these functions for compatability. Calling
+    // hfree() with a non-handle will fall back to the system's free() - same for alaska_usable_size().
     replace_function(M, "free", "hfree");
     replace_function(M, "malloc_usable_size", "alaska_usable_size");
   }
