@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
       splay_tree_node n = mallocz(sizeof(*n));
       n->key.key = value;
 
-      printf("ins %ld\n", value);
+      printf("insert %ld\n", value);
       splay_tree_insert(s, n);
       continue;
     }
@@ -116,21 +116,28 @@ int main(int argc, char *argv[]) {
 
     if (sscanf(buf, "lookup %ld\n", &value) == 1) {
       struct splay_tree_key_s lookup_key;
+      printf("lookup %ld\n", value);
+
       lookup_key.key = value;
-      volatile splay_tree_key result = splay_tree_lookup(s, &lookup_key);
+      volatile splay_tree_key result;
+
+
+      result = splay_tree_lookup(s, &lookup_key);
       (void)result;
-      // printf("get %ld\n", value);
+
+      if (result) {
+        printf("value A: %ld\n", result->key);
+
+#ifdef ALASKA_SERVICE_ANCHORAGE
+        anchorage_manufacture_locality((void *)s);
+#endif
+      } else {
+        printf("NULL");
+      }
+
       continue;
     }
 
     fprintf(stderr, "unknown input: %s\n", buf);
-
-
-#ifdef ALASKA_SERVICE_ANCHORAGE
-    anchorage_manufacture_locality((void *)s);
-#endif
-
-    // alaska_barrier();
-    // coninue and hope it is fine
   }
 }

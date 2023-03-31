@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
   void **ptrs = calloc(count, sizeof(void *));
 
   for (int i = 0; i < count; i++)
-    ptrs[i] = bench_alloc(16);
+    ptrs[i] = bench_alloc(64);
 
 
   for (int i = 0; i < count - 1; i += 2) {
@@ -122,13 +122,12 @@ int main(int argc, char **argv) {
   }
 
   for (int i = 0; i < count - 1; i += 2) {
-    ptrs[i] = bench_alloc(76);
+    ptrs[i] = bench_alloc(16);
   }
 
-  // alaska_lock(ptrs[count - 1]);
+  anchorage_manufacture_locality((void *)ptrs);
+
   // alaska_barrier();
-  // alaska_unlock(ptrs[count - 1]);
-  alaska_barrier();
 
   for (int i = 0; i < count; i++) {
     bench_free(ptrs[i]);

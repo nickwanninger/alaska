@@ -20,7 +20,7 @@ uint64_t timestamp() {
 #endif
 }
 
-#define LENGTH 10000
+#define LENGTH 1000000
 
 struct node {
   struct node* next;
@@ -74,7 +74,6 @@ uint64_t run_test(void) {
 	for (int i = 0; i < 100; i++) {
   	test(root);
 	}
-
 
   uint64_t end = timestamp();
 
