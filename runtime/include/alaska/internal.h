@@ -83,8 +83,8 @@ typedef struct {
   uint8_t object_class;
 #endif
   // Cache line 2:
-  ALASKA_SERVICE_FIELDS;  // personality fields.
-} alaska_mapping_t;           // __attribute__((packed));
+  ALASKA_SERVICE_FIELDS;  // A service's fields.
+} alaska_mapping_t;       // __attribute__((packed));
 
 // src/lock.c
 void *alaska_lock(void *ptr);
@@ -125,8 +125,12 @@ inline void alaska_spin_lock(volatile alaska_spinlock_t *lock) {
     // spin away
   }
 }
-inline int alaska_spin_try_lock(volatile alaska_spinlock_t *lock) { return __sync_lock_test_and_set(lock, 1) ? -1 : 0; }
-inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) { __sync_lock_release(lock); }
+inline int alaska_spin_try_lock(volatile alaska_spinlock_t *lock) {
+  return __sync_lock_test_and_set(lock, 1) ? -1 : 0;
+}
+inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) {
+  __sync_lock_release(lock);
+}
 
 #define HANDLE_MARKER (1LLU << 63)
 #define GET_ENTRY(handle) ((alaska_mapping_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
@@ -144,6 +148,10 @@ extern __thread struct alaska_lock_frame *alaska_lock_root_chain;
 
 void alaska_barrier_add_thread(pthread_t *thread);
 void alaska_barrier_remove_thread(pthread_t *thread);
+
+void alaska_barrier_begin(
+    void);  // Signal from the leader that everyone needs to commit their locks and wait (From the leader)
+void alaska_barrier_end(void);  // release everyone and uncommit all your locks (From the leader)
 
 
 
@@ -169,7 +177,7 @@ void alaska_barrier_remove_thread(pthread_t *thread);
 }
 
 namespace alaska {
-	using Mapping = alaska_mapping_t;
+  using Mapping = alaska_mapping_t;
 };
 
 

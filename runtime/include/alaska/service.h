@@ -28,7 +28,7 @@ extern void alaska_service_deinit(void);
 // Whatever the implementation does, ent->ptr must be valid (and at least `new_size` bytes long)
 // when this function returns. `ent->size` must also be updated.
 extern void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size);
-// free `ent->ptr` which was previously allocated by the personality.
+// free `ent->ptr` which was previously allocated by the service.
 extern void alaska_service_free(alaska_mapping_t *ent);
 extern void alaska_service_barrier(void);
 
