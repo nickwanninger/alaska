@@ -17,7 +17,6 @@
 
 #include <anchorage/crc32.h>
 
-extern uint64_t next_last_access_time;
 
 
 uint32_t anchorage::Block::crc(void) {
@@ -148,8 +147,6 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     printf(" fl:%08x", m_flags);
     if (is_used()) {
       printf(" h:%8lx", (uint64_t)handle());
-      printf(" lu:%10lu", handle()->anchorage.last_access_time);
-      // printf(" lk:%10lx", handle()->anchorage.locks);
     } else {
       printf(" h:%8lx", (uint64_t)handle());
       printf(" lu:%10lu", -1);
@@ -185,7 +182,10 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   }
   (void)c;
 
-  if (highlight) color = 34;
+  if (highlight) {
+    // Print a background color
+    printf("\e[%dm", 100);
+  }
 
   printf("\e[%dm", color);
   ssize_t sz = size();
@@ -202,10 +202,15 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     }
   } else {
     putchar('|');
+    // auto *d = (uint64_t *)data();
+    // size_t count = sz / 8;
+    // if (count > 8) count = 8;
+    // for (size_t i = 0; i < count; i++) {
+    //   printf("%016lx ", d[i]);
+    // }
 
-    // printf("%zu", size());
-    // if (is_used()) printf(",%zu", handle()->size);
-    // printf(",%08x", crc());
+    // printf("%p", handle());
+
     for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
       putchar(c);
   }

@@ -58,22 +58,23 @@ static void record_handle(void* possible_handle, bool marked) {
     return;
   }
 
-  printf("handle %p %d\n", m, marked);
+  // printf("handle %p %d\n", m, marked);
   alaska_service_commit_lock_status(m, marked);
 }
 
 
-static void alaska_do_barrier(bool is_leader) {
-  // Now that we are here, we need to go and commit our active lock chain / lock set to the global structure
 
+
+static void alaska_barrier_join(bool leader) {
   struct alaska_lock_frame* cur;
 
   cur = alaska_lock_root_chain;
   while (cur != NULL) {
+    // printf("cur = %p, len = %zu\n", cur, cur->count);
     for (uint64_t i = 0; i < cur->count; i++) {
       if (cur->locked[i]) {
+        // printf("locked %p\n", cur->locked[i]);
         record_handle(cur->locked[i], true);
-        // TODO: commit!
       }
     }
     cur = cur->prev;
@@ -81,18 +82,17 @@ static void alaska_do_barrier(bool is_leader) {
 
 
   // Wait on the barrier so everyone's state has been commited.
-
   if (num_threads > 1) {
     pthread_barrier_wait(&the_barrier);
   }
+}
 
-  if (is_leader) {
-    alaska_service_barrier();
+static void alaska_barrier_leave(bool leader) {
+  struct alaska_lock_frame* cur;
+  // wait for the the leader (and everyone else to catch up)
+  if (num_threads > 1) {
+    pthread_barrier_wait(&the_barrier);
   }
-
-
-  // wait for the leader to do it's thing.
-  // pthread_barrier_wait(&the_barrier);
 
   // go and clean up our commits to the global structure.
   cur = alaska_lock_root_chain;
@@ -100,7 +100,6 @@ static void alaska_do_barrier(bool is_leader) {
     for (uint64_t i = 0; i < cur->count; i++) {
       if (cur->locked[i]) {
         record_handle(cur->locked[i], false);
-        // TODO: commit!
       }
     }
     cur = cur->prev;
@@ -108,8 +107,52 @@ static void alaska_do_barrier(bool is_leader) {
 }
 
 
+
+void alaska_barrier_begin(void) {
+  // As the leader, signal everyone to begin the barrier
+  pthread_mutex_lock(&barrier_lock);
+  // also lock the thread list! Nobody is allowed to create a thread right now.
+  pthread_mutex_lock(&all_threads_lock);
+
+  if (barrier_last_num_threads != num_threads) {
+    if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
+
+    // Initialize the barrier so we know when everyone is ready!
+    pthread_barrier_init(&the_barrier, NULL, num_threads);
+    barrier_last_num_threads = num_threads;
+  }
+
+  // send signals to every other thread.
+  struct alaska_thread_info* pos;
+  list_for_each_entry(pos, &all_threads, list_head) {
+    if (pos->thread != pthread_self()) {
+      pthread_kill(pos->thread, SIGUSR2);
+    }
+  }
+
+  alaska_barrier_join(true);
+}
+
+void alaska_barrier_end(void) {
+  // Join the barrier to signal everyone we are done.
+  alaska_barrier_leave(true);
+  // Unlock all the locks we took.
+  pthread_mutex_unlock(&all_threads_lock);
+  pthread_mutex_unlock(&barrier_lock);
+}
+
+
+__declspec(noinline) void alaska_barrier(void) {
+  alaska_barrier_begin();
+  alaska_service_barrier();
+  alaska_barrier_end();
+}
+
+
 static void barrier_signal_handler(int sig) {
-  alaska_do_barrier(false);
+  alaska_barrier_join(false);
+  alaska_barrier_leave(false);
+  // alaska_do_barrier(false);
 }
 
 
@@ -123,8 +166,6 @@ void alaska_barrier_add_thread(pthread_t* thread) {
     perror("Failed to add sigaction to new thread.\n");
     exit(EXIT_FAILURE);
   }
-
-
 
   pthread_mutex_lock(&all_threads_lock);
   num_threads++;
@@ -156,63 +197,4 @@ void alaska_barrier_remove_thread(pthread_t* thread) {
 
   list_del(&pos->list_head);
   pthread_mutex_unlock(&all_threads_lock);
-}
-
-
-
-// static int sanity_num_threads(void) {
-//   FILE* stream = fopen("/proc/self/stat", "r");
-//   int phony, num_threads;
-//   char buf[32];
-//   fscanf(stream, "%d %s %c %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu", &phony, buf, &phony,
-//       &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony, &phony,
-//       &phony, &phony, &num_threads);
-
-//   fclose(stream);
-//   return num_threads;
-// }
-
-
-// This just means that the application has decided it is willing to let alaska
-// potentially stop the world and do what it needs to do. This function doesn't
-// do anything yet, but it could :)
-__declspec(noinline) void alaska_barrier(void) {
-  printf("Barrier!\n");
-  pthread_mutex_lock(&barrier_lock);
-  // also lock the thread list! Nobody is allowed to create a thread right now.
-  pthread_mutex_lock(&all_threads_lock);
-
-
-  if (barrier_last_num_threads != num_threads) {
-    if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
-
-    // Initialize the barrier so we know when everyone is ready!
-    pthread_barrier_init(&the_barrier, NULL, num_threads);
-    barrier_last_num_threads = num_threads;
-  }
-
-
-
-  // send signals to every other thread.
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->thread != pthread_self()) {
-      pthread_kill(pos->thread, SIGUSR2);
-    }
-  }
-
-  // Now that I've sent all the signals, I should call the barrier function as well.
-  alaska_do_barrier(true);
-
-  // pthread_barrier_destroy(&the_barrier);
-  // Unlock everything!
-  pthread_mutex_unlock(&all_threads_lock);
-  pthread_mutex_unlock(&barrier_lock);
-}
-
-
-__declspec(noinline) void alaska_signal_barrier(void) {
-  printf("TODO: signal barriers!\n");
-  exit(EXIT_FAILURE);
-  // alaska_service_barrier();
 }

@@ -8,7 +8,11 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
-#include <alaska/personality/none.h>
+
+
+// This file represents a service that doesn't do anything. It can be used
+// As a stepping stone for implementing new services.
+#include <alaska/service/none.h>
 #include <alaska/internal.h>
 #include <stdint.h>
 #include <alaska/service.h>
@@ -28,7 +32,8 @@ void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size) {
 	ent->ptr = realloc(ent->ptr, new_size);
 	ent->size = new_size;
 }
-// free `ent->ptr` which was previously allocated by the personality.
+
+// free `ent->ptr` which was previously allocated by the service.
 void alaska_service_free(alaska_mapping_t *ent) {
 	free(ent->ptr);
 	ent->ptr = NULL;

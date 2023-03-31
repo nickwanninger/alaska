@@ -28,18 +28,18 @@
 #include <alaska/config.h>
 
 #ifdef ALASKA_SERVICE_ANCHORAGE
-// include the inline implementation offered by the personalities
+// include the inline implementation offered by the services
 #include <alaska/service/anchorage.inline.h>
 #endif
 
 
 #ifdef ALASKA_SERVICE_NONE
-// include the inline implementation offered by the personalities
+// include the inline implementation offered by the services
 #include <alaska/service/none.inline.h>
 #endif
 
 
-// This is the interface for personalities. It may seem like a hack, but it
+// This is the interface for services. It may seem like a hack, but it
 // helps implementation and performance (inline stuff in alaska_lock in lock.c)
 #ifndef ALASKA_SERVICE_ON_LOCK
 #define ALASKA_SERVICE_ON_LOCK(mapping)  // ... nothing ...
@@ -52,9 +52,8 @@
 /**
  * Note: This file is inlined by the compiler to make locks faster.
  * Do not declare any global variables here, as they may get overwritten
- * or duplciated needlessly.
+ * or duplciated needlessly. (Which can lead to linker errors)
  */
-
 
 ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 #ifdef ALASKA_SIM_MODE
@@ -92,20 +91,6 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 #endif
 }
 
-
-ALASKA_INLINE void *alaska_do_lock(alaska_mapping_t *m, void *restrict ptr) {
-  // Do some service stuff *before* translating.
-  ALASKA_SERVICE_ON_LOCK(m);
-  // finally, translate
-  return alaska_translate(ptr, m);
-}
-
-ALASKA_INLINE void alaska_do_unlock(alaska_mapping_t *m, void *restrict ptr) {
-  // call personality *after* we unlock
-  ALASKA_SERVICE_ON_UNLOCK(m);
-}
-
-
 ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
@@ -113,15 +98,18 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 #ifdef ALASKA_CLASS_TRACKING
   alaska_classify_track(m->object_class);
 #endif
-  // printf("lock %p\n", ptr);
-  // alaska_barrier();
 
-  return alaska_do_lock(m, ptr);
+
+  // Do some service stuff *before* translating.
+  ALASKA_SERVICE_ON_LOCK(m);
+  // finally, translate
+  return alaska_translate(ptr, m);
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
+  //
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
 
-  alaska_do_unlock(m, ptr);
+  ALASKA_SERVICE_ON_UNLOCK(m);
 }

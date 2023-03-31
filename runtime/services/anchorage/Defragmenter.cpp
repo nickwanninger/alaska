@@ -166,7 +166,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 
     if (changes != old_changes) {
       // chunk.dump(cur);
-      chunk.dump(cur, "Move");
+      chunk.dump(cur, "Defrag");
     }
     cur = cur->next();
   }
@@ -193,11 +193,11 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   for (auto *chunk : chunks) {
     // printf("before:\n");
     // longdump(chunk);
-    chunk->dump(NULL, "Before");
+    // chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
     // printf("after:\n");
     // longdump(chunk);
-    chunk->dump(NULL, "After");
+    // chunk->dump(NULL, "After");
   }
   // printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;

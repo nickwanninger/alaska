@@ -43,10 +43,13 @@ void *halloc(size_t sz) {
   }
 
   ent->ptr = NULL; // Set to NULL as a sanity check
-  // Defer to the personality to alloc
+  // Defer to the service to alloc
   alaska_service_alloc(ent, sz);
-  ALASKA_SANITY(ent->ptr != NULL, "Personality did not allocate anything");
-  ALASKA_SANITY(ent->size == sz, "Personality did not update the handle's size");
+  ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
+  ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
+
+
+  memset(ent->ptr, 0, sz);
 
 #ifdef ALASKA_SIM_MODE
   // record, then return the pointer itself
@@ -59,7 +62,9 @@ void *halloc(size_t sz) {
 #endif
 }
 
-void *hcalloc(size_t nmemb, size_t size) { return halloc(nmemb * size); }
+void *hcalloc(size_t nmemb, size_t size) {
+  return halloc(nmemb * size);
+}
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
@@ -75,9 +80,9 @@ void *hrealloc(void *handle, size_t new_size) {
 	void *old_ptr = m->ptr;
 	(void)old_size;
 	(void)old_ptr;
-  
-  // Defer to the personality to realloc
-	alaska_service_alloc(m, new_size);
+
+  // Defer to the service to realloc
+  alaska_service_alloc(m, new_size);
 
 #ifdef ALASKA_SIM_MODE
   // record, then return the pointer itself
@@ -105,11 +110,11 @@ void hfree(void *ptr) {
   extern void sim_on_free(alaska_mapping_t *);
   sim_on_free(m);
 #endif
-  // Defer to the personality to free
-	alaska_service_free(m);
+  // Defer to the service to free
+  alaska_service_free(m);
 
-	if (m->ptr == NULL) {
-		// return the mapping to the table
-		alaska_table_put(m);
-	}
+  if (m->ptr == NULL) {
+    // return the mapping to the table
+    alaska_table_put(m);
+  }
 }

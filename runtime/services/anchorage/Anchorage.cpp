@@ -86,14 +86,14 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   (void)new_chunk;
 
   if (new_block == NULL) {
-    printf("could not allocate. creating a new block w/ at least enough size for %zu\n", size);
+    // printf("could not allocate. creating a new block w/ at least enough size for %zu\n", size);
 
     size_t required_pages = (size / anchorage::page_size) * 2;
     if (required_pages < anchorage::min_chunk_pages) {
       required_pages = anchorage::min_chunk_pages;
     }
 
-    anchorage::barrier();                  // run a barrier
+    // alaska_barrier();                      // run a barrier
     new anchorage::Chunk(required_pages);  // add a chunk
 
     return anchorage::alloc(m, size);
@@ -144,7 +144,7 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
   m.ptr = nullptr;
   // tell the block to coalesce the best it can
   blk->coalesce_free(*chunk);
-  // anchorage::barrier();
+  // alaska_barrier();
 }
 
 
@@ -157,7 +157,18 @@ void *anchorage::memmove(void *dst, void *src, size_t size) {
 
 
 extern "C" void anchorage_manufacture_locality(void *entrypoint) {
+  alaska_barrier_begin();
+  printf("Starting manloc on %p\n", entrypoint);
+  for (auto *chunk : anchorage::Chunk::all()) {
+    chunk->dump(NULL, "Before");
+  }
   anchorage::LocalityFactory factory(entrypoint);
-
   factory.run();
+
+  for (auto *chunk : anchorage::Chunk::all()) {
+    chunk->dump(NULL, "After");
+  }
+
+  anchorage::barrier();
+  alaska_barrier_end();
 }

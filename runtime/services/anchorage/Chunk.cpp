@@ -55,7 +55,6 @@ anchorage::Chunk::Chunk(size_t pages) : pages(pages) {
   all_chunks->insert(this);
 }
 
-
 anchorage::Chunk::~Chunk(void) {
   munmap((void *)front, 4096 * pages);
 }
@@ -63,12 +62,11 @@ anchorage::Chunk::~Chunk(void) {
 anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   size_t size = round_up(requested_size, anchorage::block_size);
   if (size == 0) size = anchorage::block_size;
-  // printf("req: %zu, get: %zu\n", requested_size, size);
 
   // The distance from the top_of_stack pointer to the end of the chunk
   off_t end_of_chunk = (off_t)this->front + this->pages * anchorage::page_size;
   size_t space_left = end_of_chunk - (off_t)this->tos - block_size;
-  if (space_left < anchorage::size_with_overhead(size)) {
+  if (space_left <= anchorage::size_with_overhead(size)) {
     // Not enough space left at the end of the chunk to allocate!
     return NULL;
   }
@@ -81,6 +79,8 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
   high_watermark = std::max(span(), high_watermark);
 
+  // dump(blk, "alloc");
+
   return blk;
 }
 
@@ -91,19 +91,19 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
   printf("%-10s ", message);
-  uint64_t free_bytes = 0;
+  // uint64_t free_bytes = 0;
   for (auto &block : *this) {
-    if (block.is_free()) {
-      free_bytes += block_size + block.size();
-    }
+    // if (block.is_free()) {
+    //   free_bytes += block_size + block.size();
+    // }
     block.dump(false, &block == focus);
   }
-  uint64_t current_span = span();
-  float free_perc = 0.0;
-  if (current_span > 0) {
-    free_perc = (free_bytes / (float)current_span) * 100.0f;
-  }
-  printf(" chunk %p - span:%zu free:%6.2f%% wm:%zu", this, current_span, free_perc, high_watermark);
+  // uint64_t current_span = span();
+  // float free_perc = 0.0;
+  // if (current_span > 0) {
+  //   free_perc = (free_bytes / (float)current_span) * 100.0f;
+  // }
+  // printf(" chunk %p - span:%zu free:%6.2f%% wm:%zu", this, current_span, free_perc, high_watermark);
   printf("\n");
 }
 
@@ -143,10 +143,22 @@ void anchorage::barrier(bool force) {
 
 void anchorage::allocator_init(void) {
   all_chunks = new std::unordered_set<anchorage::Chunk *>();
-  new Chunk(anchorage::min_chunk_pages);  // leak, as it will be placed in the global list.
 }
+
 void anchorage::allocator_deinit(void) {
-  anchorage::barrier(true);
-  printf(
-      "total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0), anchorage::moved_bytes);
+  // anchorage::barrier(true);
+  // printf(
+  //     "total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0),
+  //     anchorage::moved_bytes);
+}
+
+extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
+  alaska_barrier_begin();
+  auto *c = anchorage::Chunk::get(m->ptr);
+  if (c != NULL) {
+    auto b = anchorage::Block::get(m->ptr);
+    c->dump(b, "access");
+    // c->dump(NULL, "use");
+  }
+  alaska_barrier_end();
 }
