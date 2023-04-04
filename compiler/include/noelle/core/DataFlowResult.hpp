@@ -36,6 +36,10 @@ namespace llvm::noelle {
     std::set<Value *> &KILL(Instruction *inst);
     std::set<Value *> &IN(Instruction *inst);
     std::set<Value *> &OUT(Instruction *inst);
+    auto &IN() {
+      return this->ins;
+    }
+
 
    private:
     std::map<Instruction *, std::set<Value *>> gens;
