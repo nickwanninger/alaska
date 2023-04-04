@@ -205,6 +205,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   std::map<llvm::Instruction *, std::set<alaska::Lock *>> inst_to_lock;
   // map from the call to alaska_lock to the lock structure it belongs to.
   std::map<llvm::Instruction *, alaska::Lock *> lock_inst_to_lock;
+
   for (auto &lock : locks) {
     // clear the existing liveness info
     lock->liveInstructions.clear();
@@ -216,39 +217,46 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   }
 
 
-  // given an instruction, return the instruction that represents the lockbound value that it uses
-  auto get_used = [&](Instruction *user) -> std::set<alaska::Lock *> {
-    if (inst_to_lock.find(user) != inst_to_lock.end()) {
-      return inst_to_lock[user];  // SLOW: double lookups
+  auto get_lock_of = [](llvm::Instruction *inst) -> llvm::Value * {
+    if (auto call = dyn_cast<CallInst>(inst)) {
+      auto func = call->getCalledFunction();
+      if (func && func->getName() == "alaska_lock") {
+        return call->getArgOperandUse(0);
+      }
     }
-    return {};
+
+    return nullptr;
   };
 
+  auto get_unlock_of = [](llvm::Instruction *inst) -> llvm::Value * {
+    if (auto call = dyn_cast<CallInst>(inst)) {
+      auto func = call->getCalledFunction();
+      if (func && func->getName() == "alaska_unlock") {
+        return call->getArgOperandUse(0);
+      }
+    }
+
+    return nullptr;
+  };
+
+
+  // TODO: gen is every unlock
   auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
-    for (auto *lock : get_used(s)) {
-      df->GEN(s).insert(lock->lock);
+    if (auto v = get_unlock_of(s)) {
+      df->GEN(s).insert(v);
     }
   };
 
+  // TODO: Kill is every lock
   auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
-    // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
-    // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
-    // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
-    if (lock_inst_to_lock.find(s) != lock_inst_to_lock.end()) {
-      df->KILL(s).insert(s);
+    if (auto v = get_lock_of(s)) {
+      df->KILL(s).insert(v);
     }
-    // for (auto *lock : get_used(s)) {
-    //   auto used = lock->lock;
-    //   if (used == s) {
-    //     df->KILL(s).insert(used);
-    //   }
-    // }
   };
 
 
   auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
     // IN[s] = GEN[s] U (OUT[s] - KILL[s])
-
     auto &gen = df->GEN(s);
     auto &out = df->OUT(s);
     auto &kill = df->KILL(s);
@@ -274,18 +282,35 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
 
   auto *df = noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
 
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      for (auto l : df->IN(&I)) {
-        auto inst = dyn_cast<Instruction>(l);
-        lock_inst_to_lock[inst]->liveInstructions.insert(&I);
+  // I don't like this.
+  for (auto &[inst, values] : df->IN()) {
+    for (auto l : values) {
+      for (auto &lock : locks) {
+        if (lock->getHandle() == l) {
+          lock->liveInstructions.insert(inst);
+        }
       }
     }
   }
 
+
   delete df;
 }
 
+
+
+bool alaska::shouldLock(llvm::Value *val) {
+  if (!val->getType()->isPointerTy()) return false;
+  if (dyn_cast<GlobalValue>(val)) return false;
+  if (dyn_cast<AllocaInst>(val)) return false;
+  if (dyn_cast<ConstantPointerNull>(val)) return false;
+
+  if (auto gep = dyn_cast<GetElementPtrInst>(val)) {
+    return shouldLock(gep->getPointerOperand());
+  }
+
+  return true;
+}
 
 
 static std::string escape(Instruction &I) {
@@ -334,395 +359,405 @@ static std::string random_background_color() {
   return buf;
 }
 
-void alaska::printLockDot(
-    llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks, llvm::raw_ostream &out) {
-  std::map<alaska::Lock *, std::string> colors;
+  void alaska::printLockDot(
+      llvm::Function &F, std::vector<std::unique_ptr<alaska::Lock>> &locks, llvm::raw_ostream &out) {
+    std::map<alaska::Lock *, std::string> colors;
 
-  for (size_t i = 0; i < locks.size(); i++) {
-    colors[locks[i].get()] = random_background_color();
-  }
-
-
-  alaska::fprintln(out, "digraph {");
-  alaska::fprintln(out, "  label=\"Locks in ", F.getName(), "\";");
-  alaska::fprintln(out, "  compound=true;");
-  alaska::fprintln(out, "  graph [fontsize=8];");  // splines=\"ortho\"];");
-  alaska::fprintln(out, "  node[fontsize=9,shape=none,style=filled,fillcolor=white];");
+    for (size_t i = 0; i < locks.size(); i++) {
+      colors[locks[i].get()] = random_background_color();
+    }
 
 
-  for (auto &BB : F) {
-    alaska::fprintln(out, "  n", &BB, " [label=<");
-    alaska::fprintln(out, "    <table border=\"1\" cellspacing=\"0\" padding=\"0\">");
+    alaska::fprintln(out, "digraph {");
+    alaska::fprintln(out, "  label=\"Locks in ", F.getName(), "\";");
+    alaska::fprintln(out, "  compound=true;");
+    alaska::fprintln(out, "  graph [fontsize=8];");  // splines=\"ortho\"];");
+    alaska::fprintln(out, "  node[fontsize=9,shape=none,style=filled,fillcolor=white];");
 
-    // generate the label
-    alaska::fprint(out, "      <tr><td align=\"left\" port=\"header\" border=\"0\">");
-    BB.printAsOperand(errs(), false);
-    alaska::fprint(out, ":</td>");
-    alaska::fprintln(out, "</tr>");
 
-    for (auto &I : BB) {
-      std::string color = "white";
+    for (auto &BB : F) {
+      alaska::fprintln(out, "  n", &BB, " [label=<");
+      alaska::fprintln(out, "    <table border=\"1\" cellspacing=\"0\" padding=\"0\">");
 
-      for (auto &[lock, lcolor] : colors) {
-        if (lock->lock == &I) {
-          color = lcolor;
-          break;
-        }
-        for (auto &unlock : lock->unlocks) {
-          if (unlock == &I) {
+      // generate the label
+      alaska::fprint(out, "      <tr><td align=\"left\" port=\"header\" border=\"0\">");
+      BB.printAsOperand(errs(), false);
+      alaska::fprint(out, ":</td>");
+      alaska::fprintln(out, "</tr>");
+
+      for (auto &I : BB) {
+        std::string color = "white";
+
+        for (auto &[lock, lcolor] : colors) {
+          if (lock->lock == &I) {
             color = lcolor;
+            break;
+          }
+          for (auto &unlock : lock->unlocks) {
+            if (unlock == &I) {
+              color = lcolor;
+            }
           }
         }
+        alaska::fprint(out, "      <tr><td align=\"left\" port=\"n", &I, "\" border=\"0\" bgcolor=\"", color, "\">  ",
+            escape(I), "</td>");
+
+
+        for (auto &[lock, color] : colors) {
+          if (lock->liveInstructions.find(&I) != lock->liveInstructions.end() || &I == lock->lock ||
+              lock->unlocks.find(dyn_cast<CallInst>(&I)) != lock->unlocks.end()) {
+            alaska::fprint(out, "<td align=\"left\" border=\"0\" bgcolor=\"", color, "\"> ");
+            lock->getHandle()->printAsOperand(out);
+            alaska::fprint(out, " </td>");
+          }
+        }
+
+        alaska::fprintln(out, "</tr>");
       }
-      alaska::fprint(out, "      <tr><td align=\"left\" port=\"n", &I, "\" border=\"0\" bgcolor=\"", color, "\">  ",
-          escape(I), "</td>");
+      alaska::fprintln(out, "    </table>>];");  // end label
+    }
 
 
-      for (auto &[lock, color] : colors) {
-        if (lock->liveInstructions.find(&I) != lock->liveInstructions.end() || &I == lock->lock ||
-            lock->unlocks.find(dyn_cast<CallInst>(&I)) != lock->unlocks.end()) {
-          alaska::fprint(out, "<td align=\"left\" border=\"0\" bgcolor=\"", color, "\">  </td>");
+    for (auto &BB : F) {
+      auto *term = BB.getTerminator();
+      for (unsigned i = 0; i < term->getNumSuccessors(); i++) {
+        auto *other = term->getSuccessor(i);
+        alaska::fprintln(out, "  n", &BB, ":n", term, " -> n", other, ":header");
+      }
+    }
+    alaska::fprintln(out, "}");
+  }
+
+
+
+
+  struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
+    std::set<llvm::Value *> srcs;
+    std::set<llvm::Value *> accessed;
+    std::set<llvm::Value *> seen;
+
+
+    // returns true if this has been seen or not
+    bool track_seen(llvm::Value &v) {
+      if (seen.find(&v) != seen.end()) return true;
+      seen.insert(&v);
+      return false;
+    }
+
+    void add_if_pointer(llvm::Value *v) {
+      if (v->getType()->isPointerTy()) {
+        srcs.insert(v);
+      }
+    }
+
+    void look_at(llvm::Value *v) {
+      if (track_seen(*v)) return;
+      // alaska::println("Look at ", *v);
+
+      if (auto inst = dyn_cast<llvm::Instruction>(v)) {
+        visit(*inst);
+      } else if (auto global_variable = dyn_cast<llvm::GlobalVariable>(v)) {
+        return;  // skip global variables
+      } else {
+        add_if_pointer(v);
+      }
+    }
+
+    void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+      look_at(I.getPointerOperand());
+    }
+
+    void visitLoadInst(llvm::LoadInst &I) {
+      add_if_pointer(&I);
+      accessed.insert(I.getPointerOperand());
+      look_at(I.getPointerOperand());
+    }
+
+    void visitStoreInst(llvm::StoreInst &I) {
+      // Simple
+      accessed.insert(I.getPointerOperand());
+      look_at(I.getPointerOperand());
+    }
+
+    void visitPHINode(llvm::PHINode &I) {
+      for (auto &incoming : I.incoming_values()) {
+        look_at(incoming);
+      }
+    }
+
+    void visitAllocaInst(llvm::AllocaInst &I) {
+      // Nothing. Don't lock allocas
+    }
+
+    void visitCallInst(llvm::CallInst &I) {
+      // TODO: skip lock calls
+      auto lock = I.getFunction()->getParent()->getFunction("alaska_lock");
+      if (lock != NULL && I.getCalledFunction() == lock) {
+        return;
+      }
+      add_if_pointer(&I);
+    }
+
+    void visitInstruction(llvm::Instruction &I) {
+      add_if_pointer(&I);
+    }
+  };
+
+
+
+  struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisitor> {
+    std::set<llvm::Instruction *> transients;
+    std::set<llvm::Value *> seen;
+
+    // returns true if this has been seen or not
+    bool track_seen(llvm::Value &v) {
+      if (seen.find(&v) != seen.end()) return true;
+      seen.insert(&v);
+      return false;
+    }
+
+    void look_at(llvm::Value *v) {
+      if (track_seen(*v)) return;
+      //
+      if (auto inst = dyn_cast<llvm::Instruction>(v)) {
+        visit(*inst);
+      }
+
+      for (auto user : v->users()) {
+        look_at(user);
+      }
+    }
+
+    void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+      transients.insert(&I);
+    }
+
+    void visitPHINode(llvm::PHINode &I) {
+      transients.insert(&I);
+    }
+  };
+
+
+  void alaska::insertHoistedLocks(llvm::Function &F) {
+    alaska::LockForest forest(F);
+    (void)forest.apply();
+    return;
+    // find all potential sources:
+    PotentialSourceFinder s;
+
+    std::vector<llvm::Instruction *> insts;
+
+    for (auto &BB : F)
+      for (auto &I : BB)
+        insts.push_back(&I);
+
+    for (auto *inst : insts)
+      s.look_at(inst);
+
+    std::vector<std::unique_ptr<alaska::Lock>> locks;
+    std::map<llvm::Value *, alaska::Lock *> value2lock;
+
+    std::map<llvm::Value *, std::set<llvm::Value *>> sourceAliases;
+
+    auto &sources = s.srcs;
+    // alaska::println("Potential sources for ", F.getName(), ":");
+    for (auto &src : sources) {
+      // If the source was not accessed, ignore it.
+      // if (s.accessed.find(src) == s.accessed.end()) {
+      //   continue;
+      // }
+      sourceAliases[src].insert(src);
+      // alaska::println("  - ", simpleFormat(src));
+      TransientMappingVisitor tv;
+      tv.look_at(src);
+      // alaska::println("    Transients:");
+      for (auto &t : tv.transients) {
+        sourceAliases[t].insert(src);
+        // alaska::println("       - ", simpleFormat(t));
+      }
+    }
+
+
+    // alaska::println("Source Aliases:");
+    // for (auto &[a, srcs] : sourceAliases) {
+    //   alaska::println(*a);
+    //   for (auto &src : srcs) {
+    //     alaska::println("    - ", simpleFormat(src));
+    //   }
+    // }
+
+
+    auto get_used = [&](llvm::Instruction *s) -> std::set<llvm::Value *> {
+      if (auto load = dyn_cast<LoadInst>(s)) return sourceAliases[load->getPointerOperand()];
+      if (auto store = dyn_cast<StoreInst>(s)) return sourceAliases[store->getPointerOperand()];
+      // TODO: handle when it is an argument? Maybe introduce recursive lock call elimination here?
+      return {};
+    };
+
+
+    auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
+      for (auto *ptr : get_used(s)) {
+        df->GEN(s).insert(ptr);
+      }
+    };
+
+    auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
+      // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the
+      // set of variables assigned a value in s before any use, but this does not change the solution of the dataflow
+      // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
+      for (auto *src : sources) {
+        if (s == src) df->KILL(s).insert(s);
+      }
+    };
+
+
+    auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
+      auto &gen = df->GEN(s);
+      auto &out = df->OUT(s);
+      auto &kill = df->KILL(s);
+
+      // everything in GEN...
+      IN.insert(gen.begin(), gen.end());
+
+      // ...and everything in OUT that isn't in KILL
+      for (auto o : out) {
+        // if o is not found in KILL...
+        if (kill.find(o) == kill.end()) {
+          // ...add to IN
+          IN.insert(o);
         }
       }
+    };
 
-      alaska::fprintln(out, "</tr>");
-    }
-    alaska::fprintln(out, "    </table>>];");  // end label
-  }
+    auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
+      auto &INp = df->IN(p);
+      OUT.insert(INp.begin(), INp.end());
+    };
 
-
-  for (auto &BB : F) {
-    auto *term = BB.getTerminator();
-    for (unsigned i = 0; i < term->getNumSuccessors(); i++) {
-      auto *other = term->getSuccessor(i);
-      alaska::fprintln(out, "  n", &BB, ":n", term, " -> n", other, ":header");
-    }
-  }
-  alaska::fprintln(out, "}");
-}
+    auto *df = noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
 
 
-
-
-struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
-  std::set<llvm::Value *> srcs;
-  std::set<llvm::Value *> accessed;
-  std::set<llvm::Value *> seen;
-
-
-  // returns true if this has been seen or not
-  bool track_seen(llvm::Value &v) {
-    if (seen.find(&v) != seen.end()) return true;
-    seen.insert(&v);
-    return false;
-  }
-
-  void add_if_pointer(llvm::Value *v) {
-    if (v->getType()->isPointerTy()) {
-      srcs.insert(v);
-    }
-  }
-
-  void look_at(llvm::Value *v) {
-    if (track_seen(*v)) return;
-    // alaska::println("Look at ", *v);
-
-    if (auto inst = dyn_cast<llvm::Instruction>(v)) {
-      visit(*inst);
-    } else if (auto global_variable = dyn_cast<llvm::GlobalVariable>(v)) {
-      return;  // skip global variables
-    } else {
-      add_if_pointer(v);
-    }
-  }
-
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) { look_at(I.getPointerOperand()); }
-
-  void visitLoadInst(llvm::LoadInst &I) {
-    add_if_pointer(&I);
-    accessed.insert(I.getPointerOperand());
-    look_at(I.getPointerOperand());
-  }
-
-  void visitStoreInst(llvm::StoreInst &I) {
-    // Simple
-    accessed.insert(I.getPointerOperand());
-    look_at(I.getPointerOperand());
-  }
-
-  void visitPHINode(llvm::PHINode &I) {
-    for (auto &incoming : I.incoming_values()) {
-      look_at(incoming);
-    }
-  }
-
-  void visitAllocaInst(llvm::AllocaInst &I) {
-    // Nothing. Don't lock allocas
-  }
-
-  void visitCallInst(llvm::CallInst &I) {
-    // TODO: skip lock calls
-    auto lock = I.getFunction()->getParent()->getFunction("alaska_lock");
-    if (lock != NULL && I.getCalledFunction() == lock) {
-      return;
-    }
-    add_if_pointer(&I);
-  }
-
-  void visitInstruction(llvm::Instruction &I) { add_if_pointer(&I); }
-};
-
-
-
-struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisitor> {
-  std::set<llvm::Instruction *> transients;
-  std::set<llvm::Value *> seen;
-
-  // returns true if this has been seen or not
-  bool track_seen(llvm::Value &v) {
-    if (seen.find(&v) != seen.end()) return true;
-    seen.insert(&v);
-    return false;
-  }
-
-  void look_at(llvm::Value *v) {
-    if (track_seen(*v)) return;
-    //
-    if (auto inst = dyn_cast<llvm::Instruction>(v)) {
-      visit(*inst);
-    }
-
-    for (auto user : v->users()) {
-      look_at(user);
-    }
-  }
-
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) { transients.insert(&I); }
-
-  void visitPHINode(llvm::PHINode &I) { transients.insert(&I); }
-};
-
-
-void alaska::insertHoistedLocks(llvm::Function &F) {
-  alaska::LockForest forest(F);
-  (void)forest.apply();
-  return;
-  // find all potential sources:
-  PotentialSourceFinder s;
-
-  std::vector<llvm::Instruction *> insts;
-
-  for (auto &BB : F)
-    for (auto &I : BB)
-      insts.push_back(&I);
-
-  for (auto *inst : insts)
-    s.look_at(inst);
-
-  std::vector<std::unique_ptr<alaska::Lock>> locks;
-  std::map<llvm::Value *, alaska::Lock *> value2lock;
-
-  std::map<llvm::Value *, std::set<llvm::Value *>> sourceAliases;
-
-  auto &sources = s.srcs;
-  // alaska::println("Potential sources for ", F.getName(), ":");
-  for (auto &src : sources) {
-    // If the source was not accessed, ignore it.
-    // if (s.accessed.find(src) == s.accessed.end()) {
-    //   continue;
-    // }
-    sourceAliases[src].insert(src);
-    // alaska::println("  - ", simpleFormat(src));
-    TransientMappingVisitor tv;
-    tv.look_at(src);
-    // alaska::println("    Transients:");
-    for (auto &t : tv.transients) {
-      sourceAliases[t].insert(src);
-      // alaska::println("       - ", simpleFormat(t));
-    }
-  }
-
-
-  // alaska::println("Source Aliases:");
-  // for (auto &[a, srcs] : sourceAliases) {
-  //   alaska::println(*a);
-  //   for (auto &src : srcs) {
-  //     alaska::println("    - ", simpleFormat(src));
-  //   }
-  // }
-
-
-  auto get_used = [&](llvm::Instruction *s) -> std::set<llvm::Value *> {
-    if (auto load = dyn_cast<LoadInst>(s)) return sourceAliases[load->getPointerOperand()];
-    if (auto store = dyn_cast<StoreInst>(s)) return sourceAliases[store->getPointerOperand()];
-    // TODO: handle when it is an argument? Maybe introduce recursive lock call elimination here?
-    return {};
-  };
-
-
-  auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
-    for (auto *ptr : get_used(s)) {
-      df->GEN(s).insert(ptr);
-    }
-  };
-
-  auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
-    // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also defined as the set
-    // of variables assigned a value in s before any use, but this does not change the solution of the dataflow
-    // equation). In this, we don't care about KILL, as we are operating on an SSA, where things are not redefined
     for (auto *src : sources) {
-      if (s == src) df->KILL(s).insert(s);
+      // if (s.accessed.find(src) == s.accessed.end()) {
+      //   continue;
+      // }
+      auto lock = std::make_unique<alaska::Lock>();
+      value2lock[src] = lock.get();  // icky pointer leak
+      locks.push_back(std::move(lock));
     }
-  };
 
 
-  auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
-    auto &gen = df->GEN(s);
-    auto &out = df->OUT(s);
-    auto &kill = df->KILL(s);
-
-    // everything in GEN...
-    IN.insert(gen.begin(), gen.end());
-
-    // ...and everything in OUT that isn't in KILL
-    for (auto o : out) {
-      // if o is not found in KILL...
-      if (kill.find(o) == kill.end()) {
-        // ...add to IN
-        IN.insert(o);
-      }
-    }
-  };
-
-  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
-    auto &INp = df->IN(p);
-    OUT.insert(INp.begin(), INp.end());
-  };
-
-  auto *df = noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
-
-
-  for (auto *src : sources) {
-    // if (s.accessed.find(src) == s.accessed.end()) {
-    //   continue;
-    // }
-    auto lock = std::make_unique<alaska::Lock>();
-    value2lock[src] = lock.get();  // icky pointer leak
-    locks.push_back(std::move(lock));
-  }
-
-
-  // for (auto &BB : F) {
-  //   BB.printAsOperand(errs());
-  //   errs() << "\n";
-  //   for (auto &I : BB) {
-  //     alaska::println(I);
-  //     for (auto l : df->IN(&I)) {
-  //       alaska::println("       IN ", *l);
-  //     }
-  //
-  //     for (auto l : df->OUT(&I)) {
-  //       alaska::println("      OUT ", *l);
-  //     }
-  //   }
-  // }
-
-  for (auto &[ptr, lock] : value2lock) {
-    // If the lock is an argument, lock it in the first instruction
+    // for (auto &BB : F) {
+    //   BB.printAsOperand(errs());
+    //   errs() << "\n";
+    //   for (auto &I : BB) {
+    //     alaska::println(I);
+    //     for (auto l : df->IN(&I)) {
+    //       alaska::println("       IN ", *l);
+    //     }
     //
-    if (auto argument = dyn_cast<Argument>(ptr)) {
-      lock->lock = dyn_cast<CallInst>(insertLockBefore(&argument->getParent()->front().front(), ptr));
-      errs() << "lock: " << *lock->lock << "\n";
-    }
+    //     for (auto l : df->OUT(&I)) {
+    //       alaska::println("      OUT ", *l);
+    //     }
+    //   }
+    // }
 
-
-    for (auto *i : insts) {
-      // Grab the IN and OUT sets
-      auto &IN = df->IN(i);
-      auto &OUT = df->OUT(i);
-      // Compute membership in those sets
-      bool in = (IN.find(ptr) != IN.end());
-      bool out = (OUT.find(ptr) != OUT.end());
-
-      // 1. Find locations to lock the lock at.
-      //    These are locations where the value is in the OUT but not the IN
-      if (!in && out) {
-        ALASKA_SANITY(lock->lock == NULL, "Lock was not null");
-        // Put the lock after this instruction!
-        lock->lock = dyn_cast<CallInst>(insertLockBefore(i->getNextNode(), ptr));
+    for (auto &[ptr, lock] : value2lock) {
+      // If the lock is an argument, lock it in the first instruction
+      //
+      if (auto argument = dyn_cast<Argument>(ptr)) {
+        lock->lock = dyn_cast<CallInst>(insertLockBefore(&argument->getParent()->front().front(), ptr));
         errs() << "lock: " << *lock->lock << "\n";
       }
 
-      // 2. If the instruction has the value in it's in set, but not it's out set, it is an unlock location.
-      if (!out && in) {
-        insertUnlockBefore(i->getNextNode(), ptr);
-        lock->unlocks.insert(dyn_cast<CallInst>(i->getNextNode()));
-      }
+
+      for (auto *i : insts) {
+        // Grab the IN and OUT sets
+        auto &IN = df->IN(i);
+        auto &OUT = df->OUT(i);
+        // Compute membership in those sets
+        bool in = (IN.find(ptr) != IN.end());
+        bool out = (OUT.find(ptr) != OUT.end());
+
+        // 1. Find locations to lock the lock at.
+        //    These are locations where the value is in the OUT but not the IN
+        if (!in && out) {
+          ALASKA_SANITY(lock->lock == NULL, "Lock was not null");
+          // Put the lock after this instruction!
+          lock->lock = dyn_cast<CallInst>(insertLockBefore(i->getNextNode(), ptr));
+          errs() << "lock: " << *lock->lock << "\n";
+        }
+
+        // 2. If the instruction has the value in it's in set, but not it's out set, it is an unlock location.
+        if (!out && in) {
+          insertUnlockBefore(i->getNextNode(), ptr);
+          lock->unlocks.insert(dyn_cast<CallInst>(i->getNextNode()));
+        }
 
 
-      if (auto *branch = dyn_cast<BranchInst>(i)) {
-        for (auto succ : branch->successors()) {
-					break;
-          auto succInst = &succ->front();
-          auto &succIN = df->IN(succInst);
-          // if it's not in the IN of succ, lock on the edge
-          if (succIN.find(ptr) == succIN.end()) {
-            // HACK: split the edge and insert on the branch
-            BasicBlock *from = i->getParent();
-            BasicBlock *to = succ;
-            auto trampoline = llvm::SplitEdge(from, to);
+        if (auto *branch = dyn_cast<BranchInst>(i)) {
+          for (auto succ : branch->successors()) {
+            break;
+            auto succInst = &succ->front();
+            auto &succIN = df->IN(succInst);
+            // if it's not in the IN of succ, lock on the edge
+            if (succIN.find(ptr) == succIN.end()) {
+              // HACK: split the edge and insert on the branch
+              BasicBlock *from = i->getParent();
+              BasicBlock *to = succ;
+              auto trampoline = llvm::SplitEdge(from, to);
 
-            // lockinsertUnlockBefore(i->getNextNode(), ptr);
-            // lock->unlocks.insert(dyn_cast<CallInst>(i->getNextNode()));
-            lock->unlocks.insert(dyn_cast<CallInst>(insertUnlockBefore(trampoline->getTerminator(), ptr)));
+              // lockinsertUnlockBefore(i->getNextNode(), ptr);
+              // lock->unlocks.insert(dyn_cast<CallInst>(i->getNextNode()));
+              lock->unlocks.insert(dyn_cast<CallInst>(insertUnlockBefore(trampoline->getTerminator(), ptr)));
+            }
           }
         }
       }
     }
+
+
+    // for (auto &lock : locks) {
+    //   lock->apply();
+    // }
+
+    delete df;
+
+    // errs() << F << "\n";
+
+    // return;
+    //
   }
 
 
-  // for (auto &lock : locks) {
-  //   lock->apply();
-  // }
+  void alaska::insertConservativeLocks(llvm::Function &F) {
+    alaska::PointerFlowGraph G(F);
 
-  delete df;
+    // Naively insert get/unlock around loads and stores (the sinks in the graph provided)
+    auto nodes = G.get_nodes();
+    // Loop over all the nodes...
+    for (auto node : nodes) {
+      // only operate on sinks...
+      if (node->type != alaska::Sink) continue;
+      auto inst = dyn_cast<Instruction>(node->value);
 
-  // errs() << F << "\n";
+      auto dbg = inst->getDebugLoc();
+      // Insert the get/unlock.
+      // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
+      if (auto *load = dyn_cast<LoadInst>(inst)) {
+        auto ptr = load->getPointerOperand();
+        auto t = insertLockBefore(inst, ptr);
+        load->setOperand(0, t);
+        alaska::insertUnlockBefore(inst->getNextNode(), ptr);
+        continue;
+      }
 
-  // return;
-  //
-}
-
-
-void alaska::insertConservativeLocks(llvm::Function &F) {
-  alaska::PointerFlowGraph G(F);
-
-  // Naively insert get/unlock around loads and stores (the sinks in the graph provided)
-  auto nodes = G.get_nodes();
-  // Loop over all the nodes...
-  for (auto node : nodes) {
-    // only operate on sinks...
-    if (node->type != alaska::Sink) continue;
-    auto inst = dyn_cast<Instruction>(node->value);
-
-    auto dbg = inst->getDebugLoc();
-    // Insert the get/unlock.
-    // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
-    if (auto *load = dyn_cast<LoadInst>(inst)) {
-      auto ptr = load->getPointerOperand();
-      auto t = insertLockBefore(inst, ptr);
-      load->setOperand(0, t);
-      alaska::insertUnlockBefore(inst->getNextNode(), ptr);
-      continue;
-    }
-
-    if (auto *store = dyn_cast<StoreInst>(inst)) {
-      auto ptr = store->getPointerOperand();
-      auto t = insertLockBefore(inst, ptr);
-      store->setOperand(1, t);
-      insertUnlockBefore(inst->getNextNode(), ptr);
-      continue;
+      if (auto *store = dyn_cast<StoreInst>(inst)) {
+        auto ptr = store->getPointerOperand();
+        auto t = insertLockBefore(inst, ptr);
+        store->setOperand(1, t);
+        insertUnlockBefore(inst->getNextNode(), ptr);
+        continue;
+      }
     }
   }
-}

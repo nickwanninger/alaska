@@ -42,6 +42,8 @@ namespace alaska {
     llvm::Value *getRootAllocation(void);
   };
 
+  bool shouldLock(llvm::Value *val);
+
 
   void insertHoistedLocks(llvm::Function &F);
   void insertConservativeLocks(llvm::Function &F);
