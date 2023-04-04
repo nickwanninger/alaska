@@ -74,8 +74,6 @@ COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
 COLLECT_CLANG_ARGS+=("$OPT ")
 
 
-echo $COLLECT_CLANG_ARGS
-
 GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
 
