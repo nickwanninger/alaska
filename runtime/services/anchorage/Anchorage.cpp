@@ -68,9 +68,8 @@ extern "C" void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool lo
 }
 
 
+// This function is the core allocator interface for the Anchorage service built on top of Alaska.
 void *anchorage::alloc(alaska::Mapping &m, size_t size) {
-  // anchorage::barrier();
-
   Block *new_block = NULL;
   Chunk *new_chunk = NULL;
   // attempt to allocate from each chunk
@@ -93,7 +92,7 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
       required_pages = anchorage::min_chunk_pages;
     }
 
-    // alaska_barrier();                      // run a barrier
+    // alaska_barrier();                   // run a barrier
     new anchorage::Chunk(required_pages);  // add a chunk
 
     return anchorage::alloc(m, size);
@@ -128,6 +127,9 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
   }
 
   auto *blk = anchorage::Block::get(ptr);
+
+
+  chunk->free(blk);
 
   memset(m.ptr, 0xFA, m.size);
   // if (m.anchorage.locks > 0) {

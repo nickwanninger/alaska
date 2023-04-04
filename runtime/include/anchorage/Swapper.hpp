@@ -13,9 +13,45 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
+#include <memory>
 #include <unordered_set>
 
 namespace anchorage {
-  class Swapper {};
+
+
+  class SwapDevice {
+   public:
+    virtual ~SwapDevice() = default;
+
+    // Force a mapping to be swapped out. Both functions return true or false depending on success.
+    // swap_in: given a mapping, swap the value in using anchorage::alloc after loading the value. If this function
+    // returns true, m.ptr *must* be non-null.
+    virtual bool swap_in(alaska::Mapping &m) = 0;
+    virtual bool swap_out(alaska::Mapping &m) = 0;
+  };
+
+
+  // MMAPSwapDevice - Let the kernel manage it.
+  class MMAPSwapDevice : public anchorage::SwapDevice {
+   public:
+    ~MMAPSwapDevice() override;
+
+    // Force a mapping to be swapped out
+    bool swap_in(alaska::Mapping &m) override;
+    bool swap_out(alaska::Mapping &m) override;
+  };
+
+
+
+
+  class Swapper {
+   public:
+    Swapper(std::unique_ptr<SwapDevice> &&dev)
+        : m_dev(std::move(dev)){};
+
+
+   private:
+    std::unique_ptr<SwapDevice> m_dev;
+  };
 
 }  // namespace anchorage

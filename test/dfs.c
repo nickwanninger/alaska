@@ -75,13 +75,13 @@ int main() {
   srand((unsigned)time(NULL));
 
   printf("=============== ALLOCATING ===============\n");
-  struct node *tree = create_tree(4);
+  struct node *tree = create_tree(3);
   printf("=============== TRAVERSING ===============\n");
   num_nodes(tree);
   printf("=============== MANUFACTURING LOCALITY ===============\n");
   anchorage_manufacture_locality((void *)tree);
   printf("=============== TRAVERSING (Left then Right) ===============\n");
   num_nodes(tree);
-  printf("=============== TRAVERSING (Right then Left) ===============\n");
-  num_nodes_rev(tree);
+  // printf("=============== TRAVERSING (Right then Left) ===============\n");
+  // num_nodes_rev(tree);
 }

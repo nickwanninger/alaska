@@ -139,6 +139,49 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
       cur->coalesce_free(chunk);
       anchorage::Block *succ = cur->next();
       anchorage::Block *latest_can_move = NULL;
+#if 0
+      // Look over the blocks after cur, and find the span of block that can fit into `cur`, and move them all at once.
+      anchorage::Block *cursor, *first, *last;
+      cursor = cur->next();
+      first = last = nullptr;
+
+      // The total space included in `cur`, including the space occupied by the header.
+      uint64_t available_space = cur->size() + anchorage::block_size;
+      // The current size of the blocks we plan to move. This must be lte `available_space`
+      uint64_t required_space = 0;
+
+      while (cursor != NULL && cursor != chunk.tos) {
+        auto cursor_size = cursor->size() + anchorage::block_size;
+
+        if (cursor->is_used() && available_space >= required_space + cursor_size) {
+          // if first is null, then we start a new span.
+          if (first == NULL) {
+            first = cursor;
+          }
+
+          required_space += cursor_size;
+        } else {
+          // it doesn't fit! We have hit the end of a span we can move.
+          last = cursor->prev();
+          break;
+        }
+        last = cursor;
+        cursor = cursor->next();
+      }
+
+      // we found something to move.
+      if (first != NULL) {
+        if (last == NULL) last = chunk.tos->prev();
+        printf("found %zu to fit into %zu\n", required_space, available_space);
+        chunk.dump(cur, "slot");
+        chunk.dump(first, "first");
+        chunk.dump(last, "last");
+      }
+#endif
+
+
+
+
       // if there is a successor and it has no locks...
       while (succ != NULL && succ != chunk.tos) {
         if (succ->is_used() && can_move(cur, succ)) {
@@ -150,14 +193,15 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
         succ = succ->next();
       }
 
+
       if (latest_can_move) {
         // auto crc_before = latest_can_move->crc();
         // chunk.dump(latest_can_move, "Moving");
         changes += perform_move(cur, latest_can_move);
         // auto crc_after = cur->crc();
         // if (crc_before != crc_after) {
-        //   // chunk.dump(cur, "CRC CHK");
-        //   // chunk.dump(cur, "CRC CHECK");
+        //   chunk.dump(cur, "CRC CHK");
+        //   chunk.dump(cur, "CRC CHECK");
         // }
         // assert(crc_before == crc_after && "Invalid crc after move!");
       }

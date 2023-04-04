@@ -58,7 +58,7 @@ static void record_handle(void* possible_handle, bool marked) {
     return;
   }
 
-  // printf("handle %p %d\n", m, marked);
+  // printf("barrier handle %p %d\n", m, marked);
   alaska_service_commit_lock_status(m, marked);
 }
 
@@ -72,6 +72,7 @@ static void alaska_barrier_join(bool leader) {
   while (cur != NULL) {
     // printf("cur = %p, len = %zu\n", cur, cur->count);
     for (uint64_t i = 0; i < cur->count; i++) {
+      // printf(" - %d = %p\n", i, cur->locked[i]);
       if (cur->locked[i]) {
         // printf("locked %p\n", cur->locked[i]);
         record_handle(cur->locked[i], true);

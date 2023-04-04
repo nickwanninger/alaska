@@ -14,3 +14,18 @@
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Swapper.hpp>
 #include <alaska/internal.h>
+
+
+anchorage::MMAPSwapDevice::~MMAPSwapDevice() {
+  //
+}
+
+// Force a mapping to be swapped out
+bool anchorage::MMAPSwapDevice::swap_in(alaska::Mapping &m) {
+  return true;
+}
+
+
+bool anchorage::MMAPSwapDevice::swap_out(alaska::Mapping &m) {
+  return true;
+}
