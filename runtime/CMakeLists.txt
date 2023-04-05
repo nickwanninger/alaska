@@ -29,7 +29,6 @@ set(SRC_FILES
 	lib/rbtree.c
 	lib/trace.c
 	lib/vec.c
-	lib/classification.c
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512

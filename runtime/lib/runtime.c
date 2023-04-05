@@ -76,7 +76,8 @@ extern void alaska_service_deinit(void);
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
-  // add ourselves to the list of active threads.
+  // Add the main thread to the list of active threads
+  // Note: the main thread never removes itself from the barrier thread list
   pthread_t self = pthread_self();
   alaska_barrier_add_thread(&self);
 
@@ -89,8 +90,6 @@ void __attribute__((destructor)) alaska_deinit(void) {
   alaska_service_deinit();
   alaska_halloc_deinit();
   alaska_table_deinit();
-
-  // Note: the main thread never removes itself from the barrier thread list
 }
 
 #define BT_BUF_SIZE 100
