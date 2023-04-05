@@ -55,9 +55,6 @@ void NOINLINE basic_fragment(int64_t n, size_t m_total) {
       reinterpret_cast<volatile char *volatile *>(bench_alloc(ptr_table_len * sizeof(char *)));
   memset((voidptr)retained_table, 0, ptr_table_len * sizeof(char *));
 
-  alaska_classify((void *)ptr_table, ALASKA_CLASS_VECTOR);
-  alaska_classify((void *)ptr_table, ALASKA_CLASS_VECTOR);
-
   // show how much RSS we just burned through for the table of
   // pointers we just allocated
   print_rss();

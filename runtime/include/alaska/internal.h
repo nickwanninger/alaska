@@ -109,12 +109,6 @@ alaska_mapping_t *alaska_table_begin(void);
 alaska_mapping_t *alaska_table_end(void);
 
 
-#ifdef ALASKA_CLASS_TRACKING
-void alaska_classify_init(void);
-void alaska_classify_deinit(void);
-#endif
-
-
 // Generate a hash that can be displayed
 // extern char *alaska_randomart(const unsigned char *raw, size_t raw_len, size_t fldbase, const char *palette);
 

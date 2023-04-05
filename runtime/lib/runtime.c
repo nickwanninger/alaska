@@ -83,10 +83,6 @@ void __attribute__((constructor(102))) alaska_init(void) {
   alaska_table_init();
   alaska_halloc_init();
   alaska_service_init();
-
-#ifdef ALASKA_CLASS_TRACKING
-  alaska_classify_init();
-#endif
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
@@ -95,10 +91,6 @@ void __attribute__((destructor)) alaska_deinit(void) {
   alaska_table_deinit();
 
   // Note: the main thread never removes itself from the barrier thread list
-
-#ifdef ALASKA_CLASS_TRACKING
-  alaska_classify_deinit();
-#endif
 }
 
 #define BT_BUF_SIZE 100

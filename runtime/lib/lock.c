@@ -91,14 +91,11 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 #endif
 }
 
+
+
 ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
-
-#ifdef ALASKA_CLASS_TRACKING
-  alaska_classify_track(m->object_class);
-#endif
-
 
   // Do some service stuff *before* translating.
   ALASKA_SERVICE_ON_LOCK(m);

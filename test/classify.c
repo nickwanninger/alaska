@@ -10,7 +10,6 @@ struct node {
 
 struct node *create_tree(int depth) {
   struct node *n = malloc(sizeof(*n));
-  alaska_classify(n, depth);
   n->left = n->right = NULL;
   if (depth > 0) {
     if (rand() % 1 == 0) n->left = create_tree(depth - 1);

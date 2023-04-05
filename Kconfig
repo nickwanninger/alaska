@@ -52,15 +52,6 @@ config SWAP_SUPPORT
 	default n
 
 
-config CLASS_TRACKING
-	bool "Track allocation classes and record access counts in a histogram"
-	default n
-
-config CLASS_TRACKING_ALWAYS_DUMP
-	bool "Always dump class tracking information"
-	depends on CLASS_TRACKING
-	default n
-
 config SIM_MODE
 	bool "Run Alaska in a 'simulator' mode"
 	default n

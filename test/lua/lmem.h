@@ -54,11 +54,10 @@
 
 
 
-#define typed_luaM_malloc_(L, sz, tag, cls)  \
-  ({                                    \
-    void *___x = luaM_malloc_(L, sz, tag); \
-    alaska_classify(___x, tag);            \
-    ___x;                                  \
+#define typed_luaM_malloc_(L, sz, tag, cls) \
+  ({                                        \
+    void *___x = luaM_malloc_(L, sz, tag);  \
+    ___x;                                   \
   })
 #define luaM_new(L, t) cast(t *, typed_luaM_malloc_(L, sizeof(t), 0, ALASKA_CLASS_OBJECT))
 #define luaM_newvector(L, n, t) cast(t *, typed_luaM_malloc_(L, (n) * sizeof(t), 0, ALASKA_CLASS_VECTOR))

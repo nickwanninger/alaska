@@ -16,6 +16,8 @@
 #include <anchorage/Defragmenter.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
+#include "./miniz.h"
+
 
 bool anchorage::Defragmenter::can_move(Block *free_block, Block *to_move) {
   // we are certain to_move has a handle associated, as we would have merged
@@ -235,6 +237,19 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
+    // for (auto &block : *chunk) {
+    //   if (block.is_free()) continue;
+    //   auto data = block.data();
+    //   auto src_len = block.size();
+    //   auto cmp_len = compressBound(src_len);
+    //   void *cmp_dst = ::malloc(cmp_len);
+
+    //   compress((unsigned char *)cmp_dst, &cmp_len, (const unsigned char *)data, src_len);
+    //   printf("%p %zu -> %zu\n", data, src_len, cmp_len);
+
+    //   ::free(cmp_dst);
+    // }
+
     // printf("before:\n");
     // longdump(chunk);
     // chunk->dump(NULL, "Before");

@@ -34,17 +34,6 @@ extern void anchorage_manufacture_locality(void *entrypoint);
 #endif
 
 
-enum alaska_classes {
-#define __CLASS(name, val) ALASKA_CLASS_##name = val,
-#include "./classes.inc"
-#undef __CLASS
-};
-
-// Classify an allocation with a certain object class
-extern void alaska_classify(void *ptr, uint8_t c);
-extern uint8_t alaska_get_classification(void *ptr);
-
-
 
 #ifdef __cplusplus
 }

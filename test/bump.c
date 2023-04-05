@@ -14,7 +14,7 @@ void touch(volatile void *x) {
 }
 
 void *bench_alloc(size_t sz) {
-  void *x = malloc(sz);
+  void *x = calloc(1, sz);
   touch(x);
   return x;
 }

@@ -5,7 +5,6 @@
 
 extern uint64_t next_last_access_time;
 
-extern void alaska_classify_track(uint8_t object_class);
 extern void anchorage_chunk_dump_usage(alaska_mapping_t *);
 
 ALASKA_INLINE void anchorage_on_lock(alaska_mapping_t *m) {

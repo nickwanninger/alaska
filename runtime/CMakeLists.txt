@@ -50,6 +50,7 @@ if (ALASKA_SERVICE_ANCHORAGE)
 		services/anchorage/Defragmenter.cpp
 		services/anchorage/LocalityFactory.cpp
 		services/anchorage/Swapper.cpp
+		services/anchorage/miniz.c
 	)
 endif()
 

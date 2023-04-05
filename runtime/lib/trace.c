@@ -85,8 +85,7 @@ static void trace_write(void *data, size_t sz) {
     case 'R': // realloc
     case 'F': // free
     case 'L': // lock
-    case 'U': // unlock
-    case 'C': // classify
+    case 'U':  // unlock
     case 'B': // barrier
       break;
 
@@ -193,18 +192,6 @@ void alaska_unlock_trace(void *restrict ptr) {
     struct alaska_trace_unlock t;
     t.type = 'U';
     t.ptr = (uint64_t)ptr;
-    TRACE(t);
-  }
-}
-
-
-void alaska_classify_trace(void *restrict ptr, uint8_t c) {
-  alloc_t *a = trace_find((uint64_t)ptr);
-  if (a != NULL) {
-    struct alaska_trace_classify t;
-    t.type = 'C';
-    t.ptr = (uint64_t)ptr;
-    t.class_id = c;
     TRACE(t);
   }
 }

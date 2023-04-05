@@ -148,14 +148,6 @@ void trace_unlock(struct alaska_trace_unlock *op) {
 }
 
 
-void trace_classify(struct alaska_trace_classify *op) {
-  alloc_t *a = trace_find(op->ptr);
-  if (a == NULL) return;
-  // apply classification
-  alaska_classify(a->handle, op->class_id);
-}
-
-
 void trace_defrag_hook(void *oldptr, void *newptr, size_t size) {
   log_action(oldptr, size, "free");
   log_action(newptr, size, "alloc");
@@ -228,10 +220,6 @@ int main(int argc, char **argv) {
       case 'U':  // unlock
         trace_unlock((void *)cur);
         cur += sizeof(struct alaska_trace_unlock);
-        break;
-      case 'C':  // classify
-        trace_classify((void *)cur);
-        cur += sizeof(struct alaska_trace_classify);
         break;
       case 'B':  // barrier
         trace_barrier((void *)cur);

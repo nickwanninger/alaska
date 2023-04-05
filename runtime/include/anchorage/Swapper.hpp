@@ -19,6 +19,8 @@
 namespace anchorage {
 
 
+
+
   class SwapDevice {
    public:
     virtual ~SwapDevice() = default;
