@@ -3,8 +3,6 @@
 # Alaska
 A compiler and runtime framework for handle based memory management.
 
-![Sanity Test](https://github.com/nickwanninger/alaska/actions/workflows/sanity.yml/badge.svg)
-
 ## Building
 
 The build scripts will download and build all the needed dependencies. First, you must configure the project with `make menuconfig`. Once you save your configuration (the default config is a safe bet), run `make deps` to build alaska's dependencies, then `make` to build the project:
@@ -26,8 +24,3 @@ Once built, `local/bin/alaska` functions as a drop-in replacement for `clang`. Y
 local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 ```
 You can also run `make sanity`, which will do it for you.
-
-
-## Dependencies
-
-Alaska depends on [unicorn](https://www.unicorn-engine.org/) to guarentee correctness in non-transformed libraries
