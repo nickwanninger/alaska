@@ -402,8 +402,6 @@ class AlaskaEscapePass : public PassInfoMixin<AlaskaEscapePass> {
         "alaska_lock_trace",
         "alaska_unlock",
         "alaska_unlock_trace",
-        "alaska_classify",
-        "alaska_classify_trace",
         "anchorage_manufacture_locality",
         "strstr",
         "strchr",
@@ -565,6 +563,7 @@ auto adapt(T &&fp) {
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
+    
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
 
@@ -589,8 +588,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 // MPM.addPass(LockRemoverPass());
                 // MPM.addPass(RedundantArgumentLockElisionPass());
                 MPM.addPass(LockTrackerPass());
-
-
 
 
                 if (alaska::bootstrapping()) {

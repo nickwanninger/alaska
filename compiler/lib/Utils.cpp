@@ -23,12 +23,10 @@ struct SimpleFormatVisitor : public llvm::InstVisitor<SimpleFormatVisitor> {
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     out << "GEP ";
-    //
   }
 
   void visitPHINode(llvm::PHINode &I) {
     out << "PHI ";
-    //
   }
 
 
@@ -194,7 +192,6 @@ void alaska::runReplacementPass(llvm::Module &M) {
     replace_function(M, "calloc", "hcalloc_trace");
     replace_function(M, "realloc", "hrealloc_trace");
     replace_function(M, "free", "hfree_trace");
-    replace_function(M, "alaska_classify", "alaska_classify_trace");
     replace_function(M, "alaska_barrier", "alaska_barrier_trace");
   } else {
     if (getenv("ALASKA_NO_REPLACE_MALLOC") == NULL) {

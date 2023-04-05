@@ -6,17 +6,6 @@
 #include <deque>
 
 
-void dump_uses(llvm::Value *val, int depth = 0) {
-  for (int i = 0; i < depth; i++)
-    fprintf(stderr, "  ");
-  alaska::println(*val);
-
-  for (auto user : val->users()) {
-    dump_uses(user, depth + 1);
-  }
-}
-
-
 struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
   alaska::FlowNode &node;
   NodeConstructionVisitor(alaska::FlowNode &node) : node(node) {}
@@ -31,19 +20,7 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     node.type = alaska::Transient;
     //
   }
-  // void visitPHINode(llvm::PHINode &I) {
-  //   node.type = alaska::Transient;
-  //   for (unsigned i = 0; i < I.getNumOperands(); i++) {
-  //     node.add_in_edge(&I.getOperandUse(i));
-  //   }
-  // }
 
-
-  // void visitSelectInst(llvm::SelectInst &I) {
-  //   node.type = alaska::Transient;
-  //   node.add_in_edge(&I.getOperandUse(1));
-  //   node.add_in_edge(&I.getOperandUse(2));
-  // }
 
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
@@ -84,6 +61,8 @@ std::set<alaska::FlowNode *> alaska::FlowNode::get_in_nodes(void) const {
   }
   return out;
 }
+
+
 std::set<alaska::FlowNode *> alaska::FlowNode::get_out_nodes(void) const {
   std::set<alaska::FlowNode *> outNodes;
   for (auto e : out) {
