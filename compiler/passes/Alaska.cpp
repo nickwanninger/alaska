@@ -600,12 +600,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               }
 
               // attempt to inline the library stuff
-              MPM.addPass(adapt(llvm::DCEPass()));
-              MPM.addPass(llvm::GlobalDCEPass());
-              MPM.addPass(llvm::AlwaysInlinerPass());
+              // MPM.addPass(adapt(llvm::DCEPass()));
+              // MPM.addPass(llvm::GlobalDCEPass());
+              // MPM.addPass(llvm::AlwaysInlinerPass());
 
-              // For good measures, re-optimize
-              MPM.addPass(AlaskaReoptimizePass(optLevel));
+              // // For good measures, re-optimize
+              // MPM.addPass(AlaskaReoptimizePass(optLevel));
 
               return true;
             });
