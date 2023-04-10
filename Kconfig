@@ -51,7 +51,6 @@ config SWAP_SUPPORT
 	bool "Enable swap-in checking in the translation operation"
 	default n
 
-
 config SIM_MODE
 	bool "Run Alaska in a 'simulator' mode"
 	default n

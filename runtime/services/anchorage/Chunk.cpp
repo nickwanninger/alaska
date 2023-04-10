@@ -15,7 +15,6 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
-#include <alaska/vec.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unordered_set>

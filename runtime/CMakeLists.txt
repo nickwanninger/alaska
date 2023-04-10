@@ -28,7 +28,6 @@ set(SRC_FILES
 	lib/barrier.c
 	lib/rbtree.c
 	lib/trace.c
-	lib/vec.c
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
@@ -115,8 +114,6 @@ target_link_libraries(alaska_core alaska_lock_native)
 
 install(FILES include/alaska.h DESTINATION include)
 install(FILES include/alaska/config.h DESTINATION include/alaska)
-install(FILES include/classes.inc DESTINATION include)
-install(FILES include/alaska.hpp DESTINATION include)
 
 install(
   TARGETS alaska_core

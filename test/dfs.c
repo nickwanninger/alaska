@@ -78,10 +78,18 @@ int main() {
   struct node *tree = create_tree(3);
   printf("=============== TRAVERSING ===============\n");
   num_nodes(tree);
-  printf("=============== MANUFACTURING LOCALITY ===============\n");
-  anchorage_manufacture_locality((void *)tree);
+
+  printf("================= BARRIER ================\n");
+  alaska_barrier();
+  // printf("=============== MANUFACTURING LOCALITY ===============\n");
+  // anchorage_manufacture_locality((void *)tree);
   printf("=============== TRAVERSING (Left then Right) ===============\n");
   num_nodes(tree);
-  // printf("=============== TRAVERSING (Right then Left) ===============\n");
-  // num_nodes_rev(tree);
+  num_nodes(tree);
+
+  printf("================= BARRIER ================\n");
+  alaska_barrier();
+  printf("=============== TRAVERSING (Right then Left) ===============\n");
+  num_nodes_rev(tree);
+  num_nodes_rev(tree);
 }

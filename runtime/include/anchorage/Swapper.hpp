@@ -18,8 +18,9 @@
 
 namespace anchorage {
 
-
-
+  // Someone else can ask us to swap a hande in our out
+  void swap_in(alaska::Mapping &m);
+  void swap_out(alaska::Mapping &m);
 
   class SwapDevice {
    public:

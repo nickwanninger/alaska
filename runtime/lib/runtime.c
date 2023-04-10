@@ -10,6 +10,7 @@
  */
 #include <alaska.h>
 #include <alaska/internal.h>
+#include <alaska/service.h>
 #include <assert.h>
 #include <errno.h>
 #include <execinfo.h>
@@ -172,9 +173,16 @@ uint64_t alaska_timestamp() {
 
 
 
-void alaska_swap_in(alaska_mapping_t *m) {
-	while(1) {}
-  // printf("swap in %p\n", m);
+void alaska_ensure_present(alaska_mapping_t* m) {
+  // If the pointer is not null, we shouldn't do anything.
+  if (m->ptr != NULL) {
+    return;
+  }
+
+  // Instead, if the pointer is null, we need to ask the service to swap it in!
+  alaska_service_swap_in(m);
+
+  ALASKA_SANITY(m->ptr != NULL, "Service did not swap in a handle");
 }
 
 

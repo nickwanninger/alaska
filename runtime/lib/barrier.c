@@ -58,7 +58,6 @@ static void record_handle(void* possible_handle, bool marked) {
     return;
   }
 
-  // printf("barrier handle %p %d\n", m, marked);
   alaska_service_commit_lock_status(m, marked);
 }
 
@@ -70,17 +69,11 @@ static void alaska_barrier_join(bool leader) {
 
   cur = alaska_lock_root_chain;
   while (cur != NULL) {
-    // printf("cur = %p, len = %zu\n", cur, cur->count);
     for (uint64_t i = 0; i < cur->count; i++) {
-      // printf(" - %d = %p\n", i, cur->locked[i]);
-      if (cur->locked[i]) {
-        // printf("locked %p\n", cur->locked[i]);
-        record_handle(cur->locked[i], true);
-      }
+      if (cur->locked[i]) record_handle(cur->locked[i], true);
     }
     cur = cur->prev;
   }
-
 
   // Wait on the barrier so everyone's state has been commited.
   if (num_threads > 1) {
@@ -151,9 +144,10 @@ __declspec(noinline) void alaska_barrier(void) {
 
 
 static void barrier_signal_handler(int sig) {
+  // Simply join the barrier, then leave immediately. This
+  // will deal with all the synchronization that needs done.
   alaska_barrier_join(false);
   alaska_barrier_leave(false);
-  // alaska_do_barrier(false);
 }
 
 

@@ -45,7 +45,7 @@ alaska_mapping_t *alaska_table_end(void) { return table_memory + table_size; }
 //     off_t start, end;
 //     char flags[5];  // "rwxp\0"
 //     if (fgets(line_buf, 256, f) == 0) break;
-//
+
 //     int count = sscanf(line_buf, "%lx-%lx %s\n", &start, &end, flags);
 //     if (count == 3) {
 //       printf("region:%s", line_buf);

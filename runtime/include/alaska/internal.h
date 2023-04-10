@@ -77,18 +77,24 @@ typedef union {
 typedef struct {
   // Cache line 1:
   void *ptr;  // backing memory
-  // size: how big the backing memory is
-  uint32_t size;  // How big is the handle's memory?
-#ifdef ALASKA_CLASS_TRACKING
-  uint8_t object_class;
-#endif
-  // Cache line 2:
-  ALASKA_SERVICE_FIELDS;  // A service's fields.
-} alaska_mapping_t;       // __attribute__((packed));
+  union {
+    // If ptr is not 0, then size represents the size of the handle
+    uint64_t size;
+    // If ptr is zero, then the handle has been swapped out, and the following structure is used instead:
+    struct {
+      uint64_t id;
+    } swap;
+  }
+  // Cache line 2: Service specific fields
+  ALASKA_SERVICE_FIELDS;
+} alaska_mapping_t;
 
 // src/lock.c
 void *alaska_lock(void *ptr);
 void alaska_unlock(void *ptr);
+
+// Ensure a handle is present.
+void alaska_ensure_present(alaska_mapping_t *m);
 
 alaska_mapping_t *alaska_lookup(void *ptr);
 

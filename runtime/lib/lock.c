@@ -69,7 +69,6 @@ ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 #endif
 }
 
-extern void alaska_swap_in(alaska_mapping_t *m);
 
 ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 #ifdef ALASKA_SIM_MODE
@@ -79,11 +78,13 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 
 #ifdef ALASKA_SWAP_SUPPORT
-  if (unlikely(m->ptr == NULL)) alaska_swap_in(m);
+  if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
 #endif
 
 	ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
 
+  // Do some service stuff *before* translating.
+  ALASKA_SERVICE_ON_LOCK(m);
 
   handle_t h;
   h.ptr = ptr;
@@ -97,16 +98,14 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
 
-  // Do some service stuff *before* translating.
-  ALASKA_SERVICE_ON_LOCK(m);
+
   // finally, translate
   return alaska_translate(ptr, m);
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
-  //
-  alaska_mapping_t *m = alaska_lookup(ptr);
-  if (unlikely(m == NULL)) return;
+  // alaska_mapping_t *m = alaska_lookup(ptr);
+  // if (unlikely(m == NULL)) return;
 
-  ALASKA_SERVICE_ON_UNLOCK(m);
+  // ALASKA_SERVICE_ON_UNLOCK(m);
 }

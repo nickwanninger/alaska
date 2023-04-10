@@ -34,3 +34,5 @@ extern void alaska_service_barrier(void);
 
 
 extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked);
+
+extern void alaska_service_swap_in(alaska_mapping_t *ent);

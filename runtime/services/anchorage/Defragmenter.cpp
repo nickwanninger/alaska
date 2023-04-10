@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Defragmenter.hpp>
+#include <anchorage/Swapper.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
 #include "./miniz.h"
@@ -237,27 +238,18 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
-    // for (auto &block : *chunk) {
-    //   if (block.is_free()) continue;
-    //   auto data = block.data();
-    //   auto src_len = block.size();
-    //   auto cmp_len = compressBound(src_len);
-    //   void *cmp_dst = ::malloc(cmp_len);
+    // chunk->dump(nullptr, "Before S/O");
+    for (auto &block : *chunk) {
+      if (block.is_free()) continue;
+      if (block.is_locked()) continue;
+      auto *handle = block.handle();
+      ALASKA_SANITY(handle != nullptr, "Non-free block doesn't have a handle!");
 
-    //   compress((unsigned char *)cmp_dst, &cmp_len, (const unsigned char *)data, src_len);
-    //   printf("%p %zu -> %zu\n", data, src_len, cmp_len);
+      anchorage::swap_out(*handle);
+    }
+    // chunk->dump(nullptr, "After S/O");
 
-    //   ::free(cmp_dst);
-    // }
-
-    // printf("before:\n");
-    // longdump(chunk);
-    // chunk->dump(NULL, "Before");
     changes += naive_compact(*chunk);
-    // printf("after:\n");
-    // longdump(chunk);
-    // chunk->dump(NULL, "After");
   }
-  // printf("%d changes in %lu\n", changes, alaska_timestamp() - start);
   return changes;
 }

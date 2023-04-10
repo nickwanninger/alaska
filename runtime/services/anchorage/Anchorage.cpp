@@ -17,7 +17,6 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
-#include <alaska/vec.h>
 #include <pthread.h>
 #include <string.h>
 #include <stdbool.h>
