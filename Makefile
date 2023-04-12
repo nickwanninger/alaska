@@ -83,6 +83,9 @@ bench/gap/%: alaska
 bench: alaska $(NAS_BENCHMARKS) $(GAP_BENCHMARKS)
 
 
+docs:
+	@doxygen Doxyfile
+
 
 
 

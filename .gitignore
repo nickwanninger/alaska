@@ -15,7 +15,7 @@ config.cmake
 npbparams.h
 test/npb/sys/setparams
 
-
+/html
 /a.out*
 tools/.ipynb_checkpoints
 .venv
