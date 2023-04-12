@@ -55,6 +55,36 @@
  * or duplciated needlessly. (Which can lead to linker errors)
  */
 
+
+// #define ROOT ((alaska_mapping_t *)(uint64_t)0)
+
+// alaska_mapping_t *new_translate(void *restrict ptr) {
+//   handle_t h;
+//   h.ptr = ptr;
+//   if (unlikely(h.flag == 0)) {
+//     return NULL;
+//   }
+
+//   alaska_mapping_t *m = (alaska_mapping_t *)(h.handle * sizeof(alaska_mapping_t));
+//   // #ifdef ALASKA_SWAP_SUPPORT
+//   //   if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
+//   // #endif
+//   return (void *)((uint64_t)m->ptr + h.offset);
+// }
+
+// alaska_mapping_t *old_translate(void *restrict ptr) {
+//   handle_t h;
+//   h.ptr = ptr;
+//   if (unlikely(h.flag == 0)) {
+//     return NULL;
+//   }
+//   alaska_mapping_t *m = (alaska_mapping_t *)h.handle;
+//   // #ifdef ALASKA_SWAP_SUPPORT
+//   //   if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
+//   // #endif
+//   return (void *)((uint64_t)m->ptr + h.offset);
+// }
+
 ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 #ifdef ALASKA_SIM_MODE
   extern alaska_mapping_t *sim_lookup(void *restrict ptr);
@@ -83,8 +113,7 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 	ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
 
-  // Do some service stuff *before* translating.
-  ALASKA_SERVICE_ON_LOCK(m);
+
 
   handle_t h;
   h.ptr = ptr;
@@ -100,12 +129,22 @@ ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
 
 
   // finally, translate
-  return alaska_translate(ptr, m);
+  void *out = alaska_translate(ptr, m);
+  ALASKA_SERVICE_ON_LOCK(m);
+  return out;
 }
 
 ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
-  // alaska_mapping_t *m = alaska_lookup(ptr);
-  // if (unlikely(m == NULL)) return;
+  alaska_mapping_t *m = alaska_lookup(ptr);
+  if (unlikely(m == NULL)) return;
 
-  // ALASKA_SERVICE_ON_UNLOCK(m);
+  ALASKA_SERVICE_ON_UNLOCK(m);
+}
+
+static int needs_barrier = 0;
+void alaska_time_hook_fire(void) {
+  // printf("checking for barrier!\n");
+  if (needs_barrier) {
+    printf("needs barrier!\n");
+  }
 }
