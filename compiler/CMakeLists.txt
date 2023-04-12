@@ -17,11 +17,19 @@ add_library(AlaskaCompilerLibrary OBJECT
 	lib/noelle/DataFlowAnalysis.cpp
 	lib/noelle/DataFlowEngine.cpp
 	lib/noelle/DataFlowResult.cpp
+
+
+	lib/ct/Configurations.cpp
+	lib/ct/LatencyDFA.cpp
+	lib/ct/LoopTransform.cpp
+	lib/ct/Utils.cpp
+	
 )
 
 
 add_llvm_library(Alaska MODULE
 	passes/Alaska.cpp
+	passes/CompilerTiming.cpp
 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
 
 	PLUGIN_TOOL

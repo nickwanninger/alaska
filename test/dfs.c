@@ -4,6 +4,8 @@
 #include <time.h>
 #include <string.h>
 
+
+volatile int count = 0;
 struct node {
   struct node *left, *right;
   char *data;
@@ -13,21 +15,20 @@ struct node {
 
 struct node *create_tree(int depth) {
   struct node *n = malloc(sizeof(*n));
-
-  // const char *data = "Hello, world. This is a test of a big allocation of string";
-  // n->data = malloc(strlen(data) + 1);
-  // strcpy(n->data, data);
+  const char *data = "Hello, world. This is a test of a big allocation of string";
+  n->data = malloc(strlen(data) + 1);
+  strcpy(n->data, data);
   // n->val = depth;
   n->left = n->right = NULL;
   if (depth > 0) {
     n->right = create_tree(depth - 1);
     n->left = create_tree(depth - 1);
   }
-
   return n;
 }
 
 long num_nodes(struct node *tree) {
+  count++;
   if (tree == NULL) {
     return 0;
   }
@@ -39,6 +40,7 @@ long num_nodes(struct node *tree) {
 
 
 long num_nodes_rev(struct node *tree) {
+  count++;
   if (tree == NULL) {
     return 0;
   }
@@ -85,11 +87,13 @@ int main() {
   // anchorage_manufacture_locality((void *)tree);
   printf("=============== TRAVERSING (Left then Right) ===============\n");
   num_nodes(tree);
+  printf("=============== TRAVERSING (Left then Right) ===============\n");
   num_nodes(tree);
 
   printf("================= BARRIER ================\n");
   alaska_barrier();
   printf("=============== TRAVERSING (Right then Left) ===============\n");
   num_nodes_rev(tree);
+  printf("=============== TRAVERSING (Right then Left) ===============\n");
   num_nodes_rev(tree);
 }

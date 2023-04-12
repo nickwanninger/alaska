@@ -29,14 +29,14 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
-
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "noelle/core/DataFlow.hpp"
 #include "noelle/core/MetadataManager.hpp"
 
 #include <optional>
 #include <WrappedFunctions.h>
-
+#include <ct/Pass.hpp>
 
 
 class ProgressPass : public PassInfoMixin<ProgressPass> {
@@ -575,6 +575,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 }
 
                 MPM.addPass(AlaskaTranslatePass());
+                // MPM.addPass(CompilerTimingPass());
+                MPM.addPass(adapt(PromotePass()));
 
 #ifdef ALASKA_ESCAPE_PASS
                 if (!alaska::bootstrapping()) {
@@ -588,7 +590,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 // MPM.addPass(LockRemoverPass());
                 // MPM.addPass(RedundantArgumentLockElisionPass());
                 MPM.addPass(LockTrackerPass());
-
 
                 if (alaska::bootstrapping()) {
                   // Use the bootstrap bitcode if we are bootstrapping
