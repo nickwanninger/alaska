@@ -22,12 +22,16 @@ namespace anchorage {
    */
   struct Block {
    public:
-    void clear(void);                    // Initialize the block
-    static auto get(void *) -> Block *;  // get a block given it's data
+    // Initialize the block with default state
+    void clear(void);
+    // Get a block, given a pointer to it's data
+    static auto get(void *) -> Block *;
 
     auto size(void) const -> size_t;          // how many bytes is this block?
     auto data(void) const -> void *;          // the bytes of this block.
-    auto coalesce_free(Chunk &chunk) -> int;  // Perform free-block coalescing
+    // Perform free-block coalescing. That is, merge free blocks to the left and right
+    // of this block into a single block.
+    auto coalesce_free(Chunk &chunk) -> int;
 
     bool is_free(void) const;  // Is this block free?
     bool is_used(void) const;  // Is this block used?

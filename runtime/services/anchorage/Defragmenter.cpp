@@ -213,7 +213,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 
     if (changes != old_changes) {
       // chunk.dump(cur);
-      chunk.dump(cur, "Defrag");
+      // chunk.dump(cur, "Defrag");
     }
     cur = cur->next();
   }

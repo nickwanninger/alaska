@@ -16,8 +16,11 @@
 #include <alaska/internal.h>
 #include <map>
 #include <string.h>
+#include <mutex>
 
-std::map<alaska::Mapping *, std::pair<void *, size_t>> swapped_out;
+static uint64_t next_swapid = 0;
+std::mutex swap_mutex;
+std::map<uint64_t, std::pair<void *, size_t>> swapped_out;
 
 extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
   anchorage::swap_in(*m);
@@ -25,11 +28,11 @@ extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
 
 
 void anchorage::swap_in(alaska::Mapping &m) {
+  std::lock_guard<std::mutex> l(swap_mutex);
   // printf("swap in %p\n", &m);
-  // printf("  ptr=%p\n", m.ptr);
   // printf("  swap.id=%zu\n", m.swap.id);
 
-  auto f = swapped_out.find(&m);
+  auto f = swapped_out.find(m.swap.id);
   if (f == swapped_out.end()) {
     fprintf(stderr, "Attempt to swap in handle that wasn't swapped out.\n");
     abort();
@@ -44,17 +47,21 @@ void anchorage::swap_in(alaska::Mapping &m) {
 
 
 void anchorage::swap_out(alaska::Mapping &m) {
+  std::lock_guard<std::mutex> l(swap_mutex);
+
   void *original_ptr = m.ptr;
   // copy the data elsewhere.
   void *new_ptr = ::malloc(m.size);
   memcpy(new_ptr, original_ptr, m.size);
 
-  swapped_out[&m] = std::make_pair(new_ptr, m.size);
+
+  auto id = next_swapid++;
+  swapped_out[id] = std::make_pair(new_ptr, m.size);
 
   // free the backing memory for this handle
   anchorage::free(m, original_ptr);
   // printf("swap out %p to %p\n", &m, new_ptr);
-  // m.swap.id = 42;
+  m.swap.id = id;
 }
 
 anchorage::MMAPSwapDevice::~MMAPSwapDevice() {
