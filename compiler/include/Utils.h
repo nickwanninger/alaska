@@ -16,9 +16,8 @@ namespace alaska {
 
   void dumpBacktrace(void);
 
-
-  void runReplacementPass(llvm::Module &M);
-	bool bootstrapping(void); // are we bootstrapping?
+  // void runReplacementPass(llvm::Module &M);
+  bool bootstrapping(void);  // are we bootstrapping?
 
 
   inline void fprint(llvm::raw_ostream &out) {}

@@ -5,7 +5,8 @@ include_directories(
 )
 install(DIRECTORY ldscripts DESTINATION share/alaska)
 
-add_library(AlaskaCompilerLibrary OBJECT 
+
+add_llvm_library(Alaska MODULE
 	lib/Graph.cpp
 	lib/Utils.cpp
 	lib/LockForest.cpp
@@ -23,51 +24,23 @@ add_library(AlaskaCompilerLibrary OBJECT
 	lib/ct/LatencyDFA.cpp
 	lib/ct/LoopTransform.cpp
 	lib/ct/Utils.cpp
-	
-)
 
 
-add_llvm_library(Alaska MODULE
 	passes/Alaska.cpp
 	passes/CompilerTiming.cpp
-	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
+
+	passes/LockTracker.cpp
+	passes/LockPrinter.cpp
+	passes/RedundantArgumentLockElision.cpp
+	passes/Normalize.cpp
+	passes/Escape.cpp
+	passes/Translate.cpp
+	passes/Replacement.cpp
+	passes/LinkLibrary.cpp
 
 	PLUGIN_TOOL
 	opt
 )
-# add_llvm_library(Alaska MODULE
-# 	passes/TranslatePass.cpp
-# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-#
-# 	PLUGIN_TOOL
-# 	opt
-# )
-#
-# add_llvm_library(AlaskaNormalize MODULE
-# 	passes/NormalizePass.cpp
-# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-#
-# 	PLUGIN_TOOL
-# 	opt
-# )
-#
-#
-# add_llvm_library(AlaskaReplacement MODULE
-# 	passes/ReplacementPass.cpp
-# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-#
-# 	PLUGIN_TOOL
-# 	opt
-# )
-#
-# add_llvm_library(AlaskaEscapeHandler MODULE
-# 	passes/EscapeHandlerPass.cpp
-# 	$<TARGET_OBJECTS:AlaskaCompilerLibrary>
-#
-# 	PLUGIN_TOOL
-# 	opt
-# )
-
 
 add_subdirectory(bin)
 
