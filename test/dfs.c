@@ -1,20 +1,21 @@
 #include <alaska.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 
 
-volatile int count = 0;
+volatile int g_count = 0;
 struct node {
   struct node *left, *right;
   char *data;
-  // int val;
 };
 
 
 struct node *create_tree(int depth) {
   struct node *n = malloc(sizeof(*n));
+  // struct node *n = malloc(512);
   const char *data = "Hello, world. This is a test of a big allocation of string";
   n->data = malloc(strlen(data) + 1);
   strcpy(n->data, data);
@@ -28,7 +29,7 @@ struct node *create_tree(int depth) {
 }
 
 long num_nodes(struct node *tree) {
-  count++;
+  g_count++;
   if (tree == NULL) {
     return 0;
   }
@@ -40,7 +41,7 @@ long num_nodes(struct node *tree) {
 
 
 long num_nodes_rev(struct node *tree) {
-  count++;
+  g_count++;
   if (tree == NULL) {
     return 0;
   }
@@ -73,27 +74,48 @@ void free_lefts(struct node *tree) {
 }
 
 
+void test(long (*func)(struct node *tree), struct node *tree) {
+  uint64_t start;
+  // alaska_barrier();
+  start = alaska_timestamp();
+  func(tree);
+  printf("%f\n", (alaska_timestamp() - start) / 1000.0 / 1000.0 / 1000.0);
+}
+
 int main() {
   srand((unsigned)time(NULL));
 
   printf("=============== ALLOCATING ===============\n");
-  struct node *tree = create_tree(3);
+  struct node *tree = create_tree(20);
   printf("=============== TRAVERSING ===============\n");
   num_nodes(tree);
 
-  printf("================= BARRIER ================\n");
+
+  long trials = 10;
+  printf("Before barrier:\n");
+  for (int i = 0; i < trials; i++) {
+    test(num_nodes_rev, tree);
+  }
+  long start = alaska_timestamp();
   alaska_barrier();
+  long end = alaska_timestamp();
+  printf("barrier took %fs\n", (end - start) / 1000.0 / 1000.0 / 1000.0);
+
+
+  // printf("After barrier:\n");
+  for (int i = 0; i < trials; i++) {
+    test(num_nodes_rev, tree);
+  }
+
   // printf("=============== MANUFACTURING LOCALITY ===============\n");
   // anchorage_manufacture_locality((void *)tree);
-  printf("=============== TRAVERSING (Left then Right) ===============\n");
-  num_nodes(tree);
-  printf("=============== TRAVERSING (Left then Right) ===============\n");
-  num_nodes(tree);
 
-  printf("================= BARRIER ================\n");
-  alaska_barrier();
-  printf("=============== TRAVERSING (Right then Left) ===============\n");
-  num_nodes_rev(tree);
-  printf("=============== TRAVERSING (Right then Left) ===============\n");
-  num_nodes_rev(tree);
+  // printf("=============== TRAVERSING (Right then Left) ===============\n");
+  // start = alaska_timestamp();
+  // num_nodes_rev(tree);
+  // printf("%lu\n", alaska_timestamp() - start);
+  // printf("=============== TRAVERSING (Right then Left) ===============\n");
+  // start = alaska_timestamp();
+  // num_nodes_rev(tree);
+  // printf("%lu\n", alaska_timestamp() - start);
 }
