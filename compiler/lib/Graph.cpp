@@ -18,8 +18,14 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
 
   void visitCastInst(llvm::CastInst &I) {
     node.type = alaska::Transient;
+
+    if (auto p2i = dyn_cast<IntToPtrInst>(&I)) {
+      node.type = alaska::Source;
+      node.colors.insert(node.id);
+    }
     //
   }
+
 
 
   void visitAlloca(llvm::AllocaInst &I) {
