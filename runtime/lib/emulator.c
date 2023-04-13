@@ -22,8 +22,8 @@
 // TODO: Just hacking on this on arm for now, so it doesn't work on x86
 
 #define sigsegv_outp(x, ...) fprintf(stderr, x "\n", ##__VA_ARGS__)
-extern void* alaska_lock(void* ptr);
-extern void alaska_unlock(void* ptr);
+extern void* alaska_get(void* ptr);
+extern void alaska_put(void* ptr);
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
 static inline char byte_size_human(unsigned size) {
@@ -42,7 +42,7 @@ static inline char byte_size_human(unsigned size) {
 #endif
 
 static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
-  void* ptr = alaska_lock(addr);
+  void* ptr = alaska_get(addr);
   uint64_t val = 0;
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
   if (addr != ptr) {
@@ -72,12 +72,12 @@ static inline uint64_t alaska_emulate_load(void* addr, size_t size) {
   }
 #endif
 
-  alaska_unlock(addr);
+  alaska_put(addr);
   return val;
 }
 
 static inline void alaska_emulate_store(void* addr, uint64_t val, size_t size) {
-  void* ptr = alaska_lock(addr);
+  void* ptr = alaska_get(addr);
 
 #ifdef ALASKA_CORRECTNESS_EMULATOR_LOGGING
   if (addr != ptr) {
@@ -99,7 +99,7 @@ static inline void alaska_emulate_store(void* addr, uint64_t val, size_t size) {
       break;
   }
 
-  alaska_unlock(addr);
+  alaska_put(addr);
 }
 
 void uc_err_check(const char* name, uc_err err) {

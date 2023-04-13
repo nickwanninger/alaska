@@ -174,7 +174,7 @@ void hfree_trace(void *ptr) {
 
 
 
-void *alaska_lock_trace(void *restrict ptr) {
+void *alaska_get_trace(void *restrict ptr) {
   alloc_t *a = trace_find((uint64_t)ptr);
   if (a != NULL) {
     struct alaska_trace_lock t;
@@ -186,7 +186,7 @@ void *alaska_lock_trace(void *restrict ptr) {
   return ptr;
 }
 
-void alaska_unlock_trace(void *restrict ptr) {
+void alaska_put_trace(void *restrict ptr) {
   alloc_t *a = trace_find((uint64_t)ptr);
   if (a != NULL) {
     struct alaska_trace_unlock t;

@@ -90,8 +90,8 @@ typedef struct {
 } alaska_mapping_t;
 
 // src/lock.c
-void *alaska_lock(void *ptr);
-void alaska_unlock(void *ptr);
+void *alaska_get(void *ptr);
+void alaska_put(void *ptr);
 
 // Ensure a handle is present.
 void alaska_ensure_present(alaska_mapping_t *m);

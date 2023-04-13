@@ -8,7 +8,7 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
-#define __ALASKA_LOCK_INLINE
+#define __alaska_get_INLINE
 
 #include <assert.h>
 #include <errno.h>
@@ -40,13 +40,13 @@
 
 
 // This is the interface for services. It may seem like a hack, but it
-// helps implementation and performance (inline stuff in alaska_lock in lock.c)
-#ifndef ALASKA_SERVICE_ON_LOCK
-#define ALASKA_SERVICE_ON_LOCK(mapping)  // ... nothing ...
+// helps implementation and performance (inline stuff in alaska_get in lock.c)
+#ifndef ALASKA_SERVICE_ON_GET
+#define ALASKA_SERVICE_ON_GET(mapping)  // ... nothing ...
 #endif
 
-#ifndef ALASKA_SERVICE_ON_UNLOCK
-#define ALASKA_SERVICE_ON_UNLOCK(mapping)  // ... nothing ...
+#ifndef ALASKA_SERVICE_ON_PUT
+#define ALASKA_SERVICE_ON_PUT(mapping)  // ... nothing ...
 #endif
 
 /**
@@ -123,22 +123,22 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
 
 
 
-ALASKA_INLINE void *alaska_lock(void *restrict ptr) {
+ALASKA_INLINE void *alaska_get(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return ptr;
 
 
   // finally, translate
   void *out = alaska_translate(ptr, m);
-  ALASKA_SERVICE_ON_LOCK(m);
+  ALASKA_SERVICE_ON_GET(m);
   return out;
 }
 
-ALASKA_INLINE void alaska_unlock(void *restrict ptr) {
+ALASKA_INLINE void alaska_put(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
 
-  ALASKA_SERVICE_ON_UNLOCK(m);
+  ALASKA_SERVICE_ON_PUT(m);
 }
 
 static int needs_barrier = 0;

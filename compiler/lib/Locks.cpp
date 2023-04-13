@@ -143,9 +143,9 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
   auto &M = *F.getParent();
 
   // find the lock function
-  auto *lockFunction = M.getFunction("alaska_lock");
-  auto *unlockFunction = M.getFunction("alaska_unlock");
-  if (lockFunction == NULL) {
+  auto *getFunction = M.getFunction("alaska_get");
+  auto *putFunction = M.getFunction("alaska_put");
+  if (getFunction == NULL) {
     // if it doesn't exist, there aren't any locks so early return
     return {};
   }
@@ -153,10 +153,10 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
   std::vector<std::unique_ptr<alaska::Lock>> locks;
 
   // Find all users of lock that are in this function
-  for (auto user : lockFunction->users()) {
+  for (auto user : getFunction->users()) {
     if (auto inst = dyn_cast<CallInst>(user)) {
       if (inst->getFunction() == &F) {
-        if (inst->getCalledFunction() == lockFunction) {
+        if (inst->getCalledFunction() == getFunction) {
           auto l = std::make_unique<alaska::Lock>();
           l->lock = inst;
           locks.push_back(std::move(l));
@@ -166,11 +166,11 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
   }
 
   // associate unlocks
-  if (unlockFunction != NULL) {
-    for (auto user : unlockFunction->users()) {
+  if (putFunction != NULL) {
+    for (auto user : putFunction->users()) {
       if (auto inst = dyn_cast<CallInst>(user)) {
         if (inst->getFunction() == &F) {
-          if (inst->getCalledFunction() == unlockFunction) {
+          if (inst->getCalledFunction() == putFunction) {
             for (auto &lk : locks) {
               if (lk->getHandle() == inst->getOperand(0)) {
                 lk->unlocks.insert(inst);
@@ -203,7 +203,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<std::unique_ptr<
 void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> &locks) {
   // mapping from instructions to the lock they use.
   std::map<llvm::Instruction *, std::set<alaska::Lock *>> inst_to_lock;
-  // map from the call to alaska_lock to the lock structure it belongs to.
+  // map from the call to alaska_get to the lock structure it belongs to.
   std::map<llvm::Instruction *, alaska::Lock *> lock_inst_to_lock;
 
   for (auto &lock : locks) {
@@ -220,7 +220,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   auto get_lock_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_lock") {
+      if (func && func->getName() == "alaska_get") {
         return call->getArgOperandUse(0);
       }
     }
@@ -231,7 +231,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   auto get_unlock_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_unlock") {
+      if (func && func->getName() == "alaska_put") {
         return call->getArgOperandUse(0);
       }
     }
@@ -491,7 +491,7 @@ static std::string random_background_color() {
 
     void visitCallInst(llvm::CallInst &I) {
       // TODO: skip lock calls
-      auto lock = I.getFunction()->getParent()->getFunction("alaska_lock");
+      auto lock = I.getFunction()->getParent()->getFunction("alaska_get");
       if (lock != NULL && I.getCalledFunction() == lock) {
         return;
       }

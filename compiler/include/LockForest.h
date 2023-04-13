@@ -15,7 +15,7 @@ namespace alaska {
    * LockBounds
    *
    * The result of a lock forest analysis is the locations
-   * where to place calls to alaska_lock and alaska_unlock.
+   * where to place calls to alaska_get and alaska_put.
    */
   struct LockBounds {
     unsigned id;
@@ -73,7 +73,7 @@ namespace alaska {
 
 
     // Nodes in the flow forest are assigned a lock location, which after analysis is completed
-    // determine the location of alaska_lock and alaska_unlock calls. They are simply a mapping
+    // determine the location of alaska_get and alaska_put calls. They are simply a mapping
     // from
     std::map<unsigned, std::unique_ptr<LockBounds>> locks;
 
