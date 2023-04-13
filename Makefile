@@ -15,18 +15,10 @@ BUILD=build
 
 BUILD_REQ=$(BUILD)/Makefile
 
-ifdef ALASKA_USE_NINJA
-BUILD_REQ=$(BUILD)/build.ninja
-endif
-
 $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-
-$(BUILD)/build.ninja:
-	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake ../ -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
 alaska: .config local/bin/clang $(BUILD_REQ)
 	@cd $(BUILD) && cmake --build . --target install --config Debug

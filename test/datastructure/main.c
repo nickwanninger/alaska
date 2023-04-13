@@ -32,16 +32,14 @@ void run(void *state, void (*insert)(void *, long), long *(*lookup)(void *, long
       continue;
     }
 
-
     if (sscanf(buf, "lookup %ld\n", &value) == 1) {
       if (!has_looked_up) {
-        // anchorage_manufacture_locality(state);
         alaska_barrier();
       }
       has_looked_up = 1;
       printf("lookup %ld\n", value);
       long *found = lookup(state, value);
-      printf("found = %p\n", found);
+      (void)found;
       continue;
     }
   }

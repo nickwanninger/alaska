@@ -134,8 +134,6 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
   anchorage::Block *cur = chunk.front;
   while (cur != NULL && cur != chunk.tos) {
     int old_changes = changes;
-    // chunk.dump(cur);
-
     if (cur->is_free()) {
       // if this block is unallocated, coalesce all `next` free blocks,
       // and move allocated blocks forward if you can.
@@ -210,10 +208,10 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
       }
     }
 
-
     if (changes != old_changes) {
-      // chunk.dump(cur);
-      // chunk.dump(cur, "Defrag");
+#ifdef ALASKA_ANCHORAGE_PRINT_HEAP
+      chunk.dump(cur, "Defrag");
+#endif
     }
     cur = cur->next();
   }
@@ -238,13 +236,19 @@ int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &c
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
+#ifdef ALASKA_ANCHORAGE_PRINT_HEAP
+    chunk->dump(nullptr, "Pre-barrier");
+#endif
+
     // chunk->dump(nullptr, "Before S/O");
     for (auto &block : *chunk) {
       if (block.is_free()) continue;
       if (block.is_locked()) continue;
       auto *handle = block.handle();
       ALASKA_SANITY(handle != nullptr, "Non-free block doesn't have a handle!");
-
+#ifdef ALASKA_ANCHORAGE_PRINT_HEAP
+      chunk->dump(&block, "Swap Out");
+#endif
       anchorage::swap_out(*handle);
     }
     // chunk->dump(nullptr, "After S/O");
