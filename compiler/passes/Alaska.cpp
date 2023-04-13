@@ -41,13 +41,16 @@
 
 class ProgressPass : public PassInfoMixin<ProgressPass> {
  public:
-  const char *message;
-  ProgressPass(const char *message) : message(message) {
+  ProgressPass(const char *message)
+      : message(message) {
   }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     printf("message: %s\n", message);
     return PreservedAnalyses::all();
   }
+
+ private:
+  const char *message;
 };
 
 class LockPrinterPass : public PassInfoMixin<LockPrinterPass> {
@@ -496,7 +499,8 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
   GlobalValue::LinkageTypes linkage;
 
   AlaskaLinkLibraryPass(const char *lib_path, GlobalValue::LinkageTypes linkage = GlobalValue::WeakAnyLinkage)
-      : lib_path(lib_path), linkage(linkage) {
+      : lib_path(lib_path)
+      , linkage(linkage) {
   }
   void prepareLibrary(Module &M) {
     for (auto &G : M.globals())
@@ -526,7 +530,8 @@ class AlaskaLinkLibraryPass : public PassInfoMixin<AlaskaLinkLibraryPass> {
 class AlaskaReoptimizePass : public PassInfoMixin<AlaskaReoptimizePass> {
  public:
   OptimizationLevel optLevel;
-  AlaskaReoptimizePass(OptimizationLevel optLevel) : optLevel(optLevel) {
+  AlaskaReoptimizePass(OptimizationLevel optLevel)
+      : optLevel(optLevel) {
   }
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
     // Create the analysis managers.
@@ -563,7 +568,6 @@ auto adapt(T &&fp) {
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
-    
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
 
