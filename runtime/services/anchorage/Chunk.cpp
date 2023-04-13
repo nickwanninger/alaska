@@ -89,7 +89,8 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
-  printf("%-10s ", message);
+  // return;
+  printf("%p | %-10s ", this, message);
   // uint64_t free_bytes = 0;
   for (auto &block : *this) {
     // if (block.is_free()) {
