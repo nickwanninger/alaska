@@ -148,6 +148,9 @@ local/lib/libc.o: libc/build/lib/libc.a
 libc: libc/build/Makefile
 
 
+build/dst: test/datastructure/main.c # test/datastructure/rbtree.c test/datastructure/splay-tree.c
+	alaska -O3 $^ -o $@
+
 # musl:
 # 	git clone git://git.musl-libc.org/musl --depth 1 musl
 #
