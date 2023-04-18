@@ -5,37 +5,19 @@
 #include <ct/Pass.hpp>
 #include <Passes.h>
 
+// LLVM includes
+#include <llvm/Pass.h>
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/PassPlugin.h>
+#include <llvm/Transforms/Utils/Mem2Reg.h>
+
+// Noelle Includes
+#include <noelle/core/DataFlow.hpp>
+#include <noelle/core/MetadataManager.hpp>
+
 // C++ includes
 #include <cassert>
 #include <set>
-
-// LLVM includes
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Operator.h"
-#include "llvm/IR/InstVisitor.h"
-#include "llvm/Pass.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Passes/PassPlugin.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/PostDominators.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/Transforms/Utils/LowerInvoke.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/IPO/Inliner.h"
-#include "llvm/Transforms/IPO/GlobalDCE.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
-#include "llvm/Analysis/CallGraph.h"
-#include "llvm/Transforms/Utils/EscapeEnumerator.h"
-#include "llvm/Transforms/Utils/Mem2Reg.h"
-
-#include "noelle/core/DataFlow.hpp"
-#include "noelle/core/MetadataManager.hpp"
-
 #include <optional>
 
 
@@ -61,7 +43,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 }
 
                 MPM.addPass(AlaskaTranslatePass());
-                // MPM.addPass(CompilerTimingPass());
+#ifdef ALASKA_COMPILER_TIMING
+                MPM.addPass(CompilerTimingPass());
+#endif
                 MPM.addPass(adapt(PromotePass()));
 
 #ifdef ALASKA_ESCAPE_PASS
@@ -73,7 +57,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                 MPM.addPass(LockPrinterPass());
 #endif
 
-                // MPM.addPass(LockRemoverPass());
                 // MPM.addPass(RedundantArgumentLockElisionPass());
                 MPM.addPass(LockTrackerPass());
 
@@ -81,8 +64,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                   // Use the bootstrap bitcode if we are bootstrapping
                   MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc"));
                 } else {
-                  // Link the library otherwise (just runtime/src/lock.c)
-                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_lock.bc"));
+                  // Link the library otherwise (just runtime/src/translate.c)
+                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
                 }
               }
 
