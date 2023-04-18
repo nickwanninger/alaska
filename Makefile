@@ -144,32 +144,6 @@ libc: libc/build/Makefile
 build/dst: test/datastructure/main.c # test/datastructure/rbtree.c test/datastructure/splay-tree.c
 	alaska -O3 $^ -o $@
 
-# musl:
-# 	git clone git://git.musl-libc.org/musl --depth 1 musl
-#
-# musl/lib/libc.a: musl
-# 	cd musl && CC=gclang ./configure --prefix=$(PWD)/local/sysroot --syslibdir=$(PWD)/local/sysroot/lib
-# 	CC=gclang $(MAKE) -C musl install
-#
-# musl/lib/lib%.a.bc: musl/lib/libc.a # everyone relies on libc.a, as we build all of them at the same time
-# 	get-bc -b musl/lib/lib$*.a 2>/dev/null # ignore the warnings for asm files
-#
-# build/lib%.bc: musl/lib/lib%.a.bc
-# 	@echo " TX lib$*"
-# 	@cp musl/lib/lib$*.a.bc build/lib$*.bc
-# 	@alaska-transform build/lib$*.bc
-# 	@llvm-dis build/lib$*.bc
-#
-# # code to build libc with alaska :)
-# local/sysroot/lib/lib%.o: alaska build/lib%.bc
-# 	@echo " CC lib$*"
-# 	@clang -O3 -c -o build/lib$*.o build/lib$*.bc
-# 	@cp build/lib$*.o local/lib/
-# 	@cp musl/lib/lib$*.a local/lib/
-# libc: local/sysroot/lib/libc.o
-
-
-
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
