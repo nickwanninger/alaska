@@ -21,6 +21,7 @@ $(BUILD)/Makefile:
 
 
 alaska: .config local/bin/clang $(BUILD_REQ)
+	echo $(PATH)
 	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
 
@@ -169,3 +170,6 @@ build/dst: test/datastructure/main.c # test/datastructure/rbtree.c test/datastru
 
 
 
+docker:
+	docker build -t alaska .
+	docker run -it --rm alaska bash
