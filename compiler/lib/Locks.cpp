@@ -143,8 +143,8 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::extractLocks(llvm::Function &
   auto &M = *F.getParent();
 
   // find the lock function
-  auto *getFunction = M.getFunction("alaska_get");
-  auto *putFunction = M.getFunction("alaska_put");
+  auto *getFunction = M.getFunction("alaska_translate");
+  auto *putFunction = M.getFunction("alaska_release");
   if (getFunction == NULL) {
     // if it doesn't exist, there aren't any locks so early return
     return {};
@@ -203,7 +203,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<std::unique_ptr<
 void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> &locks) {
   // mapping from instructions to the lock they use.
   std::map<llvm::Instruction *, std::set<alaska::Lock *>> inst_to_lock;
-  // map from the call to alaska_get to the lock structure it belongs to.
+  // map from the call to alaska_translate to the lock structure it belongs to.
   std::map<llvm::Instruction *, alaska::Lock *> lock_inst_to_lock;
 
   for (auto &lock : locks) {
@@ -220,7 +220,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   auto get_lock_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_get") {
+      if (func && func->getName() == "alaska_translate") {
         return call->getArgOperandUse(0);
       }
     }
@@ -231,7 +231,7 @@ void alaska::computeLockLiveness(llvm::Function &F, std::vector<alaska::Lock *> 
   auto get_unlock_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_put") {
+      if (func && func->getName() == "alaska_release") {
         return call->getArgOperandUse(0);
       }
     }
@@ -491,7 +491,7 @@ static std::string random_background_color() {
 
     void visitCallInst(llvm::CallInst &I) {
       // TODO: skip lock calls
-      auto lock = I.getFunction()->getParent()->getFunction("alaska_get");
+      auto lock = I.getFunction()->getParent()->getFunction("alaska_translate");
       if (lock != NULL && I.getCalledFunction() == lock) {
         return;
       }

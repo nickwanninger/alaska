@@ -78,6 +78,11 @@ config CORRECTNESS_EMULATOR
 	bool "Enable the correctness emulator"
 	default n
 
+
+config COMPILER_TIMING
+	bool "Enable compiler timing for joining remote barriers"
+	default n
+
 config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
 	depends on CORRECTNESS_EMULATOR

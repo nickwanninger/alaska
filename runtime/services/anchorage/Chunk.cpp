@@ -46,7 +46,8 @@ auto anchorage::Chunk::contains(void *ptr) -> bool {
   return ptr >= front && ptr < tos;
 }
 
-anchorage::Chunk::Chunk(size_t pages) : pages(pages) {
+anchorage::Chunk::Chunk(size_t pages)
+    : pages(pages) {
   tos = front =
       (Block *)mmap(NULL, anchorage::page_size * pages, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   tos->set_next(nullptr);
@@ -90,7 +91,7 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
   // return;
-  printf("%p | %-10s ", this, message);
+  printf("%-10s ", message);
   // uint64_t free_bytes = 0;
   for (auto &block : *this) {
     // if (block.is_free()) {
@@ -152,11 +153,26 @@ void anchorage::allocator_deinit(void) {
   //     anchorage::moved_bytes);
 }
 
+
+static long last_accessed = 0;
 extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
   alaska_barrier_begin();
+
+  long just_accessed = (long)m->ptr;
+  if (last_accessed == 0) last_accessed = just_accessed;
+  long stride = just_accessed - last_accessed;
+  last_accessed = just_accessed;
+
   auto *c = anchorage::Chunk::get(m->ptr);
-  if (c != NULL) {
+  if (c != NULL && stride != 0) {
     auto b = anchorage::Block::get(m->ptr);
+
+		// printf("stride: ");
+    if (stride < 0)
+      printf("\e[31m");
+    else
+      printf("\e[32m");
+    printf("%6ld\e[0m | ", stride);
     c->dump(b, "access");
     // c->dump(NULL, "use");
   }

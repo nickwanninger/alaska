@@ -8,6 +8,7 @@ PreservedAnalyses LockPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
   std::set<std::string> focus_on;
   std::string focus;
 
+
 #ifdef ALASKA_DUMP_LOCKS_FOCUS
   focus = ALASKA_DUMP_LOCKS_FOCUS;
 #endif

@@ -124,9 +124,9 @@ void trace_free(struct alaska_trace_free *op) {
 void trace_lock(struct alaska_trace_lock *op) {
   alloc_t *a = trace_find(op->ptr);
   if (a == NULL) return;
-  void *ptr = alaska_get(a->handle);
+  void *ptr = alaska_translate(a->handle);
   (void)ptr;
-  //   uint8_t cls = alaska_get_classification(a->handle);
+  //   uint8_t cls = alaska_translate_classification(a->handle);
   //   const char *cls_string = "lock_UNDEFINED";
   //
   //   switch (cls) {
@@ -144,7 +144,7 @@ void trace_lock(struct alaska_trace_lock *op) {
 void trace_unlock(struct alaska_trace_unlock *op) {
   alloc_t *a = trace_find(op->ptr);
   if (a == NULL) return;
-  alaska_put(a->handle);
+  alaska_release(a->handle);
 }
 
 

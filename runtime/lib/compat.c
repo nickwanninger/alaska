@@ -20,14 +20,14 @@
 // This function exists to lock on extern escapes.
 // TODO: determine if we should lock it forever or not...
 static uint64_t escape_locks = 0;
-static void *alaska_get_for_escape(const void *ptr) {
+static void *alaska_translate_for_escape(const void *ptr) {
   handle_t h;
   h.ptr = (void *)ptr;
   if (likely(h.flag != 0)) {
     atomic_inc(escape_locks, 1);
     // escape_locks++;
     // its easier to do this than to duplicate efforts and inline.
-    void *t = alaska_get((void *)ptr);
+    void *t = alaska_translate((void *)ptr);
 
     return t;
   }
@@ -35,7 +35,7 @@ static void *alaska_get_for_escape(const void *ptr) {
 }
 
 int alaska_wrapped_puts(const char *s) {
-  return puts(alaska_get_for_escape(s));
+  return puts(alaska_translate_for_escape(s));
 }
 
 
@@ -89,7 +89,7 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
 //   extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 
 
-// // #define alaska_get(l) l
+// // #define alaska_translate(l) l
 // // #define
 
 // int memcmp(const void *vl, const void *vr, size_t n) {

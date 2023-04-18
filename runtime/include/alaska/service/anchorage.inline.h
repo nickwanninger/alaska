@@ -8,16 +8,16 @@ extern uint64_t next_last_access_time;
 
 extern void anchorage_chunk_dump_usage(alaska_mapping_t *);
 
-ALASKA_INLINE void anchorage_on_get(alaska_mapping_t *m) {
+ALASKA_INLINE void anchorage_on_lock(alaska_mapping_t *m) {
 #ifdef ALASKA_ANCHORAGE_PRINT_ACCESS
   anchorage_chunk_dump_usage(m);
 #endif
   // m->anchorage.last_access_time = next_last_access_time++;
 }
 
-ALASKA_INLINE void anchorage_on_put(alaska_mapping_t *m) {
+ALASKA_INLINE void anchorage_on_unlock(alaska_mapping_t *m) {
   // Nothing.
 }
 
-#define ALASKA_SERVICE_ON_GET(m) anchorage_on_get(m)
-#define ALASKA_SERVICE_ON_PUT(m) anchorage_on_put(m)
+#define ALASKA_SERVICE_ON_LOCK(m) anchorage_on_lock(m)
+#define ALASKA_SERVICE_ON_UNLOCK(m) anchorage_on_unlock(m)

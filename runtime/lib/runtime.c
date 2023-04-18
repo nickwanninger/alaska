@@ -116,7 +116,7 @@ void alaska_dump_backtrace(void) {
 }
 
 
-long alaska_get_rss_kb() {
+long alaska_translate_rss_kb() {
 #if defined(__linux__)
 #define bufLen 4096
   char buf[bufLen] = {0};

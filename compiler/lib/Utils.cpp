@@ -97,9 +97,9 @@ llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
   auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-  std::string name = "alaska_get";
+  std::string name = "alaska_translate";
   if (is_tracing()) name += "_trace";
-  if (bootstrapping()) name = "alaska_get_bootstrap";
+  if (bootstrapping()) name = "alaska_translate_bootstrap";
   auto lockFunction = M.getOrInsertFunction(name, lockFunctionType).getCallee();
 
   IRBuilder<> b(inst);
@@ -122,9 +122,9 @@ llvm::Instruction *alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Val
   auto ptrType = PointerType::get(ctx, 0);
   auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
 
-  std::string name = "alaska_put";
+  std::string name = "alaska_release";
   if (is_tracing()) name += "_trace";
-  if (bootstrapping()) name = "alaska_put_bootstrap";
+  if (bootstrapping()) name = "alaska_release_bootstrap";
   auto func = M.getOrInsertFunction(name, ftype).getCallee();
 
   IRBuilder<> b(inst);

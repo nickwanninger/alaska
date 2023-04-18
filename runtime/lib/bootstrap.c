@@ -12,7 +12,7 @@
 #include <alaska/internal.h>
 
 
-ALASKA_INLINE void *alaska_get_bootstrap(void *restrict ptr) {
+ALASKA_INLINE void *alaska_translate_bootstrap(void *restrict ptr) {
   handle_t h;
   h.ptr = ptr;
   if (unlikely(h.flag == 0)) {
@@ -23,6 +23,6 @@ ALASKA_INLINE void *alaska_get_bootstrap(void *restrict ptr) {
   return (void *)((uint64_t)m->ptr + h.offset);
 }
 
-ALASKA_INLINE void alaska_put_bootstrap(void *restrict ptr) {
+ALASKA_INLINE void alaska_release_bootstrap(void *restrict ptr) {
   // intentially a no-op
 }

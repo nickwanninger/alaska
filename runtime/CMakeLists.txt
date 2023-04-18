@@ -23,7 +23,7 @@ set(SRC_FILES
 	# The core of the runtime
 	lib/runtime.c
 	lib/table.c
-	lib/lock.c
+	lib/translate.c
 	lib/halloc.c
 	lib/barrier.c
 	lib/rbtree.c
@@ -103,12 +103,12 @@ function(add_bitcode name)
 endfunction(add_bitcode)
 
 
-add_bitcode(alaska_lock SOURCES lib/lock.c)
+add_bitcode(alaska_translate SOURCES lib/translate.c)
 add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 
-target_link_libraries(alaska_core alaska_lock_native)
+target_link_libraries(alaska_core alaska_translate_native)
 
 
 

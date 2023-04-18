@@ -45,8 +45,6 @@ void CompilerTimingPass::init(llvm::Module &M) {
     AF->addFnAttr(Attribute::NoInline);
     NoHookFunctionSignatures->push_back(AF->getName().str());
   }
-
-  return;
 }
 
 PreservedAnalyses CompilerTimingPass::run(Module &M, ModuleAnalysisManager &AM) {

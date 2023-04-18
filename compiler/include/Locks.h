@@ -9,8 +9,8 @@
 
 namespace alaska {
 
-  // Lock: an internal representation of an invocation of alaska_get,
-  // all calls to alaska_put, and all users of said lock.
+  // Lock: an internal representation of an invocation of alaska_translate,
+  // all calls to alaska_release, and all users of said lock.
   struct Lock {
     llvm::CallInst *lock;
     std::set<llvm::CallInst *> unlocks;

@@ -8,8 +8,6 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
-#define __alaska_get_INLINE
-
 #include <assert.h>
 #include <errno.h>
 #include <execinfo.h>
@@ -40,13 +38,13 @@
 
 
 // This is the interface for services. It may seem like a hack, but it
-// helps implementation and performance (inline stuff in alaska_get in lock.c)
-#ifndef ALASKA_SERVICE_ON_GET
-#define ALASKA_SERVICE_ON_GET(mapping)  // ... nothing ...
+// helps implementation and performance (inline stuff in alaska_translate in lock.c)
+#ifndef ALASKA_SERVICE_ON_LOCK
+#define ALASKA_SERVICE_ON_LOCK(mapping)  // ... nothing ...
 #endif
 
-#ifndef ALASKA_SERVICE_ON_PUT
-#define ALASKA_SERVICE_ON_PUT(mapping)  // ... nothing ...
+#ifndef ALASKA_SERVICE_ON_UNLOCK
+#define ALASKA_SERVICE_ON_UNLOCK(mapping)  // ... nothing ...
 #endif
 
 /**
@@ -100,45 +98,33 @@ ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 }
 
 
-ALASKA_INLINE void *alaska_translate(void *restrict ptr, alaska_mapping_t *m) {
-#ifdef ALASKA_SIM_MODE
-  extern void *sim_translate(void *restrict ptr);
-  return sim_translate(ptr);
-#else
-
+ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
+  alaska_mapping_t *m = alaska_lookup(ptr);
+  // If the lookup returns null, we aren't dealing with a handle, and we
+  // should just return the pointer without doing anything.
+  if (unlikely(m == NULL)) return ptr;
 
 #ifdef ALASKA_SWAP_SUPPORT
+  // If swap is on, ensure there is a pointer in the handle
   if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
 #endif
 
-	ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
 
+  // make sure there is a pointer mapped to this handle
+  ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
+  ALASKA_SERVICE_ON_LOCK(m);
 
-
+  // finally, translate
   handle_t h;
   h.ptr = ptr;
   return (void *)((uint64_t)m->ptr + h.offset);
-#endif
 }
 
-
-
-ALASKA_INLINE void *alaska_get(void *restrict ptr) {
-  alaska_mapping_t *m = alaska_lookup(ptr);
-  if (unlikely(m == NULL)) return ptr;
-
-
-  // finally, translate
-  void *out = alaska_translate(ptr, m);
-  ALASKA_SERVICE_ON_GET(m);
-  return out;
-}
-
-ALASKA_INLINE void alaska_put(void *restrict ptr) {
+ALASKA_INLINE void alaska_release(void *restrict ptr) {
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (unlikely(m == NULL)) return;
 
-  ALASKA_SERVICE_ON_PUT(m);
+  ALASKA_SERVICE_ON_UNLOCK(m);
 }
 
 static int needs_barrier = 0;

@@ -24,7 +24,7 @@ extern void alaska_barrier(void);
 
 // Helper functions:
 // get the current rss in kb
-extern long alaska_get_rss_kb(void);
+extern long alaska_translate_rss_kb(void);
 // nanoseconds
 extern unsigned long alaska_timestamp(void);
 
