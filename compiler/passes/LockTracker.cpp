@@ -5,6 +5,8 @@
 
 using namespace llvm;
 
+
+
 GetElementPtrInst *CreateGEP(
     LLVMContext &Context, IRBuilder<> &B, Type *Ty, Value *BasePtr, int Idx, const char *Name) {
   Value *Indices[] = {ConstantInt::get(Type::getInt32Ty(Context), 0), ConstantInt::get(Type::getInt32Ty(Context), Idx)};
@@ -49,13 +51,67 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
 
 
   for (auto &F : M) {
+    // Ignore functions with no bodies
     if (F.empty()) continue;
-    auto l = alaska::extractLocks(F);
-    if (l.empty()) continue;
+    // Extract all the locks from the function
+    auto locks = alaska::extractLocks(F);
+    // If the function had no locks, don't do anything
+    if (locks.empty()) continue;
+
+    // Given a lock, which cell does it belong to? (eagerly)
+    std::map<alaska::Lock *, long> lock_cells;
+    // Interference - a mapping from locks to the locks it is alive along side of.
+    std::map<alaska::Lock *, std::set<alaska::Lock *>> interference;
+
+    // Loop over each lock, then over it's live instructions. For each live instruction see
+    // which other locks are live in those instructions. This is horrible and slow. (but works)
+    for (auto &lock : locks) {
+      lock_cells[lock.get()] = -1;
+      // A lock interferes with itself
+      interference[lock.get()].insert(lock.get());
+      for (auto inst : lock->liveInstructions) {
+        for (auto &other : locks) {
+          if (other != lock && other->isLive(inst)) {
+            // interference!
+            interference[lock.get()].insert(other.get());
+            interference[other.get()].insert(lock.get());
+          }
+        }
+      }
+    }
+
+    long cell_count = 0;  // the maximum level of interference
+    for (auto &[_, i] : interference) {
+      if (cell_count < (long)i.size()) cell_count = (long)i.size();
+    }
+
+    fprintf(stderr, "%3ld cells required for %zu locks in %s\n", cell_count, locks.size(), F.getName().data());
+
+    // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
+    // coloring allocation here, as we don't need to worry about register spilling
+    // (we can just make more "registers" instead of spilling)
+    for (auto &[lock, intr] : interference) {
+      long available_cell = -1;
+      std::set<long> unavail;  // which cells are not available?
+      for (auto other : intr) {
+        long cell = lock_cells[other];
+        if (cell != -1) {
+          unavail.insert(cell);
+        }
+      }
+      for (long current_cell = 0; current_cell < cell_count; current_cell++) {
+        if (unavail.count(current_cell) == 0) {
+          available_cell = current_cell;
+          break;
+        }
+      }
+      lock_cells[lock] = available_cell;
+    }
+
     EltTys.clear();
     EltTys.push_back(stackEntryTy);
     // enough spots for each pointerType
-    for (size_t i = 0; i < l.size(); i++) {
+    for (long i = 0; i < cell_count; i++) {
       EltTys.push_back(pointerType);
     }
     auto *concreteStackEntryTy = StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
@@ -67,7 +123,7 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     auto *EntryCountPtr = CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.count");
     // cur->count = N;
-    atEntry.CreateStore(ConstantInt::get(i64Ty, l.size()), EntryCountPtr, true);
+    atEntry.CreateStore(ConstantInt::get(i64Ty, cell_count), EntryCountPtr, true);
     // cur->prev = head;
     auto *CurrentHead = atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "lockStackCurrentHead");
     atEntry.CreateStore(CurrentHead, stackEntry, true);
@@ -75,10 +131,10 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
     atEntry.CreateStore(stackEntry, Head, true);
 
     int ind = 0;
-    for (auto &lock : l) {
+    for (auto &lock : locks) {
       char buf[512];
       snprintf(buf, 512, "lockCell.%d", ind);
-      auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, buf);
+      auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, lock_cells[lock.get()] + 1, buf);
       ind++;
 
       auto handle = lock->getHandle();
