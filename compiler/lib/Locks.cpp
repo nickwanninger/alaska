@@ -109,6 +109,7 @@ void alaska::Lock::remove(void) {
 
 
 bool alaska::Lock::isUser(llvm::Instruction *inst) { return users.find(inst) != users.end(); }
+bool alaska::Lock::isLive(llvm::Instruction *inst) { return liveInstructions.find(inst) != liveInstructions.end(); }
 
 llvm::Value *alaska::Lock::getRootAllocation() {
   llvm::Value *cur = getHandle();

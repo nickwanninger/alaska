@@ -26,6 +26,7 @@ namespace alaska {
 		// Get the function this lock lives in. Return null if `lock == null`
 		llvm::Function *getFunction(void);
     bool isUser(llvm::Instruction *inst);
+    bool isLive(llvm::Instruction *inst);
 
 		// Compute the liveness for this Lock (populate liveInstructions)
 		void computeLiveness(void);
