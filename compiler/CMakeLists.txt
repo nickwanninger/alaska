@@ -31,7 +31,7 @@ add_llvm_library(Alaska MODULE
 
 	passes/LockTracker.cpp
 	passes/LockPrinter.cpp
-	passes/RedundantArgumentLockElision.cpp
+	passes/ArgLockElision.cpp
 	passes/Normalize.cpp
 	passes/Escape.cpp
 	passes/Translate.cpp
