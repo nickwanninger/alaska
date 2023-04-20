@@ -73,34 +73,38 @@ struct Traits<T*> {
   }
 };
 
-template <typename T>
-T&& move(T& arg) {
-  return static_cast<T&&>(arg);
-}
+namespace ck {
+  template <typename T>
+  T&& move(T& arg) {
+    return static_cast<T&&>(arg);
+  }
 
-template <typename T>
-struct Identity {
-  typedef T Type;
-};
+  template <typename T>
+  struct Identity {
+    typedef T Type;
+  };
 
-template <class T>
-constexpr T&& forward(typename Identity<T>::Type& param) {
-  return static_cast<T&&>(param);
-}
+  template <class T>
+  constexpr T&& forward(typename Identity<T>::Type& param) {
+    return static_cast<T&&>(param);
+  }
 
-template <typename T, typename U>
-T exchange(T& a, U&& b) {
-  T tmp = move(a);
-  a = move(b);
-  return tmp;
-}
+  template <typename T, typename U>
+  T exchange(T& a, U&& b) {
+    T tmp = move(a);
+    a = move(b);
+    return tmp;
+  }
 
-template <typename T, typename U>
-void swap(T& a, U& b) {
-  U tmp = move((U&)a);
-  a = (T &&) move(b);
-  b = move(tmp);
-}
+  template <typename T, typename U>
+  void swap(T& a, U& b) {
+    U tmp = move((U&)a);
+    a = (T &&) move(b);
+    b = move(tmp);
+  }
+
+}  // namespace ck
+
 
 template <bool B, class T = void>
 struct EnableIf {};

@@ -975,16 +975,16 @@ namespace ck {
   inline constexpr bool is_lvalue_reference_v = is_lvalue_reference<_Tp>::value;
 
 
-  /**
-   *  @brief  Forward an lvalue.
-   *  @return The parameter cast to the specified type.
-   *
-   *  This function is used to implement "perfect forwarding".
-   */
-  template <typename T>
-  constexpr T&& forward(typename ck::remove_reference<T>::type& value) noexcept {
-    return static_cast<T&&>(value);
-  }
+  // /**
+  //  *  @brief  Forward an lvalue.
+  //  *  @return The parameter cast to the specified type.
+  //  *
+  //  *  This function is used to implement "perfect forwarding".
+  //  */
+  // template <typename T>
+  // constexpr T&& forward(typename ck::remove_reference<T>::type& value) noexcept {
+  //   return static_cast<T&&>(value);
+  // }
 
   /**
    *  @brief  Forward an rvalue.

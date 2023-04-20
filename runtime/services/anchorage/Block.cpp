@@ -184,7 +184,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
 
   if (highlight) {
     // Print a background color
-    // printf("\e[%dm", 100);
+    printf("\e[%dm", 100);
   }
   // color += 10;
 

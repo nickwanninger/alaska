@@ -9,7 +9,7 @@
 
 
 // No clue if this requires the library be linked.
-#include <new>
+#include <ck/new.h>
 
 
 namespace ck {

@@ -165,12 +165,12 @@ extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
   if (c != NULL && stride != 0) {
     auto b = anchorage::Block::get(m->ptr);
 
-    // printf("stride: ");
-    if (stride < 0)
-      printf("\e[31m");
-    else
-      printf("\e[32m");
-    printf("%6ld\e[0m | ", stride);
+    // // printf("stride: ");
+    // if (stride < 0)
+    //   printf("\e[31m");
+    // else
+    //   printf("\e[32m");
+    // printf("%6ld\e[0m | ", stride);
     c->dump(b, "access");
     // c->dump(NULL, "use");
   }

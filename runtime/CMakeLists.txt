@@ -1,14 +1,16 @@
-add_link_options("-fuse-ld=lld")
+# add_link_options("-fuse-ld=lld")
 
 set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -fno-exceptions -fno-rtti -nostdlib ") 
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -nodefaultlibs -fno-exceptions -fno-rtti -nostdlib++ -nostdlib ") 
 set(CMAKE_C_COMPILER_ID "Clang")
 set(CMAKE_CXX_COMPILER_ID "Clang")
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+# Do NOT link libc++ implicitly
+list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
 
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
 include_directories(
@@ -28,6 +30,7 @@ set(SRC_FILES
 	lib/barrier.c
 	lib/rbtree.c
 	lib/trace.c
+	lib/glue.cpp # Stuff to support a nostdlibc++ environment
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512

@@ -13,7 +13,8 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
-#include <memory>
+#include <ck/box.h>
+#include <ck/template_lib.h>
 
 namespace anchorage {
 
@@ -46,12 +47,12 @@ namespace anchorage {
 
   class Swapper {
    public:
-    Swapper(std::unique_ptr<SwapDevice> &&dev)
-        : m_dev(std::move(dev)){};
+    Swapper(ck::box<SwapDevice> &&dev)
+        : m_dev(ck::move(dev)){};
 
 
    private:
-    std::unique_ptr<SwapDevice> m_dev;
+    ck::box<SwapDevice> m_dev;
   };
 
 }  // namespace anchorage

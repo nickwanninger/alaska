@@ -15,11 +15,11 @@
 #include <alaska/internal.h>
 #include <ck/pair.h>
 #include <ck/map.h>
+#include <ck/lock.h>
 #include <string.h>
-#include <mutex>
 
 static uint64_t next_swapid = 0;
-std::mutex swap_mutex;
+ck::mutex swap_mutex;
 ck::map<uint64_t, ck::pair<void *, size_t>> swapped_out;
 
 extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
@@ -28,7 +28,7 @@ extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
 
 
 void anchorage::swap_in(alaska::Mapping &m) {
-  std::lock_guard<std::mutex> l(swap_mutex);
+  ck::scoped_lock l(swap_mutex);
 
   auto f = swapped_out.find(m.swap.id);
   if (f == swapped_out.end()) {
@@ -46,7 +46,7 @@ void anchorage::swap_in(alaska::Mapping &m) {
 
 
 void anchorage::swap_out(alaska::Mapping &m) {
-  std::lock_guard<std::mutex> l(swap_mutex);
+  ck::scoped_lock l(swap_mutex);
 
   void *original_ptr = m.ptr;
   // copy the data elsewhere.
