@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
   void **ptrs = calloc(count, sizeof(void *));
 
   for (int i = 0; i < count; i++)
-    ptrs[i] = bench_alloc(64);
+    ptrs[i] = bench_alloc(16);
 
 
   for (int i = 0; i < count - 1; i += 2) {
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   }
 
   for (int i = 0; i < count - 1; i += 2) {
-    ptrs[i] = bench_alloc(16);
+    ptrs[i] = bench_alloc(64);
   }
 
   // anchorage_manufacture_locality((void *)ptrs);
