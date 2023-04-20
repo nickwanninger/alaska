@@ -114,17 +114,18 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
   ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
   ALASKA_SERVICE_ON_LOCK(m);
 
-  // finally, translate
+  // finally, perform the translation (offset from the base pointer.)
   handle_t h;
   h.ptr = ptr;
   return (void *)((uint64_t)m->ptr + h.offset);
 }
 
 ALASKA_INLINE void alaska_release(void *restrict ptr) {
-  alaska_mapping_t *m = alaska_lookup(ptr);
-  if (unlikely(m == NULL)) return;
+  // This function is just a marker.
+  // alaska_mapping_t *m = alaska_lookup(ptr);
+  // if (unlikely(m == NULL)) return;
 
-  ALASKA_SERVICE_ON_UNLOCK(m);
+  // ALASKA_SERVICE_ON_UNLOCK(m);
 }
 
 static int needs_barrier = 0;

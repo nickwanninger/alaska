@@ -12,7 +12,6 @@
 
 #include <alaska/lib.hpp>
 #include <anchorage/Anchorage.hpp>
-// #include <anchorage/Chunk.hpp>
 
 namespace anchorage {
 
@@ -27,8 +26,8 @@ namespace anchorage {
     // Get a block, given a pointer to it's data
     static auto get(void *) -> Block *;
 
-    auto size(void) const -> size_t;          // how many bytes is this block?
-    auto data(void) const -> void *;          // the bytes of this block.
+    auto size(void) const -> size_t;  // how many bytes is this block?
+    auto data(void) const -> void *;  // the bytes of this block.
     // Perform free-block coalescing. That is, merge free blocks to the left and right
     // of this block into a single block.
     auto coalesce_free(Chunk &chunk) -> int;
@@ -52,8 +51,8 @@ namespace anchorage {
     void dump(bool verbose, bool highlight = false);  // print a block in the fancy Chunk::dump format :)
 
 
-    void mark_locked(bool); // Mark the locked status of this allocation (cannot move)
-    bool is_locked(void); // Can this block move? (locked=no, unlocked=yes)
+    void mark_locked(bool);  // Mark the locked status of this allocation (cannot move)
+    bool is_locked(void);    // Can this block move? (locked=no, unlocked=yes)
 
    private:
     // Strict byte layout here. Must be 16 bytes
@@ -81,7 +80,8 @@ namespace anchorage {
     anchorage::Block *current;
 
    public:
-    inline BlockIterator(anchorage::Block *current) : current(current) {
+    inline BlockIterator(anchorage::Block *current)
+        : current(current) {
     }
 
     void step(void) override {

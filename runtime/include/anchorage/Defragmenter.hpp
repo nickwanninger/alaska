@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <unordered_set>
+#include <ck/set.h>
 #include <anchorage/Anchorage.hpp>
 
 namespace anchorage {
@@ -27,6 +27,6 @@ namespace anchorage {
     int naive_compact(anchorage::Chunk &chunk);
 
    public:
-    int run(const std::unordered_set<anchorage::Chunk *> &chunks);
+    int run(const ck::set<anchorage::Chunk *> &chunks);
   };
 }  // namespace anchorage

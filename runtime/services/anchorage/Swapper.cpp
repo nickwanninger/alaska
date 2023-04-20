@@ -9,18 +9,18 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include <algorithm>
 #include <anchorage/Block.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Swapper.hpp>
 #include <alaska/internal.h>
-#include <map>
+#include <ck/pair.h>
+#include <ck/map.h>
 #include <string.h>
 #include <mutex>
 
 static uint64_t next_swapid = 0;
 std::mutex swap_mutex;
-std::map<uint64_t, std::pair<void *, size_t>> swapped_out;
+ck::map<uint64_t, ck::pair<void *, size_t>> swapped_out;
 
 extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
   anchorage::swap_in(*m);
@@ -29,8 +29,6 @@ extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
 
 void anchorage::swap_in(alaska::Mapping &m) {
   std::lock_guard<std::mutex> l(swap_mutex);
-  // printf("swap in %p\n", &m);
-  // printf("  swap.id=%zu\n", m.swap.id);
 
   auto f = swapped_out.find(m.swap.id);
   if (f == swapped_out.end()) {
@@ -38,11 +36,12 @@ void anchorage::swap_in(alaska::Mapping &m) {
     abort();
   }
 
-  auto ptr = f->second.first;
-  auto size = f->second.second;
+
+  auto ptr = f->value.first;
+  auto size = f->value.second;
   void *x = anchorage::alloc(m, size);
   memcpy(x, ptr, size);
-  swapped_out.erase(f);
+  swapped_out.remove(f);
 }
 
 
@@ -54,18 +53,15 @@ void anchorage::swap_out(alaska::Mapping &m) {
   void *new_ptr = ::malloc(m.size);
   memcpy(new_ptr, original_ptr, m.size);
 
-
   auto id = next_swapid++;
-  swapped_out[id] = std::make_pair(new_ptr, m.size);
+  swapped_out[id] = ck::pair(new_ptr, m.size);
 
   // free the backing memory for this handle
   anchorage::free(m, original_ptr);
-  // printf("swap out %p to %p\n", &m, new_ptr);
   m.swap.id = id;
 }
 
 anchorage::MMAPSwapDevice::~MMAPSwapDevice() {
-  //
 }
 
 // Force a mapping to be swapped out

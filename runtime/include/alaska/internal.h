@@ -61,7 +61,20 @@ extern void alaska_dump_backtrace(void);
 #else
 #define ALASKA_SANITY(c, msg, ...) /* do nothing if it's disabled */
 #endif
-// exit(EXIT_FAILURE);
+
+#define ALASKA_ASSERT(c, msg, ...)                                                              \
+  do {                                                                                          \
+    if (!(c)) { /* if the check is not true... */                                               \
+      fprintf(stderr, "\x1b[31m-----------[ Alaska Assert Failed ]-----------\x1b[0m\n");       \
+      fprintf(stderr, "%s line %d\n", __FILE__, __LINE__);                                      \
+      fprintf(stderr, "Check, `%s`, failed\n", #c, ##__VA_ARGS__);                              \
+      fprintf(stderr, msg "\n", ##__VA_ARGS__);                                                 \
+      alaska_dump_backtrace();                                                                  \
+      fprintf(stderr, "\x1b[31mExiting.\x1b[0m\n");                                             \
+      exit(EXIT_FAILURE);                                                                       \
+      fprintf(stderr, "\x1b[31m----------------------------------------------------\x1b[0m\n"); \
+    }                                                                                           \
+  } while (0);
 
 
 // The definition of what a handle's bits mean when they are used like a pointer
@@ -149,9 +162,11 @@ extern __thread struct alaska_lock_frame *alaska_lock_root_chain;
 void alaska_barrier_add_thread(pthread_t *thread);
 void alaska_barrier_remove_thread(pthread_t *thread);
 
-void alaska_barrier_begin(
-    void);  // Signal from the leader that everyone needs to commit their locks and wait (From the leader)
-void alaska_barrier_end(void);  // release everyone and uncommit all your locks (From the leader)
+
+// Signal from the leader that everyone needs to commit their locks and wait (From the leader)
+void alaska_barrier_begin(void);
+// release everyone and uncommit all your locks (From the leader)
+void alaska_barrier_end(void);
 
 
 

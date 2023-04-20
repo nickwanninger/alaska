@@ -14,9 +14,11 @@
 #include <anchorage/LocalityFactory.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
+
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
+
 #include <pthread.h>
 #include <string.h>
 #include <stdbool.h>

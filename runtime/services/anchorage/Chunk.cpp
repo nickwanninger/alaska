@@ -15,22 +15,22 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service/anchorage.h>
+
+#include <ck/set.h>
+
 #include <string.h>
 #include <sys/mman.h>
-#include <unordered_set>
 #include <assert.h>
 #include <unistd.h>
 
 
 
-
 // The global set of chunks in the allocator
-static std::unordered_set<anchorage::Chunk *> *all_chunks;
+static ck::set<anchorage::Chunk *> *all_chunks;
 
-auto anchorage::Chunk::all(void) -> const std::unordered_set<anchorage::Chunk *> & {
+auto anchorage::Chunk::all(void) -> const ck::set<anchorage::Chunk *> & {
   return *all_chunks;
 }
-
 
 
 auto anchorage::Chunk::get(void *ptr) -> anchorage::Chunk * {
@@ -52,7 +52,7 @@ anchorage::Chunk::Chunk(size_t pages)
       (Block *)mmap(NULL, anchorage::page_size * pages, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   tos->set_next(nullptr);
 
-  all_chunks->insert(this);
+  all_chunks->add(this);
 }
 
 anchorage::Chunk::~Chunk(void) {
@@ -77,9 +77,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   tos->set_next(nullptr);
   blk->set_next(tos);
 
-  high_watermark = std::max(span(), high_watermark);
-
-  // dump(blk, "alloc");
+  if (span() > high_watermark) high_watermark = span();
 
   return blk;
 }
@@ -143,7 +141,7 @@ void anchorage::barrier(bool force) {
 
 
 void anchorage::allocator_init(void) {
-  all_chunks = new std::unordered_set<anchorage::Chunk *>();
+  all_chunks = new ck::set<anchorage::Chunk *>();
 }
 
 void anchorage::allocator_deinit(void) {
@@ -167,7 +165,7 @@ extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
   if (c != NULL && stride != 0) {
     auto b = anchorage::Block::get(m->ptr);
 
-		// printf("stride: ");
+    // printf("stride: ");
     if (stride < 0)
       printf("\e[31m");
     else

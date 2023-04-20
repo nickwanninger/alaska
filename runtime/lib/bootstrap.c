@@ -13,6 +13,7 @@
 
 
 ALASKA_INLINE void *alaska_translate_bootstrap(void *restrict ptr) {
+	printf("translate %p\n", ptr);
   handle_t h;
   h.ptr = ptr;
   if (unlikely(h.flag == 0)) {

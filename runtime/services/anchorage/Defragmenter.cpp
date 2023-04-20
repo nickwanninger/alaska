@@ -223,34 +223,34 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 }
 
 static void longdump(anchorage::Chunk *chunk) {
-	for (auto &block : *chunk) {
-		block.dump(true);
-	}
+  for (auto &block : *chunk) {
+    block.dump(true);
+  }
 }
 
 
 
 // Run the defragmentation on the set of chunks chosen before
-int anchorage::Defragmenter::run(const std::unordered_set<anchorage::Chunk *> &chunks) {
+int anchorage::Defragmenter::run(const ck::set<anchorage::Chunk *> &chunks) {
   // long start = alaska_timestamp();
   int changes = 0;
   // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
 #ifdef ALASKA_ANCHORAGE_PRINT_HEAP
-    chunk->dump(nullptr, "Pre-barrier");
+    chunk->dump(nullptr, "Before");
 #endif
 
     // chunk->dump(nullptr, "Before S/O");
-    for (auto &block : *chunk) {
-      if (block.is_free()) continue;
-      if (block.is_locked()) continue;
-      auto *handle = block.handle();
-      ALASKA_SANITY(handle != nullptr, "Non-free block doesn't have a handle!");
-#ifdef ALASKA_ANCHORAGE_PRINT_HEAP
-      chunk->dump(&block, "Swap Out");
-#endif
-      anchorage::swap_out(*handle);
-    }
+    //     for (auto &block : *chunk) {
+    //       if (block.is_free()) continue;
+    //       if (block.is_locked()) continue;
+    //       auto *handle = block.handle();
+    //       ALASKA_SANITY(handle != nullptr, "Non-free block doesn't have a handle!");
+    // #ifdef ALASKA_ANCHORAGE_PRINT_HEAP
+    //       chunk->dump(&block, "Swap Out");
+    // #endif
+    //       anchorage::swap_out(*handle);
+    //     }
     // chunk->dump(nullptr, "After S/O");
 
     changes += naive_compact(*chunk);

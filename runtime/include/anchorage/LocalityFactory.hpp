@@ -13,15 +13,15 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
-#include <unordered_set>
-#include <vector>
+#include <ck/vec.h>
+#include <ck/set.h>
 
 namespace anchorage {
 
   // This class performs all operations relating to manufacturing locality
   class LocalityFactory {
-    std::unordered_set<alaska::Mapping *> reachable;
-    std::vector<alaska::Mapping *> order;
+    ck::set<alaska::Mapping *> reachable;
+    ck::vec<alaska::Mapping *> order;
 
     void traverse(alaska::Mapping *m);
 

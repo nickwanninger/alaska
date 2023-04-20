@@ -9,7 +9,6 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include <algorithm>
 #include <anchorage/Block.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/LocalityFactory.hpp>
@@ -17,8 +16,6 @@
 #include <limits.h>
 #include <pthread.h>
 #include <string.h>
-#include <vector>
-#include <deque>
 
 
 static alaska::Mapping *safe_lookup(void *possible_handle) {
@@ -48,13 +45,13 @@ void anchorage::LocalityFactory::traverse(alaska::Mapping *m) {
   for (uint64_t i = 0; i < m->size; i += sizeof(uint64_t)) {
     uint64_t *cur = (uint64_t *)((uint8_t *)data + i);
     auto *m = safe_lookup((void *)*cur);
-    if (m == NULL || reachable.count(m) != 0) return;
+    if (m == NULL || reachable.contains(m)) return;
     auto *blk = anchorage::Block::get(m->ptr);
     if (blk->is_locked()) {
       return;
     }
-    order.push_back(m);
-    reachable.insert(m);
+    order.push(m);
+    reachable.add(m);
     traverse(m);
   }
 }

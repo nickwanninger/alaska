@@ -12,7 +12,7 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Block.hpp>
-#include <unordered_set>
+#include <ck/set.h>
 
 namespace anchorage {
 
@@ -50,7 +50,7 @@ namespace anchorage {
     int sweep_freed_but_locked(void);
 
     // get all Chunks
-    static auto all(void) -> const std::unordered_set<anchorage::Chunk *> &;
+    static auto all(void) -> const ck::set<anchorage::Chunk *> &;
 
     // the total memory used in this heap
     size_t span(void) const;

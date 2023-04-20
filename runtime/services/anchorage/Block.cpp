@@ -151,7 +151,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
       printf(" h:%8lx", (uint64_t)handle());
       printf(" lu:%10lu", -1);
       printf(" lk:%10lx", -1);
-		}
+    }
     // return;
   }
 
@@ -161,11 +161,11 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
 
   if (is_used()) {
     auto &handle = *this->handle();
-    if (0) { // (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
+    if (0) {       // (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
       color = 35;  // purple
       c = '#';
-    } else if (is_locked()) { // (handle.anchorage.locks > 0) {
-      color = 31;  // red
+    } else if (is_locked()) {  // (handle.anchorage.locks > 0) {
+      color = 31;              // red
       c = 'X';
     } else {
       color = 32;  // green
@@ -184,8 +184,9 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
 
   if (highlight) {
     // Print a background color
-    printf("\e[%dm", 100);
+    // printf("\e[%dm", 100);
   }
+  // color += 10;
 
   printf("\e[%dm", color);
   ssize_t sz = size();
@@ -195,22 +196,14 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     auto *d = (uint64_t *)data();
     size_t count = sz / 8;
     if (count > 8) count = 8;
-    // count = std::min(8, count);
     for (size_t i = 0; i < count; i++) {
       // if (i % 8 == 0) printf(" ");
       printf("%016lx ", d[i]);
     }
   } else {
+    // c = ' ';
+    // putchar(c);
     putchar('|');
-    // auto *d = (uint64_t *)data();
-    // size_t count = sz / 8;
-    // if (count > 8) count = 8;
-    // for (size_t i = 0; i < count; i++) {
-    //   printf("%016lx ", d[i]);
-    // }
-
-    // printf("%p", handle());
-
     for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
       putchar(c);
   }

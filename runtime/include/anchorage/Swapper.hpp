@@ -14,7 +14,6 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <memory>
-#include <unordered_set>
 
 namespace anchorage {
 
@@ -43,8 +42,6 @@ namespace anchorage {
     bool swap_in(alaska::Mapping &m) override;
     bool swap_out(alaska::Mapping &m) override;
   };
-
-
 
 
   class Swapper {
