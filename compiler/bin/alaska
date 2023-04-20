@@ -11,6 +11,7 @@ OUTFILE="a.out"
 KEEP="false"
 BASELINE="false"
 COLLECT_CLANG_ARGS=() INPUTS=() OPT_ARGS=()
+LINK_FLAGS=()
 OBJECT_TARGET=
 
 SO="so"
@@ -22,6 +23,7 @@ fi
 OPT="-O3"
 
 phase="link"
+
 
 while [[ $# -gt 0 ]]
 do
@@ -62,6 +64,11 @@ do
 				OPT_ARGS+=("$1")
 				shift
 				;;
+			-l*|-L*)
+				COLLECT_CLANG_ARGS+=("$1")
+				LINK_FLAGS+=("$1")
+				shift
+				;;
 			*)
 				COLLECT_CLANG_ARGS+=("$1")
 				shift
@@ -93,7 +100,7 @@ else
 		TMPFILE=${OUTFILE}.base.bc
 		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
-		$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags`
+		$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags`
 	fi
 	TMPFILE=${OUTFILE}.bc
 
@@ -101,7 +108,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags --cflags`
+	$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	rm ${TMPFILE}
 fi
 

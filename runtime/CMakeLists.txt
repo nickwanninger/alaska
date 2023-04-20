@@ -64,15 +64,15 @@ if(ALASKA_CORRECTNESS_EMULATOR)
 	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
 endif()
 
-add_library(alaska_core SHARED ${SRC_FILES})
-target_include_directories(alaska_core PUBLIC include/)
-set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska_core dl pthread)
+add_library(alaska SHARED ${SRC_FILES})
+target_include_directories(alaska PUBLIC include/)
+set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
+target_link_libraries(alaska dl pthread)
 
 
 if(ALASKA_CORRECTNESS_EMULATOR)
 	add_subdirectory(emu)
-	target_link_libraries(alaska_core unicorn)
+	target_link_libraries(alaska unicorn)
 endif()
 
 
@@ -111,7 +111,7 @@ add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 
-target_link_libraries(alaska_core alaska_translate_native)
+target_link_libraries(alaska alaska_translate_native)
 
 
 
@@ -119,7 +119,7 @@ install(FILES include/alaska.h DESTINATION include)
 install(FILES include/alaska/config.h DESTINATION include/alaska)
 
 install(
-  TARGETS alaska_core
+  TARGETS alaska
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -128,7 +128,7 @@ install(
 
 
 add_executable(alaska-sim bin/sim.c)
-target_link_libraries(alaska-sim alaska_core) # alaska_support
+target_link_libraries(alaska-sim alaska) # alaska_support
 set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 install(
   TARGETS alaska-sim

@@ -17,38 +17,45 @@ static const char *local = ALASKA_INSTALL_PREFIX;
 typedef void (*flag_handler_t)(void);
 
 
-void prefix(void) { printf("%s\n", local); }
-void linkdir(void) { printf("%s/lib\n", local); }
-void includedir(void) { printf("%s/include\n", local); }
+void prefix(void) {
+  printf("%s\n", local);
+}
+void linkdir(void) {
+  printf("%s/lib\n", local);
+}
+void includedir(void) {
+  printf("%s/include\n", local);
+}
 
 
 void ldflags(void) {
-	printf("-T %s/share/alaska/ldscripts/alaska-%s.ld\n", local, arch);
+  printf("-T %s/share/alaska/ldscripts/alaska-%s.ld\n", local, arch);
   printf("-L%s/lib\n", local);
-	//printf("%s/lib/libalaska_core.a\n", local);
+  // printf("%s/lib/libalaska_core.a\n", local);
   printf("-Wl,-rpath=%s/lib\n", local);
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
   printf("-lpthread\n");
   // printf("-lalaska_support\n");
-  printf("-lalaska_core\n");
-	// printf("-lomp\n");
+  printf("-lalaska\n");
+  // printf("-lomp\n");
 #ifdef ALASKA_CORRECTNESS_EMULATOR
   printf("-lunicorn\n");
 #endif
 }
 
 
-void includeflags(void) { printf("-I%s/include\n", local); }
+void includeflags(void) {
+  printf("-I%s/include\n", local);
+}
 
 void cflags(void) {
-
 #if defined(__aarch64__)
-	printf("-march=armv8.5-a\n");
+  printf("-march=armv8.5-a\n");
 #elif defined(__x86_64__)
-	printf("-march=native\n");
+  printf("-march=native\n");
 #endif
-	includeflags();
+  includeflags();
 }
 
 void cxxflags(void) {
@@ -57,7 +64,7 @@ void cxxflags(void) {
 }
 
 void defs(void) {
-	// enable a bunch of feature flags
+  // enable a bunch of feature flags
   printf("-D_ALASKA\n");
   printf("-D_GNU_SOURCE\n");
   printf("-D__STDC_CONSTANT_MACROS\n");
