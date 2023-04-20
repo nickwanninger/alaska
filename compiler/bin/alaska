@@ -93,7 +93,7 @@ else
 		TMPFILE=${OUTFILE}.base.bc
 		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
-		$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags` -lomp
+		$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE.base -ldl `alaska-config --ldflags`
 	fi
 	TMPFILE=${OUTFILE}.bc
 
@@ -101,7 +101,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags --cflags` -lomp
+	$CLANG -gdwarf-4 $OPT ${ARCH_FLAGS} ${TMPFILE} -o $OUTFILE -ldl `alaska-config --ldflags --cflags`
 	rm ${TMPFILE}
 fi
 

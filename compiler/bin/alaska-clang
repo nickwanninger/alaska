@@ -17,6 +17,7 @@ thisdir="`cd "$(dirname "$0")"; pwd`"
 export ALASKA_BOOTSTRAP=1
 
 LINKER_ARGS=$($PFX/bin/alaska-config --ldflags)
+LINKER_ARGS=
 # prevent clang from running the linker (and erroring) on no input.
 sflags=
 eflags=
@@ -41,22 +42,17 @@ done
 
 
 ARGS=
-ARGS+="$($PFX/bin/alaska-config --cflags) "
-# ARGS+="-B$thisdir "
-# ARGS+="-fuse-ld=alaska-clang "
-# ARGS+="-static-libgcc "
-# ARGS+="-nostdinc "
-# ARGS+="--sysroot $libc "
-# ARGS+="-isystem $libc_inc "
+# ARGS+="$($PFX/bin/alaska-config --cflags) "
 
 # load the clang plugin for the llvm pass
 ARGS+="-Xclang -fpass-plugin=$PFX/lib/Alaska.so "
 ARGS+="-fplugin=$PFX/lib/Alaska.so "
-
-ARGS+="-L-user-start $sflags $@ $eflags $LINKER_ARGS "
-ARGS+="-L\"$libc_lib\" "
-ARGS+="-L-user-end "
+ARGS+="-Wno-ignored-optimization-argument "
 ARGS+="-Wno-unused-command-line-argument "
+# ARGS+="-L-user-start $sflags $@ $eflags $LINKER_ARGS "
+# ARGS+="-L\"$libc_lib\" "
+# ARGS+="-L-user-end "
+# ARGS+="-Wno-unused-command-line-argument "
 
 # echo local/bin/clang $ARGS
-exec $PFX/bin/clang $ARGS
+exec $PFX/bin/clang $ARGS $@

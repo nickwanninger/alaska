@@ -44,7 +44,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
                 MPM.addPass(AlaskaTranslatePass());
 #ifdef ALASKA_COMPILER_TIMING
-                MPM.addPass(CompilerTimingPass());
+                if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
 #endif
                 MPM.addPass(adapt(PromotePass()));
 
@@ -56,9 +56,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #ifdef ALASKA_DUMP_LOCKS
                 MPM.addPass(LockPrinterPass());
 #endif
-
                 // MPM.addPass(RedundantArgumentLockElisionPass());
-                MPM.addPass(LockTrackerPass());
+                if (!alaska::bootstrapping()) MPM.addPass(LockTrackerPass());
 
                 if (alaska::bootstrapping()) {
                   // Use the bootstrap bitcode if we are bootstrapping
