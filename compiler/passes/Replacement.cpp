@@ -44,14 +44,6 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
     replace_function(M, "malloc_usable_size", "alaska_usable_size");
   }
 
-  // replace_function(M, "_Znwm", "halloc");
-  // replace_function(M, "_Znwj", "halloc");
-  // replace_function(M, "_Znaj", "halloc");
-  //
-  // replace_function(M, "_ZdlPv", "hfree");
-  // replace_function(M, "_ZdaPv", "hfree");
-  // replace_function(M, "_ZdaPv", "hfree");
-
   for (auto *name : alaska::wrapped_functions) {
     replace_function(M, name);
   }

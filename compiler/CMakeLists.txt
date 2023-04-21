@@ -7,6 +7,8 @@ install(DIRECTORY ldscripts DESTINATION share/alaska)
 
 
 add_llvm_library(Alaska MODULE
+	passes/Alaska.cpp
+
 	lib/Graph.cpp
 	lib/Utils.cpp
 	lib/LockForest.cpp
@@ -25,10 +27,7 @@ add_llvm_library(Alaska MODULE
 	lib/ct/LoopTransform.cpp
 	lib/ct/Utils.cpp
 
-
-	passes/Alaska.cpp
 	passes/CompilerTiming.cpp
-
 	passes/LockTracker.cpp
 	passes/LockPrinter.cpp
 	passes/ArgLockElision.cpp
@@ -41,6 +40,7 @@ add_llvm_library(Alaska MODULE
 	PLUGIN_TOOL
 	opt
 )
+
 
 add_subdirectory(bin)
 

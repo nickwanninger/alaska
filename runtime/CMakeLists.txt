@@ -64,10 +64,15 @@ if(ALASKA_CORRECTNESS_EMULATOR)
 	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
 endif()
 
+
+add_library(alaskaobj OBJECT ${SRC_FILES})
+set_property(TARGET alaskaobj PROPERTY POSITION_INDEPENDENT_CODE 1)
+
 add_library(alaska SHARED ${SRC_FILES})
 target_include_directories(alaska PUBLIC include/)
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(alaska dl pthread)
+
 
 
 if(ALASKA_CORRECTNESS_EMULATOR)
@@ -107,6 +112,7 @@ endfunction(add_bitcode)
 
 
 add_bitcode(alaska_translate SOURCES lib/translate.c)
+add_bitcode(alaska_prefetch SOURCES lib/prefetch.c)
 add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
 

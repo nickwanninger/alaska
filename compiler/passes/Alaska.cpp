@@ -21,6 +21,28 @@
 #include <optional>
 
 
+static void replace_function(Module &M, std::string original_name, std::string new_name = "") {
+  if (new_name == "") {
+    new_name = "alaska_wrapped_" + original_name;
+  }
+  auto oldFunction = M.getFunction(original_name);
+  if (oldFunction) {
+    auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
+    oldFunction->replaceAllUsesWith(newFunction);
+    oldFunction->eraseFromParent();
+  }
+}
+
+class PrefetchPass : public llvm::PassInfoMixin<PrefetchPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    replace_function(M, "alaska_translate", "alaska_prefetch_translate");
+    replace_function(M, "alaska_release", "alaska_prefetch_release");
+    return PreservedAnalyses::none();
+  }
+};
+
+
 
 template <typename T>
 auto adapt(T &&fp) {
@@ -34,6 +56,13 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
             PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
               // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
+
+              if (getenv("ALASKA_ONLY_PREFETCH") != NULL) {
+                MPM.addPass(AlaskaTranslatePass());
+                MPM.addPass(PrefetchPass());
+                MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_prefetch.bc"));
+                return true;
+              }
 
               if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
                 MPM.addPass(AlaskaNormalizePass());
