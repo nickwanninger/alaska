@@ -71,10 +71,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
                   MPM.addPass(AlaskaReplacementPass());
                 }
 
-                MPM.addPass(AlaskaTranslatePass());
 #ifdef ALASKA_COMPILER_TIMING
                 if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
 #endif
+
+
+                MPM.addPass(AlaskaTranslatePass());
                 MPM.addPass(adapt(PromotePass()));
 
 #ifdef ALASKA_ESCAPE_PASS

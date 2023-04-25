@@ -29,7 +29,7 @@ void includedir(void) {
 
 
 void ldflags(void) {
-  printf("-T %s/share/alaska/ldscripts/alaska-%s.ld\n", local, arch);
+  printf("-T\n%s/share/alaska/ldscripts/alaska-%s.ld\n", local, arch);
   printf("-L%s/lib\n", local);
   // printf("%s/lib/libalaska_core.a\n", local);
   printf("-Wl,-rpath=%s/lib\n", local);

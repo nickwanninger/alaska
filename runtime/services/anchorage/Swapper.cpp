@@ -22,6 +22,7 @@ static uint64_t next_swapid = 0;
 ck::mutex swap_mutex;
 ck::map<uint64_t, ck::pair<void *, size_t>> swapped_out;
 
+
 extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
   anchorage::swap_in(*m);
 }

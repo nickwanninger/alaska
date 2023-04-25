@@ -15,7 +15,6 @@ list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
 include_directories(
 	include/
-	emu/include/
 )
 
 
@@ -26,6 +25,7 @@ set(SRC_FILES
 	lib/runtime.c
 	lib/table.c
 	lib/translate.c
+	lib/prefetch.c
 	lib/halloc.c
 	lib/barrier.c
 	lib/rbtree.c
@@ -34,7 +34,6 @@ set(SRC_FILES
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
-	# (The emulator cannot handle those instructions)
 	lib/compat.c
 )
 
@@ -59,11 +58,6 @@ if (ALASKA_SERVICE_NONE)
 	set(SRC_FILES ${SRC_FILES} services/none/none.c)
 endif()
 
-if(ALASKA_CORRECTNESS_EMULATOR)
-	# The correctness fallback (emulate using TCG)
-	set(SRC_FILES ${SRC_FILES} lib/emulator.c)
-endif()
-
 
 add_library(alaskaobj OBJECT ${SRC_FILES})
 set_property(TARGET alaskaobj PROPERTY POSITION_INDEPENDENT_CODE 1)
@@ -72,16 +66,6 @@ add_library(alaska SHARED ${SRC_FILES})
 target_include_directories(alaska PUBLIC include/)
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(alaska dl pthread)
-
-
-
-if(ALASKA_CORRECTNESS_EMULATOR)
-	add_subdirectory(emu)
-	target_link_libraries(alaska unicorn)
-endif()
-
-
-
 
 function(add_bitcode name)
 	cmake_parse_arguments(
