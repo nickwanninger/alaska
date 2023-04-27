@@ -1,5 +1,5 @@
-#include <Graph.h>
-#include <Utils.h>
+#include <alaska/PointerFlowGraph.h>
+#include <alaska/Utils.h>
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -8,7 +8,9 @@
 
 struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
   alaska::FlowNode &node;
-  NodeConstructionVisitor(alaska::FlowNode &node) : node(node) {}
+  NodeConstructionVisitor(alaska::FlowNode &node)
+      : node(node) {
+  }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     auto &use = I.getOperandUse(0);
@@ -41,7 +43,9 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
 };
 
 
-alaska::FlowNode::FlowNode(alaska::PointerFlowGraph &graph, llvm::Value *value) : graph(graph), value(value) {
+alaska::FlowNode::FlowNode(alaska::PointerFlowGraph &graph, llvm::Value *value)
+    : graph(graph)
+    , value(value) {
   id = graph.next_id++;
 }
 
@@ -104,7 +108,8 @@ std::set<alaska::FlowNode *> alaska::FlowNode::get_dominators(llvm::DominatorTre
 }
 
 
-std::set<alaska::FlowNode *> alaska::FlowNode::get_postdominated(llvm::PostDominatorTree &PDT) const {
+std::set<alaska::FlowNode *> alaska::FlowNode::get_postdominated(
+    llvm::PostDominatorTree &PDT) const {
   std::set<alaska::FlowNode *> dominators;
   for (const Use *use : this->in) {
     auto &v = graph.get_node(use->get());
@@ -127,7 +132,8 @@ void alaska::FlowNode::add_in_edge(llvm::Use *use) {
   in.insert(use);
 }
 
-alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func) : m_func(func) {
+alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func)
+    : m_func(func) {
   //
   // Step 1. Find all the sinks in the function.
   //
@@ -229,7 +235,8 @@ std::set<alaska::FlowNode *> alaska::PointerFlowGraph::get_all_nodes(void) const
 
 
 
-void alaska::PointerFlowGraph::dump_dot(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
+void alaska::PointerFlowGraph::dump_dot(
+    llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) const {
   auto nodes = get_nodes();
 
   alaska::println("digraph {");

@@ -1,6 +1,6 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <noelle/core/MetadataManager.hpp>
@@ -11,7 +11,8 @@
 using namespace llvm;
 
 
-AlaskaLinkLibraryPass::AlaskaLinkLibraryPass(const char *lib_path, GlobalValue::LinkageTypes linkage)
+AlaskaLinkLibraryPass::AlaskaLinkLibraryPass(
+    const char *lib_path, GlobalValue::LinkageTypes linkage)
     : lib_path(lib_path)
     , linkage(linkage) {
 }

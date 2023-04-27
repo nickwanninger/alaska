@@ -21,7 +21,6 @@ $(BUILD)/Makefile:
 
 
 alaska: .config local/bin/clang $(BUILD_REQ)
-	echo $(PATH)
 	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
 

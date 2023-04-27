@@ -1,7 +1,7 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
-#include <WrappedFunctions.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
+#include <alaska/WrappedFunctions.h>
 
 
 using namespace llvm;
@@ -48,13 +48,13 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     int i = -1;
     for (auto &arg : call->args()) {
       i++;
-      if (!alaska::shouldLock(arg)) continue;
+      if (!alaska::shouldTranslate(arg)) continue;
 
       IRBuilder<> b(call);
 
       auto val = b.CreateGEP(arg->getType(), arg, {});
-      auto translated = alaska::insertLockBefore(call, val);
-      alaska::insertUnlockBefore(call->getNextNode(), val);
+      auto translated = alaska::insertTranslationBefore(call, val);
+      alaska::insertReleaseBefore(call->getNextNode(), val);
       call->setArgOperand(i, translated);
     }
   }

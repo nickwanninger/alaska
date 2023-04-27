@@ -1,6 +1,6 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
 #include <llvm/Transforms/Utils/EscapeEnumerator.h>
 
 using namespace llvm;
@@ -9,7 +9,8 @@ using namespace llvm;
 
 GetElementPtrInst *CreateGEP(
     LLVMContext &Context, IRBuilder<> &B, Type *Ty, Value *BasePtr, int Idx, const char *Name) {
-  Value *Indices[] = {ConstantInt::get(Type::getInt32Ty(Context), 0), ConstantInt::get(Type::getInt32Ty(Context), Idx)};
+  Value *Indices[] = {ConstantInt::get(Type::getInt32Ty(Context), 0),
+      ConstantInt::get(Type::getInt32Ty(Context), Idx)};
   Value *Val = B.CreateGEP(Ty, BasePtr, Indices, Name);
 
   assert(isa<GetElementPtrInst>(Val) && "Unexpected folded constant");
@@ -17,9 +18,10 @@ GetElementPtrInst *CreateGEP(
   return dyn_cast<GetElementPtrInst>(Val);
 }
 
-GetElementPtrInst *CreateGEP(
-    LLVMContext &Context, IRBuilder<> &B, Type *Ty, Value *BasePtr, int Idx, int Idx2, const char *Name) {
-  Value *Indices[] = {ConstantInt::get(Type::getInt32Ty(Context), 0), ConstantInt::get(Type::getInt32Ty(Context), Idx),
+GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Value *BasePtr,
+    int Idx, int Idx2, const char *Name) {
+  Value *Indices[] = {ConstantInt::get(Type::getInt32Ty(Context), 0),
+      ConstantInt::get(Type::getInt32Ty(Context), Idx),
       ConstantInt::get(Type::getInt32Ty(Context), Idx2)};
   Value *Val = B.CreateGEP(Ty, BasePtr, Indices, Name);
 
@@ -43,13 +45,14 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto Head = M.getGlobalVariable("alaska_lock_root_chain");
   if (Head == nullptr) {
     Head = new GlobalVariable(M, pointerType, false, GlobalValue::ExternalWeakLinkage,
-        Constant::getNullValue(pointerType), "alaska_lock_root_chain", nullptr, llvm::GlobalValue::InitialExecTLSModel);
+        Constant::getNullValue(pointerType), "alaska_lock_root_chain", nullptr,
+        llvm::GlobalValue::InitialExecTLSModel);
   }
 
-  // TODO: instead of getting this from a global variable, it would be interesting to see how versioning functions with
-  // an additional argument containing the root chain might improve performance for "short" functions.  Then, when you
-  // call a function it does not have to look up the address of the thread-local pointer. Effectively, we would take
-  // this code:
+  // TODO: instead of getting this from a global variable, it would be interesting to see how
+  // versioning functions with an additional argument containing the root chain might improve
+  // performance for "short" functions.  Then, when you call a function it does not have to look up
+  // the address of the thread-local pointer. Effectively, we would take this code:
   //
   //     void write_ptr(int *x) {
   //       root_chain = ...
@@ -64,9 +67,10 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
   //       *x = 0;
   //     }
   //
-  // That way, functions would simply take the pointer to the current root chain as a function, which would reduce
-  // prelude overhead significantly on ARM. If the old function was called without passing the root chain, it would
-  // simply load the location and call into the versioned function with that pointer.
+  // That way, functions would simply take the pointer to the current root chain as a function,
+  // which would reduce prelude overhead significantly on ARM. If the old function was called
+  // without passing the root chain, it would simply load the location and call into the versioned
+  // function with that pointer.
 
 
   Head->setThreadLocal(true);
@@ -77,27 +81,27 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
     // Extract all the locks from the function
-    auto locks = alaska::extractLocks(F);
+    auto translations = alaska::extractTranslations(F);
     // If the function had no locks, don't do anything
-    if (locks.empty()) continue;
+    if (translations.empty()) continue;
 
     // Given a lock, which cell does it belong to? (eagerly)
-    std::map<alaska::Lock *, long> lock_cells;
+    std::map<alaska::Translation *, long> lock_cells;
     // Interference - a mapping from locks to the locks it is alive along side of.
-    std::map<alaska::Lock *, std::set<alaska::Lock *>> interference;
+    std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
 
-    // Loop over each lock, then over it's live instructions. For each live instruction see
+    // Loop over each translation, then over it's live instructions. For each live instruction see
     // which other locks are live in those instructions. This is horrible and slow. (but works)
-    for (auto &lock : locks) {
-      lock_cells[lock.get()] = -1;
+    for (auto &first : translations) {
+      lock_cells[first.get()] = -1;
       // A lock interferes with itself
-      interference[lock.get()].insert(lock.get());
-      for (auto inst : lock->liveInstructions) {
-        for (auto &other : locks) {
-          if (other != lock && other->isLive(inst)) {
+      interference[first.get()].insert(first.get());
+      for (auto inst : first->liveInstructions) {
+        for (auto &second : translations) {
+          if (second != first && second->isLive(inst)) {
             // interference!
-            interference[lock.get()].insert(other.get());
-            interference[other.get()].insert(lock.get());
+            interference[first.get()].insert(second.get());
+            interference[second.get()].insert(first.get());
           }
         }
       }
@@ -108,7 +112,8 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
       if (cell_count < (long)i.size()) cell_count = (long)i.size();
     }
 
-    fprintf(stderr, "%3ld cells required for %zu locks in %s\n", cell_count, locks.size(), F.getName().data());
+    fprintf(stderr, "%3ld cells required for %zu translations in %s\n", cell_count,
+        translations.size(), F.getName().data());
 
     // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
     // coloring allocation here, as we don't need to worry about register spilling
@@ -140,39 +145,44 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
     for (long i = 0; i < cell_count; i++) {
       EltTys.push_back(pointerType);
     }
-    auto *concreteStackEntryTy = StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
+    auto *concreteStackEntryTy =
+        StructType::create(EltTys, ("alaska_stackentry." + F.getName()).str());
 
     IRBuilder<> atEntry(F.front().getFirstNonPHI());
     auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "lockStackFrame");
-    atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry, true);
+    // atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry, true);
 
 
-    auto *EntryCountPtr = CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.count");
+    auto *EntryCountPtr =
+        CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.count");
     // cur->count = N;
     atEntry.CreateStore(ConstantInt::get(i64Ty, cell_count), EntryCountPtr, true);
     // cur->prev = head;
-    auto *CurrentHead = atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "lockStackCurrentHead");
+    auto *CurrentHead =
+        atEntry.CreateLoad(stackEntryTy->getPointerTo(), Head, "lockStackCurrentHead");
     atEntry.CreateStore(CurrentHead, stackEntry, true);
     // head = cur;
     atEntry.CreateStore(stackEntry, Head, true);
 
     int ind = 0;
-    for (auto &lock : locks) {
+    for (auto &translation : translations) {
       char buf[512];
       snprintf(buf, 512, "lockCell.%d", ind);
-      auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, lock_cells[lock.get()] + 1, buf);
+      auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry,
+          lock_cells[translation.get()] + 1, buf);
       ind++;
 
-      auto handle = lock->getHandle();
+      auto handle = translation->getHandle();
 
-      IRBuilder<> b(lock->lock);
-      b.SetInsertPoint(lock->lock);
+      IRBuilder<> b(translation->translation);
+      b.SetInsertPoint(translation->translation);
       b.CreateStore(handle, cell, true);
 
-      // Insert a store right after all the unlocks to say "we're done with this handle".
-      // for (auto unlock : lock->unlocks) {
+      // Insert a store right after all the releases to say "we're done with this handle".
+      // for (auto unlock : lock->releases) {
       //   b.SetInsertPoint(unlock->getNextNode());
-      //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+      //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())),
+      //   cell, true);
       // }
     }
 
@@ -181,10 +191,12 @@ PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
     while (IRBuilder<> *AtExit = EE.Next()) {
       // Pop the entry from the shadow stack. Don't reuse CurrentHead from
       // AtEntry, since that would make the value live for the entire function.
-      Value *SavedHead = AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry, "alaska_savedhead");
-      AtExit->CreateStore(SavedHead, Head);
-      // AtExit->CreateStore(CurrentHead, Head);
+      // Value *SavedHead = AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry,
+      // "alaska_savedhead"); AtExit->CreateStore(SavedHead, Head);
+      AtExit->CreateStore(CurrentHead, Head);
     }
+
+    if (F.getName() == "inc") errs() << F << "\n";
   }
 
   return PreservedAnalyses::none();

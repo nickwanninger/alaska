@@ -1,5 +1,5 @@
-#include <Utils.h>
-#include <WrappedFunctions.h>
+#include <alaska/Utils.h>
+#include <alaska/WrappedFunctions.h>
 
 #include <execinfo.h>
 
@@ -15,11 +15,15 @@
 
 
 
-bool alaska::bootstrapping(void) { return getenv("ALASKA_BOOTSTRAP") != NULL; }
+bool alaska::bootstrapping(void) {
+  return getenv("ALASKA_BOOTSTRAP") != NULL;
+}
 
 struct SimpleFormatVisitor : public llvm::InstVisitor<SimpleFormatVisitor> {
   llvm::raw_string_ostream &out;
-  SimpleFormatVisitor(llvm::raw_string_ostream &out) : out(out) {}
+  SimpleFormatVisitor(llvm::raw_string_ostream &out)
+      : out(out) {
+  }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     out << "GEP ";
@@ -41,7 +45,9 @@ struct SimpleFormatVisitor : public llvm::InstVisitor<SimpleFormatVisitor> {
     I.getPointerOperand()->printAsOperand(out);
   }
 
-  void visitInstruction(llvm::Instruction &I) { I.print(out); }
+  void visitInstruction(llvm::Instruction &I) {
+    I.print(out);
+  }
 };
 
 
@@ -56,7 +62,9 @@ std::string alaska::simpleFormat(llvm::Value *val) {
 }
 
 
-static bool is_tracing(void) { return getenv("ALASKA_COMPILER_TRACE") != NULL; }
+static bool is_tracing(void) {
+  return getenv("ALASKA_COMPILER_TRACE") != NULL;
+}
 #define BT_BUF_SIZE 100
 void alaska::dumpBacktrace(void) {
   int nptrs;
@@ -81,7 +89,7 @@ void alaska::dumpBacktrace(void) {
 
 
 llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
-	return nullptr;
+  return nullptr;
   for (auto &BB : *F) {
     for (auto &I : BB) {
       if (I.getDebugLoc()) return I.getDebugLoc();
@@ -90,31 +98,30 @@ llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
   return NULL;
 }
 
-llvm::Instruction *alaska::insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+llvm::Instruction *alaska::insertTranslationBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
-  auto lockFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+  auto translateFunctionType = FunctionType::get(ptrType, {ptrType}, false);
   std::string name = "alaska_translate";
   if (is_tracing()) name += "_trace";
   if (bootstrapping()) name = "alaska_translate_bootstrap";
-  auto lockFunction = M.getOrInsertFunction(name, lockFunctionType).getCallee();
+  auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
-  auto locked = b.CreateCall(lockFunctionType, lockFunction, {pointer});
-  // locked->setDebugLoc(DILocation::get(ctx, 0, 0, inst->getFunction()->getSubprogram()->getScope()));
-  locked->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
-  if (!locked->getDebugLoc()) {
-    // errs() << "NO DEBUG INFO in " << inst->getFunction()->getName() << "\n";
+  auto translated = b.CreateCall(translateFunctionType, translateFunction, {pointer});
+  // translated->setDebugLoc(DILocation::get(ctx, 0, 0,
+  // inst->getFunction()->getSubprogram()->getScope()));
+  translated->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+  if (!translated->getDebugLoc()) {
   }
-  // locked->setName("locked");
-  return locked;
+  return translated;
 }
 
-llvm::Instruction *alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+llvm::Instruction *alaska::insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
@@ -129,41 +136,8 @@ llvm::Instruction *alaska::insertUnlockBefore(llvm::Instruction *inst, llvm::Val
 
   IRBuilder<> b(inst);
   b.SetCurrentDebugLocation(inst->getDebugLoc());
-  auto unlock = b.CreateCall(ftype, func, {pointer});
-  unlock->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+  auto release = b.CreateCall(ftype, func, {pointer});
+  release->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
 
-	return unlock;
-}
-
-
-
-
-void alaska::insertConservativeTranslations(alaska::PointerFlowGraph &G) {
-  // Naively insert get/unlock around loads and stores (the sinks in the graph provided)
-  auto nodes = G.get_nodes();
-  // Loop over all the nodes...
-  for (auto node : nodes) {
-    // only operate on sinks...
-    if (node->type != alaska::Sink) continue;
-    auto inst = dyn_cast<Instruction>(node->value);
-
-    auto dbg = inst->getDebugLoc();
-    // Insert the get/unlock.
-    // We have to handle load and store seperately, as their operand ordering is different (annoyingly...)
-    if (auto *load = dyn_cast<LoadInst>(inst)) {
-      auto ptr = load->getPointerOperand();
-      auto t = insertLockBefore(inst, ptr);
-      load->setOperand(0, t);
-      insertUnlockBefore(inst->getNextNode(), ptr);
-      continue;
-    }
-
-    if (auto *store = dyn_cast<StoreInst>(inst)) {
-      auto ptr = store->getPointerOperand();
-      auto t = insertLockBefore(inst, ptr);
-      store->setOperand(1, t);
-      insertUnlockBefore(inst->getNextNode(), ptr);
-      continue;
-    }
-  }
+  return release;
 }

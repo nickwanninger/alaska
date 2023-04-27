@@ -1,6 +1,6 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
 
 using namespace llvm;
 
@@ -22,9 +22,9 @@ PreservedAnalyses LockPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
 
   for (auto &F : M) {
     if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
-      auto l = alaska::extractLocks(F);
+      auto l = alaska::extractTranslations(F);
       if (l.size() > 0) {
-        alaska::printLockDot(F, l);
+        alaska::printTranslationDot(F, l);
       }
     }
   }

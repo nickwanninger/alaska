@@ -1,9 +1,9 @@
 // Alaska includes
-#include <Graph.h>
-#include <Utils.h>
-#include <Locks.h>
+#include <alaska/PointerFlowGraph.h>
+#include <alaska/Utils.h>
+#include <alaska/Translations.h>
 #include <ct/Pass.hpp>
-#include <Passes.h>
+#include <alaska/Passes.h>
 
 // LLVM includes
 #include <llvm/Pass.h>
@@ -19,6 +19,10 @@
 #include <cassert>
 #include <set>
 #include <optional>
+
+
+
+#include <noelle/core/DGBase.hpp>
 
 
 static void replace_function(Module &M, std::string original_name, std::string new_name = "") {
@@ -53,54 +57,57 @@ auto adapt(T &&fp) {
 
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
-            PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-              // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
+  return {
+      LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
+        PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
+          // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
 
-              if (getenv("ALASKA_ONLY_PREFETCH") != NULL) {
-                MPM.addPass(AlaskaTranslatePass());
-                MPM.addPass(PrefetchPass());
-                MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_prefetch.bc"));
-                return true;
-              }
+          if (getenv("ALASKA_ONLY_PREFETCH") != NULL) {
+            MPM.addPass(AlaskaTranslatePass());
+            MPM.addPass(PrefetchPass());
+            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_prefetch.bc"));
+            return true;
+          }
 
-              if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
-                MPM.addPass(AlaskaNormalizePass());
-                if (!alaska::bootstrapping()) {
-                  // run replacement on non-bootstrapped code
-                  MPM.addPass(AlaskaReplacementPass());
-                }
+          if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
+            MPM.addPass(AlaskaNormalizePass());
+            if (!alaska::bootstrapping()) {
+              // run replacement on non-bootstrapped code
+              MPM.addPass(AlaskaReplacementPass());
+            }
 
 #ifdef ALASKA_COMPILER_TIMING
-                if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
+            if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
 #endif
 
 
-                MPM.addPass(AlaskaTranslatePass());
-                MPM.addPass(adapt(PromotePass()));
+            MPM.addPass(AlaskaTranslatePass());
+            MPM.addPass(adapt(PromotePass()));
 
 #ifdef ALASKA_ESCAPE_PASS
-                if (!alaska::bootstrapping()) {
-                  MPM.addPass(AlaskaEscapePass());
-                }
+            if (!alaska::bootstrapping()) {
+              MPM.addPass(AlaskaEscapePass());
+            }
 #endif
 #ifdef ALASKA_DUMP_LOCKS
-                MPM.addPass(LockPrinterPass());
+            MPM.addPass(LockPrinterPass());
 #endif
-                // MPM.addPass(RedundantArgumentLockElisionPass());
-                if (!alaska::bootstrapping()) MPM.addPass(LockTrackerPass());
+            // MPM.addPass(RedundantArgumentLockElisionPass());
+            if (!alaska::bootstrapping()) MPM.addPass(LockTrackerPass());
 
-                if (alaska::bootstrapping()) {
-                  // Use the bootstrap bitcode if we are bootstrapping
-                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc"));
-                } else {
-                  // Link the library otherwise (just runtime/src/translate.c)
-                  MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
-                }
-              }
+            // if (alaska::bootstrapping()) {
+            //   // Use the bootstrap bitcode if we are bootstrapping
+            //   MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX
+            //   "/lib/alaska_bootstrap.bc"));
+            // } else {
+            //   // Link the library otherwise (just runtime/src/translate.c)
+            //   MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX
+            //   "/lib/alaska_translate.bc"));
+            // }
+          }
 
 
-              return true;
-            });
-          }};
+          return true;
+        });
+      }};
 }

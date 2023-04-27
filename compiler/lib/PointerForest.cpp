@@ -1,6 +1,6 @@
-#include <LockForest.h>
-#include <Graph.h>
-#include <Utils.h>
+#include <alaska/TranslationForest.h>
+#include <alaska/PointerFlowGraph.h>
+#include <alaska/Utils.h>
 #include <deque>
 #include <set>
 #include <sstream>
@@ -11,14 +11,16 @@
 
 
 
-// Either get the `incoming_lock` of this node or the node it shares with, or the parent's translated
-llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node) {
-  if (node.incoming_lock != NULL) return node.incoming_lock;
+// Either get the `incoming` of this node or the node it shares with, or the parent's
+// translated
+llvm::Instruction *get_incoming_translated_value(alaska::TranslationForest::Node &node) {
+  if (node.incoming != NULL) return node.incoming;
 
   if (node.parent->parent == NULL) {
-    if (auto *shared = node.compute_shared_lock()) {
-      ALASKA_SANITY(shared->incoming_lock != NULL, "Incoming lock on shared lock owner is null");
-      return shared->incoming_lock;
+    if (auto *shared = node.compute_shared_translation()) {
+      ALASKA_SANITY(
+          shared->incoming != NULL, "Incoming translation on shared translation owner is null");
+      return shared->incoming;
     }
   }
 
@@ -27,8 +29,10 @@ llvm::Instruction *get_incoming_translated_value(alaska::LockForest::Node &node)
 }
 
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
-  alaska::LockForest::Node &node;
-  TranslationVisitor(alaska::LockForest::Node &node) : node(node) {}
+  alaska::TranslationForest::Node &node;
+  TranslationVisitor(alaska::TranslationForest::Node &node)
+      : node(node) {
+  }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     // create a new GEP right after this one.
@@ -36,7 +40,8 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
 
     auto t = get_incoming_translated_value(node);
     std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
-    node.translated = dyn_cast<Instruction>(b.CreateGEP(I.getSourceElementType(), t, inds, "", I.isInBounds()));
+    node.translated =
+        dyn_cast<Instruction>(b.CreateGEP(I.getSourceElementType(), t, inds, "", I.isInBounds()));
   }
 
   void visitLoadInst(llvm::LoadInst &I) {
@@ -54,7 +59,8 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   }
 };
 
-static void extract_nodes(alaska::LockForest::Node *node, std::set<alaska::LockForest::Node *> &nodes) {
+static void extract_nodes(
+    alaska::TranslationForest::Node *node, std::set<alaska::TranslationForest::Node *> &nodes) {
   nodes.insert(node);
 
   for (auto &child : node->children) {
@@ -62,21 +68,21 @@ static void extract_nodes(alaska::LockForest::Node *node, std::set<alaska::LockF
   }
 }
 
-int alaska::LockForest::Node::depth(void) {
+int alaska::TranslationForest::Node::depth(void) {
   if (parent == NULL) return 0;
   return parent->depth() + 1;
 }
 
-alaska::LockForest::Node *alaska::LockForest::Node::compute_shared_lock(void) {
-  if (share_lock_with) {
-    auto *s = share_lock_with->compute_shared_lock();
+alaska::TranslationForest::Node *alaska::TranslationForest::Node::compute_shared_translation(void) {
+  if (share_translation_with) {
+    auto *s = share_translation_with->compute_shared_translation();
     if (s) return s;
-    return share_lock_with;
+    return share_translation_with;
   }
   return nullptr;
 }
 
-llvm::Instruction *alaska::LockForest::Node::effective_instruction(void) {
+llvm::Instruction *alaska::TranslationForest::Node::effective_instruction(void) {
   if (auto inst = dyn_cast<llvm::Instruction>(val)) {
     if (auto phi = dyn_cast<llvm::PHINode>(val)) {
       return phi->getParent()->getFirstNonPHI();
@@ -93,7 +99,8 @@ llvm::Instruction *alaska::LockForest::Node::effective_instruction(void) {
   return NULL;
 }
 
-alaska::LockForest::Node::Node(alaska::FlowNode *val, alaska::LockForest::Node *parent) {
+alaska::TranslationForest::Node::Node(
+    alaska::FlowNode *val, alaska::TranslationForest::Node *parent) {
   this->val = val->value;
   this->parent = parent;
   for (auto *out : val->get_out_nodes()) {
@@ -103,19 +110,20 @@ alaska::LockForest::Node::Node(alaska::FlowNode *val, alaska::LockForest::Node *
 
 
 
-static llvm::Loop *get_outermost_loop_for_lock(
+static llvm::Loop *get_outermost_loop_for_translation(
     llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
-  // first, check the `loopToCheck` loop. If it fits the requirements we are looking for, early return and don't check
-  // subloops. If it doesn't, recurse down to the subloops and see if they fit.
+  // first, check the `loopToCheck` loop. If it fits the requirements we are looking for, early
+  // return and don't check subloops. If it doesn't, recurse down to the subloops and see if they
+  // fit.
   //
   // 1. if the loop contains the user but not the pointer, this is the best loop.
-  //    (we want to lock right before the loop header)
+  //    (we want to translate right before the loop header)
   if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
     return loopToCheck;
   }
 
   for (auto *subLoop : loopToCheck->getSubLoops()) {
-    if (auto *loop = get_outermost_loop_for_lock(subLoop, pointer, user)) {
+    if (auto *loop = get_outermost_loop_for_translation(subLoop, pointer, user)) {
       return loop;
     }
   }
@@ -123,48 +131,51 @@ static llvm::Loop *get_outermost_loop_for_lock(
 }
 
 
-static llvm::Instruction *compute_lock_insertion_location(
-    llvm::Value *pointerToLock, llvm::Instruction *lockUser, llvm::LoopInfo &loops) {
-  // return lockUser;
-  // the instruction to consider as the "location of the pointer". This is done for things like arguments.
+static llvm::Instruction *compute_translation_insertion_location(
+    llvm::Value *pointerToTranslate, llvm::Instruction *user, llvm::LoopInfo &loops) {
+  // the instruction to consider as the "location of the pointer". This is done for things like
+  // arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
-  if (auto pointerToLockInst = dyn_cast<llvm::Instruction>(pointerToLock)) {
-    effectivePointerInstruction = pointerToLockInst;
+  if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
+    effectivePointerInstruction = pointerToTranslateInst;
   } else {
     // get the first instruction in the function the argument is a part of;
-    effectivePointerInstruction = lockUser->getParent()->getParent()->front().getFirstNonPHI();
+    effectivePointerInstruction = user->getParent()->getParent()->front().getFirstNonPHI();
   }
-  ALASKA_SANITY(effectivePointerInstruction != NULL, "No effective instruction for pointerToLock");
+  ALASKA_SANITY(
+      effectivePointerInstruction != NULL, "No effective instruction for pointerToTranslate");
 
   llvm::Loop *targetLoop = NULL;
   for (auto loop : loops) {
-    targetLoop = get_outermost_loop_for_lock(loop, effectivePointerInstruction, lockUser);
+    targetLoop = get_outermost_loop_for_translation(loop, effectivePointerInstruction, user);
     if (targetLoop != NULL) break;
   }
 
-  // If no loop was found, lock at the lockUser.
-  if (targetLoop == NULL) return lockUser;
+  // If no loop was found, translate at the user.
+  if (targetLoop == NULL) return user;
 
   llvm::BasicBlock *incoming, *back;
   targetLoop->getIncomingAndBackEdge(incoming, back);
 
 
-  // errs() << "Found loop for " << *pointerToLock << ": " << *targetLoop;
+  // errs() << "Found loop for " << *pointerToTranslate << ": " << *targetLoop;
   if (incoming && incoming->getTerminator()) {
     return incoming->getTerminator();
   }
 
-  return lockUser;
+  return user;
 }
 
 
 
-alaska::LockForest::LockForest(llvm::Function &F) : func(F) {}
+alaska::TranslationForest::TranslationForest(llvm::Function &F)
+    : func(F) {
+}
 
 
 
 
-std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
+std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
   alaska::PointerFlowGraph G(func);
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
@@ -199,7 +210,7 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
           }
 
           if (DT.dominates(inst, sib_inst)) {
-            sibling->share_lock_with = child.get();
+            sibling->share_translation_with = child.get();
             child->dominates.insert(sibling.get());
           }
         }
@@ -211,42 +222,42 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
   for (auto &root : this->roots) {
     for (auto &child : root->children) {
-      if (child->share_lock_with == NULL) {
-        auto &lb = get_lockbounds();
+      if (child->share_translation_with == NULL) {
+        auto &lb = get_translation_bounds();
         lb.pointer = root->val;
-        child->lock_id = lb.id;
+        child->translation_id = lb.id;
       }
     }
-    // Apply lockbounds to the forest nodes.
+    // Apply TranslationBounds to the forest nodes.
     for (auto &child : root->children) {
-      unsigned id = child->lock_id;
-      if (auto *share = child->compute_shared_lock()) {
-        id = share->lock_id;
+      unsigned id = child->translation_id;
+      if (auto *share = child->compute_shared_translation()) {
+        id = share->translation_id;
       }
-      ALASKA_SANITY(id != UINT_MAX, "invalid lock id");
-      child->set_lockid(id);
+      ALASKA_SANITY(id != UINT_MAX, "invalid translation id");
+      child->set_translation_id(id);
     }
   }
 
-  // Compute the instruction at which a lock should be inserted to minimize the
+  // Compute the instruction at which a translation should be inserted to minimize the
   // number of runtime invocations, but to also minimize the number of handles
-  // which are locked when alaska_barrier functions are called. There are a few
+  // which are translated when alaska_barrier functions are called. There are a few
   // decisions it this function makes:
-  //   - if @lockUser is inside a loop that @pointerToLock is not:
-  //     - If the loop contains a call to `alaska_barrier`, lock before @lockUser
-  //     - else, lock before the branch into the loop's header.
-  //   - else, lock at @lockUser
+  //   - if @user is inside a loop that @pointerToTranslation is not:
+  //     - If the loop contains a call to `alaska_barrier`, translate before @user
+  //     - else, translate before the branch into the loop's header.
+  //   - else, translate at @user
   for (auto &root : this->roots) {
     for (auto &child : root->children) {
       auto *inst = dyn_cast<llvm::Instruction>(child->val);
       ALASKA_SANITY(inst != NULL, "child node has no instruction");
-      // first, if the child does not share a lock with anyone, and
-      // it's parent is a source, create the incoming lock
-      if (child->share_lock_with == NULL && child->parent->parent == NULL) {
-        auto &lb = get_lockbounds(child->lock_id);
-        lb.lockBefore = compute_lock_insertion_location(root->val, inst, loops);
+      // first, if the child does not share a translation with anyone, and
+      // it's parent is a source, create the incoming translation
+      if (child->share_translation_with == NULL && child->parent->parent == NULL) {
+        auto &lb = get_translation_bounds(child->translation_id);
+        lb.translateBefore = compute_translation_insertion_location(root->val, inst, loops);
 
-				IRBuilder<> b(lb.lockBefore);
+        IRBuilder<> b(lb.translateBefore);
         lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
       }
     }
@@ -254,10 +265,10 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
 
   ///////////////////////////////////////////////////////////////////////////
-  //                      Compute unlock locations                         //
+  //                      Compute release locations                        //
   ///////////////////////////////////////////////////////////////////////////
 
-  std::map<Instruction *, LockBounds *> inst2bounds;
+  std::map<Instruction *, TranslationBounds *> inst2bounds;
   {
     std::set<Node *> nodes;
     for (auto &root : this->roots) {
@@ -268,11 +279,11 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
     for (auto &node : nodes) {
       if (auto *inst = dyn_cast<Instruction>(node->val)) {
-        inst2bounds[inst] = &get_lockbounds(node->lock_id);
+        inst2bounds[inst] = &get_translation_bounds(node->translation_id);
       }
     }
-    for (auto &[id, bounds] : locks) {
-      inst2bounds[bounds->lockBefore] = bounds.get();
+    for (auto &[id, bounds] : translations) {
+      inst2bounds[bounds->translateBefore] = bounds.get();
     }
   }
 
@@ -285,11 +296,11 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
 
   std::set<Instruction *> todo;
 
-  // here, we do something horrible. we insert lock instructions just so we can do analysis. Later we will delete them
-  for (auto &[lid, lock] : locks) {
-
-    lock->locked = insertLockBefore(lock->lockBefore, lock->pointer);
-    KILL[lock->locked].insert(lid);
+  // here, we do something horrible. we insert translation instructions
+  // just so we can do analysis. Later we will delete them. :^)
+  for (auto &[lid, tr] : translations) {
+    tr->translated = insertTranslationBefore(tr->translateBefore, tr->pointer);
+    KILL[tr->translated].insert(lid);
   }
 
   // initialize gen sets
@@ -358,46 +369,47 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
   }
 
 
-  std::map<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>, std::set<alaska::LockBounds *>> unlockTrampolines;
+  std::map<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>, std::set<alaska::TranslationBounds *>>
+      releaseTrampolines;
 
-  // using the dataflow result, insert unlock locations into the corresponding lockbounds
+  // using the dataflow result, insert release locations into the corresponding translation bounds
   for (auto &BB : func) {
     for (auto &I : BB) {
-      for (auto &[id, lockbounds] : locks) {
+      for (auto &[id, trbounds] : translations) {
         auto &iIN = IN[&I];
         auto &iOUT = OUT[&I];
 
         // if the value is not in the IN, skip
-        if (iIN.find(lockbounds->id) == iIN.end()) {
+        if (iIN.find(trbounds->id) == iIN.end()) {
           continue;
         }
 
         // in the IN
 
-        // if the value is not in the OUT, lock after this instruction
-        if (iOUT.find(lockbounds->id) == iOUT.end()) {
-          lockbounds->unlocks.insert(I.getNextNode());
+        // if the value is not in the OUT, translate after this instruction
+        if (iOUT.find(trbounds->id) == iOUT.end()) {
+          trbounds->releaseAfter.insert(I.getNextNode());
           continue;
         }
 
         // in the IN, also in the OUT
 
-        // special case for branches: insert an unlock on the "exit edge" of a branch
+        // special case for branches: insert a release on the "exit edge" of a branch
         // if the branch has the value in the OUT, but the branched-to instruction does
         // not have it in the IN.
         if (auto *branch = dyn_cast<BranchInst>(&I)) {
           for (auto succ : branch->successors()) {
             auto succInst = &succ->front();
             auto &succIN = IN[succInst];
-            // if it's not in the IN of succ, lock on the edge
-            if (succIN.find(lockbounds->id) == succIN.end()) {
+            // if it's not in the IN of succ, translate on the edge
+            if (succIN.find(trbounds->id) == succIN.end()) {
               // HACK: split the edge and insert on the branch
               BasicBlock *from = I.getParent();
               BasicBlock *to = succ;
-              // we cannot insert the trampoline split here, as we would be modifying the IR while iterating it.
-              // Instead, record that we need to in the unlockTrampolines structure above so we can insert the
-              // trampoline later.
-              unlockTrampolines[std::make_pair(from, to)].insert(lockbounds.get());
+              // we cannot insert the trampoline split here, as we would be modifying the IR while
+              // iterating it. Instead, record that we need to in the releaseTrampoline structure
+              // above so we can insert the trampoline later.
+              releaseTrampolines[std::make_pair(from, to)].insert(trbounds.get());
             }
           }
         }
@@ -405,31 +417,30 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
     }
   }
 
-  for (auto &[edge, bounds] : unlockTrampolines) {
+  for (auto &[edge, bounds] : releaseTrampolines) {
     auto from = edge.first;
     auto to = edge.second;
     auto trampoline = llvm::SplitEdge(from, to);
 
-    for (auto lockbounds : bounds) {
-      lockbounds->unlocks.insert(trampoline->getTerminator());
+    for (auto b : bounds) {
+      b->releaseAfter.insert(trampoline->getTerminator());
     }
   }
 
 
-  std::vector<std::unique_ptr<alaska::Lock>> out;
+  std::vector<std::unique_ptr<alaska::Translation>> out;
 
-  // convert the LockBounds structure to a Lock
-  for (auto &[lid, lock] : locks) {
-    auto l = std::make_unique<alaska::Lock>();
-    l->lock = dyn_cast<CallInst>(lock->locked);
-    for (auto *position : lock->unlocks) {
+  // convert the translation bounds structures to translations that we return.
+  for (auto &[lid, tr] : translations) {
+    auto l = std::make_unique<alaska::Translation>();
+    l->translation = dyn_cast<CallInst>(tr->translated);
+    for (auto *position : tr->releaseAfter) {
       if (auto phi = dyn_cast<PHINode>(position)) {
         position = phi->getParent()->getFirstNonPHI();
       }
-      alaska::insertUnlockBefore(position, lock->pointer);
-      l->unlocks.insert(dyn_cast<CallInst>(position->getPrevNode()));
+      alaska::insertReleaseBefore(position, tr->pointer);
+      l->releases.insert(dyn_cast<CallInst>(position->getPrevNode()));
     }
-    // out.push_back(std::move(l));
   }
 
 
@@ -439,11 +450,11 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
       if (inst == NULL) {
         exit(EXIT_FAILURE);
       }
-      // first, if the child does not share a lock with anyone, and
-      // it's parent is a source, create the incoming lock
-      if (child->share_lock_with == NULL && child->parent->parent == NULL) {
-        auto &bounds = get_lockbounds(child->lock_id);
-        child->incoming_lock = bounds.locked;
+      // first, if the child does not share a translation with anyone, and
+      // it's parent is a source, create the incoming translation
+      if (child->share_translation_with == NULL && child->parent->parent == NULL) {
+        auto &bounds = get_translation_bounds(child->translation_id);
+        child->incoming = bounds.translated;
       }
     }
 
@@ -453,22 +464,10 @@ std::vector<std::unique_ptr<alaska::Lock>> alaska::LockForest::apply(void) {
   }
 
   return out;
-
-
-
-  // finally, insert unlocks
-  // for (auto &[id, bounds] : this->locks) {
-  //   for (auto *position : bounds->unlocks) {
-  //     if (auto phi = dyn_cast<PHINode>(position)) {
-  //       position = phi->getParent()->getFirstNonPHI();
-  //     }
-  //     alaska::insertUnlockBefore(position, bounds->pointer);
-  //   }
-  // }
 }
 
 
-void alaska::LockForest::apply(alaska::LockForest::Node &node) {
+void alaska::TranslationForest::apply(alaska::TranslationForest::Node &node) {
   auto *inst = dyn_cast<llvm::Instruction>(node.val);
   // apply transformation
   TranslationVisitor vis(node);
@@ -482,16 +481,16 @@ void alaska::LockForest::apply(alaska::LockForest::Node &node) {
 }
 
 
-alaska::LockBounds &alaska::LockForest::get_lockbounds(unsigned id) {
-  auto f = locks.find(id);
-  ALASKA_SANITY(f != locks.end(), "lock not found\n");
+alaska::TranslationBounds &alaska::TranslationForest::get_translation_bounds(unsigned id) {
+  auto f = translations.find(id);
+  ALASKA_SANITY(f != translations.end(), "translation not found\n");
   return *f->second;
 }
 
-alaska::LockBounds &alaska::LockForest::get_lockbounds(void) {
-  unsigned id = next_lock_id++;
-  auto b = std::make_unique<LockBounds>();
+alaska::TranslationBounds &alaska::TranslationForest::get_translation_bounds(void) {
+  unsigned id = next_translation_id++;
+  auto b = std::make_unique<TranslationBounds>();
   b->id = id;
-  locks[id] = std::move(b);
-  return get_lockbounds(id);
+  translations[id] = std::move(b);
+  return get_translation_bounds(id);
 }

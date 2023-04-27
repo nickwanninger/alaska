@@ -1,7 +1,7 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
-#include <WrappedFunctions.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
+#include <alaska/WrappedFunctions.h>
 
 using namespace llvm;
 
@@ -38,8 +38,9 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
       replace_function(M, "realloc", "hrealloc");
     }
 
-    // even if calls to malloc are not replaced, we still ought to replace these functions for compatability. Calling
-    // hfree() with a non-handle will fall back to the system's free() - same for alaska_usable_size().
+    // even if calls to malloc are not replaced, we still ought to replace these functions for
+    // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
+    // for alaska_usable_size().
     replace_function(M, "free", "hfree");
     replace_function(M, "malloc_usable_size", "alaska_usable_size");
   }

@@ -1,6 +1,6 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
@@ -24,7 +24,8 @@ class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
         return llvm::GetElementPtrInst::CreateInBounds(
             gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       } else {
-        return llvm::GetElementPtrInst::Create(gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
+        return llvm::GetElementPtrInst::Create(
+            gep->getSourceElementType(), gep->getPointerOperand(), inds, "", inst);
       }
     }
 

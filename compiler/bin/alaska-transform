@@ -22,6 +22,7 @@ $OPT --strip-debug
 
 $OPT -basic-aa -lowerswitch -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false
 # $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
+$OPT --instnamer
 
 
 # opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes

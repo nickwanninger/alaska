@@ -1,18 +1,15 @@
 #include "llvm/IR/Instruction.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <Graph.h>
+#include <alaska/PointerFlowGraph.h>
 #include <config.h>
 
 namespace alaska {
 
-  llvm::Instruction *insertLockBefore(llvm::Instruction *inst, llvm::Value *pointer);
-  llvm::Instruction *insertUnlockBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  llvm::Instruction *insertTranslationBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  llvm::Instruction *insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer);
 
 
-  // Insert get/puts for a graph conservatively (every load and store)
-  void insertConservativeTranslations(alaska::PointerFlowGraph &G);
-  void insertNaiveFlowBasedTranslations(alaska::PointerFlowGraph &G);
 
   void dumpBacktrace(void);
 
@@ -20,7 +17,8 @@ namespace alaska {
   bool bootstrapping(void);  // are we bootstrapping?
 
 
-  inline void fprint(llvm::raw_ostream &out) {}
+  inline void fprint(llvm::raw_ostream &out) {
+  }
   template <class T, class... Ts>
   inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &...rest) {
     out << first;

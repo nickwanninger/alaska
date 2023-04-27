@@ -1,6 +1,6 @@
-#include <Passes.h>
-#include <Locks.h>
-#include <Utils.h>
+#include <alaska/Passes.h>
+#include <alaska/Translations.h>
+#include <alaska/Utils.h>
 
 using namespace llvm;
 
@@ -16,14 +16,16 @@ llvm::Value *RedundantArgumentLockElisionPass::getRootAllocation(llvm::Value *cu
   return cur;
 }
 
-llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(Module &M, ModuleAnalysisManager &AM) {
-  // Which arguments does each function lock internally? (Array of true and false for each index of the args)
+llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
+    Module &M, ModuleAnalysisManager &AM) {
+  // Which arguments does each function lock internally? (Array of true and false for each index of
+  // the args)
   std::map<llvm::Function *, std::vector<bool>> locked_arguments;
 
   for (auto &F : M) {
     if (F.empty()) continue;
     // Which arguments do each function lock?
-    auto locks = alaska::extractLocks(F);
+    auto locks = alaska::extractTranslations(F);
     std::vector<bool> locked;
     locked.reserve(F.arg_size());
     for (unsigned i = 0; i < F.arg_size(); i++)
@@ -59,7 +61,7 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(Module &M, ModuleA
 
         auto *callFunction = call->getFunction();
 
-        auto fLocks = alaska::extractLocks(*callFunction);
+        auto fLocks = alaska::extractTranslations(*callFunction);
         alaska::print("\t use:");
 
         for (unsigned i = 0; i < locked.size(); i++) {
