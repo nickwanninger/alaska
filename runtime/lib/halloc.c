@@ -18,8 +18,8 @@
 
 
 void alaska_halloc_init(void) {
-  //
 }
+
 void alaska_halloc_deinit(void) {
 }
 

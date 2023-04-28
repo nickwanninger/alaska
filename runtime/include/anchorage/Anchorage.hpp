@@ -30,7 +30,9 @@ namespace anchorage {
 
   constexpr size_t block_size = 16;
   constexpr size_t page_size = 4096;
-  constexpr size_t min_chunk_pages = 4096;
+	// How many pages should a chunk be? 
+	// TODO: This needs to be tuned dynamically
+  constexpr size_t min_chunk_pages = 16384; // 64mb of pages
   static inline size_t size_with_overhead(size_t sz) {
     return sz + block_size;
   }

@@ -54,7 +54,7 @@ add_llvm_library(Alaska MODULE
 	lib/ct/Utils.cpp
 
 	passes/CompilerTiming.cpp
-	passes/LockTracker.cpp
+	passes/LockInsertion.cpp
 	passes/LockPrinter.cpp
 	passes/ArgLockElision.cpp
 	passes/Normalize.cpp

@@ -21,9 +21,9 @@ OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 $OPT --strip-debug
 
 $OPT -basic-aa -lowerswitch -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false
-# $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
-$OPT --instnamer
+$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
+# $OPT --instnamer
 
 
 # opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes
-clang -O3 -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
+clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT

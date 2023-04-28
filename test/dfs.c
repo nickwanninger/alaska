@@ -16,9 +16,9 @@ struct node {
 struct node *create_tree(int depth) {
   struct node *n = malloc(sizeof(*n));
   // struct node *n = malloc(512);
-  // const char *data = "Hello, world. This is a test of a big allocation of string";
-  // n->data = malloc(strlen(data) + 1);
-  // strcpy(n->data, data);
+  const char *data = "Hello, world. This is a test of a big allocation of string";
+  n->data = malloc(strlen(data) + 1);
+  strcpy(n->data, data);
   // n->val = depth;
   n->left = n->right = NULL;
   if (depth > 0) {
@@ -86,7 +86,7 @@ int main() {
   srand((unsigned)time(NULL));
 
   printf("=============== ALLOCATING ===============\n");
-  struct node *tree = create_tree(3);
+  struct node *tree = create_tree(15);
   printf("=============== TRAVERSING ===============\n");
   num_nodes(tree);
 
@@ -106,16 +106,5 @@ int main() {
   for (int i = 0; i < trials; i++) {
     test(num_nodes_rev, tree);
   }
-
-  // printf("=============== MANUFACTURING LOCALITY ===============\n");
-  // anchorage_manufacture_locality((void *)tree);
-
-  // printf("=============== TRAVERSING (Right then Left) ===============\n");
-  // start = alaska_timestamp();
-  // num_nodes_rev(tree);
-  // printf("%lu\n", alaska_timestamp() - start);
-  // printf("=============== TRAVERSING (Right then Left) ===============\n");
-  // start = alaska_timestamp();
-  // num_nodes_rev(tree);
-  // printf("%lu\n", alaska_timestamp() - start);
+	return 0;
 }

@@ -50,6 +50,7 @@ anchorage::Chunk::Chunk(size_t pages)
     : pages(pages) {
   tos = front =
       (Block *)mmap(NULL, anchorage::page_size * pages, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	printf("allocated %f Mb for a chunk\n", (anchorage::page_size * pages) / 1024.0 / 1024.0);
   tos->set_next(nullptr);
 
   all_chunks->add(this);

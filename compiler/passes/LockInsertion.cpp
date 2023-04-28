@@ -2,6 +2,7 @@
 #include <alaska/Translations.h>
 #include <alaska/Utils.h>
 #include <llvm/Transforms/Utils/EscapeEnumerator.h>
+#include "llvm/IR/PassManager.h"
 
 using namespace llvm;
 
@@ -30,7 +31,10 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
   return dyn_cast<GetElementPtrInst>(Val);
 }
 
-PreservedAnalyses LockTrackerPass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
+#ifndef ALASKA_LOCK_TRACKING
+	return PreservedAnalyses::all();
+#endif
   std::vector<Type *> EltTys;
 
   auto pointerType = llvm::PointerType::get(M.getContext(), 0);

@@ -72,7 +72,7 @@ namespace llvm {
   }
 
   void BitMatrix::transitiveClosure() {
-    uint32_t nAdd = 0;
+    // uint32_t nAdd = 0;
 
     typedef std::list<uint32_t> Worklist;
     Worklist worklist;
@@ -95,7 +95,7 @@ namespace llvm {
           // but not (i->k)
           if (!test(i, k)) {
             changedI = true;
-            ++nAdd;
+            // ++nAdd;
             set(i, k);
           }
         }

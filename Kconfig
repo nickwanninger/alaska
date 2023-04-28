@@ -34,13 +34,13 @@ endmenu
 
 
 menu "Debug"
-	config DUMP_LOCKS
-		bool "Dump locks after they are created"
+	config DUMP_TRANSLATIONS
+		bool "Dump translations after they are created"
 		default n
 
-	config DUMP_LOCKS_FOCUS
-		string "Comma separated list of functions to focus on when dumping locks"
-		depends on DUMP_LOCKS
+	config DUMP_TRANSLATIONS_FOCUS
+		string "Comma separated list of functions to focus on when dumping translations"
+		depends on DUMP_TRANSLATIONS
 		default ""
 
 	config DUMP_FLOW_GRAPH
@@ -48,9 +48,6 @@ menu "Debug"
 		default n
 endmenu
 
-config SWAP_SUPPORT
-	bool "Enable swap-in checking in the translation operation"
-	default n
 
 # config SIM_MODE
 # 	bool "Run Alaska in a 'simulator' mode"
@@ -62,7 +59,7 @@ config SWAP_SUPPORT
 # 		porting benchmarks (mostly for the classification effort)
 
 config ESCAPE_PASS
-	bool "Lock before argument escapes"
+	bool "Translate before argument escapes"
 	default y
 
 
@@ -70,8 +67,8 @@ config SANITY_CHECK
 	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
 	default n
 
-config HOIST_LOCKS
-	bool "Hoist locks in the compiler"
+config HOIST_TRANSLATIONS
+	bool "Hoist translations out of loops"
 	default y
 
 config COMPILER_TIMING
@@ -82,6 +79,15 @@ config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
 	depends on CORRECTNESS_EMULATOR
 	default n
+
+
+config SWAP_SUPPORT
+	bool "Enable swap-in checking in the translation operation"
+	default y
+
+config LOCK_TRACKING
+	bool "Enable lock tracking via shadow-stack rooting"
+	default y
 
 config OFFSET_BITS
 	int "Maximum bit size of an allocation (cannot be larger than 36)"

@@ -73,6 +73,12 @@ extern "C" void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool lo
 void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   Block *new_block = NULL;
   Chunk *new_chunk = NULL;
+
+
+
+  //
+
+
   // attempt to allocate from each chunk
   for (auto *chunk : anchorage::Chunk::all()) {
     auto blk = chunk->alloc(size);

@@ -51,10 +51,10 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
-#ifdef ALASKA_HOIST_LOCKS
+#ifdef ALASKA_HOIST_TRANSLATIONS
     alaska::insertHoistedTranslations(F);
 #else
-    alaska::insertConservativeLocks(F);
+    alaska::insertConservativeTranslations(F);
 #endif
   }
 

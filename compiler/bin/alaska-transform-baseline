@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
+PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
+
+
+export PATH=$PFX/bin:$PATH
+export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
+
+ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform $@
