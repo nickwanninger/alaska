@@ -1,5 +1,7 @@
 *.bc
 .*.o
+/.*.dot
+/*.dot
 *.o
 /.config
 /build
