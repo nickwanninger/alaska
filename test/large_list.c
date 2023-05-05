@@ -66,9 +66,9 @@ uint64_t run_test(void) {
 
 	root = reverse_list(root);
   test(root);
-#ifdef ALASKA_SERVICE_ANCHORAGE
-  anchorage_manufacture_locality((void*)root);
-#endif
+// #ifdef ALASKA_SERVICE_ANCHORAGE
+//   anchorage_manufacture_locality((void*)root);
+// #endif
 
   uint64_t start = timestamp();
 	for (int i = 0; i < 100; i++) {

@@ -74,37 +74,39 @@ void free_lefts(struct node *tree) {
 }
 
 
-void test(long (*func)(struct node *tree), struct node *tree) {
-  uint64_t start;
-  // alaska_barrier();
+void test(long (*func)(struct node *tree), struct node *tree, int barrier) {
+  uint64_t start, end;
   start = alaska_timestamp();
+  if (barrier) alaska_barrier();
   func(tree);
-  printf("%f\n", (alaska_timestamp() - start) / 1000.0 / 1000.0 / 1000.0);
+  end = alaska_timestamp();
+
+  printf("%f\n", (end - start) / 1000.0 / 1000.0 / 1000.0);
 }
 
 int main() {
+  long start, end;
   srand((unsigned)time(NULL));
 
   printf("=============== ALLOCATING ===============\n");
-  struct node *tree = create_tree(15);
-  printf("=============== TRAVERSING ===============\n");
-  num_nodes(tree);
+  start = alaska_timestamp();
+  struct node *tree = create_tree(22);
+  end = alaska_timestamp();
+  printf("allocation took %fs\n", (end - start) / 1000.0 / 1000.0 / 1000.0);
 
 
   long trials = 10;
   printf("Before barrier:\n");
   for (int i = 0; i < trials; i++) {
-    test(num_nodes_rev, tree);
+    test(num_nodes_rev, tree, 0);
   }
-  long start = alaska_timestamp();
-  alaska_barrier();
-  long end = alaska_timestamp();
-  printf("barrier took %fs\n", (end - start) / 1000.0 / 1000.0 / 1000.0);
-
-
-  // printf("After barrier:\n");
+  printf("Barrier:\n");
+  test(num_nodes_rev, tree, 1);
+  printf("After barrier:\n");
   for (int i = 0; i < trials; i++) {
-    test(num_nodes_rev, tree);
+    test(num_nodes_rev, tree, 0);
   }
-	return 0;
+
+  // free_nodes(tree);
+  return 0;
 }
