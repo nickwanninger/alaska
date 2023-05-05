@@ -53,79 +53,53 @@
  * or duplciated needlessly. (Which can lead to linker errors)
  */
 
+extern int alaska_verify_is_locally_locked(void *ptr);
 
-// #define ROOT ((alaska_mapping_t *)(uint64_t)0)
-
-// alaska_mapping_t *new_translate(void *restrict ptr) {
-//   handle_t h;
-//   h.ptr = ptr;
-//   if (unlikely(h.flag == 0)) {
-//     return NULL;
-//   }
-
-//   alaska_mapping_t *m = (alaska_mapping_t *)(h.handle * sizeof(alaska_mapping_t));
-//   // #ifdef ALASKA_SWAP_SUPPORT
-//   //   if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
-//   // #endif
-//   return (void *)((uint64_t)m->ptr + h.offset);
-// }
-
-// alaska_mapping_t *old_translate(void *restrict ptr) {
-//   handle_t h;
-//   h.ptr = ptr;
-//   if (unlikely(h.flag == 0)) {
-//     return NULL;
-//   }
-//   alaska_mapping_t *m = (alaska_mapping_t *)h.handle;
-//   // #ifdef ALASKA_SWAP_SUPPORT
-//   //   if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
-//   // #endif
-//   return (void *)((uint64_t)m->ptr + h.offset);
-// }
 
 ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
-#ifdef ALASKA_SIM_MODE
-  extern alaska_mapping_t *sim_lookup(void *restrict ptr);
-  return sim_lookup(ptr);
-#else
   handle_t h;
   h.ptr = ptr;
   if (unlikely(h.flag == 0)) {
     return NULL;
   }
   return (alaska_mapping_t *)(uint64_t)h.handle;
-#endif
 }
+
 
 
 ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
-  alaska_mapping_t *m = alaska_lookup(ptr);
-  // If the lookup returns null, we aren't dealing with a handle, and we
-  // should just return the pointer without doing anything.
-  if (unlikely(m == NULL)) return ptr;
-
-#ifdef ALASKA_SWAP_SUPPORT
-  // If swap is on, ensure there is a pointer in the handle
-  if (unlikely(m->ptr == NULL)) alaska_ensure_present(m);
-#endif
+  /**
+   * This function is written in a strange way on purpose. It's written
+   * with a close understanding of how it will be lowered into LLVM IR
+   * (mainly how it will be lowered into PHI instructions).
+   */
 
 
-  // make sure there is a pointer mapped to this handle
-  ALASKA_SANITY(m->ptr != NULL, "Handle has no pointer!");
-  ALASKA_SERVICE_ON_LOCK(m);
+  // Sanity check that a handle has been locked on this thread
+	// *before* translating. This ensures it won't be moved during
+	// the invocation of this function
+  ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
+      "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
 
-  // finally, perform the translation (offset from the base pointer.)
   handle_t h;
   h.ptr = ptr;
-  return (void *)((uint64_t)m->ptr + h.offset);
+  if (likely(h.flag == 1)) {
+    alaska_mapping_t *m = (alaska_mapping_t *)(h.handle);
+    void *mapped = m->ptr;
+#ifdef ALASKA_SWAP_SUPPORT
+    if (unlikely(mapped == 0)) {  // is the top bit set?
+      mapped = alaska_ensure_present(m);
+    }
+#endif
+    ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
+    ptr = (void *)((uint64_t)mapped + h.offset);
+  }
+  return ptr;
 }
 
 ALASKA_INLINE void alaska_release(void *restrict ptr) {
-  // This function is just a marker.
-  // alaska_mapping_t *m = alaska_lookup(ptr);
-  // if (unlikely(m == NULL)) return;
-
-  // ALASKA_SERVICE_ON_UNLOCK(m);
+  // This function is just a marker that `ptr` is now dead (no longer used)
+  // and should not have any real meaning in the runtime
 }
 
 static int needs_barrier = 0;

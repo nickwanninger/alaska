@@ -42,7 +42,7 @@ void *halloc(size_t sz) {
     exit(-1);
   }
 
-  ent->ptr = NULL; // Set to NULL as a sanity check
+  ent->ptr = NULL;  // Set to NULL as a sanity check
   // Defer to the service to alloc
   alaska_service_alloc(ent, sz);
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
@@ -51,15 +51,10 @@ void *halloc(size_t sz) {
 
   memset(ent->ptr, 0, sz);
 
-#ifdef ALASKA_SIM_MODE
-  // record, then return the pointer itself
-  extern void sim_on_alloc(alaska_mapping_t *);
-  sim_on_alloc(ent);
-  return ent->ptr;
-#else
   uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << ALASKA_OFFSET_BITS);
+
+	// printf("halloc %zu -> %p\n", sz, ent);
   return (void *)handle;
-#endif
 }
 
 void *hcalloc(size_t nmemb, size_t size) {
@@ -77,39 +72,29 @@ void *hrealloc(void *handle, size_t new_size) {
   }
 
   long old_size = m->size;
-	void *old_ptr = m->ptr;
-	(void)old_size;
-	(void)old_ptr;
+  void *old_ptr = m->ptr;
+  (void)old_size;
+  (void)old_ptr;
 
   // Defer to the service to realloc
   alaska_service_alloc(m, new_size);
 
-#ifdef ALASKA_SIM_MODE
-  // record, then return the pointer itself
-  extern void sim_on_realloc(alaska_mapping_t *, void *oldptr, size_t oldsz);
-  sim_on_realloc(m, old_ptr, old_size);
-  // record, then return the pointer itself
-  return m->ptr;
-#else
   // realloc in alaska will always return the same pointer...
   // Ahh the benefits of using handles!
   // hopefully, nobody is relying on the output of realloc changing :^)
   return handle;
-#endif
 }
 
 void hfree(void *ptr) {
   if (ptr == NULL) return;
+
+	// printf("hfree %p\n", ptr);
 
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (m == NULL) {
     return;
   }
 
-#ifdef ALASKA_SIM_MODE
-  extern void sim_on_free(alaska_mapping_t *);
-  sim_on_free(m);
-#endif
   // Defer to the service to free
   alaska_service_free(m);
 

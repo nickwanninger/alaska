@@ -27,8 +27,6 @@ __thread struct alaska_lock_frame* alaska_lock_root_chain = &alaska_lock_chain_b
 
 extern uint64_t alaska_next_usage_timestamp;
 
-extern void trace_defrag_hook(void* oldptr, void* newptr, size_t size);
-
 // We track all threads w/ a simple linked list
 struct alaska_thread_info {
   pthread_t thread;
@@ -45,7 +43,22 @@ static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
+int alaska_verify_is_locally_locked(void *ptr) {
+  if (!IS_ENABLED(ALASKA_LOCK_TRACKING)) return 1;
+	extern struct alaska_lock_frame *__alaska_get_lock_frame();
 
+  struct alaska_lock_frame* cur;
+
+  cur = alaska_lock_root_chain;
+  while (cur != NULL) {
+    for (uint64_t i = 0; i < cur->count; i++) {
+      if (cur->locked[i] == ptr) return 1;
+    }
+    cur = cur->prev;
+  }
+
+	return 0;
+}
 
 static void record_handle(void* possible_handle, bool marked) {
   alaska_mapping_t* m = alaska_lookup(possible_handle);
@@ -136,7 +149,7 @@ void alaska_barrier_end(void) {
 }
 
 
-__declspec(noinline) void alaska_barrier(void) {
+void alaska_barrier(void) {
   alaska_barrier_begin();
   alaska_service_barrier();
   alaska_barrier_end();
