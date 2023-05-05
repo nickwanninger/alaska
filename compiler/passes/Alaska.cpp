@@ -48,6 +48,44 @@ class PrefetchPass : public llvm::PassInfoMixin<PrefetchPass> {
 
 
 
+class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> {
+ public:
+  void inlineCallsTo(llvm::Function *f) {
+    if (f == NULL || f->empty()) return;
+
+    for (auto user : f->users()) {
+      if (auto call = dyn_cast<CallInst>(user)) {
+        if (call->getCalledFunction() != f) continue;
+
+        llvm::InlineFunctionInfo IFI;
+        llvm::InlineFunction(*call, IFI);
+      }
+    }
+  }
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      if (F.empty()) continue;
+      if (F.getName().startswith("alaska_")) {
+				alaska::println("inlining calls to ", F.getName());
+        for (auto user : F.users()) {
+          if (auto call = dyn_cast<CallInst>(user)) {
+						alaska::println(*call);
+            if (call->getCalledFunction() != &F) continue;
+
+            llvm::InlineFunctionInfo IFI;
+            llvm::InlineFunction(*call, IFI);
+          }
+        }
+      }
+    }
+    // inlineCallsTo(M.getFunction("alaska_translate"));
+    // inlineCallsTo(M.getFunction("alaska_release"));
+    // replace_function(M, "alaska_translate", "alaska_prefetch_translate");
+    // replace_function(M, "alaska_release", "alaska_prefetch_release");
+    return PreservedAnalyses::none();
+  }
+};
+
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
@@ -60,7 +98,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {
       LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
         PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-          // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_compat.bc"));
+          // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX
+          // "/lib/alaska_compat.bc"));
 
           MPM.addPass(AlaskaNormalizePass());
 
@@ -95,7 +134,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(LockPrinterPass());
 #endif
             // MPM.addPass(RedundantArgumentLockElisionPass());
-            // if (!alaska::bootstrapping()) MPM.addPass(LockInsertionPass());
+            if (!alaska::bootstrapping()) MPM.addPass(LockInsertionPass());
 
             if (alaska::bootstrapping()) {
               // Use the bootstrap bitcode if we are bootstrapping
@@ -104,6 +143,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               // Link the library otherwise (just runtime/src/translate.c)
               MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
             }
+
+            // Force inlines of alaska runtime functions
+            MPM.addPass(TranslationInlinePass());
           }
 
 

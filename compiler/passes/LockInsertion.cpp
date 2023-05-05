@@ -33,7 +33,7 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
 
 PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 #ifndef ALASKA_LOCK_TRACKING
-	return PreservedAnalyses::all();
+  return PreservedAnalyses::all();
 #endif
   std::vector<Type *> EltTys;
 
@@ -90,14 +90,14 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     if (translations.empty()) continue;
 
     // Given a lock, which cell does it belong to? (eagerly)
-    std::map<alaska::Translation *, long> lock_cells;
+    std::map<alaska::Translation *, long> lock_cell_ids;
     // Interference - a mapping from locks to the locks it is alive along side of.
     std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
 
     // Loop over each translation, then over it's live instructions. For each live instruction see
     // which other locks are live in those instructions. This is horrible and slow. (but works)
     for (auto &first : translations) {
-      lock_cells[first.get()] = -1;
+      lock_cell_ids[first.get()] = -1;
       // A lock interferes with itself
       interference[first.get()].insert(first.get());
       for (auto inst : first->liveInstructions) {
@@ -111,13 +111,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       }
     }
 
-    long cell_count = 0;  // the maximum level of interference
-    for (auto &[_, i] : interference) {
-      if (cell_count < (long)i.size()) cell_count = (long)i.size();
-    }
+    // long cell_count = 0;  // the maximum level of interference
+    // for (auto &[_, i] : interference) {
+    //   if (cell_count < (long)i.size()) cell_count = (long)i.size();
+    // }
 
-    fprintf(stderr, "%3ld cells required for %zu translations in %s\n", cell_count,
-        translations.size(), F.getName().data());
 
     // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
     // coloring allocation here, as we don't need to worry about register spilling
@@ -127,20 +125,32 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       long available_cell = -1;
       std::set<long> unavail;  // which cells are not available?
       for (auto other : intr) {
-        long cell = lock_cells[other];
+        long cell = lock_cell_ids[other];
         if (cell != -1) {
           unavail.insert(cell);
         }
       }
       // find a cell that hasn't been used by any of the interfering locks.
-      for (long current_cell = 0; current_cell < cell_count; current_cell++) {
+      for (long current_cell = 0; ; current_cell++) {
         if (unavail.count(current_cell) == 0) {
           available_cell = current_cell;
           break;
         }
       }
-      lock_cells[lock] = available_cell;
+      lock_cell_ids[lock] = available_cell;
     }
+
+
+		// Figure out the max available cell
+    long max_cell = 0;  // the maximum level of interference
+    for (auto &[_, i] : lock_cell_ids) {
+      if (max_cell < i) max_cell = i;
+    }
+
+		long cell_count = max_cell + 1; // account for 0 index
+
+    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
+        translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
@@ -168,17 +178,24 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     // head = cur;
     atEntry.CreateStore(stackEntry, Head, true);
 
-    int ind = 0;
-    for (auto &translation : translations) {
-      char buf[512];
-      snprintf(buf, 512, "lockCell.%d", ind);
-      auto cell = CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry,
-          lock_cells[translation.get()] + 1, buf);
-      ind++;
 
+    std::vector<GetElementPtrInst *> lockCells;
+    for (long ind = 0; ind < cell_count; ind++) {
+      char buf[512];
+      snprintf(buf, 512, "lockCell.%ld", ind);
+      auto cell =
+          CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, buf);
+      lockCells.push_back(cell);
+    }
+
+    for (auto &translation : translations) {
       auto handle = translation->getHandle();
 
       IRBuilder<> b(translation->translation);
+
+			long ind = lock_cell_ids[translation.get()];
+			auto *cell = lockCells[ind];
+
       b.SetInsertPoint(translation->translation);
       b.CreateStore(handle, cell, true);
 
