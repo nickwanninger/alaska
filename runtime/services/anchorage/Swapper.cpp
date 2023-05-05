@@ -18,59 +18,21 @@
 #include <ck/lock.h>
 #include <string.h>
 
-static uint64_t next_swapid = 0;
-ck::mutex swap_mutex;
-ck::map<uint64_t, ck::pair<void *, size_t>> swapped_out;
-
-
 extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
   anchorage::swap_in(*m);
 }
 
 
 void anchorage::swap_in(alaska::Mapping &m) {
-  ck::scoped_lock l(swap_mutex);
-
-  auto f = swapped_out.find(m.swap.id);
-  if (f == swapped_out.end()) {
-    fprintf(stderr, "Attempt to swap in handle that wasn't swapped out.\n");
-    abort();
-  }
-
-
-  auto ptr = f->value.first;
-  auto size = f->value.second;
-  void *x = anchorage::alloc(m, size);
-  memcpy(x, ptr, size);
-  swapped_out.remove(f);
+	m.ptr = (void*)m.swap.id;
+	auto block = anchorage::Block::get(m.ptr);
+	m.size = block->size();
 }
 
 
 void anchorage::swap_out(alaska::Mapping &m) {
-  ck::scoped_lock l(swap_mutex);
-
-  void *original_ptr = m.ptr;
-  // copy the data elsewhere.
-  void *new_ptr = ::malloc(m.size);
-  memcpy(new_ptr, original_ptr, m.size);
-
-  auto id = next_swapid++;
-  swapped_out[id] = ck::pair(new_ptr, m.size);
-
-  // free the backing memory for this handle
-  anchorage::free(m, original_ptr);
-  m.swap.id = id;
-}
-
-anchorage::MMAPSwapDevice::~MMAPSwapDevice() {
-}
-
-// Force a mapping to be swapped out
-bool anchorage::MMAPSwapDevice::swap_in(alaska::Mapping &m) {
-  return true;
-}
-
-
-bool anchorage::MMAPSwapDevice::swap_out(alaska::Mapping &m) {
-  return true;
+	void *ptr = m.ptr;
+	// next translation will "fault" and figure out what to do.
+	m.ptr = NULL;
+	m.swap.id = (size_t)ptr;
 }

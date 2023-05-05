@@ -196,15 +196,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
 
 
       if (latest_can_move) {
-        // auto crc_before = latest_can_move->crc();
-        // chunk.dump(latest_can_move, "Moving");
         changes += perform_move(cur, latest_can_move);
-        // auto crc_after = cur->crc();
-        // if (crc_before != crc_after) {
-        //   chunk.dump(cur, "CRC CHK");
-        //   chunk.dump(cur, "CRC CHECK");
-        // }
-        // assert(crc_before == crc_after && "Invalid crc after move!");
       }
     }
 
@@ -216,41 +208,24 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
     cur = cur->next();
   }
 
-  // ssize_t pages_till_wm = (high_watermark - span()) / anchorage::page_size;
-  // printf("pages: %zd\n", pages_till_wm);
   // TODO: MADV_DONTNEED those leftover pages if they are beyond a certain point
   return changes;
 }
 
-static void longdump(anchorage::Chunk *chunk) {
-  for (auto &block : *chunk) {
-    block.dump(true);
-  }
-}
-
-
 
 // Run the defragmentation on the set of chunks chosen before
 int anchorage::Defragmenter::run(const ck::set<anchorage::Chunk *> &chunks) {
-  // long start = alaska_timestamp();
+	// return 0;
   int changes = 0;
-  // printf("===============[ DEFRAG ]===============\n");
   for (auto *chunk : chunks) {
-// #ifdef ALASKA_ANCHORAGE_PRINT_HEAP
-//     chunk->dump(nullptr, "Before");
-// #endif
-    // chunk->dump(nullptr, "Before S/O");
     for (auto &block : *chunk) {
       if (block.is_free()) continue;
       if (block.is_locked()) continue;
       auto *handle = block.handle();
       ALASKA_SANITY(handle != nullptr, "Non-free block doesn't have a handle!");
-// #ifdef ALASKA_ANCHORAGE_PRINT_HEAP
-//       chunk->dump(&block, "Swap Out");
-// #endif
       anchorage::swap_out(*handle);
     }
-    // changes += naive_compact(*chunk);
+    changes += naive_compact(*chunk);
   }
   return changes;
 }

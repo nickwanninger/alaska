@@ -29,7 +29,6 @@ set(SRC_FILES
 	lib/halloc.c
 	lib/barrier.c
 	lib/rbtree.c
-	lib/trace.c
 	lib/glue.cpp # Stuff to support a nostdlibc++ environment
 
 	# libc functions that we reimplement to avoid
@@ -38,15 +37,14 @@ set(SRC_FILES
 )
 
 
-if (ALASKA_SIM_MODE)
-	set(SRC_FILES ${SRC_FILES} lib/sim.c)
-endif()
-
 if (ALASKA_SERVICE_ANCHORAGE)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
+		# Core allocator:
 		services/anchorage/Block.cpp
+		services/anchorage/Space.cpp
 		services/anchorage/Chunk.cpp
+		# Things enabled by the allocator and Alaska:
 		services/anchorage/Defragmenter.cpp
 		services/anchorage/LocalityFactory.cpp
 		services/anchorage/Swapper.cpp
@@ -95,6 +93,11 @@ function(add_bitcode name)
 endfunction(add_bitcode)
 
 
+
+set(SRC_FILES extra/lifetime.c)
+add_library(lifetimemalloc SHARED ${SRC_FILES})
+target_link_libraries(lifetimemalloc dl)
+
 add_bitcode(alaska_translate SOURCES lib/translate.c)
 add_bitcode(alaska_prefetch SOURCES lib/prefetch.c)
 add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
@@ -115,14 +118,3 @@ install(
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-
-
-add_executable(alaska-sim bin/sim.c)
-target_link_libraries(alaska-sim alaska) # alaska_support
-set_target_properties(alaska-sim PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-install(
-  TARGETS alaska-sim
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_BINDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

@@ -58,7 +58,8 @@ void anchorage::LocalityFactory::traverse(alaska::Mapping *m) {
 
 void anchorage::LocalityFactory::run(void) {
   // Simply move all the allocations we found to the end of the heap.
-  // TODO: perform this with a to-space Chunk. We need to be smarter about moving things between chunks.
+  // TODO: perform this with a to-space Chunk. We need to be smarter about moving things between
+  // chunks.
   for (auto *m : order) {
     auto *chunk = anchorage::Chunk::get(m->ptr);
     auto *blk = anchorage::Block::get(m->ptr);

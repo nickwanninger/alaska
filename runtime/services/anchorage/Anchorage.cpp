@@ -14,6 +14,7 @@
 #include <anchorage/LocalityFactory.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
+#include <anchorage/Defragmenter.hpp>
 
 #include <alaska.h>
 #include <alaska/internal.h>
@@ -73,11 +74,10 @@ extern "C" void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool lo
 void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   Block *new_block = NULL;
   Chunk *new_chunk = NULL;
-
-
-
-  //
-
+	// printf("alloc %zu into %p (there are %zu chunks)\n", size, &m, anchorage::Chunk::all().size());
+ //  for (auto *chunk : anchorage::Chunk::all()) {
+	// 	printf("  chunk %p (wl:%zu)\n", chunk, chunk->high_watermark);
+	// }
 
   // attempt to allocate from each chunk
   for (auto *chunk : anchorage::Chunk::all()) {
@@ -92,14 +92,12 @@ void *anchorage::alloc(alaska::Mapping &m, size_t size) {
   (void)new_chunk;
 
   if (new_block == NULL) {
-    // printf("could not allocate. creating a new block w/ at least enough size for %zu\n", size);
 
     size_t required_pages = (size / anchorage::page_size) * 2;
     if (required_pages < anchorage::min_chunk_pages) {
       required_pages = anchorage::min_chunk_pages;
     }
 
-    // alaska_barrier();                   // run a barrier
     new anchorage::Chunk(required_pages);  // add a chunk
 
     return anchorage::alloc(m, size);
@@ -129,31 +127,20 @@ void anchorage::free(alaska::Mapping &m, void *ptr) {
   auto *chunk = anchorage::Chunk::get(ptr);
   if (chunk == NULL) {
     fprintf(stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n", ptr);
-
     return;
   }
 
-  auto *blk = anchorage::Block::get(ptr);
-
-
-  chunk->free(blk);
-
+  // Poison the buffer
   memset(m.ptr, 0xFA, m.size);
-  // if (m.anchorage.locks > 0) {
-  //   // set the flag to indicate that it's free (but someone has a lock)
-  //   // m.anchorage.flags |= ANCHORAGE_FLAG_LAZY_FREE;
-  //   printf("freed while locked. TODO!\n");
-  //
-  //   return;
-  // }
-
-
+  // Free the block
+  auto *blk = anchorage::Block::get(ptr);
+  chunk->free(blk);
+  // Disassociate the handle
   blk->clear_handle();
   m.size = 0;
   m.ptr = nullptr;
   // tell the block to coalesce the best it can
   blk->coalesce_free(*chunk);
-  // alaska_barrier();
 }
 
 
@@ -180,4 +167,10 @@ extern "C" void anchorage_manufacture_locality(void *entrypoint) {
 
   anchorage::barrier();
   alaska_barrier_end();
+}
+
+
+void anchorage::barrier(bool force) {
+  anchorage::Defragmenter defrag;
+  defrag.run(anchorage::Chunk::all());
 }

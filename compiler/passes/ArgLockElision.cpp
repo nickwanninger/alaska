@@ -46,9 +46,6 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
 
   for (auto &[func, locked] : locked_arguments) {
     alaska::println("function: ", func->getName());
-    // fprintf(stderr, "%20s: ", func->getName().data());
-    // alaska::print("locked args for ", func->getName(), "\t");
-
     alaska::print("\targs:");
     for (auto b : locked) {
       alaska::print(" ", b);
@@ -83,9 +80,7 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
 
           alaska::print(" ", alreadyLocked);
         }
-        // alaska::println("\tfrom ", callFunction->getName());
         alaska::println();
-        // alaska::println("   call: ", *call);
       }
     }
   }

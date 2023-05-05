@@ -27,3 +27,7 @@ $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
 
 # opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes
 clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
+# $OPT -sink -simplifycfg
+$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
+
+$OPT --strip-debug

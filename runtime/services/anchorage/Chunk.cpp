@@ -11,6 +11,7 @@
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
 #include <anchorage/Defragmenter.hpp>
+#include "anchorage/Space.hpp"
 
 #include <alaska.h>
 #include <alaska/internal.h>
@@ -48,9 +49,9 @@ auto anchorage::Chunk::contains(void *ptr) -> bool {
 
 anchorage::Chunk::Chunk(size_t pages)
     : pages(pages) {
-  tos = front =
-      (Block *)mmap(NULL, anchorage::page_size * pages, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	printf("allocated %f Mb for a chunk\n", (anchorage::page_size * pages) / 1024.0 / 1024.0);
+  tos = front = (Block *)mmap(NULL, anchorage::page_size * pages, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  printf("allocated %f Mb for a chunk\n", (anchorage::page_size * pages) / 1024.0 / 1024.0);
   tos->set_next(nullptr);
 
   all_chunks->add(this);
@@ -89,21 +90,10 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
 
 
 void anchorage::Chunk::dump(Block *focus, const char *message) {
-  // return;
   printf("%-10s ", message);
-  // uint64_t free_bytes = 0;
   for (auto &block : *this) {
-    // if (block.is_free()) {
-    //   free_bytes += block_size + block.size();
-    // }
     block.dump(false, &block == focus);
   }
-  // uint64_t current_span = span();
-  // float free_perc = 0.0;
-  // if (current_span > 0) {
-  //   free_perc = (free_bytes / (float)current_span) * 100.0f;
-  // }
-  // printf(" chunk %p - span:%zu free:%6.2f%% wm:%zu", this, current_span, free_perc, high_watermark);
   printf("\n");
 }
 
@@ -111,21 +101,8 @@ void anchorage::Chunk::dump(Block *focus, const char *message) {
 
 int anchorage::Chunk::sweep_freed_but_locked(void) {
   int changed = 0;
-
-  // for (auto &blk : *this) {
-  //   if (blk.is_used() && blk.handle()->anchorage.locks <= 0) {
-  //     if (blk.handle()->anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
-  //       alaska_table_put(blk.handle());
-  //       changed++;
-  //       blk.clear_handle();
-  //     }
-  //   }
-  // }
-
   return changed;
 }
-
-
 
 
 size_t anchorage::Chunk::span(void) const {
@@ -133,24 +110,6 @@ size_t anchorage::Chunk::span(void) const {
 }
 
 
-
-void anchorage::barrier(bool force) {
-  anchorage::Defragmenter defrag;
-  defrag.run(*all_chunks);
-}
-
-
-
-void anchorage::allocator_init(void) {
-  all_chunks = new ck::set<anchorage::Chunk *>();
-}
-
-void anchorage::allocator_deinit(void) {
-  // anchorage::barrier(true);
-  // printf(
-  //     "total memmove: %f MB (%lu bytes)\n", anchorage::moved_bytes / (float)(1024.0 * 1024.0),
-  //     anchorage::moved_bytes);
-}
 
 
 static long last_accessed = 0;
@@ -165,15 +124,16 @@ extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
   auto *c = anchorage::Chunk::get(m->ptr);
   if (c != NULL && stride != 0) {
     auto b = anchorage::Block::get(m->ptr);
-
-    // // printf("stride: ");
-    // if (stride < 0)
-    //   printf("\e[31m");
-    // else
-    //   printf("\e[32m");
-    // printf("%6ld\e[0m | ", stride);
     c->dump(b, "access");
-    // c->dump(NULL, "use");
   }
   alaska_barrier_end();
+}
+
+
+void anchorage::allocator_init(void) {
+  anchorage::initialize_spaces(4);
+  all_chunks = new ck::set<anchorage::Chunk *>();
+}
+
+void anchorage::allocator_deinit(void) {
 }

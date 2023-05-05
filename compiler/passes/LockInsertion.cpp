@@ -131,7 +131,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
       // find a cell that hasn't been used by any of the interfering locks.
-      for (long current_cell = 0; ; current_cell++) {
+      for (long current_cell = 0;; current_cell++) {
         if (unavail.count(current_cell) == 0) {
           available_cell = current_cell;
           break;
@@ -141,16 +141,17 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     }
 
 
-		// Figure out the max available cell
+    // Figure out the max available cell
     long max_cell = 0;  // the maximum level of interference
     for (auto &[_, i] : lock_cell_ids) {
       if (max_cell < i) max_cell = i;
     }
 
-		long cell_count = max_cell + 1; // account for 0 index
+    long cell_count = max_cell + 1;  // account for 0 index
 
-    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
-        translations.size(), F.getName().data());
+    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n",
+    // cell_count,
+    //     translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
@@ -193,11 +194,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
       IRBuilder<> b(translation->translation);
 
-			long ind = lock_cell_ids[translation.get()];
-			auto *cell = lockCells[ind];
+      long ind = lock_cell_ids[translation.get()];
+      auto *cell = lockCells[ind];
 
       b.SetInsertPoint(translation->translation);
-      b.CreateStore(handle, cell, true);
+      b.CreateStore(handle, cell, false);
 
       // Insert a store right after all the releases to say "we're done with this handle".
       // for (auto unlock : lock->releases) {
@@ -212,9 +213,10 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     while (IRBuilder<> *AtExit = EE.Next()) {
       // Pop the entry from the shadow stack. Don't reuse CurrentHead from
       // AtEntry, since that would make the value live for the entire function.
-      // Value *SavedHead = AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry,
-      // "alaska_savedhead"); AtExit->CreateStore(SavedHead, Head);
-      AtExit->CreateStore(CurrentHead, Head);
+      Value *SavedHead =
+          AtExit->CreateLoad(stackEntryTy->getPointerTo(), stackEntry, "alaska_savedhead");
+      AtExit->CreateStore(SavedHead, Head);
+      // AtExit->CreateStore(CurrentHead, Head);
     }
 
     if (F.getName() == "inc") errs() << F << "\n";
