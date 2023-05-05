@@ -11,25 +11,22 @@ choice
 endchoice
 
 
-menu "Anchorage Service Configuration"
-	depends on SERVICE_ANCHORAGE
-
-	config ANCHORAGE_ALLOCATOR
-		bool "Enable the experimental Anchorage allcoator"
-		default n
+menu "Anchorage service configuration"
 
 	config ANCHORAGE_DEFRAG_REORDER
 		bool "Permit heap reordering when performing defragmentation"
+		depends on SERVICE_ANCHORAGE
 		default y
 
 	config ANCHORAGE_PRINT_ACCESS
 		bool "Print accesses to the heap as they happen. For debug purposes only"
+		depends on SERVICE_ANCHORAGE
 		default n
 
 	config ANCHORAGE_PRINT_HEAP
 		bool "Print changes to the heap (barrier, swap, defrag, etc)"
+		depends on SERVICE_ANCHORAGE
 		default n
-
 endmenu
 
 
@@ -49,15 +46,6 @@ menu "Debug"
 endmenu
 
 
-# config SIM_MODE
-# 	bool "Run Alaska in a 'simulator' mode"
-# 	default n
-# 	help
-# 		Running Alaska in simulator mode means the system never exposes handles to the end
-# 		user, and instead emulates their accesses at runtime by tracking malloc and free
-# 		calls in an internal red-black tree. The benefit of using this is it simplifies
-# 		porting benchmarks (mostly for the classification effort)
-
 config ESCAPE_PASS
 	bool "Translate before argument escapes"
 	default y
@@ -74,6 +62,11 @@ config HOIST_TRANSLATIONS
 config COMPILER_TIMING
 	bool "Enable compiler timing for joining remote barriers"
 	default n
+
+
+config INLINE_TRANSLATION
+	bool "Inline translations (recommended)"
+	default y
 
 config CORRECTNESS_EMULATOR_LOGGING
 	bool "Log correctness fault load/store messages"
