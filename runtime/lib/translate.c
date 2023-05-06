@@ -68,6 +68,7 @@ ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 
 
 ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
+
   /**
    * This function is written in a strange way on purpose. It's written
    * with a close understanding of how it will be lowered into LLVM IR
@@ -76,8 +77,8 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
 
 
   // Sanity check that a handle has been locked on this thread
-	// *before* translating. This ensures it won't be moved during
-	// the invocation of this function
+  // *before* translating. This ensures it won't be moved during
+  // the invocation of this function
   ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
       "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
 
