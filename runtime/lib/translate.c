@@ -68,7 +68,6 @@ ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
 
 
 ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
-
   /**
    * This function is written in a strange way on purpose. It's written
    * with a close understanding of how it will be lowered into LLVM IR
