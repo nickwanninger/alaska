@@ -108,7 +108,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 -mbmi -mbmi2 $OPT ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
+	$CLANG -gdwarf-4 $OPT ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	rm ${TMPFILE}
 fi
 

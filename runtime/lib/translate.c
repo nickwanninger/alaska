@@ -25,27 +25,6 @@
 #include <alaska/internal.h>
 #include <alaska/config.h>
 
-#ifdef ALASKA_SERVICE_ANCHORAGE
-// include the inline implementation offered by the services
-#include <alaska/service/anchorage.inline.h>
-#endif
-
-
-#ifdef ALASKA_SERVICE_NONE
-// include the inline implementation offered by the services
-#include <alaska/service/none.inline.h>
-#endif
-
-
-// This is the interface for services. It may seem like a hack, but it
-// helps implementation and performance (inline stuff in alaska_translate in lock.c)
-#ifndef ALASKA_SERVICE_ON_LOCK
-#define ALASKA_SERVICE_ON_LOCK(mapping)  // ... nothing ...
-#endif
-
-#ifndef ALASKA_SERVICE_ON_UNLOCK
-#define ALASKA_SERVICE_ON_UNLOCK(mapping)  // ... nothing ...
-#endif
 
 /**
  * Note: This file is inlined by the compiler to make locks faster.
@@ -55,14 +34,26 @@
 
 extern int alaska_verify_is_locally_locked(void *ptr);
 
+#define HANDLE_SHIFT_AMOUNT (32 + 3)
+
+#define HANDLE_START ((alaska_mapping_t *)NULL)
+
+
+void *alaska_encode(alaska_mapping_t *m, off_t offset) {
+  // The table ensures the m address has bit 32 set. This meaning
+  // decoding just checks is a 'is the top bit set?'
+  uint64_t out = ((uint64_t)m << (32 - 3)) + offset;
+	// printf("encode %p %zu -> %p\n", m, offset, out);
+  return (void *)out;
+}
+
 
 ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
-  handle_t h;
-  h.ptr = ptr;
-  if (unlikely(h.flag == 0)) {
-    return NULL;
+  int64_t bits = (int64_t)ptr;
+  if (likely(bits < 0)) {
+    return (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
   }
-  return (alaska_mapping_t *)(uint64_t)h.handle;
+  return NULL;
 }
 
 
@@ -80,21 +71,21 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
   // the invocation of this function
   ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
       "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
-
-  handle_t h;
-  h.ptr = ptr;
-  if (likely(h.flag == 1)) {
-    alaska_mapping_t *m = (alaska_mapping_t *)(h.handle);
+  int64_t bits = (int64_t)ptr;
+  if (likely(bits < 0)) {
+    alaska_mapping_t *m = (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
     void *mapped = m->ptr;
 #ifdef ALASKA_SWAP_SUPPORT
-    if (unlikely(mapped == 0)) {  // is the top bit set?
+    if (unlikely(m->swap.flag)) {  // is the top bit set?
       mapped = alaska_ensure_present(m);
     }
 #endif
     ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
-    ptr = (void *)((uint64_t)mapped + h.offset);
+    ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   }
-  return ptr;
+
+	return ptr;
+
 }
 
 ALASKA_INLINE void alaska_release(void *restrict ptr) {

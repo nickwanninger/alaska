@@ -36,7 +36,7 @@ void ldflags(void) {
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
   printf("-lpthread\n");
-  // printf("-lalaska_support\n");
+	// printf("%s/lib/libalaska.a\n", local);
   printf("-lalaska\n");
   // printf("-lomp\n");
 #ifdef ALASKA_CORRECTNESS_EMULATOR

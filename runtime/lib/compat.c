@@ -17,28 +17,6 @@
 
 #define WEAK __attribute__((weak))
 
-// This function exists to lock on extern escapes.
-// TODO: determine if we should lock it forever or not...
-static uint64_t escape_locks = 0;
-static void *alaska_translate_for_escape(const void *ptr) {
-  handle_t h;
-  h.ptr = (void *)ptr;
-  if (likely(h.flag != 0)) {
-    atomic_inc(escape_locks, 1);
-    // escape_locks++;
-    // its easier to do this than to duplicate efforts and inline.
-    void *t = alaska_translate((void *)ptr);
-
-    return t;
-  }
-  return (void *)ptr;
-}
-
-int alaska_wrapped_puts(const char *s) {
-  return puts(alaska_translate_for_escape(s));
-}
-
-
 int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
   printf("sigaction=%d\n", signum);
   if (signum == SIGSEGV) {
@@ -46,42 +24,6 @@ int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sig
   }
   return sigaction(signum, act, oldact);
 }
-
-
-
-// DONE: memchr
-// DONE: memcmp
-// TODO: memcmpeq
-// DONE: memcpy
-// TODO: memmove
-// TODO: mempcpy
-// TODO: memrchr
-// DONE: memset
-// TODO: rawmemchr
-// TODO: stpcpy
-// TODO: stpncpy
-// TODO: strcasecmp
-// TODO: strcasecmp_l
-// TODO: strcat
-// DONE: strchr
-// TODO: strchrnul
-// DONE: strcmp
-// DONE: strcpy
-// DONE: strlen
-// TODO: strncat
-// TODO: strncmp
-// DONE: strncpy
-// TODO: strnlen
-// TODO: strrchr
-// TODO: wcschr
-// TODO: wcscmp
-// TODO: wcslen
-// TODO: wcsncmp
-// TODO: wcsnlen
-// TODO: wcsrchr
-// TODO: wmemchr
-// TODO: wmemcmp
-// TODO: wmemset
 
 
 // # define weak_alias(name, aliasname) _weak_alias (name, aliasname)

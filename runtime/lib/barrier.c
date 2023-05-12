@@ -43,9 +43,9 @@ static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
-int alaska_verify_is_locally_locked(void *ptr) {
+int alaska_verify_is_locally_locked(void* ptr) {
   if (!IS_ENABLED(ALASKA_LOCK_TRACKING)) return 1;
-	extern struct alaska_lock_frame *__alaska_get_lock_frame();
+  extern struct alaska_lock_frame* __alaska_get_lock_frame();
 
   struct alaska_lock_frame* cur;
 
@@ -57,7 +57,7 @@ int alaska_verify_is_locally_locked(void *ptr) {
     cur = cur->prev;
   }
 
-	return 0;
+  return 0;
 }
 
 static void record_handle(void* possible_handle, bool marked) {
@@ -67,14 +67,12 @@ static void record_handle(void* possible_handle, bool marked) {
   if (m == NULL) return;
 
   // Was it well formed (allocated?)
-  if (m < alaska_table_begin() || m >= alaska_table_end() || m->size == (uint32_t)-1) {
+  if (m < alaska_table_begin() || m >= alaska_table_end()) {
     return;
   }
 
   alaska_service_commit_lock_status(m, marked);
 }
-
-
 
 
 static void alaska_barrier_join(bool leader) {
@@ -123,7 +121,6 @@ void alaska_barrier_begin(void) {
 
   if (barrier_last_num_threads != num_threads) {
     if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
-
     // Initialize the barrier so we know when everyone is ready!
     pthread_barrier_init(&the_barrier, NULL, num_threads);
     barrier_last_num_threads = num_threads;

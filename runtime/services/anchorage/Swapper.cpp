@@ -9,8 +9,7 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include <anchorage/Block.hpp>
-#include <anchorage/Chunk.hpp>
+
 #include <anchorage/Swapper.hpp>
 #include <alaska/internal.h>
 #include <ck/pair.h>
@@ -24,15 +23,21 @@ extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
 
 
 void anchorage::swap_in(alaska::Mapping &m) {
-	m.ptr = (void*)m.swap.id;
-	auto block = anchorage::Block::get(m.ptr);
-	m.size = block->size();
+  if (m.swap.flag == 0) {
+    return;
+  }
+  m.ptr = (void *)m.swap.info;
+  // auto block = anchorage::Block::get(m.ptr);
+  // m.size = block->size();
 }
 
 
 void anchorage::swap_out(alaska::Mapping &m) {
-	void *ptr = m.ptr;
-	// next translation will "fault" and figure out what to do.
-	m.ptr = NULL;
-	m.swap.id = (size_t)ptr;
+#ifdef ALASKA_SWAP_SUPPORT
+  void *ptr = m.ptr;
+  // next translation will "fault" and figure out what to do.
+  m.ptr = NULL;
+  m.swap.flag = 1;
+  m.swap.info = (size_t)ptr;
+#endif
 }

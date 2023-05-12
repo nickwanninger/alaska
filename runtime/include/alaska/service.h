@@ -31,7 +31,7 @@ extern void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size);
 // free `ent->ptr` which was previously allocated by the service.
 extern void alaska_service_free(alaska_mapping_t *ent);
 extern void alaska_service_barrier(void);
-
+extern size_t alaska_service_usable_size(void *ptr);
 
 extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked);
 

@@ -1,10 +1,11 @@
 # add_link_options("-fuse-ld=lld")
 
-set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter")
+set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -fno-omit-frame-pointer")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -nodefaultlibs -fno-exceptions -fno-rtti -nostdlib++ -nostdlib ") 
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -fno-exceptions -fno-rtti ") 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ") 
 set(CMAKE_C_COMPILER_ID "Clang")
 set(CMAKE_CXX_COMPILER_ID "Clang")
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -37,33 +38,31 @@ set(SRC_FILES
 )
 
 
+
 if (ALASKA_SERVICE_ANCHORAGE)
+
+	include_directories(
+		services/anchorage/heaplayers
+		)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
-		# Core allocator:
-		services/anchorage/Block.cpp
-		services/anchorage/Space.cpp
-		services/anchorage/Chunk.cpp
-		# Things enabled by the allocator and Alaska:
-		services/anchorage/Defragmenter.cpp
-		services/anchorage/LocalityFactory.cpp
 		services/anchorage/Swapper.cpp
-		services/anchorage/miniz.c
 	)
 endif()
 
 if (ALASKA_SERVICE_NONE)
-	set(SRC_FILES ${SRC_FILES} services/none/none.c)
+	set(SRC_FILES ${SRC_FILES}
+		services/none/none.c
+	)
 endif()
 
 
-add_library(alaskaobj OBJECT ${SRC_FILES})
-set_property(TARGET alaskaobj PROPERTY POSITION_INDEPENDENT_CODE 1)
-
 add_library(alaska SHARED ${SRC_FILES})
+# add_library(alaska STATIC ${SRC_FILES})
 target_include_directories(alaska PUBLIC include/)
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(alaska dl pthread)
+
 
 function(add_bitcode name)
 	cmake_parse_arguments(
@@ -105,6 +104,10 @@ add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 
 target_link_libraries(alaska alaska_translate_native)
+
+
+add_library(rsstracker SHARED extra/rsstracker.c)
+target_link_libraries(rsstracker dl)
 
 
 

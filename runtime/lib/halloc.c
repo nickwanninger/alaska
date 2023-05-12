@@ -25,19 +25,19 @@ void alaska_halloc_deinit(void) {
 
 
 size_t alaska_usable_size(void *ptr) {
-  uint64_t h = (uint64_t)ptr;
-  if (unlikely((h & HANDLE_MARKER) != 0)) {
-    return GET_ENTRY(h)->size;
+  void *tr = alaska_translate(ptr);
+  if (tr != ptr) {
+    return alaska_service_usable_size(tr);
   }
   return malloc_usable_size(ptr);
 }
 
 
 void *halloc(size_t sz) {
-  assert(sz < (1LLU << ALASKA_OFFSET_BITS));
+  // assert(sz < (1LLU << ALASKA_OFFSET_BITS));
   alaska_mapping_t *ent = alaska_table_get();
 
-  if (ent == NULL) {
+  if (unlikely(ent == NULL)) {
     fprintf(stderr, "alaska: out of space!\n");
     exit(-1);
   }
@@ -48,17 +48,13 @@ void *halloc(size_t sz) {
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
   ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
 
-
-  memset(ent->ptr, 0, sz);
-
-  uint64_t handle = HANDLE_MARKER | (((uint64_t)ent) << ALASKA_OFFSET_BITS);
-
-	// printf("halloc %zu -> %p\n", sz, ent);
-  return (void *)handle;
+  return alaska_encode(ent, 0);
 }
 
 void *hcalloc(size_t nmemb, size_t size) {
-  return halloc(nmemb * size);
+  void *out = halloc(nmemb * size);
+	// memset(out, 0, nmemb * size);
+	return out;
 }
 
 // Reallocate a handle
@@ -71,9 +67,7 @@ void *hrealloc(void *handle, size_t new_size) {
     return realloc(handle, new_size);
   }
 
-  long old_size = m->size;
   void *old_ptr = m->ptr;
-  (void)old_size;
   (void)old_ptr;
 
   // Defer to the service to realloc
@@ -88,7 +82,7 @@ void *hrealloc(void *handle, size_t new_size) {
 void hfree(void *ptr) {
   if (ptr == NULL) return;
 
-	// printf("hfree %p\n", ptr);
+  // printf("hfree %p\n", ptr);
 
   alaska_mapping_t *m = alaska_lookup(ptr);
   if (m == NULL) {

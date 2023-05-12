@@ -26,7 +26,7 @@ void bench_free(void *ptr) {
 
 // this program is used in testing the anchorage bump allocator
 int main(int argc, char **argv) {
-  int count = 16;
+  int count = 512;
   if (argc == 2) count = atoi(argv[1]);
   void **ptrs = calloc(count, sizeof(void *));
 

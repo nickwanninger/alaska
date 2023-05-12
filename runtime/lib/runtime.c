@@ -158,16 +158,15 @@ long alaska_translate_rss_kb() {
 
 
 uint64_t alaska_timestamp() {
-#if defined(__x86_64__)
-  uint32_t rdtsc_hi_, rdtsc_lo_;
-  __asm__ volatile("rdtsc" : "=a"(rdtsc_lo_), "=d"(rdtsc_hi_));
-  return (uint64_t)rdtsc_hi_ << 32 | rdtsc_lo_;
-#else
-
+// #if defined(__x86_64__)
+//   uint32_t rdtsc_hi_, rdtsc_lo_;
+//   __asm__ volatile("rdtsc" : "=a"(rdtsc_lo_), "=d"(rdtsc_hi_));
+//   return (uint64_t)rdtsc_hi_ << 32 | rdtsc_lo_;
+// #else
   struct timespec spec;
   clock_gettime(1, &spec);
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
-#endif
+// #endif
 }
 
 

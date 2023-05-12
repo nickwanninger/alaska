@@ -16,14 +16,7 @@
 
 namespace anchorage {
 
-  struct Block;
-  struct Chunk;
-
   // main interface to the allocator
-  void *alloc(alaska::Mapping &mapping, size_t size);
-  void free(alaska::Mapping &mapping, void *ptr);
-  void barrier(bool force = false);
-
   void allocator_init(void);
   void allocator_deinit(void);
 
@@ -31,12 +24,17 @@ namespace anchorage {
   constexpr size_t page_size = 4096;
   // How many pages should a chunk be?
   // TODO: This needs to be tuned dynamically
-  constexpr size_t min_chunk_pages = 16384;  // 64mb of pages
-                                             // constexpr size_t min_chunk_pages = 4096;
+  // constexpr size_t min_chunk_pages = 16384 * 2;  // 64mb of pages
+  constexpr size_t min_chunk_pages = 16384;
   static inline size_t size_with_overhead(size_t sz) {
     return sz + block_size;
   }
 
-  extern size_t moved_bytes;  // How many bytes have been moved by anchorage?
-  void *memmove(void *dst, void *src, size_t size);
+  // Maximum object size that anchorage will handle (internally)
+  static constexpr size_t kMaxSize = 16384;
+  static constexpr size_t kArenaSize = 64ULL * 1024ULL * 1024ULL * 1024ULL;  // 64 GB
+
+  static constexpr size_t kClassSizesMax = 25;
+
+
 }  // namespace anchorage

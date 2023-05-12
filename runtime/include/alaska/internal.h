@@ -78,34 +78,19 @@ extern void alaska_dump_backtrace(void);
   } while (0);
 
 
-// The definition of what a handle's bits mean when they are used like a pointer
-typedef union {
-  struct {
-    unsigned long offset : ALASKA_OFFSET_BITS;  // the offset into the handle
-    unsigned long handle
-        : (64 - 1 - ALASKA_OFFSET_BITS);  // the translation in the translation table
-    unsigned flag : 1;                    // the high bit indicates the `ptr` is a handle
-  };
-  void *ptr;
-} handle_t;
-
 typedef struct {
-  // Cache line 1:
-  void *ptr;  // backing memory
+  // A mapping is *just* a pointer. If that pointer has the high bit set, it is swapped out.
   union {
-    // If ptr is not 0, then size represents the size of the handle
-    uint64_t size;
-    // If ptr is zero, then the handle has been swapped out, and the following structure is used
-    // instead:
+    void *ptr;  // backing memory
     struct {
-      uint64_t id;
+      uint64_t info : 63;  // Some kind of info for the swap system
+      unsigned flag : 1;   // the high bit indicates this is swapped out
     } swap;
-  }
-  // Cache line 2: Service specific fields
-  ALASKA_SERVICE_FIELDS;
+  };
 } alaska_mapping_t;
 
 // src/lock.c
+void *alaska_encode(alaska_mapping_t *m, off_t offset);
 void *alaska_translate(void *ptr);
 void alaska_release(void *ptr);
 
@@ -121,8 +106,6 @@ void alaska_halloc_deinit(void);
 // src/table.c
 void alaska_table_init(void);    // initialize the global table
 void alaska_table_deinit(void);  // teardown the global table
-unsigned alaska_table_get_canonical(alaska_mapping_t *);
-alaska_mapping_t *alaska_table_from_canonical(unsigned canon);
 // allocate a handle id
 alaska_mapping_t *alaska_table_get(void);
 // free a handle id
@@ -148,11 +131,6 @@ inline int alaska_spin_try_lock(volatile alaska_spinlock_t *lock) {
 inline void alaska_spin_unlock(volatile alaska_spinlock_t *lock) {
   __sync_lock_release(lock);
 }
-
-#define HANDLE_MARKER (1LLU << 63)
-#define GET_ENTRY(handle) ((alaska_mapping_t *)((((uint64_t)(handle)) & ~HANDLE_MARKER) >> 32))
-#define GET_OFFSET(handle) ((off_t)(handle)&0xFFFFFFFF)
-
 
 
 struct alaska_lock_frame {

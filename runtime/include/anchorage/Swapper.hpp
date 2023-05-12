@@ -22,37 +22,4 @@ namespace anchorage {
   void swap_in(alaska::Mapping &m);
   void swap_out(alaska::Mapping &m);
 
-  class SwapDevice {
-   public:
-    virtual ~SwapDevice() = default;
-
-    // Force a mapping to be swapped out. Both functions return true or false depending on success.
-    // swap_in: given a mapping, swap the value in using anchorage::alloc after loading the value. If this function
-    // returns true, m.ptr *must* be non-null.
-    virtual bool swap_in(alaska::Mapping &m) = 0;
-    virtual bool swap_out(alaska::Mapping &m) = 0;
-  };
-
-
-  // MMAPSwapDevice - Let the kernel manage it.
-  class MMAPSwapDevice : public anchorage::SwapDevice {
-   public:
-    ~MMAPSwapDevice() override;
-
-    // Force a mapping to be swapped out
-    bool swap_in(alaska::Mapping &m) override;
-    bool swap_out(alaska::Mapping &m) override;
-  };
-
-
-  class Swapper {
-   public:
-    Swapper(ck::box<SwapDevice> &&dev)
-        : m_dev(ck::move(dev)){};
-
-
-   private:
-    ck::box<SwapDevice> m_dev;
-  };
-
 }  // namespace anchorage

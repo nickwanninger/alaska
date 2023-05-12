@@ -12,21 +12,20 @@ endchoice
 
 
 menu "Anchorage service configuration"
+	depends on SERVICE_ANCHORAGE
 
 	config ANCHORAGE_DEFRAG_REORDER
 		bool "Permit heap reordering when performing defragmentation"
-		depends on SERVICE_ANCHORAGE
 		default y
 
 	config ANCHORAGE_PRINT_ACCESS
 		bool "Print accesses to the heap as they happen. For debug purposes only"
-		depends on SERVICE_ANCHORAGE
 		default n
 
 	config ANCHORAGE_PRINT_HEAP
 		bool "Print changes to the heap (barrier, swap, defrag, etc)"
-		depends on SERVICE_ANCHORAGE
 		default n
+
 endmenu
 
 
@@ -81,7 +80,3 @@ config SWAP_SUPPORT
 config LOCK_TRACKING
 	bool "Enable lock tracking via shadow-stack rooting"
 	default y
-
-config OFFSET_BITS
-	int "Maximum bit size of an allocation (cannot be larger than 36)"
-	default 32
