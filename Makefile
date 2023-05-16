@@ -72,14 +72,21 @@ bench/gap/%: alaska
 	@echo "  CC  " $@
 	@local/bin/alaska++ $(BENCH_FLAGS) -std=c++11 -k -b -O3 -Wall test/gapbs/src/$*.cc -o $@
 
-bench: alaska $(NAS_BENCHMARKS) $(GAP_BENCHMARKS)
 
+
+venv: venv/touchfile
+
+venv/touchfile: requirements.txt
+	test -d venv || virtualenv venv
+	. venv/bin/activate; pip install -Ur requirements.txt
+	touch venv/touchfile
+
+
+bench: alaska venv FORCE
+	. venv/bin/activate; python3 test/bench.py
 
 docs:
 	@doxygen Doxyfile
-
-
-
 
 spec: alaska
 	@bash tools/build_spec.sh $(SPECTAR)
@@ -104,45 +111,15 @@ notebook:
 	jupyter notebook .
 
 
-
 redis: alaska
 	$(MAKE) -C test/redis
 
 build/lua: alaska
 	local/bin/alaska -O2 -b -k test/lua/onelua.c -o $@
 
-libc/src:
-	mkdir -p libc
-	git clone git@github.com:bminor/glibc.git --depth 1 $@
-	cd libc/src && git checkout azanella/clang
-
-libc/build/Makefile: libc/src
-	mkdir -p libc/build
-	cd libc/build && unset LD_LIBRARY_PATH && CC=clang CXX=clang++ ../src/configure \
-		--with-lld \
-		--verbose \
-		--with-default-link \
-		--disable-multi-arch \
-		--disable-sanity-checks \
-		--prefix=$(ROOT)/libc/local
-
-libc/build/libc.a: libc/build/Makefile
-	$(MAKE) -C libc/build
-
-libc/build/libc.bc: libc/build/libc.a
-	get-bc -b $<
-	@cp $^ $@
-	@alaska-transform $@
-	@llvm-dis $@
-
-local/lib/libc.o: libc/build/lib/libc.a
-
-libc: libc/build/Makefile
-
-
-build/dst: test/datastructure/main.c # test/datastructure/rbtree.c test/datastructure/splay-tree.c
-	alaska -O3 $^ -o $@
-
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
+
+
+FORCE: # anything you want to force, depend on this

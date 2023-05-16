@@ -1,0 +1,3 @@
+waterline @ git+https://github.com/nickwanninger/waterline
+seaborn
+
