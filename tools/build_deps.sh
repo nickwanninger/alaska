@@ -75,12 +75,15 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 			x86_64)
 				# the RHEL version is more stable on other distributions, it seems
 				LLVM_FILE=clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz
+				# LLVM_FILE=clang+llvm-16.0.3-x86_64-linux-gnu-ubuntu-22.04.tar.xz
 				;;
 			arm)
 				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
+				# LLVM_FILE=clang+llvm-16.0.3-aarch64-linux-gnu.tar.xz
 				;;
 			aarch64)
 				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
+				# LLVM_FILE=clang+llvm-16.0.3-aarch64-linux-gnu.tar.xz
 				;;
 		esac
 	fi
@@ -89,7 +92,7 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 	if [ "$(uname)" == "Darwin" ]; then
 		case $(uname -m) in
 			arm64)
-				LLVM_FILE=clang+llvm-15.0.2-arm64-apple-darwin21.0.tar.xz
+		LLVM_FILE=clang+llvm-15.0.2-arm64-apple-darwin21.0.tar.xz
 				;;
 		esac
 	fi
@@ -97,7 +100,7 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 	if [ "${LLVM_FILE}" != "" ]; then
 
 		if [ ! -f llvm.tar.xz ]; then
-			wget -O llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/$LLVM_FILE
+			wget -O llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/$LLVM_FILE
 		fi
 		tar xvf llvm.tar.xz --strip-components=1 -C ${PREFIX}
 

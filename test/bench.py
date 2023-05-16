@@ -26,13 +26,6 @@ space = wl.Workspace("bench")
 enable_openmp = False
 
 
-# space.add_suite(wl.suites.Embench)
-# space.add_suite(wl.suites.PolyBench, size="SMALL")
-# space.add_suite(wl.suites.Stockfish)
-# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
-
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
-# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
 
 
 class LDPreloadRunner(Runner):
@@ -75,14 +68,14 @@ class AlaskaLinker(wl.Linker):
 
 
 class AlaskaStage(wl.pipeline.Stage):
-    def run(self, input: Path, output: Path, benchmark):
+    def run(self, input, output, benchmark):
         shutil.copy(input, output)
         space.shell(f"{local}/bin/alaska-transform", output)
         space.shell("llvm-dis", output)
 
 
 class AlaskaBaselineStage(wl.pipeline.Stage):
-    def run(self, input: Path, output: Path, benchmark):
+    def run(self, input, output, benchmark):
         shutil.copy(input, output)
         space.shell(f"{local}/bin/alaska-transform-baseline", output)
         space.shell("llvm-dis", output)
@@ -105,7 +98,7 @@ perf_stats = [
 ]
 
 class PerfRunner(Runner):
-    def run(self, workspace, config, binary):
+    def run(self, workspace, config, binary, benchmark):
         cwd = os.getcwd() if config.cwd is None else config.cwd
         print("running ", binary)
         with waterline.utils.cd(cwd):
@@ -127,6 +120,14 @@ class PerfRunner(Runner):
         return out
 
 
+
+space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.PolyBench, size="LARGE")
+# space.add_suite(wl.suites.Stockfish)
+# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
+# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
+
 space.clear_pipelines()
 
 
@@ -143,7 +144,8 @@ space.add_pipeline(pl)
 
 
 compile = True
-results = space.run(runner=PerfRunner(), runs=1, compile=compile)
+# results = space.run(runner=PerfRunner(), runs=1, compile=compile)
+results = space.run(runs=1, compile=compile)
 # exit()
 print(results)
 results.to_csv("bench/results.csv", index=False)
@@ -196,15 +198,15 @@ def plot_results(df, metric, baseline, modified, title='Result', ylabel='speedup
     plt.savefig(file)
 
 df = pd.read_csv('bench/results.csv')
-print(df)
+# print(df)
+plot_results(df, 'time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
+plot_results(df, 'maxrss', 'alaska', 'baseline', title='Benchmark RSS (Lower is better)', ylabel='speedup')
 
-plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
-
-plot_results(df, 'L1-dcache-loads', 'alaska', 'baseline', title='Loads from Level 1 data cache', ylabel='increase')
-plot_results(df, 'L1-dcache-load-misses', 'alaska', 'baseline', title='Misses in Level 1 data cache', ylabel='increase')
-
-plot_results(df, 'branch-instructions', 'alaska', 'baseline', title='Branch Instructions', ylabel='increase')
-plot_results(df, 'branch-misses', 'alaska', 'baseline', title='Branch Misses', ylabel='increase')
-plot_results(df, 'dTLB-loads', 'alaska', 'baseline', title='Loads from data TLB', ylabel='increase')
-plot_results(df, 'dTLB-load-misses', 'alaska', 'baseline', title='Loads from data TLB (misses)', ylabel='increase')
-plot_results(df, 'instructions', 'alaska', 'baseline', title='Instruction count increase (Lower is better)', ylabel='increase in instruction count')
+# plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
+# plot_results(df, 'L1-dcache-loads', 'alaska', 'baseline', title='Loads from Level 1 data cache', ylabel='increase')
+# plot_results(df, 'L1-dcache-load-misses', 'alaska', 'baseline', title='Misses in Level 1 data cache', ylabel='increase')
+# plot_results(df, 'branch-instructions', 'alaska', 'baseline', title='Branch Instructions', ylabel='increase')
+# plot_results(df, 'branch-misses', 'alaska', 'baseline', title='Branch Misses', ylabel='increase')
+# plot_results(df, 'dTLB-loads', 'alaska', 'baseline', title='Loads from data TLB', ylabel='increase')
+# plot_results(df, 'dTLB-load-misses', 'alaska', 'baseline', title='Loads from data TLB (misses)', ylabel='increase')
+# plot_results(df, 'instructions', 'alaska', 'baseline', title='Instruction count increase (Lower is better)', ylabel='increase in instruction count')
