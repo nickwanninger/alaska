@@ -259,6 +259,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
         IRBuilder<> b(lb.translateBefore);
         lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
+        errs() << *lb.pointer << " | " << *root->val << " | "
+               << lb.translateBefore->getFunction()->getName() << "\n";
       }
     }
   }

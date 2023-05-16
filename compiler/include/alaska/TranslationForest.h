@@ -67,8 +67,6 @@ namespace alaska {
     void apply(Node &n);
 
     std::vector<std::unique_ptr<Node>> roots;
-    void dump_dot(void);
-
 
     // Nodes in the flow forest are assigned a translation location, which after analysis is
     // completed determine the location of alaska_translate and alaska_release calls. They are

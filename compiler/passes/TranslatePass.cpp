@@ -5,10 +5,10 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <noelle/core/MetadataManager.hpp>
 
-#include <noelle/core/PDG.hpp>
-#include <noelle/core/PDGPrinter.hpp>
-#include "llvm/Analysis/BasicAliasAnalysis.h"
-#include "noelle/core/PDGAnalysis.hpp"
+// #include <noelle/core/PDG.hpp>
+// #include <noelle/core/PDGPrinter.hpp>
+// #include "llvm/Analysis/BasicAliasAnalysis.h"
+// #include "noelle/core/PDGAnalysis.hpp"
 
 #include "llvm/IR/LegacyPassManager.h"
 
@@ -40,7 +40,9 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
   // PM->add(&pdga);
   // PM->run(M);
   // auto *pdg = pdga.getPDG();
-  // DGPrinter::writeGraph<PDG, Value>("pdg-full.dot", pdg);
+  //
+  // void printPDG(Module &module, CallGraph &callGraph, PDG *graph, std::function<LoopInfo &(Function *f)> getLoopInfo);
+  // PDGPrinter::writeGraph<PDG, Value>("pdg-full.dot", pdg);
 
   for (auto &F : M) {
     if (F.empty()) continue;

@@ -15,7 +15,7 @@ static void replace_function(Module &M, std::string original_name, std::string n
   if (oldFunction) {
     auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
     oldFunction->replaceAllUsesWith(newFunction);
-    oldFunction->eraseFromParent();
+    // oldFunction->eraseFromParent();
   }
   // delete oldFunction;
 }
@@ -36,12 +36,18 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
       replace_function(M, "malloc", "halloc");
       replace_function(M, "calloc", "hcalloc");
       replace_function(M, "realloc", "hrealloc");
+
+
+      replace_function(M, "malloc_beebs", "halloc"); // embench
+      replace_function(M, "calloc_beebs", "hcalloc"); // embench
+      replace_function(M, "realloc_beebs", "hrealloc"); // embench
     }
 
     // even if calls to malloc are not replaced, we still ought to replace these functions for
     // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
     // for alaska_usable_size().
     replace_function(M, "free", "hfree");
+    replace_function(M, "free_beebs", "hfree"); // embench
     replace_function(M, "malloc_usable_size", "alaska_usable_size");
   }
 

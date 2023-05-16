@@ -100,7 +100,7 @@ namespace llvm::noelle {
     DGPrinter::writeClusteredGraph<PDG, Value>(ros.str(), subgraph);
     delete subgraph;
 
-    return;
+    // return;
 
     /*
      * Check if the function has loops.
@@ -155,7 +155,7 @@ namespace llvm::noelle {
   }
 
   void DGPrinter::addClusteringToDotFile(std::string inputFileName, std::string outputFileName) {
-    return;
+    // return;
     ifstream ifile(inputFileName);
     unordered_map<std::string, std::set<std::string>> clusterNodes;
 

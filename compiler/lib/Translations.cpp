@@ -519,9 +519,9 @@ struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisito
 
 
 void alaska::insertHoistedTranslations(llvm::Function &F) {
-  alaska::TranslationForest forest(F);
-  (void)forest.apply();
-  return;
+  // alaska::TranslationForest forest(F);
+  // (void)forest.apply();
+  // return;
   // find all potential sources:
   PotentialSourceFinder s;
 
@@ -540,32 +540,34 @@ void alaska::insertHoistedTranslations(llvm::Function &F) {
   std::map<llvm::Value *, std::set<llvm::Value *>> sourceAliases;
 
   auto &sources = s.srcs;
-  // alaska::println("Potential sources for ", F.getName(), ":");
+  alaska::println("Potential sources for ", F.getName(), ":");
   for (auto &src : sources) {
     // If the source was not accessed, ignore it.
     // if (s.accessed.find(src) == s.accessed.end()) {
     //   continue;
     // }
     sourceAliases[src].insert(src);
-    // alaska::println("  - ", simpleFormat(src));
+    alaska::println("  - ", simpleFormat(src));
     TransientMappingVisitor tv;
     tv.look_at(src);
-    // alaska::println("    Transients:");
+    alaska::println("    Transients:");
     for (auto &t : tv.transients) {
       sourceAliases[t].insert(src);
-      // alaska::println("       - ", simpleFormat(t));
+      alaska::println("       - ", simpleFormat(t));
     }
   }
 
 
-  // alaska::println("Source Aliases:");
-  // for (auto &[a, srcs] : sourceAliases) {
-  //   alaska::println(*a);
-  //   for (auto &src : srcs) {
-  //     alaska::println("    - ", simpleFormat(src));
-  //   }
-  // }
+  alaska::println("Source Aliases:");
+  for (auto &[a, srcs] : sourceAliases) {
+    alaska::println(*a);
+    for (auto &src : srcs) {
+      alaska::println("    - ", simpleFormat(src));
+    }
+  }
 
+
+  return;
 
   auto get_used = [&](llvm::Instruction *s) -> std::set<llvm::Value *> {
     if (auto load = dyn_cast<LoadInst>(s)) return sourceAliases[load->getPointerOperand()];
