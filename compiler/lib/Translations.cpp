@@ -519,9 +519,9 @@ struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisito
 
 
 void alaska::insertHoistedTranslations(llvm::Function &F) {
-  // alaska::TranslationForest forest(F);
-  // (void)forest.apply();
-  // return;
+  alaska::TranslationForest forest(F);
+  (void)forest.apply();
+  return;
   // find all potential sources:
   PotentialSourceFinder s;
 
