@@ -11,7 +11,7 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/table.hpp>
-#include <alaska/service.h>
+#include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
 
 #include <assert.h>
@@ -85,13 +85,11 @@ void __attribute__((constructor(102))) alaska_init(void) {
   alaska::barrier::add_thread(&self);
 
   alaska::table::init();
-  alaska_halloc_init();
-  alaska_service_init();
+  alaska::service::init();
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-  alaska_service_deinit();
-  alaska_halloc_deinit();
+  alaska::service::deinit();
   alaska::table::deinit();
 }
 
@@ -176,7 +174,7 @@ void* alaska_ensure_present(alaska::Mapping* m) {
   }
 
   // Instead, if the pointer is null, we need to ask the service to swap it in!
-  alaska_service_swap_in(m);
+  alaska::service::swap_in(m);
 
   ALASKA_SANITY(m->ptr != NULL, "Service did not swap in a handle");
   return m->ptr;

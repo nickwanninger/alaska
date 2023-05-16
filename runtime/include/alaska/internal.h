@@ -49,12 +49,6 @@ alaska::Mapping *alaska_lookup(void *ptr);
 }
 
 
-// src/halloc.c
-void alaska_halloc_init(void);
-void alaska_halloc_deinit(void);
-
-
-
 typedef uint32_t alaska_spinlock_t;
 #define ALASKA_SPINLOCK_INIT 0
 inline void alaska_spin_lock(volatile alaska_spinlock_t *lock) {

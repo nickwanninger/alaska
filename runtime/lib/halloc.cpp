@@ -9,7 +9,7 @@
  * and modify it as specified in the file "LICENSE".
  */
 #include <alaska.h>
-#include <alaska/service.h>
+#include <alaska/service.hpp>
 #include <alaska/internal.h>
 #include <alaska/table.hpp>
 #include <assert.h>
@@ -18,28 +18,18 @@
 #include <sys/mman.h>
 
 
-void alaska_halloc_init(void) {
-}
-
-void alaska_halloc_deinit(void) {
-}
-
 
 size_t alaska_usable_size(void *ptr) {
   void *tr = alaska_translate(ptr);
   if (tr != ptr) {
-    return alaska_service_usable_size(tr);
+    return alaska::service::usable_size(tr);
   }
   return malloc_usable_size(ptr);
 }
 
 
 static void *_halloc(size_t sz, int zero) {
-  // printf("halloc %zu\n", sz);
-
-  // assert(sz < (1LLU << ALASKA_OFFSET_BITS));
   alaska::Mapping *ent = alaska::table::get();
-
   if (unlikely(ent == NULL)) {
     fprintf(stderr, "alaska: out of space!\n");
     exit(-1);
@@ -47,10 +37,8 @@ static void *_halloc(size_t sz, int zero) {
 
   ent->ptr = NULL;  // Set to NULL as a sanity check
   // Defer to the service to alloc
-  alaska_service_alloc(ent, sz);
+  alaska::service::alloc(ent, sz);
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
-  // ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
-
   if (zero) memset(ent->ptr, 0, sz);
   return alaska_encode(ent, 0);
 }
@@ -79,7 +67,7 @@ void *hrealloc(void *handle, size_t new_size) {
   (void)old_ptr;
 
   // Defer to the service to realloc
-  alaska_service_alloc(m, new_size);
+  alaska::service::alloc(m, new_size);
 
   // realloc in alaska will always return the same pointer...
   // Ahh the benefits of using handles!
@@ -89,16 +77,13 @@ void *hrealloc(void *handle, size_t new_size) {
 
 void hfree(void *ptr) {
   if (ptr == NULL) return;
-
-  // printf("hfree %p\n", ptr);
-
   alaska::Mapping *m = alaska_lookup(ptr);
   if (m == NULL) {
     return;
   }
 
   // Defer to the service to free
-  alaska_service_free(m);
+  alaska::service::free(m);
 
   if (m->ptr == NULL) {
     // return the mapping to the table

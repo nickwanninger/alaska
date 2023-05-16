@@ -12,12 +12,14 @@
 
 #include <anchorage/Swapper.hpp>
 #include <alaska/internal.h>
+#include <alaska/service.hpp>
+
 #include <ck/pair.h>
 #include <ck/map.h>
 #include <ck/lock.h>
 #include <string.h>
 
-extern "C" void alaska_service_swap_in(alaska::Mapping *m) {
+void alaska::service::swap_in(alaska::Mapping *m) {
   anchorage::swap_in(*m);
 }
 

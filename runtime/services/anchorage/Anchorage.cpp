@@ -16,6 +16,7 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
+#include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
 
 #include <pthread.h>
@@ -35,7 +36,7 @@ static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMma
     HL::SizeHeap<HL::FreelistHeap<ChunkedMmapHeap>>>>
     theHeap;
 
-extern "C" void alaska_service_alloc(alaska::Mapping *ent, size_t size) {
+void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   // ent->ptr = theHeap.realloc(ent->ptr, size);
   ent->ptr = ::realloc(ent->ptr, size);
@@ -43,13 +44,13 @@ extern "C" void alaska_service_alloc(alaska::Mapping *ent, size_t size) {
 }
 
 
-extern "C" void alaska_service_free(alaska::Mapping *ent) {
+void alaska::service::free(alaska::Mapping *ent) {
   // theHeap.free(ent->ptr);
   ::free(ent->ptr);
   ent->ptr = NULL;
 }
 
-extern "C" size_t alaska_service_usable_size(void *ptr) {
+size_t alaska::service::usable_size(void *ptr) {
   return malloc_usable_size(ptr);
   // return theHeap.getSize(ptr);
 }
@@ -150,7 +151,7 @@ static void *barrier_thread_fn(void *) {
 }
 
 
-extern "C" void alaska_service_init(void) {
+void alaska::service::init(void) {
   // dump_regions();
   // void *array[256];
   // HL::MmapHeap heap;
@@ -201,17 +202,17 @@ extern "C" void alaska_service_init(void) {
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
-extern "C" void alaska_service_deinit(void) {
+void alaska::service::deinit(void) {
   // TODO:
 }
 
 
-extern "C" void alaska_service_barrier(void) {
+void alaska::service::barrier(void) {
   // TODO:
 }
 
 
-extern "C" void alaska_service_commit_lock_status(alaska::Mapping *ent, bool locked) {
+void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   // TODO:
 }
 

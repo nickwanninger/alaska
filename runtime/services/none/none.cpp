@@ -14,45 +14,45 @@
 // As a stepping stone for implementing new services.
 #include <alaska/internal.h>
 #include <stdint.h>
-#include <alaska/service.h>
+#include <alaska/service.hpp>
 #include <malloc.h>
 
 
-size_t alaska_service_usable_size(void *ptr) {
+size_t alaska::service::usable_size(void *ptr) {
   return malloc_usable_size(ptr);
 }
 
 
-void alaska_service_swap_in(alaska::Mapping *m) {
+void alaska::service::swap_in(alaska::Mapping *m) {
   return;
 }
 
 
-void alaska_service_init(void) {
+void alaska::service::init(void) {
   // None...
 }
 
-void alaska_service_deinit(void) {
+void alaska::service::deinit(void) {
   // None...
 }
 
 
-void alaska_service_alloc(alaska::Mapping *ent, size_t new_size) {
+void alaska::service::alloc(alaska::Mapping *ent, size_t new_size) {
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   ent->ptr = realloc(ent->ptr, new_size);
 }
 
 // free `ent->ptr` which was previously allocated by the service.
-void alaska_service_free(alaska::Mapping *ent) {
+void alaska::service::free(alaska::Mapping *ent) {
   free(ent->ptr);
   ent->ptr = NULL;
 }
 
-void alaska_service_barrier(void) {
+void alaska::service::barrier(void) {
   // Do nothing.
 }
 
 
-extern void alaska_service_commit_lock_status(alaska::Mapping *ent, bool locked) {
+extern void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   // do nothing
 }

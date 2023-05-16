@@ -11,7 +11,7 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
-#include <alaska/service.h>
+#include <alaska/service.hpp>
 #include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
 
@@ -76,7 +76,7 @@ static void record_handle(void* possible_handle, bool marked) {
     return;
   }
 
-  alaska_service_commit_lock_status(m, marked);
+  alaska::service::commit_lock_status(m, marked);
 }
 
 
@@ -164,7 +164,7 @@ void alaska::barrier::end(void) {
 
 void alaska_barrier(void) {
   alaska::barrier::begin();
-  alaska_service_barrier();
+  alaska::service::barrier();
   alaska::barrier::end();
 }
 
