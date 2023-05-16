@@ -34,31 +34,34 @@
 
 extern int alaska_verify_is_locally_locked(void *ptr);
 
-#define HANDLE_SHIFT_AMOUNT (32 + 3)
-
-#define HANDLE_START ((alaska_mapping_t *)NULL)
+#define SHIFT_AMT (32 - 3)
 
 
-void *alaska_encode(alaska_mapping_t *m, off_t offset) {
+
+
+void *alaska_encode(alaska::Mapping *m, off_t offset) {
   // The table ensures the m address has bit 32 set. This meaning
   // decoding just checks is a 'is the top bit set?'
-  uint64_t out = ((uint64_t)m << (32 - 3)) + offset;
+  uint64_t out = ((uint64_t)m << SHIFT_AMT) + offset;
   // printf("encode %p %zu -> %p\n", m, offset, out);
   return (void *)out;
 }
 
 
-ALASKA_INLINE alaska_mapping_t *alaska_lookup(void *restrict ptr) {
+
+
+alaska::Mapping *alaska_lookup(void *ptr) {
   int64_t bits = (int64_t)ptr;
   if (likely(bits < 0)) {
-    return (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
+    return (alaska::Mapping *)((uint64_t)bits >> SHIFT_AMT);
   }
   return NULL;
 }
 
 
 
-ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
+
+void *alaska_translate(void *ptr) {
   /**
    * This function is written in a strange way on purpose. It's written
    * with a close understanding of how it will be lowered into LLVM IR
@@ -76,7 +79,7 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
   if (unlikely(bits >= 0)) {
     return ptr;
   }
-  alaska_mapping_t *m = (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
+  alaska::Mapping *m = (alaska::Mapping *)((uint64_t)bits >> SHIFT_AMT);
   void *mapped = m->ptr;
 #ifdef ALASKA_SWAP_SUPPORT
   if (unlikely(m->swap.flag)) {  // is the top bit set?
@@ -89,10 +92,16 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
   return ptr;
 }
 
-ALASKA_INLINE void alaska_release(void *restrict ptr) {
+
+
+
+void alaska_release(void *ptr) {
   // This function is just a marker that `ptr` is now dead (no longer used)
   // and should not have any real meaning in the runtime
 }
+
+
+
 
 static int needs_barrier = 0;
 void alaska_time_hook_fire(void) {

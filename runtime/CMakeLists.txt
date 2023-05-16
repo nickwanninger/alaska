@@ -19,17 +19,21 @@ include_directories(
 )
 
 
-
+# Alaska and it's services are written in no-std c++. This is to
+# enable some of the nice compile-time features that c++ has,
+# without the runtime overheads of things like RTTI or exceptions.
+# As such, the entire runtime is written in a "C with classes"
+# style, and attempts to avoid things like virtual functions
+# wherever possible.
 
 set(SRC_FILES
 	# The core of the runtime
-	lib/runtime.c
-	lib/table.c
-	lib/translate.c
-	lib/prefetch.c
-	lib/halloc.c
-	lib/barrier.c
-	lib/rbtree.c
+	lib/runtime.cpp
+	lib/table.cpp
+	lib/translate.cpp
+	lib/prefetch.cpp
+	lib/halloc.cpp
+	lib/barrier.cpp
 	lib/glue.cpp # Stuff to support a nostdlibc++ environment
 
 	# libc functions that we reimplement to avoid
@@ -40,21 +44,22 @@ set(SRC_FILES
 
 
 if (ALASKA_SERVICE_ANCHORAGE)
-
-	include_directories(
-		services/anchorage/heaplayers
-		)
+	# Anchorage's allocator relies on a modified version of
+	# Heap-Layers, which we have vendored here:
+	include_directories(services/anchorage/heaplayers)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
 		services/anchorage/Swapper.cpp
 	)
-endif()
+endif(ALASKA_SERVICE_ANCHORAGE)
 
 if (ALASKA_SERVICE_NONE)
-	set(SRC_FILES ${SRC_FILES}
-		services/none/none.c
-	)
-endif()
+	# If the configuration calls for "no service", then we
+	# need to compile simple stubs so the program will work.
+	# These stubs will just use the system allocator to make
+	# everything work fine.
+	set(SRC_FILES ${SRC_FILES} services/none/none.cpp)
+endif(ALASKA_SERVICE_NONE)
 
 
 add_library(alaska SHARED ${SRC_FILES})
@@ -97,9 +102,8 @@ set(SRC_FILES extra/lifetime.c)
 add_library(lifetimemalloc SHARED ${SRC_FILES})
 target_link_libraries(lifetimemalloc dl)
 
-add_bitcode(alaska_translate SOURCES lib/translate.c)
-add_bitcode(alaska_prefetch SOURCES lib/prefetch.c)
-add_bitcode(alaska_bootstrap SOURCES lib/bootstrap.c)
+add_bitcode(alaska_translate SOURCES lib/translate.cpp)
+add_bitcode(alaska_prefetch SOURCES lib/prefetch.cpp)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 

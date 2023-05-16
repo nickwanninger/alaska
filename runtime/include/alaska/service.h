@@ -14,6 +14,13 @@
 #include <alaska/internal.h>
 #include <stdbool.h>
 
+// TODO: this is entirely internal to alaska, so this interface should just be a c++ `using
+// namespace` system.
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 // This file contains the interface that a service must implement to be a
 // complete service under Alaska.
 
@@ -27,12 +34,17 @@ extern void alaska_service_deinit(void);
 // non-null, it is a realloc request. If it is null, it is a malloc request.
 // Whatever the implementation does, ent->ptr must be valid (and at least `new_size` bytes long)
 // when this function returns. `ent->size` must also be updated.
-extern void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size);
+extern void alaska_service_alloc(alaska::Mapping *ent, size_t new_size);
 // free `ent->ptr` which was previously allocated by the service.
-extern void alaska_service_free(alaska_mapping_t *ent);
+extern void alaska_service_free(alaska::Mapping *ent);
 extern void alaska_service_barrier(void);
 extern size_t alaska_service_usable_size(void *ptr);
 
-extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked);
+extern void alaska_service_commit_lock_status(alaska::Mapping *ent, bool locked);
 
-extern void alaska_service_swap_in(alaska_mapping_t *ent);
+extern void alaska_service_swap_in(alaska::Mapping *ent);
+
+
+#ifdef __cplusplus
+}
+#endif

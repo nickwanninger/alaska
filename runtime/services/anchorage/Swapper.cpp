@@ -17,7 +17,7 @@
 #include <ck/lock.h>
 #include <string.h>
 
-extern "C" void alaska_service_swap_in(alaska_mapping_t *m) {
+extern "C" void alaska_service_swap_in(alaska::Mapping *m) {
   anchorage::swap_in(*m);
 }
 

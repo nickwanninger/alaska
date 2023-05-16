@@ -16,7 +16,7 @@
 
 #include <alaska.h>
 #include <alaska/internal.h>
-#include <alaska/service/anchorage.h>
+#include <alaska/barrier.hpp>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -50,11 +50,9 @@ extern "C" void alaska_service_free(alaska::Mapping *ent) {
 }
 
 extern "C" size_t alaska_service_usable_size(void *ptr) {
-	return malloc_usable_size(ptr);
+  return malloc_usable_size(ptr);
   // return theHeap.getSize(ptr);
 }
-
-
 
 
 namespace anchorage {
@@ -90,10 +88,10 @@ namespace anchorage {
     // return a pointer to the object. Will return NULL if
     // there is nothing, for some reason
     void *alloc(alaska::Mapping &m) {
-			// First, try to pop off the free list.
+      // First, try to pop off the free list.
       void *obj = m_freelist.try_pop();
 
-			// Then
+      // Then
       if (obj == nullptr) {
         if (m_next_bump < m_object_count) {
           obj = get_object(m_next_bump++);
@@ -142,16 +140,18 @@ static void *barrier_thread_fn(void *) {
     usleep(barrier_interval_ms * 1000);
     uint64_t start = alaska_timestamp();
     alaska_barrier();
-    alaska_barrier_begin();
-    alaska_barrier_end();
+    alaska::barrier::begin();
+    alaska::barrier::end();
     uint64_t end = alaska_timestamp();
     (void)(end - start);
     // printf("Barrier %zu\n", end - start);
   }
   return NULL;
 }
+
+
 extern "C" void alaska_service_init(void) {
-	// dump_regions();
+  // dump_regions();
   // void *array[256];
   // HL::MmapHeap heap;
   // alaska::Mapping m;
@@ -211,7 +211,7 @@ extern "C" void alaska_service_barrier(void) {
 }
 
 
-extern "C" void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked) {
+extern "C" void alaska_service_commit_lock_status(alaska::Mapping *ent, bool locked) {
   // TODO:
 }
 

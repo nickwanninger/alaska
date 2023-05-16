@@ -11,6 +11,7 @@
 #include <alaska.h>
 #include <alaska/service.h>
 #include <alaska/internal.h>
+#include <alaska/table.hpp>
 #include <assert.h>
 #include <malloc.h>
 #include <string.h>
@@ -34,10 +35,10 @@ size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
-	// printf("halloc %zu\n", sz);
+  // printf("halloc %zu\n", sz);
 
   // assert(sz < (1LLU << ALASKA_OFFSET_BITS));
-  alaska_mapping_t *ent = alaska_table_get();
+  alaska::Mapping *ent = alaska::table::get();
 
   if (unlikely(ent == NULL)) {
     fprintf(stderr, "alaska: out of space!\n");
@@ -50,25 +51,25 @@ static void *_halloc(size_t sz, int zero) {
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
   // ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
 
-	if (zero) memset(ent->ptr, 0, sz);
+  if (zero) memset(ent->ptr, 0, sz);
   return alaska_encode(ent, 0);
 }
 
-void *halloc(size_t sz) {
-	return _halloc(sz, 0);
+void *halloc(size_t sz) noexcept {
+  return _halloc(sz, 0);
 }
 
 void *hcalloc(size_t nmemb, size_t size) {
   void *out = _halloc(nmemb * size, 1);
-	// memset(out, 0, nmemb * size);
-	return out;
+  // memset(out, 0, nmemb * size);
+  return out;
 }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
   if (handle == NULL) return halloc(new_size);
 
-  alaska_mapping_t *m = alaska_lookup(handle);
+  alaska::Mapping *m = alaska_lookup(handle);
   if (m == NULL) {
     // If it wasn't a handle, just forward to the system realloc
     return realloc(handle, new_size);
@@ -91,7 +92,7 @@ void hfree(void *ptr) {
 
   // printf("hfree %p\n", ptr);
 
-  alaska_mapping_t *m = alaska_lookup(ptr);
+  alaska::Mapping *m = alaska_lookup(ptr);
   if (m == NULL) {
     return;
   }
@@ -101,6 +102,6 @@ void hfree(void *ptr) {
 
   if (m->ptr == NULL) {
     // return the mapping to the table
-    alaska_table_put(m);
+    alaska::table::put(m);
   }
 }

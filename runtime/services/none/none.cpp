@@ -12,7 +12,6 @@
 
 // This file represents a service that doesn't do anything. It can be used
 // As a stepping stone for implementing new services.
-#include <alaska/service/none.h>
 #include <alaska/internal.h>
 #include <stdint.h>
 #include <alaska/service.h>
@@ -24,7 +23,7 @@ size_t alaska_service_usable_size(void *ptr) {
 }
 
 
-void alaska_service_swap_in(alaska_mapping_t *m) {
+void alaska_service_swap_in(alaska::Mapping *m) {
   return;
 }
 
@@ -38,13 +37,13 @@ void alaska_service_deinit(void) {
 }
 
 
-void alaska_service_alloc(alaska_mapping_t *ent, size_t new_size) {
+void alaska_service_alloc(alaska::Mapping *ent, size_t new_size) {
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   ent->ptr = realloc(ent->ptr, new_size);
 }
 
 // free `ent->ptr` which was previously allocated by the service.
-void alaska_service_free(alaska_mapping_t *ent) {
+void alaska_service_free(alaska::Mapping *ent) {
   free(ent->ptr);
   ent->ptr = NULL;
 }
@@ -54,6 +53,6 @@ void alaska_service_barrier(void) {
 }
 
 
-extern void alaska_service_commit_lock_status(alaska_mapping_t *ent, bool locked) {
+extern void alaska_service_commit_lock_status(alaska::Mapping *ent, bool locked) {
   // do nothing
 }

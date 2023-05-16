@@ -12,14 +12,16 @@
 #include <alaska.h>
 #include <alaska/internal.h>
 #include <alaska/service.h>
+#include <alaska/table.hpp>
+#include <alaska/barrier.hpp>
+
+
 #include <pthread.h>
 #include <alaska/list_head.h>
 #include <stdbool.h>
 #include <sys/signal.h>
 #include <string.h>
 #include <assert.h>
-
-void (*alaska_barrier_hook)(void*, void*, size_t) = NULL;
 
 // The definition for thread-local root chains
 struct alaska_lock_frame alaska_lock_chain_base = {NULL, 0};
@@ -60,19 +62,24 @@ int alaska_verify_is_locally_locked(void* ptr) {
   return 0;
 }
 
+
+
+
 static void record_handle(void* possible_handle, bool marked) {
-  alaska_mapping_t* m = alaska_lookup(possible_handle);
+  alaska::Mapping* m = alaska_lookup(possible_handle);
 
   // It wasn't a handle, don't consider it.
   if (m == NULL) return;
 
   // Was it well formed (allocated?)
-  if (m < alaska_table_begin() || m >= alaska_table_end()) {
+  if (m < alaska::table::begin() || m >= alaska::table::end()) {
     return;
   }
 
   alaska_service_commit_lock_status(m, marked);
 }
+
+
 
 
 static void alaska_barrier_join(bool leader) {
@@ -91,6 +98,9 @@ static void alaska_barrier_join(bool leader) {
     pthread_barrier_wait(&the_barrier);
   }
 }
+
+
+
 
 static void alaska_barrier_leave(bool leader) {
   struct alaska_lock_frame* cur;
@@ -113,7 +123,8 @@ static void alaska_barrier_leave(bool leader) {
 
 
 
-void alaska_barrier_begin(void) {
+
+void alaska::barrier::begin(void) {
   // As the leader, signal everyone to begin the barrier
   pthread_mutex_lock(&barrier_lock);
   // also lock the thread list! Nobody is allowed to create a thread right now.
@@ -137,7 +148,10 @@ void alaska_barrier_begin(void) {
   alaska_barrier_join(true);
 }
 
-void alaska_barrier_end(void) {
+
+
+
+void alaska::barrier::end(void) {
   // Join the barrier to signal everyone we are done.
   alaska_barrier_leave(true);
   // Unlock all the locks we took.
@@ -146,11 +160,15 @@ void alaska_barrier_end(void) {
 }
 
 
+
+
 void alaska_barrier(void) {
-  alaska_barrier_begin();
+  alaska::barrier::begin();
   alaska_service_barrier();
-  alaska_barrier_end();
+  alaska::barrier::end();
 }
+
+
 
 
 static void barrier_signal_handler(int sig) {
@@ -161,11 +179,16 @@ static void barrier_signal_handler(int sig) {
 }
 
 
-void alaska_barrier_add_thread(pthread_t* thread) {
-  // Setup the SIGUSR2 signal handler for barriers
+
+
+void alaska::barrier::add_thread(pthread_t* thread) {
+  // Setup a signal handler for SIGUSR2 for remote barrier calls. We basically just hope that the
+  // app doesn't need this signal, as we are SOL if they do!
   struct sigaction act;
   memset(&act, 0, sizeof(act));
-  act.sa_handler = barrier_signal_handler;
+  act.sa_handler = [](int sig) {
+
+  };
 
   if (sigaction(SIGUSR2, &act, NULL) != 0) {
     perror("Failed to add sigaction to new thread.\n");
@@ -175,14 +198,17 @@ void alaska_barrier_add_thread(pthread_t* thread) {
   pthread_mutex_lock(&all_threads_lock);
   num_threads++;
 
-  struct alaska_thread_info* tinfo = calloc(1, sizeof(*tinfo));
+  auto* tinfo = (alaska_thread_info*)calloc(1, sizeof(alaska_thread_info));
   tinfo->thread = *thread;
   list_add(&tinfo->list_head, &all_threads);
 
   pthread_mutex_unlock(&all_threads_lock);
 }
 
-void alaska_barrier_remove_thread(pthread_t* thread) {
+
+
+
+void alaska::barrier::remove_thread(pthread_t* thread) {
   pthread_mutex_lock(&all_threads_lock);
   num_threads--;
 

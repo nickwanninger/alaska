@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <alaska.h>
-#include <alaska/internal.h>
+// #include <alaska/internal.h>
 #include <ctype.h>
 
 

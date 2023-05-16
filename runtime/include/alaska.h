@@ -8,32 +8,37 @@
 extern "C" {
 #endif
 
+
+
+// Allocate a handle as well as it's backing memory if the runtime decides to do so.
+// This is the main interface to alaska's handle system, as actually using handles is
+// entirely transparent.
 extern void *halloc(size_t sz) __attribute__((alloc_size(1), malloc, nothrow));
+
+// calloc a handle, returning a zeroed array of nmemb elements, each of size `size`
 extern void *hcalloc(size_t nmemb, size_t size);
+
+// Realloc a handle. This function will always return the original handle, as it just needs to
+// reallocate the backing memory. Thus, if your application relies on realloc returning something
+// different, you should be careful!
 extern void *hrealloc(void *handle, size_t sz);
+
+// Free a given handle. Is a no-op if ptr=null
 extern void hfree(void *ptr);
 
-
-// "Go do something in the runtime", whatever that means in the active service
+// "Go do something in the runtime", whatever that means in the active service. Most of the time,
+// this will lead to a "slow" stop-the-world event, as the runtime must know all active/locked
+// handles in the application as to avoid corrupting program state.
 extern void alaska_barrier(void);
 
-
-// Helper functions:
-// get the current rss in kb
+// Grab the current resident set size in kilobytes from the kernel
 extern long alaska_translate_rss_kb(void);
-// nanoseconds
+
+// Get the current timestamp in nanoseconds. Mainly to be used
+// for (end - start) time keeping and benchmarking
 extern unsigned long alaska_timestamp(void);
-
-#ifdef ALASKA_SERVICE_ANCHORAGE
-// Manufacture locality using `entrypoint` as a root in a conservative reachability
-extern void anchorage_manufacture_locality(void *entrypoint);
-#endif
-
 
 
 #ifdef __cplusplus
 }
 #endif
-
-// allow functions in translated programs to be skipped
-#define alaska_rt __attribute__((section("$__ALASKA__$"), noinline))
