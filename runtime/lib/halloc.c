@@ -33,7 +33,9 @@ size_t alaska_usable_size(void *ptr) {
 }
 
 
-void *halloc(size_t sz) {
+static void *_halloc(size_t sz, int zero) {
+	// printf("halloc %zu\n", sz);
+
   // assert(sz < (1LLU << ALASKA_OFFSET_BITS));
   alaska_mapping_t *ent = alaska_table_get();
 
@@ -46,13 +48,18 @@ void *halloc(size_t sz) {
   // Defer to the service to alloc
   alaska_service_alloc(ent, sz);
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
-  ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
+  // ALASKA_SANITY(ent->size == sz, "Service did not update the handle's size");
 
+	if (zero) memset(ent->ptr, 0, sz);
   return alaska_encode(ent, 0);
 }
 
+void *halloc(size_t sz) {
+	return _halloc(sz, 0);
+}
+
 void *hcalloc(size_t nmemb, size_t size) {
-  void *out = halloc(nmemb * size);
+  void *out = _halloc(nmemb * size, 1);
 	// memset(out, 0, nmemb * size);
 	return out;
 }

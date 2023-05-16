@@ -43,7 +43,7 @@ void *alaska_encode(alaska_mapping_t *m, off_t offset) {
   // The table ensures the m address has bit 32 set. This meaning
   // decoding just checks is a 'is the top bit set?'
   uint64_t out = ((uint64_t)m << (32 - 3)) + offset;
-	// printf("encode %p %zu -> %p\n", m, offset, out);
+  // printf("encode %p %zu -> %p\n", m, offset, out);
   return (void *)out;
 }
 
@@ -72,20 +72,21 @@ ALASKA_INLINE void *alaska_translate(void *restrict ptr) {
   ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
       "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
   int64_t bits = (int64_t)ptr;
-  if (likely(bits < 0)) {
-    alaska_mapping_t *m = (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
-    void *mapped = m->ptr;
-#ifdef ALASKA_SWAP_SUPPORT
-    if (unlikely(m->swap.flag)) {  // is the top bit set?
-      mapped = alaska_ensure_present(m);
-    }
-#endif
-    ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
-    ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
+
+  if (unlikely(bits >= 0)) {
+    return ptr;
   }
+  alaska_mapping_t *m = (alaska_mapping_t *)((uint64_t)bits >> (32 - 3));
+  void *mapped = m->ptr;
+#ifdef ALASKA_SWAP_SUPPORT
+  if (unlikely(m->swap.flag)) {  // is the top bit set?
+    mapped = alaska_ensure_present(m);
+  }
+#endif
+  ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
+  ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
 
-	return ptr;
-
+  return ptr;
 }
 
 ALASKA_INLINE void alaska_release(void *restrict ptr) {

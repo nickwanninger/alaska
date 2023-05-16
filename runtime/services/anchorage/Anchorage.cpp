@@ -54,22 +54,6 @@ extern "C" size_t alaska_service_usable_size(void *ptr) {
   // return theHeap.getSize(ptr);
 }
 
-// pthread_t anchorage_barrier_thread;
-// static uint64_t barrier_interval_ms = 100;
-// static void *barrier_thread_fn(void *) {
-//   uint64_t thread_start_time = alaska_timestamp();
-//   while (1) {
-//     usleep(barrier_interval_ms * 1000);
-//     uint64_t start = alaska_timestamp();
-//     alaska_barrier();
-//     alaska_barrier_begin();
-//     alaska_barrier_end();
-//     uint64_t end = alaska_timestamp();
-//     (void)(end - start);
-//     printf("Barrier %zu\n", end - start);
-//   }
-//   return NULL;
-// }
 
 
 
@@ -149,25 +133,23 @@ namespace anchorage {
 
 
 
-// static void dump_regions() {
-//   FILE *f = fopen("/proc/self/maps", "r");
-//   char line_buf[256];
-//   while (!feof(f)) {
-//     off_t start, end;
-//     char flags[5];  // "rwxp\0"
-//     if (fgets(line_buf, 256, f) == 0) break;
-//
-//     int count = sscanf(line_buf, "%lx-%lx %s\n", &start, &end, flags);
-//     if (count == 3) {
-//       printf("region:%s", line_buf);
-//       if (flags[1] == 'w') {
-//       }
-//     }
-//   }
-//   fclose(f);
-// }
 
-
+pthread_t anchorage_barrier_thread;
+static uint64_t barrier_interval_ms = 1000;
+static void *barrier_thread_fn(void *) {
+  // uint64_t thread_start_time = alaska_timestamp();
+  while (1) {
+    usleep(barrier_interval_ms * 1000);
+    uint64_t start = alaska_timestamp();
+    alaska_barrier();
+    alaska_barrier_begin();
+    alaska_barrier_end();
+    uint64_t end = alaska_timestamp();
+    (void)(end - start);
+    // printf("Barrier %zu\n", end - start);
+  }
+  return NULL;
+}
 extern "C" void alaska_service_init(void) {
 	// dump_regions();
   // void *array[256];
