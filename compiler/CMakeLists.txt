@@ -64,6 +64,7 @@ add_llvm_library(Alaska MODULE
 	passes/TranslatePass.cpp
 	passes/Replacement.cpp
 	passes/LinkLibrary.cpp
+	passes/Lower.cpp
 
 	PLUGIN_TOOL
 	opt
