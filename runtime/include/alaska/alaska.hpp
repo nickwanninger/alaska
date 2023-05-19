@@ -99,6 +99,9 @@ namespace alaska {
     uint64_t count;
     void *locked[];
   };
+
+	// runtime.cpp
+	extern void record_translation_info(bool hit);
 }  // namespace alaska
 
 

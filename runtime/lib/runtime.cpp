@@ -41,6 +41,14 @@
 long alaska::translation_hits = 0;
 long alaska::translation_misses = 0;
 
+void alaska::record_translation_info(bool hit) {
+	if (hit) {
+		alaska::translation_hits++;
+	} else {
+		alaska::translation_misses++;
+	}
+}
+
 struct alaska_pthread_trampoline_arg {
   void* arg;
   void* (*start)(void*);

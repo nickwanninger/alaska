@@ -36,13 +36,15 @@ extern int alaska_verify_is_locally_locked(void *ptr);
 
 static ALASKA_INLINE void alaska_track_hit(void) {
 #ifdef ALASKA_TRACK_TRANSLATION_HITRATE
-	alaska::translation_hits++;
+  alaska::record_translation_info(true);
+  // alaska::translation_hits++;
 #endif
 }
 
 static ALASKA_INLINE void alaska_track_miss(void) {
 #ifdef ALASKA_TRACK_TRANSLATION_HITRATE
-	alaska::translation_misses++;
+  alaska::record_translation_info(false);
+  // alaska::translation_misses++;
 #endif
 }
 
@@ -75,11 +77,11 @@ void *alaska_translate(void *ptr) {
   // fact that most architectures have a "branch if less than 0" instruction to detect this. Most
   // arch just check the top bit to implement that, which is all we need!
   if (unlikely(bits >= 0)) {
-		alaska_track_miss();
+    alaska_track_miss();
     return ptr;
   }
 
-	alaska_track_hit();
+  alaska_track_hit();
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
