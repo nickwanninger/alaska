@@ -9,10 +9,11 @@
  * and modify it as specified in the file "LICENSE".
  */
 #include <alaska.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/table.hpp>
 #include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
+#include "alaska/utils.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -36,6 +37,9 @@
 #endif
 
 
+
+long alaska::translation_hits = 0;
+long alaska::translation_misses = 0;
 
 struct alaska_pthread_trampoline_arg {
   void* arg;
@@ -91,6 +95,16 @@ void __attribute__((constructor(102))) alaska_init(void) {
 void __attribute__((destructor)) alaska_deinit(void) {
   alaska::service::deinit();
   alaska::table::deinit();
+
+
+#ifdef ALASKA_TRACK_TRANSLATION_HITRATE
+  printf("[alaska] HITRATE INFORMATION:\n");
+  printf("[alaska] hits:    %lu\n", alaska::translation_hits);
+  printf("[alaska] misses:  %lu\n", alaska::translation_misses);
+  printf("[alaska] hitrate: %5.2lf%%\n",
+      100.0 * (alaska::translation_hits /
+                  (float)(alaska::translation_misses + alaska::translation_hits)));
+#endif
 }
 
 #define BT_BUF_SIZE 100

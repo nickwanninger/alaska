@@ -18,7 +18,6 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 # LOOPS=""
 
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
-$OPT --strip-debug
 
 $OPT -basic-aa -lowerswitch -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -gvn-hoist --aggressive-instcombine
@@ -28,5 +27,4 @@ $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -gvn-hoist --aggressiv
 # opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes
 clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
 # $OPT -sink -simplifycfg
-$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg
-$OPT --strip-debug
+$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce

@@ -10,7 +10,7 @@
  */
 #include <alaska.h>
 #include <alaska/service.hpp>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/table.hpp>
 #include <assert.h>
 #include <malloc.h>
@@ -40,7 +40,9 @@ static void *_halloc(size_t sz, int zero) {
   alaska::service::alloc(ent, sz);
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
   if (zero) memset(ent->ptr, 0, sz);
-  return alaska_encode(ent, 0);
+  void *out = ent->to_handle(0);
+  // printf("allocate %p %zu\n", out, sz);
+  return out;
 }
 
 void *halloc(size_t sz) noexcept {
@@ -49,7 +51,6 @@ void *halloc(size_t sz) noexcept {
 
 void *hcalloc(size_t nmemb, size_t size) {
   void *out = _halloc(nmemb * size, 1);
-  // memset(out, 0, nmemb * size);
   return out;
 }
 
@@ -57,7 +58,7 @@ void *hcalloc(size_t nmemb, size_t size) {
 void *hrealloc(void *handle, size_t new_size) {
   if (handle == NULL) return halloc(new_size);
 
-  alaska::Mapping *m = alaska_lookup(handle);
+  auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     // If it wasn't a handle, just forward to the system realloc
     return realloc(handle, new_size);
@@ -77,9 +78,11 @@ void *hrealloc(void *handle, size_t new_size) {
 
 void hfree(void *ptr) {
   if (ptr == NULL) return;
-  alaska::Mapping *m = alaska_lookup(ptr);
+  auto *m = alaska::Mapping::from_handle_safe(ptr);
+  // printf("freeing %p %p\n", m, ptr);
   if (m == NULL) {
-    return;
+    // Not a handle? Pass it to the system allocator.
+    return ::free(ptr);
   }
 
   // Defer to the service to free

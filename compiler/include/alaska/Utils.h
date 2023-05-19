@@ -6,8 +6,10 @@
 
 namespace alaska {
 
+  llvm::Instruction *insertRootBefore(llvm::Instruction *inst, llvm::Value *pointer);
   llvm::Instruction *insertTranslationBefore(llvm::Instruction *inst, llvm::Value *pointer);
   llvm::Instruction *insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer);
+  llvm::Instruction *insertDerivedBefore(llvm::Instruction *inst, llvm::Value *base, llvm::GetElementPtrInst *offset);
 
 
 

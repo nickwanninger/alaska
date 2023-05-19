@@ -11,7 +11,7 @@
 
 
 #include <anchorage/Swapper.hpp>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
 
 #include <ck/pair.h>

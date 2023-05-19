@@ -10,7 +10,7 @@
  */
 
 #include <alaska.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
 #include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
@@ -24,8 +24,8 @@
 #include <assert.h>
 
 // The definition for thread-local root chains
-struct alaska_lock_frame alaska_lock_chain_base = {NULL, 0};
-__thread struct alaska_lock_frame* alaska_lock_root_chain = &alaska_lock_chain_base;
+alaska::LockFrame alaska_lock_chain_base = {NULL, 0};
+extern "C" __thread alaska::LockFrame* alaska_lock_root_chain = &alaska_lock_chain_base;
 
 extern uint64_t alaska_next_usage_timestamp;
 
@@ -45,11 +45,12 @@ static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
+
+
+
 int alaska_verify_is_locally_locked(void* ptr) {
   if (!IS_ENABLED(ALASKA_LOCK_TRACKING)) return 1;
-  extern struct alaska_lock_frame* __alaska_get_lock_frame();
-
-  struct alaska_lock_frame* cur;
+  alaska::LockFrame* cur;
 
   cur = alaska_lock_root_chain;
   while (cur != NULL) {
@@ -66,7 +67,7 @@ int alaska_verify_is_locally_locked(void* ptr) {
 
 
 static void record_handle(void* possible_handle, bool marked) {
-  alaska::Mapping* m = alaska_lookup(possible_handle);
+  alaska::Mapping* m = alaska::Mapping::from_handle_safe(possible_handle);
 
   // It wasn't a handle, don't consider it.
   if (m == NULL) return;
@@ -83,7 +84,7 @@ static void record_handle(void* possible_handle, bool marked) {
 
 
 static void alaska_barrier_join(bool leader) {
-  struct alaska_lock_frame* cur;
+  alaska::LockFrame* cur;
 
   cur = alaska_lock_root_chain;
   while (cur != NULL) {
@@ -103,7 +104,7 @@ static void alaska_barrier_join(bool leader) {
 
 
 static void alaska_barrier_leave(bool leader) {
-  struct alaska_lock_frame* cur;
+  alaska::LockFrame* cur;
   // wait for the the leader (and everyone else to catch up)
   if (num_threads > 1) {
     pthread_barrier_wait(&the_barrier);

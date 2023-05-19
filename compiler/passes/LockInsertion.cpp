@@ -48,7 +48,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
   // Get the root chain if it already exists.
   auto Head = M.getGlobalVariable("alaska_lock_root_chain");
   if (Head == nullptr) {
-    Head = new GlobalVariable(M, pointerType, false, GlobalValue::ExternalWeakLinkage,
+    Head = new GlobalVariable(M, pointerType, false, GlobalValue::ExternalLinkage,
         Constant::getNullValue(pointerType), "alaska_lock_root_chain", nullptr,
         llvm::GlobalValue::InitialExecTLSModel);
   }

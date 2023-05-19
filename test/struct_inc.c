@@ -10,8 +10,9 @@ struct my_struct {
   int c;
 };
 
-__attribute__((noinline)) void inc_c(volatile struct my_struct *x, volatile struct my_struct *y) {
-  y->b += 2;
+__attribute__((noinline)) void inc_c(volatile struct my_struct *x) {
+  x->a *= 3;
+  x->b += 2;
   x->c += 1;
 }
 

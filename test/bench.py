@@ -145,7 +145,7 @@ space.add_pipeline(pl)
 
 compile = True
 # results = space.run(runner=PerfRunner(), runs=1, compile=compile)
-results = space.run(runs=1, compile=compile)
+results = space.run(runs=3, compile=compile)
 # exit()
 print(results)
 results.to_csv("bench/results.csv", index=False)

@@ -2,18 +2,19 @@
 #include <alaska/TranslationForest.h>
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
+
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <noelle/core/DataFlow.hpp>
 
 llvm::Value *alaska::Translation::getHandle(void) {
-  // the pointer for this translation is simply the first argument of the call to alaska_translate
+  // the pointer for this translation is simply the first argument of the call to `translate`
   return translation->getOperand(0);
 }
 
 llvm::Value *alaska::Translation::getPointer(void) {
-  // the handle is the return value of the call to alaska_translate
+  // the handle is the return value of the call to `translate`
   return translation;
 }
 
@@ -21,44 +22,6 @@ llvm::Function *alaska::Translation::getFunction(void) {
   if (translation == NULL) return NULL;
   return translation->getFunction();
 }
-
-struct TranslationApplicationVisitor : public llvm::InstVisitor<TranslationApplicationVisitor> {
-  alaska::Translation &translation;
-  llvm::Value *incoming = NULL;
-
-  TranslationApplicationVisitor(alaska::Translation &tr, llvm::Value *incoming)
-      : translation(tr)
-      , incoming(incoming) {
-  }
-
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    // create a new GEP right after this one.
-    IRBuilder<> b(I.getNextNode());
-
-    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
-    auto new_incoming = dyn_cast<Instruction>(
-        b.CreateGEP(I.getSourceElementType(), incoming, inds, "", I.isInBounds()));
-
-    TranslationApplicationVisitor vis(translation, new_incoming);
-    for (auto user : I.users()) {
-      vis.visit(dyn_cast<Instruction>(user));
-    }
-  }
-
-  void visitLoadInst(llvm::LoadInst &I) {
-    translation.users.insert(&I);
-    I.setOperand(0, incoming);
-  }
-  void visitStoreInst(llvm::StoreInst &I) {
-    translation.users.insert(&I);
-    I.setOperand(1, incoming);
-  }
-
-  void visitInstruction(llvm::Instruction &I) {
-    alaska::println("dunno how to handle this: ", I);
-  }
-};
-
 
 void alaska::Translation::computeLiveness(void) {
   if (auto *func = getFunction()) {
@@ -122,8 +85,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
   auto &M = *F.getParent();
 
   // find the translation and release functions
-  auto *translateFunction = M.getFunction("alaska_translate");
-  auto *releaseFunction = M.getFunction("alaska_release");
+  auto *translateFunction = M.getFunction("alaska.translate");
+  auto *releaseFunction = M.getFunction("alaska.release");
   if (translateFunction == NULL) {
     // if the function doesn't exist, there aren't any translations so early return
     return {};
@@ -201,7 +164,7 @@ void alaska::computeTranslationLiveness(
   auto get_translation_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_translate") {
+      if (func && func->getName() == "alaska.translate") {
         return call->getArgOperandUse(0);
       }
     }
@@ -212,7 +175,7 @@ void alaska::computeTranslationLiveness(
   auto get_release_of = [](llvm::Instruction *inst) -> llvm::Value * {
     if (auto call = dyn_cast<CallInst>(inst)) {
       auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska_release") {
+      if (func && func->getName() == "alaska.release") {
         return call->getArgOperandUse(0);
       }
     }
@@ -471,7 +434,7 @@ struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
   }
 
   void visitCallInst(llvm::CallInst &I) {
-    auto translateFunction = I.getFunction()->getParent()->getFunction("alaska_translate");
+    auto translateFunction = I.getFunction()->getParent()->getFunction("alaska.translate");
     if (translateFunction != NULL && I.getCalledFunction() == translateFunction) {
       return;
     }

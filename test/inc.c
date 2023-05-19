@@ -12,11 +12,17 @@ __attribute__((noinline)) void inc(volatile int *x) {
 
 // #pragma alaska
 int main(int argc, char **argv) {
+
+	int trials = 10;
+	if (argc > 1) {
+		trials = atoi(argv[1]);
+	}
+
   // for (int i = 0; i < 16; i++) {
-  volatile int *ptr = (volatile int *)malloc(sizeof(int));
+  volatile int *ptr = (volatile int *)halloc(sizeof(int));
   *ptr = 0;
 
-  for (int j = 0; j < 10; j++) {
+  for (int j = 0; j < trials; j++) {
     uint64_t start = alaska_timestamp();
     for (int i = 0; i < COUNT; i++) {
       inc(ptr);

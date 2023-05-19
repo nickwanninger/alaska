@@ -9,7 +9,7 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/table.hpp>
 #include <pthread.h>
 #include <string.h>
@@ -20,8 +20,11 @@
 // memory, as well as the get/put interface to allocate a new handle
 
 
-// #define TABLE_START 0x80000000LU
+#ifdef ALASKA_HANDLE_SQUEEZING
 #define TABLE_START 0x400000000LU
+#else
+#define TABLE_START 0x80000000LU
+#endif
 
 static pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
 // How many handles are in the table

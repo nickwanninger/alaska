@@ -12,7 +12,7 @@
 
 
 #include <alaska.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <ck/box.h>
 #include <ck/template_lib.h>
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ck/template_lib.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 
 namespace ck {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./template_lib.h"
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 namespace ck {
 
@@ -31,7 +31,8 @@ namespace ck {
 
    private:
     friend ListType;
-    explicit single_listIterator(typename ListType::Node* node, typename ListType::Node* prev = nullptr)
+    explicit single_listIterator(
+        typename ListType::Node* node, typename ListType::Node* prev = nullptr)
         : m_node(node)
         , m_prev(prev) {
     }

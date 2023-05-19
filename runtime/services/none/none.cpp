@@ -12,7 +12,7 @@
 
 // This file represents a service that doesn't do anything. It can be used
 // As a stepping stone for implementing new services.
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <stdint.h>
 #include <alaska/service.hpp>
 #include <malloc.h>

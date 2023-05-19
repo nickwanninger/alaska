@@ -12,7 +12,7 @@
 #pragma once
 
 
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 namespace alaska {
   namespace table {
@@ -25,7 +25,7 @@ namespace alaska {
     auto begin(void) -> alaska::Mapping *;
     auto end(void) -> alaska::Mapping *;
 
-    // Initialization and deinitialization
+    // Initialize and free the handle table
     void init();
     void deinit();
 

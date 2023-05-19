@@ -32,18 +32,6 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
 
   mdm.addMetadata("alaska", "did run");
 
-  // auto *PM = new llvm::legacy::PassManager();
-  // noelle::PDGAnalysis pdga;
-  // PM->add(new llvm::BasicAAWrapperPass());
-  // PM->add(new llvm::ScopedNoAliasAAWrapperPass());
-  // PM->add(new llvm::TypeBasedAAWrapperPass());
-  // PM->add(&pdga);
-  // PM->run(M);
-  // auto *pdg = pdga.getPDG();
-  //
-  // void printPDG(Module &module, CallGraph &callGraph, PDG *graph, std::function<LoopInfo &(Function *f)> getLoopInfo);
-  // PDGPrinter::writeGraph<PDG, Value>("pdg-full.dot", pdg);
-
   for (auto &F : M) {
     if (F.empty()) continue;
     auto section = F.getSection();

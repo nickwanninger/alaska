@@ -11,7 +11,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 namespace anchorage {
 

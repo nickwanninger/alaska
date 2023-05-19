@@ -62,9 +62,9 @@ std::string alaska::simpleFormat(llvm::Value *val) {
 }
 
 
-static bool is_tracing(void) {
-  return getenv("ALASKA_COMPILER_TRACE") != NULL;
-}
+// static bool is_tracing(void) {
+//   return getenv("ALASKA_COMPILER_TRACE") != NULL;
+// }
 #define BT_BUF_SIZE 100
 void alaska::dumpBacktrace(void) {
   int nptrs;
@@ -98,6 +98,20 @@ llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
   return NULL;
 }
 
+
+llvm::Instruction *alaska::insertRootBefore(llvm::Instruction *inst, llvm::Value *pointer) {
+  auto *headBB = inst->getParent();
+  auto &F = *headBB->getParent();
+  auto &M = *F.getParent();
+  LLVMContext &ctx = M.getContext();
+  auto ptrType = PointerType::get(ctx, 0);
+  auto translateFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+  std::string name = "alaska.root";
+  auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
+  IRBuilder<> b(inst);
+  return b.CreateCall(translateFunctionType, translateFunction, {pointer});
+}
+
 llvm::Instruction *alaska::insertTranslationBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
@@ -105,20 +119,10 @@ llvm::Instruction *alaska::insertTranslationBefore(llvm::Instruction *inst, llvm
   LLVMContext &ctx = M.getContext();
   auto ptrType = PointerType::get(ctx, 0);
   auto translateFunctionType = FunctionType::get(ptrType, {ptrType}, false);
-  std::string name = "alaska_translate";
-  if (is_tracing()) name += "_trace";
-  if (bootstrapping()) name = "alaska_translate_bootstrap";
+  std::string name = "alaska.translate";
   auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
-
   IRBuilder<> b(inst);
-  b.SetCurrentDebugLocation(inst->getDebugLoc());
-  auto translated = b.CreateCall(translateFunctionType, translateFunction, {pointer});
-  // translated->setDebugLoc(DILocation::get(ctx, 0, 0,
-  // inst->getFunction()->getSubprogram()->getScope()));
-  translated->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
-  if (!translated->getDebugLoc()) {
-  }
-  return translated;
+  return b.CreateCall(translateFunctionType, translateFunction, {pointer});
 }
 
 llvm::Instruction *alaska::insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer) {
@@ -129,15 +133,24 @@ llvm::Instruction *alaska::insertReleaseBefore(llvm::Instruction *inst, llvm::Va
   auto ptrType = PointerType::get(ctx, 0);
   auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
 
-  std::string name = "alaska_release";
-  if (is_tracing()) name += "_trace";
-  if (bootstrapping()) name = "alaska_release_bootstrap";
+  std::string name = "alaska.release";
   auto func = M.getOrInsertFunction(name, ftype).getCallee();
 
   IRBuilder<> b(inst);
-  b.SetCurrentDebugLocation(inst->getDebugLoc());
-  auto release = b.CreateCall(ftype, func, {pointer});
-  release->setDebugLoc(getFirstDILocationInFunctionKillMe(inst->getFunction()));
+  return b.CreateCall(ftype, func, {pointer});
+}
 
-  return release;
+
+llvm::Instruction *alaska::insertDerivedBefore(
+    llvm::Instruction *inst, llvm::Value *base, llvm::GetElementPtrInst *offset) {
+  auto *headBB = inst->getParent();
+  auto &F = *headBB->getParent();
+  auto &M = *F.getParent();
+  LLVMContext &ctx = M.getContext();
+  auto ptrType = PointerType::get(ctx, 0);
+  auto translateFunctionType = FunctionType::get(ptrType, {ptrType, ptrType}, false);
+  std::string name = "alaska.derive";
+  auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
+  IRBuilder<> b(inst);
+  return b.CreateCall(translateFunctionType, translateFunction, {base, offset});
 }

@@ -22,11 +22,13 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       "hcalloc",
       "hfree",
       "hfree_trace",
-      "alaska_translate",
-      "alaska_translate_trace",
-      "alaska_release",
-      "alaska_release_trace",
+			// Anchorage stuff
       "anchorage_manufacture_locality",
+			// "intrinsics"
+      "alaska.root",
+      "alaska.translate",
+      "alaska.release",
+			// Gross functions in libc that we handle ourselves
       "strstr",
       "strchr",
   };
@@ -44,6 +46,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     if (!F.empty()) continue;
     // Ignore calls to alaska functions
     if (F.getName().startswith("alaska_")) ignore = true;
+    if (F.getName().startswith("alaska.")) ignore = true;
     // Intriniscs
     if (F.getName().startswith("llvm.lifetime")) ignore = true;
     if (F.getName().startswith("llvm.va_start")) ignore = true;
@@ -156,9 +159,9 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
           IRBuilder<> b(call);
 
-          auto val = b.CreateGEP(arg->getType(), arg, {});
-          auto translated = alaska::insertTranslationBefore(call, val);
-          alaska::insertReleaseBefore(call->getNextNode(), val);
+          // auto val = b.CreateGEP(arg->getType(), arg, {});
+          auto translated = alaska::insertTranslationBefore(call, arg);
+          alaska::insertReleaseBefore(call->getNextNode(), arg);
           call->setArgOperand(i, translated);
         }
         // alaska::println("   after", *call);

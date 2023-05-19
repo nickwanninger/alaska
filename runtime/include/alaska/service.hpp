@@ -11,13 +11,13 @@
 #pragma once
 
 
-#include <alaska/internal.h>
-#include <stdbool.h>
-
-// This file contains the interface that a service must implement to be a
-// complete service under Alaska.
+#include <alaska/alaska.hpp>
 
 namespace alaska {
+  // This file contains the interface that a service must implement to be a
+  // complete service under Alaska. All of these functions are not implemented in the lib/ folder of
+  // the runtime, and must be implemented by some bit of code in the relevant `services/$service`
+  // folder in order to successfully compile.
   namespace service {
     // Initialize whatever state the service needs.
     extern void init(void);

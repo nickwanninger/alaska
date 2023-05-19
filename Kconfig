@@ -80,3 +80,15 @@ config SWAP_SUPPORT
 config LOCK_TRACKING
 	bool "Enable lock tracking via shadow-stack rooting"
 	default y
+
+
+
+config HANDLE_SQUEEZING
+	bool "Squeeze more handles into the encoding space by lobbing off alignment bits when encoding"
+	default y
+
+
+config TRACK_TRANSLATION_HITRATE
+	bool "Track hit/miss rate for translations"
+	default n
+

@@ -12,7 +12,7 @@
 #pragma once
 
 
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 #include <pthread.h>
 

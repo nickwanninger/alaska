@@ -3,7 +3,7 @@
 #include <ck/template_lib.h>
 #include <ck/single_list.h>
 #include <ck/vec.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 namespace ck {
 
@@ -34,8 +34,8 @@ namespace ck {
    public:
     bool operator!=(const HashTableIterator& other) const {
       if (m_is_end && other.m_is_end) return false;
-      return &m_table != &other.m_table || m_is_end != other.m_is_end || m_bucket_index != other.m_bucket_index ||
-             m_bucket_iterator != other.m_bucket_iterator;
+      return &m_table != &other.m_table || m_is_end != other.m_is_end ||
+             m_bucket_index != other.m_bucket_index || m_bucket_iterator != other.m_bucket_iterator;
     }
     bool operator==(const HashTableIterator& other) const {
       return !(*this != other);
@@ -71,14 +71,16 @@ namespace ck {
     friend HashTableType;
 
     explicit HashTableIterator(HashTableType& table, bool is_end,
-        BucketIteratorType bucket_iterator = BucketIteratorType::universal_end(), int bucket_index = 0)
+        BucketIteratorType bucket_iterator = BucketIteratorType::universal_end(),
+        int bucket_index = 0)
         : m_table(table)
         , m_bucket_index(bucket_index)
         , m_is_end(is_end)
         , m_bucket_iterator(bucket_iterator) {
       // assert(!table.m_clearing);
       // assert(!table.m_rehashing);
-      if (!is_end && !m_table.is_empty() && !(m_bucket_iterator != BucketIteratorType::universal_end())) {
+      if (!is_end && !m_table.is_empty() &&
+          !(m_bucket_iterator != BucketIteratorType::universal_end())) {
         m_bucket_iterator = m_table.bucket(0).begin();
         if (m_bucket_iterator.is_end()) skip_to_next();
       }
@@ -167,7 +169,8 @@ namespace ck {
       return Iterator(*this, true);
     }
 
-    using ConstIterator = HashTableIterator<const HashTable, const T, typename Bucket::ConstIterator>;
+    using ConstIterator =
+        HashTableIterator<const HashTable, const T, typename Bucket::ConstIterator>;
     friend ConstIterator;
     ConstIterator begin() const {
       return ConstIterator(*this, is_empty());
@@ -182,7 +185,8 @@ namespace ck {
       int bucket_index;
       auto& bucket = lookup_with_hash(hash, &bucket_index);
       auto bucket_iterator = bucket.find(finder);
-      if (bucket_iterator != bucket.end()) return Iterator(*this, false, bucket_iterator, bucket_index);
+      if (bucket_iterator != bucket.end())
+        return Iterator(*this, false, bucket_iterator, bucket_index);
       return end();
     }
 
@@ -192,7 +196,8 @@ namespace ck {
       int bucket_index;
       auto& bucket = lookup_with_hash(hash, &bucket_index);
       auto bucket_iterator = bucket.find(finder);
-      if (bucket_iterator != bucket.end()) return ConstIterator(*this, false, bucket_iterator, bucket_index);
+      if (bucket_iterator != bucket.end())
+        return ConstIterator(*this, false, bucket_iterator, bucket_index);
       return end();
     }
 

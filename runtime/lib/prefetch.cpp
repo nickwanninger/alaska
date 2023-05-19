@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 
 extern "C" ALASKA_INLINE void *alaska_prefetch_translate(void *ptr) {

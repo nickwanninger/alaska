@@ -106,9 +106,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #ifdef ALASKA_COMPILER_TIMING
             if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
 #endif
-
-
-
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(adapt(PromotePass()));
 
@@ -117,21 +114,20 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
               MPM.addPass(AlaskaEscapePass());
             }
 #endif
+
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(LockPrinterPass());
 #endif
             // MPM.addPass(RedundantArgumentLockElisionPass());
             if (!alaska::bootstrapping()) MPM.addPass(LockInsertionPass());
+
 #ifdef ALASKA_INLINE_TRANSLATION
+            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
+#endif
 
-            if (alaska::bootstrapping()) {
-              // Use the bootstrap bitcode if we are bootstrapping
-              MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_bootstrap.bc"));
-            } else {
-              // Link the library otherwise (just runtime/src/translate.c)
-              MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
-            }
+            MPM.addPass(AlaskaLowerPass());
 
+#ifdef ALASKA_INLINE_TRANSLATION
             // Force inlines of alaska runtime functions
             MPM.addPass(TranslationInlinePass());
 #endif

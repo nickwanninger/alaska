@@ -12,7 +12,7 @@
 
 
 #include <alaska.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 
 namespace anchorage {
 

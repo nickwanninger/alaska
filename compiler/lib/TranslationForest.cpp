@@ -35,13 +35,9 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    // create a new GEP right after this one.
-    IRBuilder<> b(I.getNextNode());
-
+		// Simply insert an `alaska.derive` function right after `I`
     auto t = get_incoming_translated_value(node);
-    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
-    node.translated =
-        dyn_cast<Instruction>(b.CreateGEP(I.getSourceElementType(), t, inds, "", I.isInBounds()));
+		node.translated = alaska::insertDerivedBefore(I.getNextNode(), t, &I);
   }
 
   void visitLoadInst(llvm::LoadInst &I) {
@@ -257,10 +253,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
         auto &lb = get_translation_bounds(child->translation_id);
         lb.translateBefore = compute_translation_insertion_location(root->val, inst, loops);
 
+        lb.pointer = alaska::insertRootBefore(lb.translateBefore, root->val);
         IRBuilder<> b(lb.translateBefore);
-        lb.pointer = b.CreateGEP(root->val->getType(), root->val, {});
-        errs() << *lb.pointer << " | " << *root->val << " | "
-               << lb.translateBefore->getFunction()->getName() << "\n";
       }
     }
   }

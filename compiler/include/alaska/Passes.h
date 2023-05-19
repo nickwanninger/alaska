@@ -91,3 +91,9 @@ class AlaskaLinkLibraryPass : public llvm::PassInfoMixin<AlaskaLinkLibraryPass> 
   void prepareLibrary(llvm::Module &M);
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
+
+
+class AlaskaLowerPass : public llvm::PassInfoMixin<AlaskaLowerPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
+};

@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include "./template_lib.h"
 
 

@@ -15,7 +15,7 @@
 #include <anchorage/LinkedList.h>
 
 #include <alaska.h>
-#include <alaska/internal.h>
+#include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
 
