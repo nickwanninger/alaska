@@ -12,6 +12,7 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/SizeMap.hpp>
+#include <anchorage/MainHeap.hpp>
 #include <anchorage/LinkedList.h>
 
 #include <alaska.h>
@@ -28,6 +29,9 @@
 
 #include <heaplayers.h>
 
+
+
+static anchorage::MainHeap heap();
 
 // using ChunkedMmapHeap = HL::ChunkHeap<2 * 1024 * 1024, HL::SizedMmapHeap>;
 using ChunkedMmapHeap = HL::ChunkHeap<4 * 1024, HL::SizedMmapHeap>;
@@ -77,53 +81,6 @@ static void *barrier_thread_fn(void *) {
 
 
 void alaska::service::init(void) {
-  // dump_regions();
-  // void *array[256];
-  // HL::MmapHeap heap;
-  // alaska::Mapping m;
-  // size_t lastSize = 0;
-  // printf("  size  tracking overhead\n");
-  // for (size_t size = 16; size < anchorage::kMaxSize; size += 16) {
-  //   const size_t objectClass = anchorage::SizeMap::SizeClass(size);
-  //   const size_t objectSize = anchorage::SizeMap::class_to_size(objectClass);
-  //   if (objectSize == lastSize) continue;
-  //   lastSize = objectSize;
-  //
-  //   int pagecount = max(1LU, (objectSize * 256) / 4096);
-  //   printf("%6zu  %5.2lf%%\n", objectSize,
-  //       (sizeof(anchorage::SubHeap) / (float)(pagecount * 4096)) * 100.0);
-  //   void *page = heap.malloc(4096 * pagecount);
-  //   // Allocate the span
-  //   anchorage::SubHeap s((off_t)page, pagecount, size, 256);
-  //   // auto start = alaska_timestamp();
-  //   int runs = 10000;
-  //   for (int run = 0; run < runs; run++) {
-  //     // printf("-----\n");
-  //     for (int i = 0; i < 256; i++) {
-  //       void *x = s.alloc(m);
-  //       array[i] = x;
-  //       if (x == NULL) {
-  //         printf("failed!\n");
-  //         exit(0);
-  //       }
-  //     }
-  //     for (int i = 0; i < 256; i++) {
-  //       s.free(array[i]);
-  //     }
-  //   }
-  //   // auto end = alaska_timestamp();
-  //   // printf(
-  //   //     "    %lf seconds per iteration\n", (end - start) / (float)runs / 1000.0 / 1000.0 /
-  //   //     1000.0);
-  //   heap.free(page, 4096 * pagecount);
-  // }
-  // exit(-1);
-  // for (size_t size = 16; size < anchorage::kMaxSize; size *= 1.1) {
-  //   const size_t objectClass = anchorage::SizeMap::SizeClass(size);
-  //   const size_t objectSize = anchorage::SizeMap::class_to_size(objectClass);
-  //   printf("%zu -> %zu (%zu)\n", size, objectSize, objectClass);
-  // }
-  // exit(0);
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
@@ -144,11 +101,11 @@ void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
 
 
 /// =================================================
-const unsigned char anchorage::SizeMap::class_array_[kClassArraySize] = {
+const unsigned char anchorage::SizeMap::class_array_[anchorage::SizeMap::kClassArraySize] = {
 #include "size_classes.def"
 };
 
-const int32_t anchorage::SizeMap::class_to_size_[kClassSizesMax] = {
+const int32_t anchorage::SizeMap::class_to_size_[anchorage::kClassSizesMax] = {
     16,
     16,
     32,
