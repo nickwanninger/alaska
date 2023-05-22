@@ -58,9 +58,9 @@ namespace anchorage {
 
     // Get either the default heap size, or parse the environment variable if it was passed.
     static size_t get_heap_size(void) {
-      auto size = anchorage::defaultArenaSize;
+      size_t size = anchorage::defaultArenaSize;
       if (char *param = getenv("ANCHORAGE_ARENA_SIZE_MB")) {
-        size = atoi(param) * MB;
+        size = (uint64_t)atoi(param) * MB;
       }
       return size;
     }

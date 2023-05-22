@@ -40,17 +40,25 @@ static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMma
     theHeap;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-	// heap.alloc(*ent, size);
+  // Give up if they ask for something too big (we can't do anything interesting with it anyways)
+  if (size > anchorage::maxHandleSize) {
+    void *ptr = ::realloc(ent->ptr, size);
+    ent->ptr = ptr;
+    return;
+  }
+
+	ent->ptr = the_heap->alloc(*ent, size);
+  // heap.alloc(*ent, size);
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   // ent->ptr = theHeap.realloc(ent->ptr, size);
-  ent->ptr = ::realloc(ent->ptr, size);
+  // ent->ptr = ::realloc(ent->ptr, size);
   // printf("%p\n", ent->ptr);
 }
 
 
 void alaska::service::free(alaska::Mapping *ent) {
   // theHeap.free(ent->ptr);
-  ::free(ent->ptr);
+  // ::free(ent->ptr);
   ent->ptr = NULL;
 }
 
@@ -80,8 +88,8 @@ static void *barrier_thread_fn(void *) {
 
 
 void alaska::service::init(void) {
-	// Make sure the anchorage heap is available
-	the_heap = new anchorage::MainHeap;
+  // Make sure the anchorage heap is available
+  the_heap = new anchorage::MainHeap;
 
 
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);

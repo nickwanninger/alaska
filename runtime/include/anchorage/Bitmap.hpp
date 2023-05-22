@@ -28,7 +28,6 @@ namespace anchorage {
    public:
     Bitmap(uint64_t length)
         : m_length(length) {
-      printf("bits %lu (%lu bytes)\n", m_length, length / sizeof(*m_bits));
       // TODO: take in backing memory if we don't want to use the system malloc
       m_bits = (uint64_t *)calloc(length / sizeof(*m_bits), 1);
     }

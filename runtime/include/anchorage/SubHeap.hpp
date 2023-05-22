@@ -76,6 +76,8 @@ namespace anchorage {
       m_handles[ind] = 0;
     }
 
+		auto num_free(void) const { return m_free; }
+
    protected:
     anchorage::LinkedList m_freelist;
     uint32_t m_handles[256];   // array of handles (indicating which objects are allocated)
