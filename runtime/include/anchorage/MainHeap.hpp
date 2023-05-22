@@ -24,7 +24,39 @@
 
 namespace anchorage {
 
-  // The job of a main heap is to manage a set of SubHeaps.
+  // The job of a main heap is to manage a set of SubHeaps, and
+  // send allocation requests to the relevant SubHeap according
+  // to the requested size.
+  class MainHeap : public anchorage::Arena {
+    typedef anchorage::Arena SuperHeap;
 
-  class MainHeap : public anchorage::Arena {};
+   public:
+    enum { Alignment = 16 };
+
+    MainHeap()
+        : SuperHeap() {
+    }
+
+    void *alloc(alaska::Mapping &m, size_t size);
+    void free(alaska::Mapping &m);
+
+	 private:
+  };
+
+
+
+  // Allocate some memory into a mapping
+  inline void *MainHeap::alloc(alaska::Mapping &m, size_t size) {
+    // TODO:
+    m.ptr = nullptr;
+    return m.ptr;
+  }
+
+
+  // Free the memory associated with a mapping.
+  inline void MainHeap::free(alaska::Mapping &m) {
+    void *ptr = m.ptr;  // Grab the pointer
+    (void)ptr;
+  }
+
 }  // namespace anchorage

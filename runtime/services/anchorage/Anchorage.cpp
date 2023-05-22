@@ -30,8 +30,7 @@
 #include <heaplayers.h>
 
 
-
-static anchorage::MainHeap heap();
+anchorage::MainHeap *the_heap = nullptr;
 
 // using ChunkedMmapHeap = HL::ChunkHeap<2 * 1024 * 1024, HL::SizedMmapHeap>;
 using ChunkedMmapHeap = HL::ChunkHeap<4 * 1024, HL::SizedMmapHeap>;
@@ -41,6 +40,7 @@ static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMma
     theHeap;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
+	// heap.alloc(*ent, size);
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   // ent->ptr = theHeap.realloc(ent->ptr, size);
   ent->ptr = ::realloc(ent->ptr, size);
@@ -58,7 +58,6 @@ size_t alaska::service::usable_size(void *ptr) {
   return malloc_usable_size(ptr);
   // return theHeap.getSize(ptr);
 }
-
 
 
 
@@ -81,6 +80,10 @@ static void *barrier_thread_fn(void *) {
 
 
 void alaska::service::init(void) {
+	// Make sure the anchorage heap is available
+	the_heap = new anchorage::MainHeap;
+
+
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
@@ -105,7 +108,7 @@ const unsigned char anchorage::SizeMap::class_array_[anchorage::SizeMap::kClassA
 #include "size_classes.def"
 };
 
-const int32_t anchorage::SizeMap::class_to_size_[anchorage::kClassSizesMax] = {
+const int32_t anchorage::SizeMap::class_to_size_[anchorage::classSizesMax] = {
     16,
     16,
     32,

@@ -14,27 +14,80 @@
 #include <alaska.h>
 #include <alaska/alaska.hpp>
 
+#define KB 1024UL
+#define MB KB * 1024UL
+#define GB MB * 1024UL
+
 namespace anchorage {
+
 
   // main interface to the allocator
   void allocator_init(void);
   void allocator_deinit(void);
 
-  constexpr size_t block_size = 16;
   constexpr size_t page_size = 4096;
-  // How many pages should a chunk be?
-  // TODO: This needs to be tuned dynamically
-  // constexpr size_t min_chunk_pages = 16384 * 2;  // 64mb of pages
-  constexpr size_t min_chunk_pages = 16384;
-  static inline size_t size_with_overhead(size_t sz) {
-    return sz + block_size;
-  }
-
   // Maximum object size that anchorage will handle (internally)
-  static constexpr size_t kMaxSize = 16384;
-  static constexpr size_t kArenaSize = 64ULL * 1024ULL * 1024ULL * 1024ULL;  // 64 GB
+  static constexpr size_t maxHandleSize = 16384;
+  static constexpr size_t defaultArenaSize = 64 * GB;
+  static constexpr unsigned extentClassCount = 256;
+  static constexpr size_t classSizesMax = 25;
 
-  static constexpr size_t kClassSizesMax = 25;
+  // A base and length in *pages*
+  struct Extent {
+    // offset and length are in pages
+    explicit Extent(uint32_t _offset, uint32_t _length)
+        : offset(_offset)
+        , length(_length) {
+    }
 
+    Extent(const Extent &rhs)
+        : offset(rhs.offset)
+        , length(rhs.length) {
+    }
+
+    Extent &operator=(const Extent &rhs) {
+      offset = rhs.offset;
+      length = rhs.length;
+      return *this;
+    }
+
+    Extent(Extent &&rhs)
+        : offset(rhs.offset)
+        , length(rhs.length) {
+    }
+
+    bool empty() const {
+      return length == 0;
+    }
+
+    // reduce the size of this extent to pageCount, return another extent
+    // with the rest of the pages.
+    Extent splitAfter(size_t pageCount) {
+      auto restPageCount = length - pageCount;
+      length = pageCount;
+      return Extent(offset + pageCount, restPageCount);
+    }
+
+    uint32_t extentClass() const {
+      uint32_t out = anchorage::extentClassCount;
+      if (length < out) out = length;
+      return out - 1;
+    }
+
+    size_t byteLength() const {
+      return length * page_size;
+    }
+
+    inline bool operator==(const Extent &rhs) {
+      return offset == rhs.offset && length == rhs.length;
+    }
+
+    inline bool operator!=(const Extent &rhs) {
+      return !(*this == rhs);
+    }
+
+    uint32_t offset; // offset from the *start of the heap*
+    uint32_t length; // length in pages
+  };
 
 }  // namespace anchorage
