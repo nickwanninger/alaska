@@ -92,3 +92,6 @@ config TRACK_TRANSLATION_HITRATE
 	bool "Track hit/miss rate for translations"
 	default n
 
+config VERIFY_PASS
+  bool "Verify state of LLVM module while transformations are applied. Useful when debugging passes."
+  default n
