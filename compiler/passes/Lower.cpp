@@ -4,16 +4,17 @@
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <set>
+#include <llvm/IR/Verifier.h>
 
 using namespace llvm;
 
 
-std::vector<llvm::CallInst *> collectCalls(llvm::Module &M, const char *name) {
-  std::vector<llvm::CallInst *> calls;
+std::vector<llvm::CallBase *> collectCalls(llvm::Module &M, const char *name) {
+  std::vector<llvm::CallBase *> calls;
 
   if (auto func = M.getFunction(name)) {
     for (auto user : func->users()) {
-      if (auto call = dyn_cast<CallInst>(user)) {
+      if (auto call = dyn_cast<CallBase>(user)) {
         calls.push_back(call);
       }
     }
@@ -24,10 +25,17 @@ std::vector<llvm::CallInst *> collectCalls(llvm::Module &M, const char *name) {
 }
 
 llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+  std::set<llvm::Instruction *> to_delete;
+
   // Lower alaska.root
-  for (auto call : collectCalls(M, "alaska.root")) {
+  for (auto *call : collectCalls(M, "alaska.root")) {
+    alaska::println(*call);
     call->replaceAllUsesWith(call->getArgOperand(0));
-    call->eraseFromParent();
+    to_delete.insert(call);
+    if (auto *invoke = dyn_cast<llvm::InvokeInst>(call)) {
+      auto *landing_pad = invoke->getLandingPadInst();
+      to_delete.insert(landing_pad);
+    }
   }
 
 
@@ -41,7 +49,7 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
 
   // Lower alaska.release
   for (auto call : collectCalls(M, "alaska.release")) {
-    call->eraseFromParent();
+    to_delete.insert(call);
   }
 
   // Lower alaska.derive
@@ -57,8 +65,18 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
     auto gep = b.CreateGEP(offset->getSourceElementType(), base, inds, "", offset->isInBounds());
     call->replaceAllUsesWith(gep);
 
-    call->eraseFromParent();
+    to_delete.insert(call);
   }
+
+  for (auto inst_to_delete : to_delete) {
+    inst_to_delete->eraseFromParent();
+  }
+
+#ifdef ALASKA_VERIFY_PASS
+  for (auto &F : M) {
+    llvm::verifyFunction(F);
+  }
+#endif
 
 
   // errs() << M << "\n";

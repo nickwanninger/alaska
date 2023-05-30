@@ -10,6 +10,7 @@
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/PassPlugin.h>
 #include <llvm/Transforms/Utils/Mem2Reg.h>
+#include <llvm/Transforms/Utils/LowerInvoke.h>
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
@@ -118,13 +119,14 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(LockPrinterPass());
 #endif
-            // MPM.addPass(RedundantArgumentLockElisionPass());
+            MPM.addPass(RedundantArgumentLockElisionPass());
             if (!alaska::bootstrapping()) MPM.addPass(LockInsertionPass());
 
 #ifdef ALASKA_INLINE_TRANSLATION
             MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
 #endif
-
+            MPM.addPass(adapt(LowerInvokePass()));
+            
             MPM.addPass(AlaskaLowerPass());
 
 #ifdef ALASKA_INLINE_TRANSLATION

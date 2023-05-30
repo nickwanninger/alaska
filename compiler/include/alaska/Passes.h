@@ -57,7 +57,6 @@ class LockPrinterPass : public llvm::PassInfoMixin<LockPrinterPass> {
 class RedundantArgumentLockElisionPass
     : public llvm::PassInfoMixin<RedundantArgumentLockElisionPass> {
  public:
-  llvm::Value *getRootAllocation(llvm::Value *cur);
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 

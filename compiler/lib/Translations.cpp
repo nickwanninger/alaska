@@ -56,10 +56,19 @@ llvm::Value *alaska::Translation::getRootAllocation() {
   llvm::Value *cur = getHandle();
 
   while (1) {
-    if (auto gep = dyn_cast<GetElementPtrInst>(cur)) {
+    if (auto *gep = dyn_cast<GetElementPtrInst>(cur)) {
       cur = gep->getPointerOperand();
     } else {
       break;
+    }
+  }
+
+  // If this is an alaska.root, unpack it.
+  if (auto *call = dyn_cast<llvm::CallInst>(cur)) {
+    if (auto called_function = call->getCalledFunction()) {
+      if (called_function->getName() == "alaska.root") {
+        return call->getArgOperand(0);
+      }
     }
   }
 
