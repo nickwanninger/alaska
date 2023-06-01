@@ -19,7 +19,7 @@ LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
 
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
-$OPT -basic-aa -lowerswitch -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm
+$OPT -basic-aa -lowerswitch -lowerinvoke -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -gvn-hoist --aggressive-instcombine
 # $OPT --instnamer
 
