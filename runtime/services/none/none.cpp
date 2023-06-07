@@ -44,7 +44,7 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t new_size) {
 
 // free `ent->ptr` which was previously allocated by the service.
 void alaska::service::free(alaska::Mapping *ent) {
-  free(ent->ptr);
+  ::free(ent->ptr);
   ent->ptr = NULL;
 }
 
