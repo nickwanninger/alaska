@@ -24,11 +24,12 @@ int main(int argc, char **argv) {
 
   for (int j = 0; j < trials; j++) {
     uint64_t start = alaska_timestamp();
+		*ptr = 0;
     for (int i = 0; i < COUNT; i++) {
       inc(ptr);
     }
 
-    printf("%lf ns per inc\n", (alaska_timestamp() - start) / (double)COUNT);
+    printf("%lf ns per inc (%d)\n", (alaska_timestamp() - start) / (double)COUNT, *ptr);
   }
 
   return 0;

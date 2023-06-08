@@ -36,7 +36,7 @@ void ldflags(void) {
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
   printf("-lpthread\n");
-	// printf("%s/lib/libalaska.a\n", local);
+  // printf("%s/lib/libalaska.a\n", local);
   printf("-lalaska\n");
   // printf("-lomp\n");
 #ifdef ALASKA_CORRECTNESS_EMULATOR
@@ -53,7 +53,7 @@ void cflags(void) {
 #if defined(__aarch64__)
   printf("-march=armv8.5-a\n");
 #elif defined(__x86_64__)
-  printf("-march=native\n");
+  // printf("-march=native\n");
 #endif
   includeflags();
 }
