@@ -14,12 +14,19 @@
 #include <alaska.h>
 #include <alaska/alaska.hpp>
 
+// #include <anchorage/Block.hpp>
+// #include <anchorage/Chunk.hpp>
+
 #define KB 1024UL
 #define MB KB * 1024UL
 #define GB MB * 1024UL
 
 namespace anchorage {
 
+
+
+  struct Block;
+  struct Chunk;
 
   // main interface to the allocator
   void allocator_init(void);
@@ -31,6 +38,16 @@ namespace anchorage {
   static constexpr size_t defaultArenaSize = 64 * GB;
   static constexpr unsigned extentClassCount = 256;
   static constexpr size_t classSizesMax = 25;
+
+
+  constexpr size_t block_size = 16;
+  constexpr size_t min_chunk_pages = 1;  // 64mb of pages
+
+  // constexpr size_t min_chunk_pages = 4096;
+  static inline size_t size_with_overhead(size_t sz) {
+    return sz + block_size;
+  }
+
 
   // A base and length in *pages*
   struct Extent {
@@ -86,8 +103,8 @@ namespace anchorage {
       return !(*this == rhs);
     }
 
-    uint32_t offset; // offset from the *start of the heap*
-    uint32_t length; // length in pages
+    uint32_t offset;  // offset from the *start of the heap*
+    uint32_t length;  // length in pages
   };
 
 }  // namespace anchorage

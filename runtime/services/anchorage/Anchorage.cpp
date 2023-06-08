@@ -15,6 +15,11 @@
 #include <anchorage/MainHeap.hpp>
 #include <anchorage/LinkedList.h>
 
+
+#include <anchorage/Chunk.hpp>
+#include <anchorage/Block.hpp>
+#include <anchorage/Defragmenter.hpp>
+
 #include <alaska.h>
 #include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
@@ -40,31 +45,101 @@ static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMma
     theHeap;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-  // Give up if they ask for something too big (we can't do anything interesting with it anyways)
-  if (size > anchorage::maxHandleSize) {
-    void *ptr = ::realloc(ent->ptr, size);
-    ent->ptr = ptr;
-    return;
+  auto &m = *ent;
+  using namespace anchorage;
+  Block *new_block = NULL;
+  Chunk *new_chunk = NULL;
+  // printf("alloc %zu into %p (there are %zu chunks)\n", size, &m, anchorage::Chunk::all().size());
+  //  for (auto *chunk : anchorage::Chunk::all()) {
+  // 	printf("  chunk %p (wl:%zu)\n", chunk, chunk->high_watermark);
+  // }
+
+  // attempt to allocate from each chunk
+  for (auto *chunk : anchorage::Chunk::all()) {
+    auto blk = chunk->alloc(size);
+    // if the chunk could allocate, use the pointer it created
+    if (blk) {
+      new_chunk = chunk;
+      new_block = blk;
+      break;
+    }
+  }
+  (void)new_chunk;
+
+  if (new_block == NULL) {
+    size_t required_pages = (size / anchorage::page_size) * 2;
+    if (required_pages < anchorage::min_chunk_pages) {
+      required_pages = anchorage::min_chunk_pages;
+    }
+
+    new anchorage::Chunk(required_pages);  // add a chunk
+
+    return alaska::service::alloc(ent, size);
   }
 
-	ent->ptr = the_heap->alloc(*ent, size);
-  // heap.alloc(*ent, size);
-  // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
+  if (m.ptr != NULL) {
+    Block *old_block = anchorage::Block::get(m.ptr);
+    auto *old_chunk = anchorage::Chunk::get(m.ptr);
+    old_block->mark_as_free(*old_chunk);
+    size_t copy_size = old_block->size();
+    if (size < copy_size) copy_size = size;
+    memcpy(new_block->data(), ent->ptr, copy_size);
+    // memset(ent->ptr, 0xFA, ent->size);
+    // old_block->coalesce_free(*old_chunk);
+  }
+
+  new_block->set_handle(&m);
+  ent->ptr = new_block->data();
+  // ent->size = size;
+  // printf("alloc: %p %p (%zu)", &m, ent->ptr, ent->size);
+  // new_chunk->dump(new_block, "Alloc");
+  return;
+
+
   // ent->ptr = theHeap.realloc(ent->ptr, size);
-  // ent->ptr = ::realloc(ent->ptr, size);
-  // printf("%p\n", ent->ptr);
+  // return;
+
+  // // Give up if they ask for something too big (we can't do anything interesting with it anyways)
+  // if (size > anchorage::maxHandleSize) {
+  //   void *ptr = ::realloc(ent->ptr, size);
+  //   ent->ptr = ptr;
+  //   return;
+  // }
+
+  // ent->ptr = the_heap->alloc(*ent, size);
+  // // heap.alloc(*ent, size);
+  // // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
+  // // ent->ptr = ::realloc(ent->ptr, size);
+  // // printf("%p\n", ent->ptr);
 }
 
 
 void alaska::service::free(alaska::Mapping *ent) {
-  // theHeap.free(ent->ptr);
-  // ::free(ent->ptr);
-  ent->ptr = NULL;
+  auto *chunk = anchorage::Chunk::get(ent->ptr);
+  if (chunk == NULL) {
+    fprintf(
+        stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n", ent->ptr);
+    return;
+  }
+
+  // Poison the buffer
+  // memset(m.ptr, 0xFA, m.size);
+  // Free the block
+  auto *blk = anchorage::Block::get(ent->ptr);
+
+  chunk->free(blk);
+
+  // m.size = 0;
+  ent->ptr = nullptr;
+  blk->coalesce_free(*chunk);
+
+  // tell the block to coalesce the best it can
 }
 
 size_t alaska::service::usable_size(void *ptr) {
-  return malloc_usable_size(ptr);
+  // return malloc_usable_size(ptr);
   // return theHeap.getSize(ptr);
+  return 0;
 }
 
 
@@ -89,24 +164,26 @@ static void *barrier_thread_fn(void *) {
 
 void alaska::service::init(void) {
   // Make sure the anchorage heap is available
-  the_heap = new anchorage::MainHeap;
-
-
+  // the_heap = new anchorage::MainHeap;
+  anchorage::allocator_init();
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 void alaska::service::deinit(void) {
   // TODO:
+  anchorage::allocator_deinit();
 }
 
 
 void alaska::service::barrier(void) {
-  // TODO:
+  anchorage::Defragmenter defrag;
+  defrag.run(anchorage::Chunk::all());
 }
 
 
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
-  // TODO:
+  auto *block = anchorage::Block::get(ent->ptr);
+  block->mark_locked(locked);
 }
 
 

@@ -3,7 +3,7 @@
 set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -fno-omit-frame-pointer")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -fno-exceptions -fno-rtti ") 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ") 
 set(CMAKE_C_COMPILER_ID "Clang")
@@ -49,6 +49,9 @@ if (ALASKA_SERVICE_ANCHORAGE)
 	include_directories(services/anchorage/heaplayers)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
+		services/anchorage/Block.cpp
+		services/anchorage/Chunk.cpp
+		services/anchorage/Defragmenter.cpp
 		services/anchorage/Swapper.cpp
 	)
 endif(ALASKA_SERVICE_ANCHORAGE)
