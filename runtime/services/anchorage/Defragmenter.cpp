@@ -84,7 +84,7 @@ inline int anchorage::Defragmenter::perform_move(
     trailing_free->clear();
     trailing_free->set_next(new_next);
     trailing_free->set_handle(nullptr);
-    trailing_free->coalesce_free(chunk);
+    chunk.coalesce_free(trailing_free);
     return 1;
   } else {
     // if `to_move` is not immediately after `free_block` then we
@@ -107,7 +107,7 @@ inline int anchorage::Defragmenter::perform_move(
 
       // invalidate the handle on the moved block
       to_move->set_handle(nullptr);
-      to_move->coalesce_free(chunk);
+      chunk.coalesce_free(to_move);
       return 1;
     } else {
       memmove(dst, src, to_move_size);
@@ -116,7 +116,7 @@ inline int anchorage::Defragmenter::perform_move(
       handle->ptr = dst;
       to_move->clear();
       to_move->set_handle(nullptr);
-      to_move->coalesce_free(chunk);
+      chunk.coalesce_free(to_move);
       return 1;
     }
   }
@@ -136,7 +136,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
     if (cur->is_free()) {
       // if this block is unallocated, coalesce all `next` free blocks,
       // and move allocated blocks forward if you can.
-      cur->coalesce_free(chunk);
+      chunk.coalesce_free(cur);
       anchorage::Block *succ = cur->next();
       anchorage::Block *latest_can_move = NULL;
 #if 0
@@ -207,20 +207,18 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
         if (succ->is_used() && can_move(cur, succ)) {
           latest_can_move = succ;
           chunk.dump(succ, "look");
-
 #ifndef ALASKA_ANCHORAGE_DEFRAG_REORDER
-          // break;
+          break;
 #endif
-        } else {
-          // chunk.dump(succ, "NOPE");
         }
         succ = succ->next();
       }
 
 
       if (latest_can_move) {
+        chunk.dump(latest_can_move, "Move");
         changes += perform_move(chunk, cur, latest_can_move);
-        chunk.dump(latest_can_move, "Moved");
+        chunk.dump(NULL);
       }
 
       // printf("\n\n");
@@ -235,9 +233,9 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
     cur = cur->next();
   }
 
-  chunk.dump(cur, "Done");
+  // chunk.dump(cur, "Done");
 
-  // TODO: MADV_DONTNEED those leftover pages if they are beyond a certain point
+  // TODO: MADV_DONTNEED the leftover pages
   return changes;
 }
 

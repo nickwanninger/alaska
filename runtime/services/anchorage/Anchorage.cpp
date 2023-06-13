@@ -84,33 +84,16 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
     size_t copy_size = old_block->size();
     if (size < copy_size) copy_size = size;
     memcpy(new_block->data(), ent->ptr, copy_size);
-    // memset(ent->ptr, 0xFA, ent->size);
-    // old_block->coalesce_free(*old_chunk);
   }
 
   new_block->set_handle(&m);
   ent->ptr = new_block->data();
+
+	new_chunk->dump(new_block, "Allocate");
   // ent->size = size;
   // printf("alloc: %p %p (%zu)", &m, ent->ptr, ent->size);
   // new_chunk->dump(new_block, "Alloc");
   return;
-
-
-  // ent->ptr = theHeap.realloc(ent->ptr, size);
-  // return;
-
-  // // Give up if they ask for something too big (we can't do anything interesting with it anyways)
-  // if (size > anchorage::maxHandleSize) {
-  //   void *ptr = ::realloc(ent->ptr, size);
-  //   ent->ptr = ptr;
-  //   return;
-  // }
-
-  // ent->ptr = the_heap->alloc(*ent, size);
-  // // heap.alloc(*ent, size);
-  // // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
-  // // ent->ptr = ::realloc(ent->ptr, size);
-  // // printf("%p\n", ent->ptr);
 }
 
 
@@ -126,13 +109,10 @@ void alaska::service::free(alaska::Mapping *ent) {
   // memset(m.ptr, 0xFA, m.size);
   // Free the block
   auto *blk = anchorage::Block::get(ent->ptr);
-
   chunk->free(blk);
 
   // m.size = 0;
   ent->ptr = nullptr;
-  blk->coalesce_free(*chunk);
-
   // tell the block to coalesce the best it can
 }
 
@@ -176,6 +156,10 @@ void alaska::service::deinit(void) {
 
 
 void alaska::service::barrier(void) {
+	for (auto chunk : anchorage::Chunk::all()) {
+		chunk->dump(NULL, "barrier");
+	}
+	return;
   anchorage::Defragmenter defrag;
   defrag.run(anchorage::Chunk::all());
 }

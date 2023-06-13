@@ -12,6 +12,7 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Block.hpp>
+#include <alaska/list_head.h>
 #include <ck/set.h>
 
 namespace anchorage {
@@ -28,6 +29,8 @@ namespace anchorage {
     anchorage::Block *front;    // The first block. This is also a pointer to the first byte of the mmap region
     anchorage::Block *tos;      // "Top of stack"
     size_t high_watermark = 0;  // the highest point this chunk has reached.
+		
+		struct list_head free_list;
 
     // ctor/dtor
     Chunk(size_t pages);
@@ -41,11 +44,20 @@ namespace anchorage {
     // The main allocator interface for *this* chunk
     auto alloc(size_t size) -> anchorage::Block *;
     void free(Block *blk);
+
+		// Coalesce the free block around a previously freed block, `blk`
+		auto coalesce_free(Block *blk) -> int;
     // "Does this chunk contain this allocation"
     bool contains(void *allocation);
 
+
+		// add and remove blocks from the free list
+		void fl_add(Block *blk);
+		void fl_del(Block *blk);
+
     // dump the chunk to stdout for debugging.
     void dump(Block *focus = NULL, const char *message = "");
+		void dump_free_list(void);
 
     int sweep_freed_but_locked(void);
 
@@ -54,6 +66,8 @@ namespace anchorage {
 
     // the total memory used in this heap
     size_t span(void) const;
+
+		bool split_free_block(anchorage::Block *to_split, size_t required_size);
 
     inline BlockIterator begin(void) {
       return BlockIterator(front);

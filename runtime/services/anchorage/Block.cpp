@@ -25,50 +25,6 @@ uint32_t anchorage::Block::crc(void) {
 
 
 
-int anchorage::Block::coalesce_free(anchorage::Chunk &chunk) {
-  // if the previous is free, ask it to coalesce instead, as we only handle
-  // left-to-right coalescing.
-  if (prev() && prev()->is_free()) {
-    return prev()->coalesce_free(chunk);
-  }
-
-  int changes = 0;
-  Block *succ = next();
-
-  // printf("coa %p\n", this);
-  // chunk.dump(this, "Free");
-
-  while (succ && succ->handle() == NULL) {
-    set_next(succ->next());
-    succ = succ->next();
-    changes += 1;
-  }
-
-  if (next() == chunk.tos || next() == NULL) {
-    // move the top of stack down if we can.
-    // There are two cases to handle here.
-
-    if (is_used()) {
-      // 1. The block before `tos` is an allocated block. In this case, we move
-      //    the `tos` right to the end of the allocated block.
-      // void *after = ((uint8_t *)data() + round_up(handle()->size, anchorage::block_size));
-      auto after = next();  // TODO: might not work!
-      chunk.tos = (Block *)after;
-      set_next((Block *)after);
-      chunk.tos->set_next(NULL);
-      chunk.tos->mark_as_free(chunk);
-      changes++;
-    } else {
-      // 2. The block before `tos` is a free block. This block should become `tos`
-      set_next(NULL);
-      chunk.tos = this;
-      changes++;
-    }
-  }
-  return changes;
-}
-
-
 void anchorage::Block::dump(bool verbose, bool highlight) {
   if (verbose) {
     printf("%p sz:%5zu ", this, size());
@@ -124,6 +80,7 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     auto *d = (uint64_t *)this; //data();
     size_t count = (sz + 16) / 8;
     if (count > 8) count = 8;
+
     for (size_t i = 0; i < count; i++) {
       // if (i % 8 == 0) printf(" ");
       printf("%016lx ", d[i]);
@@ -132,7 +89,10 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     // c = ' ';
     // putchar(c);
     putchar('|');
-    for (size_t i = 0; i <= ((sz - anchorage::block_size) / anchorage::block_size); i++)
+
+		size_t count =  ((sz - anchorage::block_size) / anchorage::block_size);
+		if (count > 64) count = 64;
+    for (size_t i = 0; i <= count; i++)
       putchar(c);
   }
   printf("\e[0m");
