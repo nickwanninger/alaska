@@ -65,11 +65,14 @@ inline int anchorage::Defragmenter::perform_move(
     //    |--|########|XXXX
     // After this operation it should look like this:
     //    |########|--|XXXX
-    //       ^ to_move metadata clobbered here.
+    //       ^     ^ This is `trailing_free`
+    //       | to_move metadata clobbered here.
 
 
     // This is the |XXXX block above.
     anchorage::Block *new_next = to_move->next();  // the next of the successor
+    // Remove the old block from the free list
+    // chunk.fl_del(free_block);
     // move the data
     ::memmove(dst, src, to_move_size);
 
@@ -84,7 +87,13 @@ inline int anchorage::Defragmenter::perform_move(
     trailing_free->clear();
     trailing_free->set_next(new_next);
     trailing_free->set_handle(nullptr);
-    chunk.coalesce_free(trailing_free);
+
+    // Add the trailing block to the free list
+    // chunk.fl_add(trailing_free);
+
+		chunk.dump(trailing_free, "TF");
+    // chunk.coalesce_free(trailing_free);
+    // printf("Here\n");
     return 1;
   } else {
     // if `to_move` is not immediately after `free_block` then we
@@ -207,6 +216,7 @@ int anchorage::Defragmenter::naive_compact(anchorage::Chunk &chunk) {
         if (succ->is_used() && can_move(cur, succ)) {
           latest_can_move = succ;
           chunk.dump(succ, "look");
+					break;
 #ifndef ALASKA_ANCHORAGE_DEFRAG_REORDER
           break;
 #endif

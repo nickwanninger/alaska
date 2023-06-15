@@ -157,17 +157,24 @@ void alaska::service::deinit(void) {
 
 void alaska::service::barrier(void) {
 	for (auto chunk : anchorage::Chunk::all()) {
-		chunk->dump(NULL, "barrier");
+		chunk->dump(NULL, "defragment");
+		long saved = chunk->defragment();
+		// printf("saved %ld bytes\n", saved);
 	}
 	return;
-  anchorage::Defragmenter defrag;
-  defrag.run(anchorage::Chunk::all());
 }
 
 
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   auto *block = anchorage::Block::get(ent->ptr);
   block->mark_locked(locked);
+	for (auto chunk : anchorage::Chunk::all()) {
+		// if (chunk->contains(block)) {
+			chunk->dump(block, "mark");
+		// }
+		// long saved = chunk->defragment();
+		// printf("saved %ld bytes\n", saved);
+	}
 }
 
 

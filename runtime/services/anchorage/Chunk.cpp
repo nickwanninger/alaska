@@ -87,6 +87,8 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
   }
 
   auto *new_blk = (anchorage::Block *)((char *)to_split->data() + required_size);
+  new_blk->clear();
+  new_blk->set_handle(nullptr);
   new_blk->set_next(to_split->next());
   new_blk->set_prev(to_split);
   to_split->set_next(new_blk);
@@ -122,6 +124,8 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
   Block *blk = tos;
   tos = (Block *)((uint8_t *)this->tos + anchorage::size_with_overhead(size));
+  tos->clear();
+  blk->clear();
 
   tos->set_next(nullptr);
   blk->set_next(tos);
@@ -134,34 +138,41 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
 // add and remove blocks from the free list
 void anchorage::Chunk::fl_add(Block *blk) {
+  // dump(blk, "fl_add");
   auto *node = (struct list_head *)blk->data();
   list_add(node, &free_list);
 }
 void anchorage::Chunk::fl_del(Block *blk) {
+  // dump(blk, "fl_del");
   // we basically just hope that blk is free and is in the list, since I don't want to double
   // check since that would take too long...
   list_del_init((struct list_head *)blk->data());
 }
 
+
+
+
 void anchorage::Chunk::free(anchorage::Block *blk) {
-  printf("================================= FREEING BLOCK =================================\n");
-  dump_free_list();
+  // printf("FREEING BLOCK\n");
+  // dump_free_list();
   // Disassociate the handle
   blk->mark_as_free(*this);
+
+  dump(blk, "Free");
 
   if (blk->next() == tos) {
     tos = blk;
   } else {
     fl_add(blk);
+    coalesce_free(blk);
   }
 
-  coalesce_free(blk);
 
-
-  dump_free_list();
-  printf("\n\n\n");
-  return;
+  // dump_free_list();
+  // printf("\n\n\n");
 }
+
+
 
 
 int anchorage::Chunk::coalesce_free(Block *blk) {
@@ -174,12 +185,11 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
   int changes = 0;
   Block *succ = blk->next();
 
-  dump(blk, "Free");
+  // dump(blk, "Free");
 
-  while (succ && succ->is_free()) {
-    blk->set_next(succ->next());
-
+  while (succ && succ->is_free() && succ != this->tos) {
     fl_del(succ);
+    blk->set_next(succ->next());
     succ = succ->next();
     changes += 1;
   }
@@ -203,19 +213,23 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
       // 2. The block before `tos` is a free block. This block should become `tos`
       blk->set_next(NULL);
       tos = blk;
+      fl_del(blk);
       changes++;
     }
   }
 
   // Remove the block from the free list and add it again. This is future-proofing in case the free
   // list becomes more complex (potentially using size-class segregated lists or something)
-	fl_del(blk);
-	fl_add(blk);
+  // fl_del(blk);
+  // fl_add(blk);
 
   return changes;
 }
 
+
+
 void anchorage::Chunk::dump(Block *focus, const char *message) {
+  // return;
   printf("%-10s ", message);
   for (auto &block : *this) {
     block.dump(false, &block == focus);
@@ -232,14 +246,6 @@ void anchorage::Chunk::dump_free_list(void) {
   }
   printf("\n");
 }
-
-
-
-int anchorage::Chunk::sweep_freed_but_locked(void) {
-  int changed = 0;
-  return changed;
-}
-
 
 size_t anchorage::Chunk::span(void) const {
   return (off_t)tos - (off_t)front;
@@ -271,4 +277,262 @@ void anchorage::allocator_init(void) {
 }
 
 void anchorage::allocator_deinit(void) {
+}
+
+
+
+bool anchorage::Chunk::can_move(Block *free_block, Block *to_move) {
+  // we are certain to_move has a handle associated, as we would have merged
+  // all the free blocks up until to_move
+
+  // First, verify that the handle isn't locked.
+  if (to_move->is_locked()) {
+    return false;
+  }
+
+  // Don't move if it would leave only enough space for a block's metadata
+  if (free_block->size() - to_move->size() == anchorage::block_size) {
+    return false;
+  }
+
+  // Adjacency test
+  if (free_block->next() == to_move) {
+    return true;
+  }
+
+  // // if the slots are at least same size, you can move them!
+  // if (to_move->size() <= free_block->size()) {
+  //   return true;
+  // }
+  return false;
+}
+
+
+
+
+int anchorage::Chunk::perform_move(anchorage::Block *free_block, anchorage::Block *to_move) {
+  size_t to_move_size = to_move->size();
+  size_t free_space = free_block->size();
+  ssize_t trailing_size = free_space - to_move_size;
+  (void)trailing_size;
+  void *src = to_move->data();
+  void *dst = free_block->data();  // place the data on `cur`
+  anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + to_move_size);
+
+  assert(free_block->is_free() && to_move->is_used());
+
+  // grab the handle we are moving before we move, as the
+  // data movement could clobber the block metadata
+  alaska::Mapping *handle = to_move->handle();
+
+  if (free_block->next() == to_move) {
+    // This is the most trivial movement. If the blocks are
+    // adjacent to eachother, they effectively swap places.
+    // Lets say you have these blocks:
+    //    |--|########|XXXX
+    // After this operation it should look like this:
+    //    |########|--|XXXX
+    //       ^     ^ This is `trailing_free`
+    //       | to_move metadata clobbered here.
+
+
+    // This is the |XXXX block above.
+    anchorage::Block *new_next = to_move->next();  // the next of the successor
+    // Remove the old block from the free list
+    // chunk.fl_del(free_block);
+    // move the data
+    ::memmove(dst, src, to_move_size);
+
+    // Update the handle to point to the new location
+    // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
+    handle->ptr = dst;                    // Update the handle to point to the new block
+    free_block->clear();                  // Clear the old block's metadata
+    free_block->set_handle(handle);       // move the handle over
+    free_block->set_next(trailing_free);  // now, patch up the next of `cur`
+    // to_move->set_handle(nullptr);         // patch with free block
+
+    trailing_free->clear();
+    trailing_free->set_next(new_next);
+    trailing_free->set_handle(nullptr);
+
+    // Add the trailing block to the free list
+    // dump(trailing_free, "TF");
+    fl_add(trailing_free);
+    // coalesce_free(trailing_free);
+    return 1;
+  }
+
+
+  return 0;
+}
+
+
+bool anchorage::Chunk::shift_hole(anchorage::Block **hole_ptr, ShiftDirection dir) {
+  auto *hole = *hole_ptr;
+  // first, check that it can shift :)
+  anchorage::Block *shiftee = nullptr;
+  switch (dir) {
+    case ShiftDirection::Left:
+      shiftee = hole->prev();
+      break;
+
+    case ShiftDirection::Right:
+      shiftee = hole->next();
+      break;
+  }
+
+  // We can't shift if the shiftee is locked or free
+  // The reason we don't want to shift a free block is to avoid infinite loops
+  // of swapping two non-coalesced holes back and forth
+  if (shiftee == nullptr || shiftee->is_locked() || shiftee->is_free()) return false;
+
+
+
+  void *src = shiftee->data();
+  void *dst = hole->data();
+
+  alaska::Mapping *handle = shiftee->handle();
+
+  if (dir == ShiftDirection::Right) {
+    fl_del(hole);
+
+    anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + shiftee->size());
+
+    // This is the most trivial movement. If the blocks are
+    // adjacent to eachother, they effectively swap places.
+    // Lets say you have these blocks:
+    //    |--|########|XXXX
+    // After this operation it should look like this:
+    //    |########|--|XXXX
+    //       ^     ^ This is `trailing_free`
+    //       | to_move metadata clobbered here.
+
+
+    // This is the |XXXX block above.
+    anchorage::Block *new_next = shiftee->next();  // the next of the successor
+    // Remove the old block from the free list
+    // chunk.fl_del(free_block);
+    // move the data
+    ::memmove(dst, src, shiftee->size());
+
+    // Update the handle to point to the new location
+    // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
+    handle->ptr = dst;              // Update the handle to point to the new block
+    hole->clear();                  // Clear the old block's metadata
+    hole->set_handle(handle);       // move the handle over
+    hole->set_next(trailing_free);  // now, patch up the next of `cur`
+    // to_move->set_handle(nullptr);         // patch with free block
+
+    trailing_free->clear();
+    trailing_free->set_next(new_next);
+    trailing_free->set_handle(nullptr);
+
+    // Add the trailing block to the free list
+    // dump(trailing_free, "TF");
+    fl_add(trailing_free);
+    // coalesce_free(trailing_free);
+    *hole_ptr = trailing_free;
+    return true;
+  }
+
+  return false;
+}
+
+
+void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes) {
+  out_holes.clear();
+
+  // gather up all the holes
+  struct list_head *cur = nullptr;
+  list_for_each(cur, &free_list) {
+    auto blk = anchorage::Block::get((void *)cur);
+    out_holes.push(blk);
+  }
+
+
+  // sort the list of holes
+  // TODO: maybe keep track of if we need this or not...
+  ::qsort(out_holes.data(), out_holes.size(), sizeof(anchorage::Block *),
+      [](const void *va, const void *vb) -> int {
+        auto a = (uint64_t) * (void **)va;
+        auto b = (uint64_t) * (void **)vb;
+        return a - b;
+      });
+}
+
+long anchorage::Chunk::defragment(void) {
+  long old_span = span();
+  // pintf("\n\n\n");
+
+  ck::vec<anchorage::Block *> holes;
+  long swaps = 0;
+  long loops = 0;
+  long max_holes = 0;
+  while (1) {
+    loops++;
+    // printf("===================================================\n");
+    gather_sorted_holes(holes);
+    if (holes.size() > max_holes) max_holes = holes.size();
+
+    bool changed = false;
+    for (int i = 0; i < holes.size() - 1; i++) {
+      // printf("%d\n", i);
+      auto left = holes[i];
+      if (left == nullptr) continue;
+      // dump(left, "left");
+      // dump(right, "right");
+
+      while (shift_hole(&left, ShiftDirection::Right)) {
+        changed = true;
+        swaps++;
+        dump(left, "shift");
+      }
+
+      // coalesce the left hole with the right hole, and update the vector so the coalesced hole is
+      // the next hole we deal with
+      coalesce_free(left);
+      holes[i] = nullptr;
+      holes[i + 1] = left;
+    }
+    if (!changed) {
+      break;
+    }
+  }
+  // printf("Swaps: %lu\n", swaps);
+  // printf("Loops: %lu\n", loops);
+  // printf("Max Holes: %lu\n", max_holes);
+
+  // printf("===================================================\n");
+
+  return 0;
+
+  for (anchorage::Block *cur = this->front; cur != NULL && cur != this->tos; cur = cur->next()) {
+    if (!cur->is_free()) continue;
+    dump(cur, "Defrag");
+
+    anchorage::Block *succ = cur->next();
+    anchorage::Block *latest_can_move = NULL;
+    // if there is a successor and it has no locks...
+    while (succ != NULL && succ != this->tos) {
+      if (succ->is_used() && can_move(cur, succ)) {
+        latest_can_move = succ;
+        dump(succ, "look");
+        // break;
+      }
+      succ = succ->next();
+    }
+
+    if (latest_can_move) {
+      // dump(latest_can_move, "Move");
+      // remove the current from the free list
+      fl_del(cur);
+      perform_move(cur, latest_can_move);
+      // dump(NULL);
+    }
+  }
+  dump(nullptr, "Done");
+  // printf("===================================================\n");
+  //
+  // printf("\n\n\n");
+  return old_span - span();
 }

@@ -25,12 +25,13 @@ namespace anchorage {
    * success.
    */
   struct Chunk {
-    size_t pages;               // how many 4k pages this chunk uses.
-    anchorage::Block *front;    // The first block. This is also a pointer to the first byte of the mmap region
+    size_t pages;  // how many 4k pages this chunk uses.
+    anchorage::Block
+        *front;  // The first block. This is also a pointer to the first byte of the mmap region
     anchorage::Block *tos;      // "Top of stack"
     size_t high_watermark = 0;  // the highest point this chunk has reached.
-		
-		struct list_head free_list;
+
+    struct list_head free_list;
 
     // ctor/dtor
     Chunk(size_t pages);
@@ -45,21 +46,19 @@ namespace anchorage {
     auto alloc(size_t size) -> anchorage::Block *;
     void free(Block *blk);
 
-		// Coalesce the free block around a previously freed block, `blk`
-		auto coalesce_free(Block *blk) -> int;
+    // Coalesce the free block around a previously freed block, `blk`
+    auto coalesce_free(Block *blk) -> int;
     // "Does this chunk contain this allocation"
     bool contains(void *allocation);
 
 
-		// add and remove blocks from the free list
-		void fl_add(Block *blk);
-		void fl_del(Block *blk);
+    // add and remove blocks from the free list
+    void fl_add(Block *blk);
+    void fl_del(Block *blk);
 
     // dump the chunk to stdout for debugging.
     void dump(Block *focus = NULL, const char *message = "");
-		void dump_free_list(void);
-
-    int sweep_freed_but_locked(void);
+    void dump_free_list(void);
 
     // get all Chunks
     static auto all(void) -> const ck::set<anchorage::Chunk *> &;
@@ -67,7 +66,7 @@ namespace anchorage {
     // the total memory used in this heap
     size_t span(void) const;
 
-		bool split_free_block(anchorage::Block *to_split, size_t required_size);
+    bool split_free_block(anchorage::Block *to_split, size_t required_size);
 
     inline BlockIterator begin(void) {
       return BlockIterator(front);
@@ -75,6 +74,18 @@ namespace anchorage {
     inline BlockIterator end(void) {
       return BlockIterator(tos);
     }
+
+
+    // Defragment this chunk, returning the saved bytes off the end
+    long defragment();
+    // Can `to_move` be moved into `free_block`?
+    bool can_move(Block *free_block, Block *to_move);
+    int perform_move(Block *free_block, Block *to_move);
+
+    enum ShiftDirection { Right, Left };
+
+    bool shift_hole(anchorage::Block **hole_ptr, ShiftDirection dir);
+		void gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes);
   };
 
 }  // namespace anchorage

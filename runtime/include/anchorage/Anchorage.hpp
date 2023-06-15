@@ -14,9 +14,6 @@
 #include <alaska.h>
 #include <alaska/alaska.hpp>
 
-// #include <anchorage/Block.hpp>
-// #include <anchorage/Chunk.hpp>
-
 #define KB 1024UL
 #define MB KB * 1024UL
 #define GB MB * 1024UL
@@ -41,7 +38,7 @@ namespace anchorage {
 
 
   constexpr size_t block_size = 16;
-  constexpr size_t min_chunk_pages = 1;  // 64mb of pages
+  constexpr size_t min_chunk_pages = 16384;
 
   // constexpr size_t min_chunk_pages = 4096;
   static inline size_t size_with_overhead(size_t sz) {
