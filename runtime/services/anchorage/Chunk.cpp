@@ -460,6 +460,8 @@ void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_hole
       });
 }
 
+
+// in this function, Dianoga does his work.
 long anchorage::Chunk::defragment(void) {
   long old_span = span();
   // pintf("\n\n\n");
