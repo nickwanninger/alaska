@@ -201,10 +201,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       b.CreateStore(handle, cell, false);
 
       // Insert a store right after all the releases to say "we're done with this handle".
-      // for (auto unlock : lock->releases) {
+      // for (auto unlock : translation->releases) {
       //   b.SetInsertPoint(unlock->getNextNode());
-      //   b.CreateStore(llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())),
-      //   cell, true);
+      //   // store a null the unlocks
+      //   b.CreateStore(
+      //       llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
       // }
     }
 

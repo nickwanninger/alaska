@@ -8,52 +8,87 @@ extern void *alaska_lock(void *);
 extern void *alaska_unlock(void *);
 
 
+// #define ATTR __attribute__((noinline))
+#define ATTR inline
 
-void touch(volatile void *x) {
+ATTR void touch(volatile void *x) {
   *(volatile char *)x = 0;  // touch
 }
 
-void *bench_alloc(size_t sz) {
-  void *x = calloc(1, sz);
+ATTR void *bench_alloc(size_t block_count) {
+  void *x = calloc(block_count, 16);
   touch(x);
   return x;
 }
 
-void bench_free(void *ptr) {
+ATTR void bench_free(void *ptr) {
   *(volatile char *)ptr = 0;  // touch
   free(ptr);
 }
 
-// this program is used in testing the anchorage bump allocator
-int main(int argc, char **argv) {
-  int count = 512;
-  if (argc == 2) count = atoi(argv[1]);
-  void **ptrs = calloc(count, sizeof(void *));
+void run_test(int count) {
 
-  for (int i = 0; i < count; i++)
-    ptrs[i] = bench_alloc(16);
-
-
-  for (int i = 0; i < count - 1; i += 2) {
-    bench_free(ptrs[i]);
-    ptrs[i] = NULL;
-  }
-
-  for (int i = 0; i < count - 1; i += 2) {
-    ptrs[i] = bench_alloc(64);
-  }
-
-  // anchorage_manufacture_locality((void *)ptrs);
-
-  // printf("=============== BARRIER ===============\n");
-  alaska_barrier();
-  // printf("=============== FREEING ===============\n");
+	int stride = 2;
+	// printf("stride %d\n", stride);
+	void **array = calloc(count, sizeof(void*));
+  // void *array[count];
 
   for (int i = 0; i < count; i++) {
-    bench_free(ptrs[i]);
-    ptrs[i] = NULL;
+    array[i] = bench_alloc(2);
   }
-  bench_free(ptrs);
+
+  for (int i = 1; i < count; i += stride) {
+    free(array[i]);
+  }
+
+  for (int i = 1; i < count; i += stride) {
+    array[i] = bench_alloc(4);
+  }
+
+  long start = alaska_timestamp();
+  alaska_barrier();
+  long end = alaska_timestamp();
+
+  for (int i = 1; i < count; i += stride) {
+    free(array[i]);
+  }
+
+  alaska_barrier();
+
+  for (int i = 1; i < count; i += stride) {
+    array[i] = bench_alloc(6);
+  }
+
+  // printf("%d, %f\n", count, (end - start) / 1024.0 / 1024.0);
+  printf("%f\n", (end - start) / 1024.0 / 1024.0);
+
+
+  for (int i = 0; i < count; i += 1) {
+    free(array[i]);
+  }
+	free(array);
+}
+
+// this program is used in testing the anchorage bump allocator
+int main(int argc, char **argv) {
+  // void *x = bench_alloc(2);
+  // void *y = bench_alloc(4);
+  // bench_alloc(6);
+  // bench_alloc(2);
+  // bench_free(x);
+  // alaska_barrier();
+  // return 0;
+
+
+  run_test(32);
+  return 0;
+
+  int max = 16000;
+
+
+  for (int count = 8; count <= max; count *= 1.25) {
+    run_test(count);
+  }
 
   return 0;
 }

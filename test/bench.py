@@ -83,22 +83,38 @@ class AlaskaBaselineStage(wl.pipeline.Stage):
 
 perf_stats = [
     "instructions",
+    "cycles",
     "duration_time",
-    "dTLB-load-misses",
-    "dTLB-loads",
-    "L1-dcache-load-misses",
-    "L1-dcache-loads",
-    "L1-dcache-prefetches",
-    "branch-instructions",
-    "branch-misses",
     "cache-misses",
     "cache-references",
     # "stalled-cycles-backend",
-    # "stalled-cycles-frontend"
+    # "stalled-cycles-frontend",
+    "L1-dcache-load-misses",
+    "L1-dcache-loads",
+    "L1-dcache-stores",
+    "L1-icache-load-misses",
+    "LLC-load-misses",
+    "LLC-loads",
+    "LLC-store-misses",
+    "LLC-stores",
+    "branch-instructions",
+    "branch-misses",
+    "branch-load-misses",
+    "branch-loads",
+    "dTLB-load-misses",
+    "dTLB-loads",
+    "dTLB-store-misses",
+    "dTLB-stores",
+    "iTLB-load-misses",
+    "iTLB-loads",
+    "node-load-misses",
+    "node-loads",
+    "node-store-misses",
+    "node-stores",
 ]
 
 class PerfRunner(Runner):
-    def run(self, workspace, config, binary, benchmark):
+    def run(self, workspace, config, binary):
         cwd = os.getcwd() if config.cwd is None else config.cwd
         print("running ", binary)
         with waterline.utils.cd(cwd):
@@ -121,11 +137,11 @@ class PerfRunner(Runner):
 
 
 
-space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # space.add_suite(wl.suites.Stockfish)
-# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
-# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
+space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
 # space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
 
 space.clear_pipelines()
@@ -143,9 +159,9 @@ pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
 
-compile = True
-# results = space.run(runner=PerfRunner(), runs=1, compile=compile)
-results = space.run(runs=3, compile=compile)
+compile = False
+results = space.run(runner=PerfRunner(), runs=1, compile=compile)
+# results = space.run(runs=3, compile=compile)
 # exit()
 print(results)
 results.to_csv("bench/results.csv", index=False)

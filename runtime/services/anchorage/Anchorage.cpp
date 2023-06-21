@@ -12,7 +12,13 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/SizeMap.hpp>
+#include <anchorage/MainHeap.hpp>
 #include <anchorage/LinkedList.h>
+
+
+#include <anchorage/Chunk.hpp>
+#include <anchorage/Block.hpp>
+#include <anchorage/Defragmenter.hpp>
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
@@ -29,6 +35,8 @@
 #include <heaplayers.h>
 
 
+anchorage::MainHeap *the_heap = nullptr;
+
 // using ChunkedMmapHeap = HL::ChunkHeap<2 * 1024 * 1024, HL::SizedMmapHeap>;
 using ChunkedMmapHeap = HL::ChunkHeap<4 * 1024, HL::SizedMmapHeap>;
 
@@ -37,99 +45,82 @@ static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMma
     theHeap;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-  // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
-  // ent->ptr = theHeap.realloc(ent->ptr, size);
-  ent->ptr = ::realloc(ent->ptr, size);
-  // printf("%p\n", ent->ptr);
+  auto &m = *ent;
+  using namespace anchorage;
+  Block *new_block = NULL;
+  Chunk *new_chunk = NULL;
+  // printf("alloc %zu into %p (there are %zu chunks)\n", size, &m, anchorage::Chunk::all().size());
+  //  for (auto *chunk : anchorage::Chunk::all()) {
+  // 	printf("  chunk %p (wl:%zu)\n", chunk, chunk->high_watermark);
+  // }
+
+  // attempt to allocate from each chunk
+  for (auto *chunk : anchorage::Chunk::all()) {
+    auto blk = chunk->alloc(size);
+    // if the chunk could allocate, use the pointer it created
+    if (blk) {
+      new_chunk = chunk;
+      new_block = blk;
+      break;
+    }
+  }
+  (void)new_chunk;
+
+  if (new_block == NULL) {
+    size_t required_pages = (size / anchorage::page_size) * 2;
+    if (required_pages < anchorage::min_chunk_pages) {
+      required_pages = anchorage::min_chunk_pages;
+    }
+
+    new anchorage::Chunk(required_pages);  // add a chunk
+
+    return alaska::service::alloc(ent, size);
+  }
+
+  if (m.ptr != NULL) {
+    Block *old_block = anchorage::Block::get(m.ptr);
+    auto *old_chunk = anchorage::Chunk::get(m.ptr);
+    old_block->mark_as_free(*old_chunk);
+    size_t copy_size = old_block->size();
+    if (size < copy_size) copy_size = size;
+    memcpy(new_block->data(), ent->ptr, copy_size);
+  }
+
+  new_block->set_handle(&m);
+  ent->ptr = new_block->data();
+
+	new_chunk->dump(new_block, "Allocate");
+  // ent->size = size;
+  // printf("alloc: %p %p (%zu)", &m, ent->ptr, ent->size);
+  // new_chunk->dump(new_block, "Alloc");
+  return;
 }
 
 
 void alaska::service::free(alaska::Mapping *ent) {
-  // theHeap.free(ent->ptr);
-  ::free(ent->ptr);
-  ent->ptr = NULL;
+  auto *chunk = anchorage::Chunk::get(ent->ptr);
+  if (chunk == NULL) {
+    fprintf(
+        stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n", ent->ptr);
+    return;
+  }
+
+  // Poison the buffer
+  // memset(m.ptr, 0xFA, m.size);
+  // Free the block
+  auto *blk = anchorage::Block::get(ent->ptr);
+  chunk->free(blk);
+
+  // m.size = 0;
+  ent->ptr = nullptr;
+  // tell the block to coalesce the best it can
 }
 
 size_t alaska::service::usable_size(void *ptr) {
-  return malloc_usable_size(ptr);
+  // return malloc_usable_size(ptr);
   // return theHeap.getSize(ptr);
+  return 0;
 }
-
-
-namespace anchorage {
-  /**
-   * Span - a region of allocations of a specific size with associated handles
-   */
-  class SubHeap {
-   public:
-    SubHeap(off_t page_address, size_t length, uint16_t object_size, uint16_t object_count)
-        : m_page(page_address)
-        , m_length(length)
-        , m_object_size(object_size)
-        , m_object_count(object_count) {
-      // We only allow (a maximum of) 256 objects per span. This assertion ensures that, but
-      // it will never occur as the Arena that allocates these will (hopefully) be sane.
-      assert(m_object_count <= 256);
-
-      m_free = m_object_count;
-      // zero out the handles array
-      for (int i = 0; i < m_object_count; i++)
-        m_handles[i] = 0;
-    }
-
-
-    unsigned get_ind(void *object) {
-      return ((off_t)object - m_page) / m_object_size;
-    }
-    void *get_object(unsigned ind) {
-      return (void *)(m_page + ind * m_object_size);
-    }
-
-    // Allocate an object for a certain alaska mapping, and
-    // return a pointer to the object. Will return NULL if
-    // there is nothing, for some reason
-    void *alloc(alaska::Mapping &m) {
-      // First, try to pop off the free list.
-      void *obj = m_freelist.try_pop();
-
-      // Then
-      if (obj == nullptr) {
-        if (m_next_bump < m_object_count) {
-          obj = get_object(m_next_bump++);
-        }
-      }
-
-      if (obj) {
-        int ind = get_ind(obj);
-        m_handles[ind] = reinterpret_cast<uint64_t>(&m);
-        m.ptr = obj;
-        m_free--;
-        return obj;
-      }
-      return nullptr;
-    }
-
-    void free(void *object) {
-      auto object_off = (uint64_t)object;
-      if (object_off < m_page || object_off >= m_page + m_length * 4096) return;
-      m_free++;
-      auto ind = get_ind(object);
-      m_freelist.push(object);
-      m_handles[ind] = 0;
-    }
-
-   protected:
-    anchorage::LinkedList m_freelist;
-    uint32_t m_handles[256];   // array of handles (indicating which objects are allocated)
-    uint64_t m_page;           // The address of the backing memory for this span
-    size_t m_length;           // The length of this span in pages
-    uint16_t m_next_bump = 0;  // Where the next bump object is
-    uint16_t m_free = 0;       // how many objects are free in this span?
-    uint16_t m_object_size;    // the size of each object
-    uint16_t m_object_count;   // how many objects
-  };
-}  // namespace anchorage
-
 
 
 
@@ -152,78 +143,48 @@ static void *barrier_thread_fn(void *) {
 
 
 void alaska::service::init(void) {
-  // dump_regions();
-  // void *array[256];
-  // HL::MmapHeap heap;
-  // alaska::Mapping m;
-  // size_t lastSize = 0;
-  // printf("  size  tracking overhead\n");
-  // for (size_t size = 16; size < anchorage::kMaxSize; size += 16) {
-  //   const size_t objectClass = anchorage::SizeMap::SizeClass(size);
-  //   const size_t objectSize = anchorage::SizeMap::class_to_size(objectClass);
-  //   if (objectSize == lastSize) continue;
-  //   lastSize = objectSize;
-  //
-  //   int pagecount = max(1LU, (objectSize * 256) / 4096);
-  //   printf("%6zu  %5.2lf%%\n", objectSize,
-  //       (sizeof(anchorage::SubHeap) / (float)(pagecount * 4096)) * 100.0);
-  //   void *page = heap.malloc(4096 * pagecount);
-  //   // Allocate the span
-  //   anchorage::SubHeap s((off_t)page, pagecount, size, 256);
-  //   // auto start = alaska_timestamp();
-  //   int runs = 10000;
-  //   for (int run = 0; run < runs; run++) {
-  //     // printf("-----\n");
-  //     for (int i = 0; i < 256; i++) {
-  //       void *x = s.alloc(m);
-  //       array[i] = x;
-  //       if (x == NULL) {
-  //         printf("failed!\n");
-  //         exit(0);
-  //       }
-  //     }
-  //     for (int i = 0; i < 256; i++) {
-  //       s.free(array[i]);
-  //     }
-  //   }
-  //   // auto end = alaska_timestamp();
-  //   // printf(
-  //   //     "    %lf seconds per iteration\n", (end - start) / (float)runs / 1000.0 / 1000.0 /
-  //   //     1000.0);
-  //   heap.free(page, 4096 * pagecount);
-  // }
-  // exit(-1);
-  // for (size_t size = 16; size < anchorage::kMaxSize; size *= 1.1) {
-  //   const size_t objectClass = anchorage::SizeMap::SizeClass(size);
-  //   const size_t objectSize = anchorage::SizeMap::class_to_size(objectClass);
-  //   printf("%zu -> %zu (%zu)\n", size, objectSize, objectClass);
-  // }
-  // exit(0);
+  // Make sure the anchorage heap is available
+  // the_heap = new anchorage::MainHeap;
+  anchorage::allocator_init();
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 void alaska::service::deinit(void) {
   // TODO:
+  anchorage::allocator_deinit();
 }
 
 
 void alaska::service::barrier(void) {
-  // TODO:
+	for (auto chunk : anchorage::Chunk::all()) {
+		chunk->dump(NULL, "defragment");
+		long saved = chunk->defragment();
+		// printf("saved %ld bytes\n", saved);
+	}
+	return;
 }
 
 
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
-  // TODO:
+  auto *block = anchorage::Block::get(ent->ptr);
+  block->mark_locked(locked);
+	for (auto chunk : anchorage::Chunk::all()) {
+		// if (chunk->contains(block)) {
+			chunk->dump(block, "mark");
+		// }
+		// long saved = chunk->defragment();
+		// printf("saved %ld bytes\n", saved);
+	}
 }
 
 
 
 /// =================================================
-const unsigned char anchorage::SizeMap::class_array_[kClassArraySize] = {
+const unsigned char anchorage::SizeMap::class_array_[anchorage::SizeMap::kClassArraySize] = {
 #include "size_classes.def"
 };
 
-const int32_t anchorage::SizeMap::class_to_size_[kClassSizesMax] = {
+const int32_t anchorage::SizeMap::class_to_size_[anchorage::classSizesMax] = {
     16,
     16,
     32,

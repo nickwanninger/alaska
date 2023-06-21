@@ -75,7 +75,7 @@ config CORRECTNESS_EMULATOR_LOGGING
 
 config SWAP_SUPPORT
 	bool "Enable swap-in checking in the translation operation"
-	default y
+	default n
 
 config LOCK_TRACKING
 	bool "Enable lock tracking via shadow-stack rooting"
@@ -85,7 +85,7 @@ config LOCK_TRACKING
 
 config HANDLE_SQUEEZING
 	bool "Squeeze more handles into the encoding space by lobbing off alignment bits when encoding"
-	default y
+	default n
 
 
 config TRACK_TRANSLATION_HITRATE

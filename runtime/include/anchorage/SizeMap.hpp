@@ -43,7 +43,7 @@ namespace anchorage {
     //   ...
     //   32768      (32768 + 127 + (120<<7)) / 128  376
     static const int kMaxSmallSize = 1024;
-    static const size_t kClassArraySize = ((kMaxSize + 127 + (120 << 7)) >> 7) + 1;
+    static const size_t kClassArraySize = ((maxHandleSize + 127 + (120 << 7)) >> 7) + 1;
     static const unsigned char class_array_[kClassArraySize];
 
     static inline size_t SmallSizeClass(size_t s) {
@@ -61,7 +61,7 @@ namespace anchorage {
       if (likely(s <= kMaxSmallSize)) {
         *idx = (static_cast<uint32_t>(s) + 7) >> 3;
         return true;
-      } else if (s <= kMaxSize) {
+      } else if (s <= maxHandleSize) {
         *idx = (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
         return true;
       }
@@ -80,7 +80,7 @@ namespace anchorage {
     }
 
     // Mapping from size class to max size storable in that class
-    static const int32_t class_to_size_[kClassSizesMax];
+    static const int32_t class_to_size_[classSizesMax];
 
    public:
     static constexpr size_t num_size_classes = 25;

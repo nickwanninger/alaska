@@ -29,8 +29,8 @@ namespace alaska {
   constexpr int handle_squeeze = 0;
 #endif
 
-	extern long translation_hits;
-	extern long translation_misses;
+  extern long translation_hits;
+  extern long translation_misses;
 
   // A mapping is *just* a pointer. If that pointer has the high bit set, it is swapped out.
   struct Mapping {
@@ -100,8 +100,8 @@ namespace alaska {
     void *locked[];
   };
 
-	// runtime.cpp
-	extern void record_translation_info(bool hit);
+  // runtime.cpp
+  extern void record_translation_info(bool hit);
 }  // namespace alaska
 
 
