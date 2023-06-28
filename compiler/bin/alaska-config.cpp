@@ -35,13 +35,10 @@ void ldflags(void) {
   printf("-Wl,-rpath=%s/lib\n", local);
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
-  printf("-lpthread\n");
   // printf("%s/lib/libalaska.a\n", local);
-  printf("-lalaska\n");
+  printf("-lalaska\n"); // HACK: load alaska before pthread
+  printf("-lpthread\n"); // ... for some reason
   // printf("-lomp\n");
-#ifdef ALASKA_CORRECTNESS_EMULATOR
-  printf("-lunicorn\n");
-#endif
 }
 
 
@@ -66,7 +63,7 @@ void cxxflags(void) {
 void defs(void) {
   // enable a bunch of feature flags
   printf("-D_ALASKA\n");
-  printf("-D_GNU_SOURCE\n");
+  // printf("-D_GNU_SOURCE\n");
   printf("-D__STDC_CONSTANT_MACROS\n");
   printf("-D__STDC_FORMAT_MACROS\n");
   printf("-D__STDC_LIMIT_MACROS\n");
