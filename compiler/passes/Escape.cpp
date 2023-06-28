@@ -22,15 +22,21 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       "hcalloc",
       "hfree",
       "hfree_trace",
-			// Anchorage stuff
+
+			// Don't pre-translate
+			"alaska_usable_size",
+      // Anchorage stuff
       "anchorage_manufacture_locality",
-			// "intrinsics"
+      // "intrinsics"
       "alaska.root",
       "alaska.translate",
       "alaska.release",
-			// Gross functions in libc that we handle ourselves
+      // Gross functions in libc that we handle ourselves
       "strstr",
       "strchr",
+
+			// Redis hacks
+			"bioCreateLazyFreeJob",
   };
 
   for (auto r : alaska::wrapped_functions) {
@@ -129,9 +135,12 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
       return false;
     }
-    return true;
+		// TODO:
+    return false;
   };
 
+
+  std::set<llvm::Value *> externalFunctionEscapes;
 
   for (auto &F : M) {
     if (F.empty()) continue;
@@ -144,8 +153,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
         //     continue;
         //   }
         // }
-
         // alaska::println("escaping", *call);
+
         int i = -1;
         for (auto &arg : call->args()) {
           i++;
@@ -155,7 +164,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
             continue;
           }
 
-          // alaska::println("   arg ", *arg);
+
+          externalFunctionEscapes.insert(call->getCalledOperand());
 
           IRBuilder<> b(call);
 
@@ -169,16 +179,13 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     }
   }
 
-  // FILE *outf = fopen("/tmp/alaska-escapes", "a+");
-  //
-  // for (auto f : externalFunctionEscapes) {
-  //   if (f != NULL) {
-  //     fprintf(outf, "%s\n", f->getName().data());
-  //     // alaska::println("potential escape when calling ", f->getName());
-  //   }
-  // }
-  //
-  // fclose(outf);
+  for (auto f : externalFunctionEscapes) {
+    if (f != NULL) {
+      if (auto *func = dyn_cast<llvm::Function>(f)) {
+        alaska::println("\e[33mWARNING\e[0m: escape handle to function ", func->getName());
+      }
+    }
+  }
 
   return PreservedAnalyses::none();
 }

@@ -79,6 +79,8 @@ llvm::Function *versionFunction(llvm::Function &F, std::set<llvm::Argument *> ha
 
 llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
     Module &M, ModuleAnalysisManager &AM) {
+
+  return PreservedAnalyses::all();
   // Which arguments does each function lock internally? (Array of true and false for each index of
   // the args)
   std::map<llvm::Function *, std::vector<bool>> locked_arguments;
@@ -111,6 +113,7 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
   // Version the function.
   std::map<llvm::Function *, std::vector<llvm::Argument *>> versioned_arguments;
   for (auto &[func, locked] : locked_arguments) {
+		continue;
     // Get the handle arguments.
     std::set<llvm::Argument *> handle_arguments;
     for (unsigned i = 0; i < locked.size(); i++) {
@@ -130,7 +133,7 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
       alaska::println("Failed to version function!");
     }
 
-    alaska::println(*versioned_function);
+    // alaska::println(*versioned_function);
 
     // Memoize the handle arguments.
     unsigned offset = 0;

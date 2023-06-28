@@ -29,8 +29,9 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
 
   // Lower alaska.root
   for (auto *call : collectCalls(M, "alaska.root")) {
-    alaska::println(*call);
+    // alaska::println(*call);
     call->replaceAllUsesWith(call->getArgOperand(0));
+		// alaska::println("root:", *call->getArgOperand(0));
     to_delete.insert(call);
     if (auto *invoke = dyn_cast<llvm::InvokeInst>(call)) {
       auto *landing_pad = invoke->getLandingPadInst();

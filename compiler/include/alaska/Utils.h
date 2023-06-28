@@ -6,10 +6,13 @@
 
 namespace alaska {
 
+
+
   llvm::Instruction *insertRootBefore(llvm::Instruction *inst, llvm::Value *pointer);
   llvm::Instruction *insertTranslationBefore(llvm::Instruction *inst, llvm::Value *pointer);
   llvm::Instruction *insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer);
-  llvm::Instruction *insertDerivedBefore(llvm::Instruction *inst, llvm::Value *base, llvm::GetElementPtrInst *offset);
+  llvm::Instruction *insertDerivedBefore(
+      llvm::Instruction *inst, llvm::Value *base, llvm::GetElementPtrInst *offset);
 
 
 
@@ -22,7 +25,7 @@ namespace alaska {
   inline void fprint(llvm::raw_ostream &out) {
   }
   template <class T, class... Ts>
-  inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &...rest) {
+  inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &... rest) {
     out << first;
     alaska::fprint(out, rest...);
   }
@@ -30,24 +33,35 @@ namespace alaska {
 
 
   template <class... Ts>
-  inline void fprintln(llvm::raw_ostream &out, Ts const &...args) {
+  inline void fprintln(llvm::raw_ostream &out, Ts const &... args) {
     alaska::fprint(out, args..., '\n');
   }
 
 
 
   template <class... Ts>
-  inline void println(Ts const &...args) {
+  inline void println(Ts const &... args) {
     alaska::fprintln(llvm::errs(), args...);
   }
 
   template <class... Ts>
-  inline void print(Ts const &...args) {
+  inline void print(Ts const &... args) {
     alaska::fprint(llvm::errs(), args...);
   }
 
   // format an llvm value in a simpler way
   std::string simpleFormat(llvm::Value *val);
+
+
+  inline uint64_t timestamp() {
+    struct timespec spec;
+    clock_gettime(1, &spec);
+    return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
+  }
+
+  inline double time_ms() {
+		return (double)timestamp() / 1000.0 / 1000.0;
+  }
 }  // namespace alaska
 
 

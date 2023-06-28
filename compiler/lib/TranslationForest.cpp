@@ -6,6 +6,7 @@
 #include <sstream>
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/ADT/SparseBitVector.h"
 #include <noelle/core/DataFlow.hpp>
 
 
@@ -35,9 +36,9 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-		// Simply insert an `alaska.derive` function right after `I`
+    // Simply insert an `alaska.derive` function right after `I`
     auto t = get_incoming_translated_value(node);
-		node.translated = alaska::insertDerivedBefore(I.getNextNode(), t, &I);
+    node.translated = alaska::insertDerivedBefore(I.getNextNode(), t, &I);
   }
 
   void visitLoadInst(llvm::LoadInst &I) {
@@ -172,11 +173,15 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
 
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
+  double start = alaska::time_ms();
   alaska::PointerFlowGraph G(func);
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
+
+  // printf("init %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   // The nodes which have no in edges that it post dominates
   std::set<alaska::FlowNode *> roots;
@@ -187,6 +192,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       roots.insert(node);
     }
   }
+
+  // printf("grab roots %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
   for (auto *root : roots) {
@@ -216,6 +224,10 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     this->roots.push_back(std::move(node));
   }
 
+
+  // printf("build forest %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
+
   for (auto &root : this->roots) {
     for (auto &child : root->children) {
       if (child->share_translation_with == NULL) {
@@ -234,6 +246,10 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       child->set_translation_id(id);
     }
   }
+
+
+  // printf("set translation id %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   // Compute the instruction at which a translation should be inserted to minimize the
   // number of runtime invocations, but to also minimize the number of handles
@@ -260,6 +276,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   }
 
 
+  // printf("compute insertion %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
+
   ///////////////////////////////////////////////////////////////////////////
   //                      Compute release locations                        //
   ///////////////////////////////////////////////////////////////////////////
@@ -283,12 +302,13 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
+  // printf("compute release %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
-
-  std::map<Instruction *, std::set<unsigned>> GEN;
-  std::map<Instruction *, std::set<unsigned>> KILL;
-  std::map<Instruction *, std::set<unsigned>> IN;
-  std::map<Instruction *, std::set<unsigned>> OUT;
+  std::map<Instruction *, llvm::SparseBitVector<128>> GEN;
+  std::map<Instruction *, llvm::SparseBitVector<128>> KILL;
+  std::map<Instruction *, llvm::SparseBitVector<128>> IN;
+  std::map<Instruction *, llvm::SparseBitVector<128>> OUT;
 
   std::set<Instruction *> todo;
 
@@ -296,7 +316,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // just so we can do analysis. Later we will delete them. :^)
   for (auto &[lid, tr] : translations) {
     tr->translated = insertTranslationBefore(tr->translateBefore, tr->pointer);
-    KILL[tr->translated].insert(lid);
+    // KILL[tr->translated].insert(lid);
+    KILL[tr->translated].set(lid);
   }
 
   // initialize gen sets
@@ -306,11 +327,15 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       auto f = inst2bounds.find(&I);
       if (f != inst2bounds.end()) {
         auto &lb = f->second;
-        GEN[&I].insert(lb->id);
+        // GEN[&I].insert(lb->id);
+        GEN[&I].set(lb->id);
       }
     }
   }
 
+
+  // printf("gen set %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   while (!todo.empty()) {
     // Grab some instruction from worklist...
@@ -320,33 +345,48 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
     auto old_out = OUT[i];
     auto old_in = IN[i];
-    // IN = GEN U (OUT - KILL);
-    IN[i] = GEN[i];
-    for (auto &v : OUT[i])
-      if (KILL[i].find(v) == KILL[i].end()) IN[i].insert(v);
 
-    OUT[i].clear();
+
+    auto &gen = GEN[i];
+    auto &out = OUT[i];
+    // IN = GEN U (OUT - KILL);
+    IN[i] = gen | (old_out - KILL[i]);
+    // for (auto &v : OUT[i]) {
+    //   if (KILL[i].find(v) == KILL[i].end()) {
+    //     IN[i].insert(v);
+    //   }
+    // }
+
+    out.clear();
 
     // successor updating
     if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
       if (auto normal_bb = invoke_inst->getNormalDest()) {
-        for (auto &v : IN[&normal_bb->front()])
-          OUT[i].insert(v);
+        out |= IN[&normal_bb->front()];
+        // for (auto &v : IN[&normal_bb->front()]) {
+        //   OUT[i].insert(v);
+        // }
       }
 
       if (auto unwind_bb = invoke_inst->getUnwindDest()) {
-        for (auto &v : IN[&unwind_bb->front()])
-          OUT[i].insert(v);
+        out |= IN[&unwind_bb->front()];
+        // for (auto &v : IN[&unwind_bb->front()]) {
+        //   OUT[i].insert(v);
+        // }
       }
     } else if (auto *next_node = i->getNextNode()) {
-      for (auto &v : IN[next_node])
-        OUT[i].insert(v);
+      out |= IN[next_node];
+      // for (auto &v : IN[next_node]) {
+      //   OUT[i].insert(v);
+      // }
     } else {
       // end of a basic block, get all successor basic blocks
       for (auto *bb : successors(i)) {
-        for (auto &v : IN[&bb->front()]) {
-          OUT[i].insert(v);
-        }
+        out |= IN[&bb->front()];
+        // for (auto &v : IN[&bb->front()]) {
+        //   // OUT[i].insert(v);
+        //   out.set(v);
+        // }
       }
     }
 
@@ -364,6 +404,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
+  // printf("liveness %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
+
 
   std::map<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>, std::set<alaska::TranslationBounds *>>
       releaseTrampolines;
@@ -376,14 +419,14 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
         auto &iOUT = OUT[&I];
 
         // if the value is not in the IN, skip
-        if (iIN.find(trbounds->id) == iIN.end()) {
+        if (iIN.test(trbounds->id)) {
           continue;
         }
 
         // in the IN
 
         // if the value is not in the OUT, translate after this instruction
-        if (iOUT.find(trbounds->id) == iOUT.end()) {
+        if (iOUT.test(trbounds->id)) {
           trbounds->releaseAfter.insert(I.getNextNode());
           continue;
         }
@@ -398,7 +441,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
             auto succInst = &succ->front();
             auto &succIN = IN[succInst];
             // if it's not in the IN of succ, translate on the edge
-            if (succIN.find(trbounds->id) == succIN.end()) {
+            if (succIN.test(trbounds->id)) {
               // HACK: split the edge and insert on the branch
               BasicBlock *from = I.getParent();
               BasicBlock *to = succ;
@@ -423,6 +466,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
+  // printf("insert releases %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   std::vector<std::unique_ptr<alaska::Translation>> out;
 
@@ -458,6 +503,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       apply(*child);
     }
   }
+
+  // printf("conversion %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   return out;
 }

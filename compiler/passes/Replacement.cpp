@@ -37,7 +37,6 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
       replace_function(M, "calloc", "hcalloc");
       replace_function(M, "realloc", "hrealloc");
 
-
       replace_function(M, "malloc_beebs", "halloc"); // embench
       replace_function(M, "calloc_beebs", "hcalloc"); // embench
       replace_function(M, "realloc_beebs", "hrealloc"); // embench
