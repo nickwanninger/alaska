@@ -3,7 +3,7 @@
 set(WARNINGS " -Wall -Wextra -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -fno-omit-frame-pointer")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -gdwarf-4 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20 -Wno-deprecated -fno-exceptions -fno-rtti ") 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ") 
 set(CMAKE_C_COMPILER_ID "Clang")
@@ -108,6 +108,13 @@ target_link_libraries(lifetimemalloc dl)
 add_bitcode(alaska_translate SOURCES lib/translate.cpp)
 add_bitcode(alaska_prefetch SOURCES lib/prefetch.cpp)
 add_bitcode(alaska_compat SOURCES lib/compat.c)
+
+
+add_bitcode(alaska_stub SOURCES
+	stub/stub.c
+	stub/memcpy.c)
+
+
 
 
 target_link_libraries(alaska alaska_translate_native)
