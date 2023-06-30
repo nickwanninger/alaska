@@ -47,6 +47,7 @@ namespace anchorage {
 
 
     auto crc(void) -> uint32_t;  // compute the crc32 of the data in the block
+    void dump_content(const char *message = "");
     void dump(
         bool verbose, bool highlight = false);  // print a block in the fancy Chunk::dump format :)
 

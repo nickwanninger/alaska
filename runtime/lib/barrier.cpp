@@ -164,9 +164,8 @@ void alaska::barrier::end(void) {
 
 
 void alaska_barrier(void) {
-  alaska::barrier::begin();
+  // Simply defer to the service. It will begin/end the barrier
   alaska::service::barrier();
-  alaska::barrier::end();
 }
 
 
@@ -187,10 +186,10 @@ void alaska::barrier::add_thread(pthread_t* thread) {
   // app doesn't need this signal, as we are SOL if they do!
   struct sigaction act;
   memset(&act, 0, sizeof(act));
-  act.sa_handler = [](int sig) {
+  act.sa_handler = barrier_signal_handler;
 
-  };
 
+  // signal(SIGUSR2, barrier_signal_handler);
   if (sigaction(SIGUSR2, &act, NULL) != 0) {
     perror("Failed to add sigaction to new thread.\n");
     exit(EXIT_FAILURE);

@@ -13,8 +13,9 @@ redis: #src/src/redis-server
 	@get-bc -b -o build/redis-server.bc src/src/redis-server
 	@echo " TX build/redis-server.bc" 
 	@llvm-dis build/redis-server.bc -o build/redis-server-in.ll
-	@ALASKA_NO_REPLACE_MALLOC=1 alaska -O1 build/redis-server.bc -o build/redis-server -ldl
+	@#ALASKA_NO_REPLACE_MALLOC=1 alaska -O1 build/redis-server.bc -o build/redis-server -ldl
+	@alaska -k -b -O2 build/redis-server.bc -o build/redis-server -ldl
 
 clean:
-	$(MAKE) -C src clean
+	$(MAKE) -C clean
 

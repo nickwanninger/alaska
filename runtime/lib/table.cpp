@@ -41,10 +41,24 @@ static alaska::Mapping *bump_next = NULL;
 
 
 
+static void table_dump(void) {
+	unsigned long count = 0;
+	for (alaska::Mapping *ent = next_free; ent != nullptr; ent = (alaska::Mapping*)ent->ptr) {
+		count++;
+	}
+	printf("table: %zu free, %zu slots, freelist: %lu ", table_nfree, table_size, count);
+	unsigned long z = count;
+	if (z > 16) z = 16;
+	for (unsigned long i = 0; i < z; i++) printf("#");
+	if (count > 16) printf("...");
+	printf("\n");
+}
+
 // grow the table by a factor of 2
 static void alaska_table_grow() {
   size_t oldbytes = table_size * MAP_ENTRY_SIZE;
   size_t newbytes = oldbytes * 2;
+  // size_t newbytes = oldbytes + MAP_GRANULARITY;
   if (table_memory == NULL) {
     newbytes = MAP_GRANULARITY;
     // TODO: use hugetlbfs or something similar
@@ -59,6 +73,7 @@ static void alaska_table_grow() {
   }
   // newsize is now the number of entries
   size_t newsize = newbytes / MAP_ENTRY_SIZE;
+	// printf("grow %zu -> %zu\n", table_size, newsize);
   // Update the bump allocator to point to the new data.
   bump_next = &table_memory[table_size];
   table_nfree += (newsize - table_size);

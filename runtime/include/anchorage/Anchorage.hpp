@@ -38,7 +38,7 @@ namespace anchorage {
 
 
   constexpr size_t block_size = 16;
-  constexpr size_t min_chunk_pages = 16384;
+  constexpr size_t min_chunk_pages = 16384 * 1024; // 64gb (virt)
 
   // constexpr size_t min_chunk_pages = 4096;
   static inline size_t size_with_overhead(size_t sz) {

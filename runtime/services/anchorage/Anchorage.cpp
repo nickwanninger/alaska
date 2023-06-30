@@ -11,11 +11,6 @@
 
 
 #include <anchorage/Anchorage.hpp>
-#include <anchorage/SizeMap.hpp>
-#include <anchorage/MainHeap.hpp>
-#include <anchorage/LinkedList.h>
-
-
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
 #include <anchorage/Defragmenter.hpp>
@@ -31,28 +26,33 @@
 #include <stdbool.h>
 #include <sys/mman.h>
 #include <malloc.h>
+#include <ck/lock.h>
 
-#include <heaplayers.h>
+// static uint64_t last_barrier_time = 0;
 
-
-anchorage::MainHeap *the_heap = nullptr;
-
-// using ChunkedMmapHeap = HL::ChunkHeap<2 * 1024 * 1024, HL::SizedMmapHeap>;
-using ChunkedMmapHeap = HL::ChunkHeap<4 * 1024, HL::SizedMmapHeap>;
-
-static HL::ANSIWrapper<HL::KingsleyHeap<HL::SizeHeap<HL::FreelistHeap<ChunkedMmapHeap>>,
-    HL::SizeHeap<HL::FreelistHeap<ChunkedMmapHeap>>>>
-    theHeap;
+static ck::mutex anch_lock;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
+  // auto now = alaska_timestamp();
+  //
+  // if (now - last_barrier_time > 500 * 1000 * 1000) {
+  // 	last_barrier_time = now;
+  // 	alaska::service::barrier();
+  // }
+  alaska::service::barrier();
+
+
+  // Grab a lock
+  ck::scoped_lock l(anch_lock);
+
   auto &m = *ent;
   using namespace anchorage;
   Block *new_block = NULL;
   Chunk *new_chunk = NULL;
+
+retry:
+
   // printf("alloc %zu into %p (there are %zu chunks)\n", size, &m, anchorage::Chunk::all().size());
-  //  for (auto *chunk : anchorage::Chunk::all()) {
-  // 	printf("  chunk %p (wl:%zu)\n", chunk, chunk->high_watermark);
-  // }
 
   // attempt to allocate from each chunk
   for (auto *chunk : anchorage::Chunk::all()) {
@@ -74,30 +74,43 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
 
     new anchorage::Chunk(required_pages);  // add a chunk
 
-    return alaska::service::alloc(ent, size);
+    goto retry;
+    // return alaska::service::alloc(ent, size);
   }
 
   if (m.ptr != NULL) {
     Block *old_block = anchorage::Block::get(m.ptr);
     auto *old_chunk = anchorage::Chunk::get(m.ptr);
-    old_block->mark_as_free(*old_chunk);
     size_t copy_size = old_block->size();
-    if (size < copy_size) copy_size = size;
-    memcpy(new_block->data(), ent->ptr, copy_size);
+    if (new_block->size() < copy_size) copy_size = new_block->size();
+
+
+    // printf("realloc %p -> %p (%zu -> %zu) %zu\n", old_block, new_block, old_block->size(),
+    // new_block->size(), copy_size); old_block->dump_content("old before");
+    // new_block->dump_content("new before");
+    memcpy(new_block->data(), old_block->data(), copy_size);
+
+    // old_block->dump_content("old after");
+    // new_block->dump_content("new after");
+    // printf("\n");
+
+    new_block->set_handle(&m);
+    ent->ptr = new_block->data();
+    old_chunk->free(old_block);
+  } else {
+    new_block->set_handle(&m);
+    ent->ptr = new_block->data();
   }
 
-  new_block->set_handle(&m);
-  ent->ptr = new_block->data();
 
-	new_chunk->dump(new_block, "Allocate");
-  // ent->size = size;
-  // printf("alloc: %p %p (%zu)", &m, ent->ptr, ent->size);
-  // new_chunk->dump(new_block, "Alloc");
+  // printf("[alaska] alloc %p %zu %zu\n", new_block, new_block->size(), size);
   return;
 }
 
 
 void alaska::service::free(alaska::Mapping *ent) {
+  ck::scoped_lock l(anch_lock);
+
   auto *chunk = anchorage::Chunk::get(ent->ptr);
   if (chunk == NULL) {
     fprintf(
@@ -105,46 +118,48 @@ void alaska::service::free(alaska::Mapping *ent) {
     return;
   }
 
-  // Poison the buffer
-  // memset(m.ptr, 0xFA, m.size);
-  // Free the block
   auto *blk = anchorage::Block::get(ent->ptr);
   chunk->free(blk);
-
-  // m.size = 0;
   ent->ptr = nullptr;
-  // tell the block to coalesce the best it can
 }
 
 size_t alaska::service::usable_size(void *ptr) {
-  // return malloc_usable_size(ptr);
-  // return theHeap.getSize(ptr);
-  return 0;
+  // auto *chunk = anchorage::Chunk::get(ptr);
+  // // printf("chunk %p\n", chunk);
+  // if (chunk == NULL) {
+  //   return malloc_usable_size(ptr);
+  // }
+  // printf("usable %p\n", ptr);
+  // alaska_dump_backtrace();
+  auto *blk = anchorage::Block::get(ptr);
+  // printf("size %p %zu\n", blk, blk->size());
+  return blk->size();
 }
 
 
-
 pthread_t anchorage_barrier_thread;
-static uint64_t barrier_interval_ms = 1000;
+static uint64_t barrier_interval_ms = 500;
 static void *barrier_thread_fn(void *) {
   // uint64_t thread_start_time = alaska_timestamp();
   while (1) {
     usleep(barrier_interval_ms * 1000);
     uint64_t start = alaska_timestamp();
     alaska_barrier();
-    alaska::barrier::begin();
-    alaska::barrier::end();
+    // alaska::barrier::begin();
+    // printf("SEND\n");
+    // sleep(1); // sleep for a second
+    // alaska::barrier::end();
     uint64_t end = alaska_timestamp();
     (void)(end - start);
     // printf("Barrier %zu\n", end - start);
   }
+
   return NULL;
 }
 
 
 void alaska::service::init(void) {
-  // Make sure the anchorage heap is available
-  // the_heap = new anchorage::MainHeap;
+  anch_lock.init();
   anchorage::allocator_init();
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
@@ -156,25 +171,35 @@ void alaska::service::deinit(void) {
 
 
 void alaska::service::barrier(void) {
-	for (auto chunk : anchorage::Chunk::all()) {
-		chunk->dump(NULL, "defragment");
-		long saved = chunk->defragment();
-		// printf("saved %ld bytes\n", saved);
-	}
-	return;
+  ck::scoped_lock l(anch_lock);
+
+  // Get everyone prepped for a barrier
+  alaska::barrier::begin();
+
+  // Defragment the chunks
+  for (auto chunk : anchorage::Chunk::all()) {
+    long saved = chunk->defragment();
+    (void)saved;
+    // printf("saved %ld bytes\n", saved);
+  }
+  // Release everyone from the barrier
+  alaska::barrier::end();
 }
 
 
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
+  // HACK
+  if (ent->ptr == nullptr) return;
   auto *block = anchorage::Block::get(ent->ptr);
   block->mark_locked(locked);
-	for (auto chunk : anchorage::Chunk::all()) {
-		// if (chunk->contains(block)) {
-			chunk->dump(block, "mark");
-		// }
-		// long saved = chunk->defragment();
-		// printf("saved %ld bytes\n", saved);
-	}
+  printf("Mark %p %d\n", ent, locked);
+  // for (auto chunk : anchorage::Chunk::all()) {
+  //   // if (chunk->contains(block)) {
+  //   chunk->dump(block, "mark");
+  //   // }
+  //   // long saved = chunk->defragment();
+  //   // printf("saved %ld bytes\n", saved);
+  // }
 }
 
 

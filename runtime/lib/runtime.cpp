@@ -72,7 +72,7 @@ static void* alaska_pthread_trampoline(void* varg) {
 
 
 // Hook into thread creation by overriding the pthread_create function
-#undef pthread_create
+// #undef pthread_create
 extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr,
     void* (*start)(void*), void* __restrict arg) {
   int rc;
@@ -200,4 +200,9 @@ void* alaska_ensure_present(alaska::Mapping* m) {
 
   ALASKA_SANITY(m->ptr != NULL, "Service did not swap in a handle");
   return m->ptr;
+}
+
+
+extern "C" void __cxa_pure_virtual(void) {
+	abort();
 }

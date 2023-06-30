@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <pthread.h>
 
 namespace ck {
@@ -11,6 +10,10 @@ namespace ck {
 
    public:
     mutex(void) {
+      pthread_mutex_init(&m_mutex, NULL);
+    }
+
+    void init(void) {
       pthread_mutex_init(&m_mutex, NULL);
     }
     ~mutex(void) {

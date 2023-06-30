@@ -43,6 +43,21 @@ static void clear_format(void) {
 }
 
 
+void anchorage::Block::dump_content(const char *message) {
+  printf("%20s ", message);
+
+  size_t count = size() / sizeof(uint64_t);
+  auto *d = static_cast<uint64_t *>(data());
+  if (count > 8) count = 8;
+  printf("(blk=%p, handle=%p) ", this, handle());
+
+  for (size_t i = 0; i < count; i++) {
+    // if (i % 8 == 0) printf(" ");
+    printf("%016lx ", d[i]);
+  }
+  printf("\n");
+}
+
 void anchorage::Block::dump(bool verbose, bool highlight) {
   // Red by default
   // int primary = 0xCB5141;    // dark
@@ -84,11 +99,26 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     c = '-';
   }
 
-  size_t count = (size() / anchorage::block_size);
 
-  // printf(" %zu ", count);
-  for (size_t i = 0; i < count; i++) {
-    putchar(c);
+  // size_t count = (size() / anchorage::block_size);
+  // printf(" %zu ", size());
+	// putchar(' ');
+  if (0) {
+    set_fg(0x88'88'88);
+    size_t count = (size() + 16) / 8;
+    auto *d = static_cast<uint64_t *>(data());
+    if (count > 8) count = 8;
+
+    for (size_t i = 0; i < count; i++) {
+      // if (i % 8 == 0) printf(" ");
+      printf("%016lx ", d[i]);
+    }
+  } else {
+    size_t count = (size() / anchorage::block_size);
+    // printf(" %zu ", count);
+    for (size_t i = 0; i < count; i++) {
+      putchar(c);
+    }
   }
   clear_format();
 

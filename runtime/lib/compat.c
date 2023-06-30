@@ -18,7 +18,7 @@
 #define WEAK __attribute__((weak))
 
 int alaska_wrapped_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
-  printf("sigaction=%d\n", signum);
+  // printf("sigaction=%d\n", signum);
   if (signum == SIGSEGV) {
     return -1;
   }
