@@ -254,6 +254,7 @@ void alaska::computeTranslationLiveness(
 
 bool alaska::shouldTranslate(llvm::Value *val) {
   if (!val->getType()->isPointerTy()) return false;
+  if (dyn_cast<PoisonValue>(val)) return false;
   if (dyn_cast<GlobalValue>(val)) return false;
   if (dyn_cast<AllocaInst>(val)) return false;
   if (dyn_cast<ConstantPointerNull>(val)) return false;

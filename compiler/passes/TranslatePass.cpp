@@ -18,6 +18,8 @@
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/IR/Verifier.h"
+
 #include <memory>
 #include <optional>
 #include <utility>
@@ -41,16 +43,28 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
-		auto start = alaska::timestamp();
+    auto start = alaska::timestamp();
 #ifdef ALASKA_HOIST_TRANSLATIONS
     alaska::insertHoistedTranslations(F);
 #else
     alaska::insertConservativeTranslations(F);
 #endif
-		auto end = alaska::timestamp();
-		(void)(end - start);
-		// printf("%s,%f\n", F.getName().data(), (end - start) / 1000.0 / 100.0);
-		// exit(-1);
+    auto end = alaska::timestamp();
+    (void)(end - start);
+
+
+
+    if (verifyFunction(F, &errs())) {
+			errs() << "Function verification failed!\n";
+      errs() << F << "\n";
+      // abort();
+    }
+
+
+
+
+    // printf("%s,%f\n", F.getName().data(), (end - start) / 1000.0 / 100.0);
+    // exit(-1);
   }
 
 

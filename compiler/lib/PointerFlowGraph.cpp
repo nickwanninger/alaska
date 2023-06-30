@@ -1,4 +1,5 @@
 #include <alaska/PointerFlowGraph.h>
+#include <alaska/Translations.h>
 #include <alaska/Utils.h>
 
 #include "llvm/IR/IRBuilder.h"

@@ -109,12 +109,6 @@ alaska::TranslationForest::Node::Node(
 
 static llvm::Loop *get_outermost_loop_for_translation(
     llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
-  // first, check the `loopToCheck` loop. If it fits the requirements we are looking for, early
-  // return and don't check subloops. If it doesn't, recurse down to the subloops and see if they
-  // fit.
-  //
-  // 1. if the loop contains the user but not the pointer, this is the best loop.
-  //    (we want to translate right before the loop header)
   if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
     return loopToCheck;
   }
@@ -198,6 +192,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
   for (auto *root : roots) {
+		if (!alaska::shouldTranslate(root->value)) {
+			continue;
+		}
     auto node = std::make_unique<Node>(root);
 
     // compute which children dominate which siblings
@@ -225,10 +222,12 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   }
 
 
+
   // printf("build forest %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
   for (auto &root : this->roots) {
+		// errs() << "root " << root.get() << " val: " << *root->val << "\n";
     for (auto &child : root->children) {
       if (child->share_translation_with == NULL) {
         auto &lb = get_translation_bounds();
@@ -267,6 +266,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       // it's parent is a source, create the incoming translation
       if (child->share_translation_with == NULL && child->parent->parent == NULL) {
         auto &lb = get_translation_bounds(child->translation_id);
+				alaska::println("find:", *root->val);
+				alaska::println("inst:", *inst);
         lb.translateBefore = compute_translation_insertion_location(root->val, inst, loops);
 
         lb.pointer = alaska::insertRootBefore(lb.translateBefore, root->val);
@@ -274,6 +275,8 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       }
     }
   }
+
+
 
 
   // printf("compute insertion %lf\n", alaska::time_ms() - start);
@@ -347,42 +350,54 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     auto old_in = IN[i];
 
 
-    auto &gen = GEN[i];
-    auto &out = OUT[i];
+    // auto &gen = GEN[i];
+    // auto &out = OUT[i];
     // IN = GEN U (OUT - KILL);
-    IN[i] = gen | (old_out - KILL[i]);
+    IN[i] = GEN[i] | (OUT[i] - KILL[i]);
     // for (auto &v : OUT[i]) {
     //   if (KILL[i].find(v) == KILL[i].end()) {
     //     IN[i].insert(v);
     //   }
     // }
 
-    out.clear();
+    OUT[i].clear();
+
+
+    if (auto *resumeinst = dyn_cast<ResumeInst>(i)) {
+			alaska::println("resume bullshit ", *resumeinst);
+		}
 
     // successor updating
-    if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
+    if (auto *switch_inst = dyn_cast<SwitchInst>(i)) {
+			for (auto caseIt : switch_inst->cases()) {
+
+        OUT[i] |= IN[&caseIt.getCaseSuccessor()->front()];
+				// caseIt.
+			}
+      //
+    } else if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
       if (auto normal_bb = invoke_inst->getNormalDest()) {
-        out |= IN[&normal_bb->front()];
+        OUT[i] |= IN[&normal_bb->front()];
         // for (auto &v : IN[&normal_bb->front()]) {
         //   OUT[i].insert(v);
         // }
       }
 
       if (auto unwind_bb = invoke_inst->getUnwindDest()) {
-        out |= IN[&unwind_bb->front()];
+        OUT[i] |= IN[&unwind_bb->front()];
         // for (auto &v : IN[&unwind_bb->front()]) {
         //   OUT[i].insert(v);
         // }
       }
     } else if (auto *next_node = i->getNextNode()) {
-      out |= IN[next_node];
+      OUT[i] |= IN[next_node];
       // for (auto &v : IN[next_node]) {
       //   OUT[i].insert(v);
       // }
     } else {
       // end of a basic block, get all successor basic blocks
       for (auto *bb : successors(i)) {
-        out |= IN[&bb->front()];
+        OUT[i] |= IN[&bb->front()];
         // for (auto &v : IN[&bb->front()]) {
         //   // OUT[i].insert(v);
         //   out.set(v);
@@ -419,14 +434,14 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
         auto &iOUT = OUT[&I];
 
         // if the value is not in the IN, skip
-        if (iIN.test(trbounds->id)) {
+        if (!iIN.test(trbounds->id)) {
           continue;
         }
 
         // in the IN
 
         // if the value is not in the OUT, translate after this instruction
-        if (iOUT.test(trbounds->id)) {
+        if (!iOUT.test(trbounds->id)) {
           trbounds->releaseAfter.insert(I.getNextNode());
           continue;
         }
@@ -441,7 +456,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
             auto succInst = &succ->front();
             auto &succIN = IN[succInst];
             // if it's not in the IN of succ, translate on the edge
-            if (succIN.test(trbounds->id)) {
+            if (!succIN.test(trbounds->id)) {
               // HACK: split the edge and insert on the branch
               BasicBlock *from = I.getParent();
               BasicBlock *to = succ;

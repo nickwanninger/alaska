@@ -11,6 +11,9 @@
 #include <llvm/Passes/PassPlugin.h>
 #include <llvm/Transforms/Utils/Mem2Reg.h>
 #include <llvm/Transforms/Utils/LowerInvoke.h>
+#include <llvm/Transforms/Utils/LowerSwitch.h>
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/IR/PassTimingInfo.h"
 
 // Noelle Includes
@@ -39,6 +42,17 @@ static void replace_function(Module &M, std::string original_name, std::string n
   }
 }
 
+
+
+class PrintPassThing : public llvm::PassInfoMixin<PrintPassThing> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      errs() << F << "\n";
+    }
+    return PreservedAnalyses::all();
+  }
+};
 
 
 static bool print_progress = true;
@@ -103,6 +117,22 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
 
 
 
+
+class RealDCEPass : public llvm::PassInfoMixin<RealDCEPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      if (F.empty()) continue;
+			llvm::EliminateUnreachableBlocks(F);
+    }
+    // inlineCallsTo(M.getFunction("alaska_translate"));
+    // inlineCallsTo(M.getFunction("alaska_release"));
+    // replace_function(M, "alaska_translate", "alaska_prefetch_translate");
+    // replace_function(M, "alaska_release", "alaska_prefetch_release");
+    return PreservedAnalyses::none();
+  }
+};
+
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
@@ -115,10 +145,23 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {
       LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
         PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
+
+					// We *hate* exceptions.
+          // printf("Hello\n");
+          // MPM.addPass(PrintPassThing());
+          // return true;
+
           if (getenv("ALASKA_COMPILER_BASELINE")) print_progress = false;
 
-          MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+          // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
           MPM.addPass(ProgressPass("Link Stub"));
+
+
+          MPM.addPass(adapt(LowerSwitchPass()));
+          MPM.addPass(adapt(LowerInvokePass()));
+					MPM.addPass(adapt(DCEPass()));
+					MPM.addPass(adapt(ADCEPass()));
+					MPM.addPass(RealDCEPass());
 
           // printf("Link stub %lf\n", alaska::time_ms() - start);
           // start = alaska::time_ms();
@@ -143,7 +186,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(ProgressPass("Translate"));
             MPM.addPass(adapt(PromotePass()));
-            MPM.addPass(ProgressPass("mem2reg"));
+            //MPM.addPass(ProgressPass("mem2reg"));
+            // return true;
 
 
 #ifdef ALASKA_ESCAPE_PASS
@@ -168,7 +212,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
             MPM.addPass(ProgressPass("Link runtime"));
 #endif
-            MPM.addPass(adapt(LowerInvokePass()));
             MPM.addPass(AlaskaLowerPass());
             MPM.addPass(ProgressPass("Lowering"));
 

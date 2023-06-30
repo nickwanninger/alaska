@@ -170,7 +170,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           IRBuilder<> b(call);
 
           // auto val = b.CreateGEP(arg->getType(), arg, {});
-          auto translated = alaska::insertTranslationBefore(call, arg);
+					auto val = alaska::insertRootBefore(call, arg);
+          auto translated = alaska::insertTranslationBefore(call, val);
           alaska::insertReleaseBefore(call->getNextNode(), arg);
           call->setArgOperand(i, translated);
         }
