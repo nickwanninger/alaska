@@ -202,14 +202,13 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       // Insert a store right after all the releases to say "we're done with this handle".
       for (auto unlock : translation->releases) {
         b.SetInsertPoint(unlock->getNextNode());
-        // store a null the unlocks
         b.CreateStore(
             llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
       }
     }
 
     // For each instruction that escapes...
-    EscapeEnumerator EE(F, "alaska_cleanup", /*HandleExceptions=*/true, nullptr);
+    EscapeEnumerator EE(F, "alaska_cleanup", /*HandleExceptions=*/false, nullptr);
     while (IRBuilder<> *AtExit = EE.Next()) {
       // Pop the entry from the shadow stack. Don't reuse CurrentHead from
       // AtEntry, since that would make the value live for the entire function.
@@ -219,7 +218,6 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       // AtExit->CreateStore(CurrentHead, Head);
     }
 
-    if (F.getName() == "inc") errs() << F << "\n";
   }
 
   return PreservedAnalyses::none();

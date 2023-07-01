@@ -99,24 +99,24 @@ perf_stats = [
     "LLC-stores",
     "branch-instructions",
     "branch-misses",
-    "branch-load-misses",
-    "branch-loads",
-    "dTLB-load-misses",
-    "dTLB-loads",
-    "dTLB-store-misses",
-    "dTLB-stores",
-    "iTLB-load-misses",
-    "iTLB-loads",
-    "node-load-misses",
-    "node-loads",
-    "node-store-misses",
-    "node-stores",
+    # "branch-load-misses",
+    # "branch-loads",
+    # "dTLB-load-misses",
+    # "dTLB-loads",
+    # "dTLB-store-misses",
+    # "dTLB-stores",
+    # "iTLB-load-misses",
+    # "iTLB-loads",
+    # "node-load-misses",
+    # "node-loads",
+    # "node-store-misses",
+    # "node-stores",
 ]
 
 class PerfRunner(Runner):
     def run(self, workspace, config, binary):
         cwd = os.getcwd() if config.cwd is None else config.cwd
-        print("running ", binary)
+        print("running cd", cwd, "&&", binary, *config.args)
         with waterline.utils.cd(cwd):
             proc = subprocess.Popen(
                 ['perf', 'stat', '-e', ','.join(perf_stats), '-x', ',', '-o', f'{binary}.perf.csv', binary, *config.args],
@@ -132,14 +132,14 @@ class PerfRunner(Runner):
         out = {}
         for val, name in zip(df[0], df[2]):
             out[name] = val
-        print(out)
+        # print(out)
         return out
 
 
 
-# space.add_suite(wl.suites.Embench)
-# space.add_suite(wl.suites.PolyBench, size="LARGE")
-# space.add_suite(wl.suites.Stockfish)
+space.add_suite(wl.suites.Embench)
+space.add_suite(wl.suites.PolyBench, size="LARGE")
+space.add_suite(wl.suites.Stockfish)
 space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
 space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
 # space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
@@ -159,10 +159,8 @@ pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
 
-compile = False
-results = space.run(runner=PerfRunner(), runs=1, compile=compile)
-# results = space.run(runs=3, compile=compile)
-# exit()
+compile = True
+results = space.run(runner=PerfRunner(), runs=10, compile=compile)
 print(results)
 results.to_csv("bench/results.csv", index=False)
 
@@ -215,8 +213,8 @@ def plot_results(df, metric, baseline, modified, title='Result', ylabel='speedup
 
 df = pd.read_csv('bench/results.csv')
 # print(df)
-plot_results(df, 'time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
-plot_results(df, 'maxrss', 'alaska', 'baseline', title='Benchmark RSS (Lower is better)', ylabel='speedup')
+plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
+# plot_results(df, 'maxrss', 'alaska', 'baseline', title='Benchmark RSS (Lower is better)', ylabel='speedup')
 
 # plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
 # plot_results(df, 'L1-dcache-loads', 'alaska', 'baseline', title='Loads from Level 1 data cache', ylabel='increase')

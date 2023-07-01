@@ -109,6 +109,7 @@ alaska::TranslationForest::Node::Node(
 
 static llvm::Loop *get_outermost_loop_for_translation(
     llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
+  // return nullptr;
   if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
     return loopToCheck;
   }
@@ -167,23 +168,28 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
 
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
-  double start = alaska::time_ms();
+  // double start = alaska::time_ms();
   alaska::PointerFlowGraph G(func);
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
 
+
+  // for (auto loop : loops) {
+  //   errs() << *loop << "\n";
+  // }
+
   // printf("init %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
   // The nodes which have no in edges that it post dominates
-  std::set<alaska::FlowNode *> roots;
+  std::set<alaska::FlowNode *> temp_roots;
 
   // all the sources are roots in the pointer flow graph
   for (auto *node : G.get_nodes()) {
     if (node->type == alaska::NodeType::Source) {
-      roots.insert(node);
+      temp_roots.insert(node);
     }
   }
 
@@ -191,10 +197,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // start = alaska::time_ms();
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
-  for (auto *root : roots) {
-		if (!alaska::shouldTranslate(root->value)) {
-			continue;
-		}
+  for (auto *root : temp_roots) {
     auto node = std::make_unique<Node>(root);
 
     // compute which children dominate which siblings
@@ -227,7 +230,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // start = alaska::time_ms();
 
   for (auto &root : this->roots) {
-		// errs() << "root " << root.get() << " val: " << *root->val << "\n";
+    // errs() << "root " << root.get() << " val: " << *root->val << "\n";
     for (auto &child : root->children) {
       if (child->share_translation_with == NULL) {
         auto &lb = get_translation_bounds();
@@ -266,11 +269,12 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       // it's parent is a source, create the incoming translation
       if (child->share_translation_with == NULL && child->parent->parent == NULL) {
         auto &lb = get_translation_bounds(child->translation_id);
-				alaska::println("find:", *root->val);
-				alaska::println("inst:", *inst);
+        // alaska::println("find:", *root->val);
+        // alaska::println("inst:", *inst);
         lb.translateBefore = compute_translation_insertion_location(root->val, inst, loops);
 
         lb.pointer = alaska::insertRootBefore(lb.translateBefore, root->val);
+        // errs() << *lb.pointer << "\n";
         IRBuilder<> b(lb.translateBefore);
       }
     }
@@ -362,18 +366,12 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
     OUT[i].clear();
 
-
-    if (auto *resumeinst = dyn_cast<ResumeInst>(i)) {
-			alaska::println("resume bullshit ", *resumeinst);
-		}
-
     // successor updating
     if (auto *switch_inst = dyn_cast<SwitchInst>(i)) {
-			for (auto caseIt : switch_inst->cases()) {
-
+      for (auto caseIt : switch_inst->cases()) {
         OUT[i] |= IN[&caseIt.getCaseSuccessor()->front()];
-				// caseIt.
-			}
+        // caseIt.
+      }
       //
     } else if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
       if (auto normal_bb = invoke_inst->getNormalDest()) {

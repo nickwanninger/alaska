@@ -123,7 +123,7 @@ class RealDCEPass : public llvm::PassInfoMixin<RealDCEPass> {
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     for (auto &F : M) {
       if (F.empty()) continue;
-			llvm::EliminateUnreachableBlocks(F);
+      llvm::EliminateUnreachableBlocks(F);
     }
     // inlineCallsTo(M.getFunction("alaska_translate"));
     // inlineCallsTo(M.getFunction("alaska_release"));
@@ -145,8 +145,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {
       LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
         PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-
-					// We *hate* exceptions.
+          // We *hate* exceptions.
           // printf("Hello\n");
           // MPM.addPass(PrintPassThing());
           // return true;
@@ -154,18 +153,16 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           if (getenv("ALASKA_COMPILER_BASELINE")) print_progress = false;
 
           // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-          MPM.addPass(ProgressPass("Link Stub"));
+          // MPM.addPass(ProgressPass("Link Stub"));
 
 
           MPM.addPass(adapt(LowerSwitchPass()));
           MPM.addPass(adapt(LowerInvokePass()));
-					MPM.addPass(adapt(DCEPass()));
-					MPM.addPass(adapt(ADCEPass()));
-					MPM.addPass(RealDCEPass());
-
+          MPM.addPass(adapt(DCEPass()));
+          MPM.addPass(adapt(ADCEPass()));
+          MPM.addPass(RealDCEPass());
           // printf("Link stub %lf\n", alaska::time_ms() - start);
           // start = alaska::time_ms();
-          //
 
           // Run a normalization pass regardless of the environment configuration
           MPM.addPass(AlaskaNormalizePass());
@@ -185,9 +182,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #endif
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(ProgressPass("Translate"));
-            MPM.addPass(adapt(PromotePass()));
-            //MPM.addPass(ProgressPass("mem2reg"));
-            // return true;
+        // MPM.addPass(adapt(PromotePass()));
+        // MPM.addPass(ProgressPass("mem2reg"));
+        // return true;
 
 
 #ifdef ALASKA_ESCAPE_PASS
@@ -197,10 +194,11 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             }
 #endif
 
+
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(LockPrinterPass());
 #endif
-            MPM.addPass(RedundantArgumentLockElisionPass());
+            // MPM.addPass(RedundantArgumentLockElisionPass());
             MPM.addPass(ProgressPass("RLE"));
 
             if (!alaska::bootstrapping()) {
@@ -212,6 +210,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
             MPM.addPass(ProgressPass("Link runtime"));
 #endif
+
+
             MPM.addPass(AlaskaLowerPass());
             MPM.addPass(ProgressPass("Lowering"));
 
