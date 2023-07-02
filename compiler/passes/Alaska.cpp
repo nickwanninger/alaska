@@ -14,6 +14,7 @@
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
+#include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/IR/PassTimingInfo.h"
 
 // Noelle Includes
@@ -125,10 +126,6 @@ class RealDCEPass : public llvm::PassInfoMixin<RealDCEPass> {
       if (F.empty()) continue;
       llvm::EliminateUnreachableBlocks(F);
     }
-    // inlineCallsTo(M.getFunction("alaska_translate"));
-    // inlineCallsTo(M.getFunction("alaska_release"));
-    // replace_function(M, "alaska_translate", "alaska_prefetch_translate");
-    // replace_function(M, "alaska_release", "alaska_prefetch_release");
     return PreservedAnalyses::none();
   }
 };
@@ -152,15 +149,17 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
           if (getenv("ALASKA_COMPILER_BASELINE")) print_progress = false;
 
-          // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-          // MPM.addPass(ProgressPass("Link Stub"));
-
+          MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+          MPM.addPass(ProgressPass("Link Stub"));
 
           MPM.addPass(adapt(LowerSwitchPass()));
           MPM.addPass(adapt(LowerInvokePass()));
-          MPM.addPass(adapt(DCEPass()));
-          MPM.addPass(adapt(ADCEPass()));
-          MPM.addPass(RealDCEPass());
+
+          // MPM.addPass(adapt(DCEPass()));
+          // MPM.addPass(adapt(DCEPass()));
+          // MPM.addPass(adapt(ADCEPass()));
+          // MPM.addPass(RealDCEPass());
+
           // printf("Link stub %lf\n", alaska::time_ms() - start);
           // start = alaska::time_ms();
 

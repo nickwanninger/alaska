@@ -103,41 +103,55 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
 
   std::vector<std::unique_ptr<alaska::Translation>> trs;
 
-  // Find all users of translation that are in this function
-  for (auto user : translateFunction->users()) {
-    if (auto inst = dyn_cast<CallInst>(user)) {
-      if (inst->getFunction() == &F) {
-        if (inst->getCalledFunction() == translateFunction) {
-          auto tr = std::make_unique<alaska::Translation>();
-          tr->translation = inst;
-          trs.push_back(std::move(tr));
-        }
+
+  auto start = alaska::time_ms();
+
+  for (auto &I : instructions(F)) {
+    if (auto inst = dyn_cast<CallInst>(&I)) {
+      if (inst->getFunction() == &F && inst->getCalledFunction() == translateFunction) {
+        auto tr = std::make_unique<alaska::Translation>();
+        tr->translation = inst;
+        trs.push_back(std::move(tr));
       }
     }
   }
+  // Find all users of translation that are in this function
+  // for (auto user : translateFunction->users()) {
+  // users++;
+  //   if (auto inst = dyn_cast<CallInst>(user)) {
+  //     if (inst->getFunction() == &F && inst->getCalledFunction() == translateFunction) {
+  //       auto tr = std::make_unique<alaska::Translation>();
+  //       tr->translation = inst;
+  //       trs.push_back(std::move(tr));
+  //     }
+  //   }
+  // }
+  auto end = alaska::time_ms();
+
 
   // associate releases
   if (releaseFunction != NULL) {
-    for (auto user : releaseFunction->users()) {
-      if (auto inst = dyn_cast<CallInst>(user)) {
-        if (inst->getFunction() == &F) {
-          if (inst->getCalledFunction() == releaseFunction) {
-            for (auto &tr : trs) {
-              if (tr->getHandle() == inst->getOperand(0)) {
-                tr->releases.insert(inst);
-              }
-            }
+    for (auto &I : instructions(F)) {
+      if (auto inst = dyn_cast<CallInst>(&I)) {
+        if (inst->getFunction() != &F) continue;
+        if (inst->getCalledFunction() != releaseFunction) continue;
+        for (auto &tr : trs) {
+          if (tr->getHandle() == inst->getOperand(0)) {
+            tr->releases.insert(inst);
           }
         }
       }
     }
   }
-
   for (auto &tr : trs) {
     extract_users(tr->translation, tr->users);
   }
 
   computeTranslationLiveness(F, trs);
+
+  // printf("%10f %s %d\n", (end - start), F.getName().data());
+  // alaska::println(F.getName(), " ", (long)(end - start), "ms");
+  // printf("f%lu iters\n", iters);
 
   return trs;
 }

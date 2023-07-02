@@ -1,8 +1,10 @@
 #include <alaska/Passes.h>
 #include <alaska/Translations.h>
 #include <alaska/Utils.h>
-#include <llvm/Transforms/Utils/EscapeEnumerator.h>
+
+#include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/ADT/SparseBitVector.h"
 
 using namespace llvm;
 
@@ -123,16 +125,16 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     // so there aren't any restrictions on which lock can get which cell.
     for (auto &[lock, intr] : interference) {
       long available_cell = -1;
-      std::set<long> unavail;  // which cells are not available?
+			llvm::SparseBitVector<128> unavail;
       for (auto other : intr) {
         long cell = lock_cell_ids[other];
         if (cell != -1) {
-          unavail.insert(cell);
+          unavail.set(cell);
         }
       }
       // find a cell that hasn't been used by any of the interfering locks.
       for (long current_cell = 0;; current_cell++) {
-        if (unavail.count(current_cell) == 0) {
+        if (!unavail.test(current_cell)) {
           available_cell = current_cell;
           break;
         }
@@ -149,8 +151,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     long cell_count = max_cell + 1;  // account for 0 index
 
-    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
-        translations.size(), F.getName().data());
+    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
+    //     translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
