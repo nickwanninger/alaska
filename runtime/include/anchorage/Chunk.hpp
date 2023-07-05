@@ -27,7 +27,7 @@ namespace anchorage {
    * success.
    */
   struct Chunk {
-		// FreeList is a friend of chunks.
+    // FreeList is a friend of chunks.
     friend anchorage::FreeList;
 
     size_t pages;  // how many 4k pages this chunk uses.
@@ -35,12 +35,12 @@ namespace anchorage {
         *front;  // The first block. This is also a pointer to the first byte of the mmap region
     anchorage::Block *tos;      // "Top of stack"
     size_t high_watermark = 0;  // the highest point this chunk has reached.
-		
-		// How many active bytes are there - tracked by alloc/free
-		size_t active_bytes = 0;
 
-		anchorage::FirstFitSingleFreeList free_list;
-		// anchorage::FirstFitSegregatedFreeList free_list;
+    // How many active bytes are there - tracked by alloc/free
+    size_t active_bytes = 0;
+
+    anchorage::FirstFitSingleFreeList free_list;
+    // anchorage::FirstFitSegregatedFreeList free_list;
     // struct list_head free_list;
 
     // ctor/dtor
@@ -65,6 +65,11 @@ namespace anchorage {
     // add and remove blocks from the free list
     void fl_add(Block *blk);
     void fl_del(Block *blk);
+
+    // what is the current frag ratio?
+    float frag() {
+      return span() / (double)active_bytes;
+    }
 
     // dump the chunk to stdout for debugging.
     void dump(Block *focus = NULL, const char *message = "");
@@ -93,6 +98,9 @@ namespace anchorage {
 
     bool shift_hole(anchorage::Block **hole_ptr, ShiftDirection dir);
     void gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes);
+
+		// Go through the heap and validate a bunch of stuff
+		void validate_heap(const char *context_name);
   };
 
 }  // namespace anchorage

@@ -14,10 +14,6 @@ endchoice
 menu "Anchorage service configuration"
 	depends on SERVICE_ANCHORAGE
 
-	config ANCHORAGE_DEFRAG_REORDER
-		bool "Permit heap reordering when performing defragmentation"
-		default y
-
 	config ANCHORAGE_PRINT_ACCESS
 		bool "Print accesses to the heap as they happen. For debug purposes only"
 		default n
@@ -30,6 +26,10 @@ endmenu
 
 
 menu "Debug"
+	config SANITY_CHECK
+		bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
+		default n
+
 	config DUMP_TRANSLATIONS
 		bool "Dump translations after they are created"
 		default n
@@ -42,6 +42,30 @@ menu "Debug"
 	config DUMP_FLOW_GRAPH
 		bool "Dump flow graphs after they are constructed"
 		default n
+
+	config VERIFY_PASS
+		bool "Verify state of LLVM module while transformations are applied. Useful when debugging passes."
+		default n
+endmenu
+
+
+menu "Experimental"
+	config COMPILER_TIMING
+		bool "Enable compiler timing for joining remote barriers"
+		default n
+
+	config SWAP_SUPPORT
+		bool "Enable swap-in checking in the translation operation"
+		default n
+
+	config HANDLE_SQUEEZING
+		bool "Squeeze more handles into the encoding space by lobbing off alignment bits when encoding (not recommended)"
+		default n
+
+
+	config TRACK_TRANSLATION_HITRATE
+		bool "Track hit/miss rate for translations"
+		default n
 endmenu
 
 
@@ -49,49 +73,16 @@ config ESCAPE_PASS
 	bool "Translate before argument escapes"
 	default y
 
-
-config SANITY_CHECK
-	bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
-	default n
-
 config HOIST_TRANSLATIONS
 	bool "Hoist translations out of loops"
 	default y
 
-config COMPILER_TIMING
-	bool "Enable compiler timing for joining remote barriers"
-	default n
-
-
-config INLINE_TRANSLATION
-	bool "Inline translations (recommended)"
-	default y
-
-config CORRECTNESS_EMULATOR_LOGGING
-	bool "Log correctness fault load/store messages"
-	depends on CORRECTNESS_EMULATOR
-	default n
-
-
-config SWAP_SUPPORT
-	bool "Enable swap-in checking in the translation operation"
-	default n
 
 config LOCK_TRACKING
 	bool "Enable lock tracking via shadow-stack rooting"
 	default y
 
+config INLINE_TRANSLATION
+	bool "Inline translations (recommended)"
+	default y
 
-
-config HANDLE_SQUEEZING
-	bool "Squeeze more handles into the encoding space by lobbing off alignment bits when encoding"
-	default n
-
-
-config TRACK_TRANSLATION_HITRATE
-	bool "Track hit/miss rate for translations"
-	default n
-
-config VERIFY_PASS
-  bool "Verify state of LLVM module while transformations are applied. Useful when debugging passes."
-  default n

@@ -41,9 +41,9 @@ namespace anchorage {
     void set_handle(alaska::Mapping *handle);      // set the handle
     void mark_as_free(anchorage::Chunk &chunk);    // clear the handle and record it in the
     auto next(void) const -> anchorage::Block *;   // get the next block
-    void set_next(anchorage::Block *new_next);    // set the next block (TODO: abstract into LL ops)
+    void set_next(anchorage::Block *new_next, bool backlink = true);    // set the next block (TODO: abstract into LL ops)
     auto prev(void) const -> anchorage::Block *;  // get the prev block
-    void set_prev(anchorage::Block *new_prev);    // set the prev block (TODO: abstract into LL ops)
+    void set_prev(anchorage::Block *new_prev, bool backlink = true);    // set the prev block (TODO: abstract into LL ops)
 
 
     auto crc(void) -> uint32_t;  // compute the crc32 of the data in the block
@@ -99,7 +99,7 @@ namespace anchorage {
 
 
 inline void anchorage::Block::clear(void) {
-  m_handle = UINT_MAX;
+	set_handle(nullptr);
   // clear_handle();
   m_flags = 0;
 }
@@ -123,14 +123,12 @@ inline bool anchorage::Block::is_locked(void) {
 }
 
 inline auto anchorage::Block::handle(void) const -> alaska::Mapping * {
-  if (m_handle == UINT_MAX) return NULL;  // cast the 32bit "pointer" into the real pointer
+  // if (m_handle == UINT_MAX) return NULL;  // cast the 32bit "pointer" into the real pointer
   return (alaska::Mapping *)(uint64_t)m_handle;
 }
 
 
 inline void anchorage::Block::set_handle(alaska::Mapping *handle) {
-  if (handle == NULL) m_handle = UINT_MAX;
-  // Assign the packed 32bit "pointer"
   m_handle = (uint32_t)(uint64_t)handle;
 }
 
@@ -144,12 +142,12 @@ inline auto anchorage::Block::next(void) const -> anchorage::Block * {
   if (m_next_off == 0) return nullptr;
   return const_cast<anchorage::Block *>(this + m_next_off);
 }
-inline void anchorage::Block::set_next(anchorage::Block *new_next) {
+inline void anchorage::Block::set_next(anchorage::Block *new_next, bool backlink) {
   if (new_next == nullptr) {
     m_next_off = 0;
   } else {
     m_next_off = new_next - this;
-    new_next->set_prev(this);
+    if (backlink) new_next->set_prev(this, false);
   }
 }
 
@@ -159,11 +157,12 @@ inline auto anchorage::Block::prev(void) const -> anchorage::Block * {
 }
 
 
-inline void anchorage::Block::set_prev(anchorage::Block *new_prev) {
+inline void anchorage::Block::set_prev(anchorage::Block *new_prev, bool backlink) {
   if (new_prev == nullptr) {
     m_prev_off = 0;
   } else {
     m_prev_off = this - new_prev;
+    if (backlink) new_prev->set_next(this, false);
   }
 }
 

@@ -49,8 +49,14 @@ anchorage::Chunk::Chunk(size_t pages)
     : pages(pages)
     , free_list(*this) {
   size_t size = anchorage::page_size * pages;
-  tos = front = (Block *)mmap(
+  front = (Block *)mmap(
       NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+
+  front->mark_locked(true);
+  front->set_handle((alaska::Mapping *)-1);
+  tos = front + 2;
+  front->set_next(tos);
+  dump(NULL, "Setup!");
 
   madvise(tos, size, MADV_HUGEPAGE);
   printf(
@@ -66,12 +72,8 @@ anchorage::Chunk::~Chunk(void) {
 
 // Split a free block, leaving `to_split` in the free list.
 bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t required_size) {
-
-	printf("\nSPLIT\n");
   auto current_size = to_split->size();
   if (current_size == required_size) return true;
-	to_split->dump_content("to split");
-
 
   size_t remaining_size = current_size - required_size;
 
@@ -81,13 +83,13 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
     return true;
   }
 
+  // printf("%lu %lu\n", to_split - this->front, this->tos - to_split);
+
   auto *new_blk = (anchorage::Block *)((char *)to_split->data() + required_size);
   new_blk->clear();
   new_blk->set_handle(nullptr);
   new_blk->set_next(to_split->next());
-  new_blk->set_prev(to_split);
   to_split->set_next(new_blk);
-  new_blk->next()->set_prev(to_split);
 
 
   fl_add(new_blk);
@@ -100,12 +102,13 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
 
 // add and remove blocks from the free list
 void anchorage::Chunk::fl_add(Block *blk) {
+  ALASKA_ASSERT(blk < tos, "A block being added to the free list must be below tos");
   // blk->dump_content("before add");
   free_list.add(blk);
   // blk->dump_content("after add");
 }
 void anchorage::Chunk::fl_del(Block *blk) {
-  blk->dump_content("before del");
+  // blk->dump_content("before del");
   free_list.remove(blk);
   // blk->dump_content("after del");
 }
@@ -114,14 +117,18 @@ void anchorage::Chunk::fl_del(Block *blk) {
 
 
 anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
+  validate_heap("alloc - start");
   // dump(NULL, "Before");
   size_t size = round_up(requested_size, anchorage::block_size);
   if (size == 0) size = anchorage::block_size;
+  // printf("Allocate %zu\n", size);
 
   if (auto blk = free_list.search(size); blk != nullptr) {
     if (split_free_block(blk, size)) {
       active_bytes += blk->size();
+      // printf("alloc return %p from free list!\n", blk);
       // No need to remove `blk` from the list, as free_list::search does that for us.
+      blk->set_handle((alaska::Mapping *)-1);
       return blk;
     }
   }
@@ -135,33 +142,43 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
     return NULL;
   }
 
+  validate_heap("alloc - before bump");
   Block *blk = tos;
   tos = (Block *)((uint8_t *)this->tos + anchorage::size_with_overhead(size));
   tos->clear();
   blk->clear();
 
   tos->set_next(nullptr);
+  tos->set_prev(blk);
   blk->set_next(tos);
+  blk->set_handle((alaska::Mapping *)-1);
+  validate_heap("alloc - after bump");
 
   if (span() > high_watermark) high_watermark = span();
 
   // dump(blk, "Alloc");
 
   active_bytes += blk->size();
+  // printf("alloc return %p\n", blk);
   return blk;
 }
 
 
 
 void anchorage::Chunk::free(anchorage::Block *blk) {
+  validate_heap("free - start");
+  ALASKA_ASSERT(blk < tos, "A live block must be below the top of stack");
   active_bytes -= blk->size();
   // printf("frag ratio %f - %zu allocated, %zu used\n", span() / (float)active_bytes, active_bytes,
   // span()); Disassociate the handle
   blk->mark_as_free(*this);
   // blk->dump_content("marked");
   fl_add(blk);
+
+  validate_heap("free - before coalesce_free, after fl_add");
   coalesce_free(blk);
-  printf("frag: %-10.6f\n", span() / (double)active_bytes);
+  validate_heap("free - after coalesce_free");
+  // printf("frag: %-10.6f\n", span() / (double)active_bytes);
   // dump(blk, "Free");
 }
 
@@ -174,54 +191,37 @@ size_t anchorage::Chunk::span(void) const {
 int anchorage::Chunk::coalesce_free(Block *blk) {
   // if the previous is free, ask it to coalesce instead, as we only handle
   // left-to-right coalescing.
-  while (blk->prev() && blk->prev()->is_free()) {
+  while (true) {
+    if (blk == this->front) break;
+    ALASKA_ASSERT(blk->prev() != NULL, "Previous block must not be null");
+    // If the previous block isn't free, break. we are at the start of a run of free blocks
+    if (!blk->prev()->is_free()) break;
     blk = blk->prev();
   }
 
   int changes = 0;
   Block *succ = blk->next();
-
   while (succ && succ->is_free() && succ != this->tos) {
+    ALASKA_ASSERT(succ > blk, "successor is after cur");
+    ALASKA_ASSERT(succ < tos, "successor must be before top of stack");
     // If the successor is free, remove it from the free list
     // and take over it's space.
     fl_del(succ);
+    // printf("succ next: %p\n", succ->next());
     blk->set_next(succ->next());
     succ = succ->next();
     changes += 1;
   }
 
-  // If the next node is the top of stack, this block should become top of stack
-  if (true && (blk->next() == tos || blk->next() == NULL)) {
-    // move the top of stack down if we can.
-    // There are two cases to handle here.
-
-    if (blk->is_used()) {
-      // 1. The block before `tos` is an allocated block. In this case, we move
-      //    the `tos` right to the end of the allocated block.
-      auto after = blk->next();  // TODO: might not work!
-      tos = (Block *)after;
-      blk->set_next((Block *)after);
-      tos->set_next(NULL);
-      tos->mark_as_free(*this);
-      changes++;
-      fprintf(stderr, "Edge case check: blk is used but it is being coalesced? TF?\n");
-      abort();
-    } else {
-      // 2. The block before `tos` is a free block. This block should become `tos`
-      blk->set_next(NULL);
-      tos = blk;
-      fl_del(blk);
-      changes++;
-    }
+  fl_del(blk);
+  if (blk->next() == tos) {
+    this->tos = blk;
+    blk->set_next(NULL);  // tos has null as next
   } else {
-    // If the next block is *not* the top of stack, remove and re-add to the free list. This ensures
-    // that if the block changed size, the free list understands that and puts it in the right place
-    fl_del(blk);
     fl_add(blk);
   }
 
-  // dump(blk, "COAL");
-
+  // if (changes > 0) printf("changes %d\n", changes);
   return changes;
 }
 
@@ -241,10 +241,10 @@ void anchorage::Chunk::dump(Block *focus, const char *message) {
   printf("%-10s ", message);
 
 
-  char buf[32];
-  printf("active: %-10s ", readable_fs(active_bytes, buf));
-  printf("span: %-10s ", readable_fs(span(), buf));
-  printf("frag: %-10.6f", span() / (double)active_bytes);
+  // char buf[32];
+  // printf("active: %-10s ", readable_fs(active_bytes, buf));
+  // printf("span: %-10s ", readable_fs(span(), buf));
+  // printf("frag: %-10.6f", span() / (double)active_bytes);
   // printf("\n");
   // return;
 
@@ -323,9 +323,9 @@ bool anchorage::Chunk::shift_hole(anchorage::Block **hole_ptr, ShiftDirection di
 
   if (dir == ShiftDirection::Right) {
     fl_del(hole);
-    printf("\n");
-    shiftee->dump_content("Shiftee");
-    hole->dump_content("Hole");
+    // printf("\n");
+    // shiftee->dump_content("Shiftee");
+    // hole->dump_content("Hole");
 
     anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + shiftee->size());
 
@@ -362,8 +362,8 @@ bool anchorage::Chunk::shift_hole(anchorage::Block **hole_ptr, ShiftDirection di
     // dump(trailing_free, "TF");
     fl_add(trailing_free);
 
-    hole->dump_content("after_move");
-    trailing_free->dump_content("trailing_free");
+    // hole->dump_content("after_move");
+    // trailing_free->dump_content("trailing_free");
     // coalesce_free(trailing_free);
     *hole_ptr = trailing_free;
     return true;
@@ -371,6 +371,32 @@ bool anchorage::Chunk::shift_hole(anchorage::Block **hole_ptr, ShiftDirection di
 
   return false;
 }
+
+void anchorage::Chunk::validate_heap(const char *context_name) {
+  return;
+  printf("Validating in context '%s'\n", context_name);
+  dump(nullptr, "Validate");
+  ck::vec<anchorage::Block *> v_all_free_blocks;
+  free_list.collect(v_all_free_blocks);
+  ck::set<anchorage::Block *> free_blocks;
+  for (auto *b : v_all_free_blocks) {
+    free_blocks.add(b);
+  }
+
+
+  for (auto &b : *this) {
+    dump(&b, "checking");
+    if (b.is_free())
+      ALASKA_ASSERT(free_blocks.contains(&b), "A free block must be in the free list");
+    if (b.prev() == NULL)
+      ALASKA_ASSERT(&b == front, "if prev() is null, the block must be the bottom of the stack");
+    if (b.next() == NULL)
+      ALASKA_ASSERT(&b == tos, "if next() is null, the block must be top of stack");
+    if (b.next() != NULL)
+      ALASKA_ASSERT(b.next()->prev() == &b, "The next's previous must be this block");
+  }
+}
+
 
 
 void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes) {
@@ -392,8 +418,7 @@ void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_hole
 // in this function, Dianoga does his work.
 long anchorage::Chunk::defragment(void) {
   long old_span = span();
-  printf("DEFRAG\n");
-
+	double frag_before = frag();
   dump(nullptr, "Before");
   ck::vec<anchorage::Block *> holes;
   long swaps = 0;
@@ -419,15 +444,14 @@ long anchorage::Chunk::defragment(void) {
       if (left == nullptr) continue;
 
 
-
-      while (true) {
-        left->dump_content("before shift");
+      for (int moves = 0; moves < 4096; moves++) {
+        // left->dump_content("before shift");
         if (!shift_hole(&left, ShiftDirection::Right)) {
+          swaps++;
           break;
         }
-        left->dump_content("after shift");
+        // left->dump_content("after shift");
         changed = true;
-        swaps++;
         dump(left, "swap");
       }
 
@@ -442,43 +466,45 @@ long anchorage::Chunk::defragment(void) {
   }
 
 
-  // gather_sorted_holes(holes);
-  // for (auto *hole : holes) {
-  //   // printf("hole: %p\n", hole);
-  //
-  //   // printf("Part 2:\n");
-  //   // Can `cur` fit into `hole`?
-  //   for (auto *cur = tos->prev(); cur != NULL && cur != hole; cur = cur->prev()) {
-  //     if (hole->is_used()) break;
-  //     if (cur->is_free() || cur->is_locked()) continue;
-  //
-  //     auto cursize = cur->size();
-  //     auto holesize = hole->size();
-  //
-  //     if (cursize < holesize) {
-  //       if (split_free_block(hole, cursize)) {
-  //         dump(hole, "hole");
-  //         dump(cur, "cur");
-  //         fl_del(hole);
-  //
-  //         memmove(hole->data(), cur->data(), cursize);
-  //         auto *handle = cur->handle();
-  //         handle->ptr = hole->data();
-  //         hole->set_handle(handle);
-  //         cur->set_handle(nullptr);
-  //         hole = hole->next();
-  //
-  //
-  //         // `cur` has now become a free block, so we have to add it to the freelist and coalesce
-  //         it fl_add(cur); coalesce_free(cur);
-  //       }
-  //     } else {
-  //       // The hole is exactly big enough for the allocation
-  //       break;
-  //     }
-  //   }
-  // }
+  gather_sorted_holes(holes);
+  for (auto *hole : holes) {
+    // printf("hole: %p\n", hole);
 
+    // printf("Part 2:\n");
+    // Can `cur` fit into `hole`?
+    for (auto *cur = tos->prev(); cur != NULL && cur != hole; cur = cur->prev()) {
+      if (hole->is_used()) break;
+      if (cur->is_free() || cur->is_locked()) continue;
+
+      auto cursize = cur->size();
+      auto holesize = hole->size();
+
+      if (cursize < holesize) {
+        if (split_free_block(hole, cursize)) {
+          dump(hole, "hole");
+          dump(cur, "cur");
+          fl_del(hole);
+
+          memmove(hole->data(), cur->data(), cursize);
+          auto *handle = cur->handle();
+          handle->ptr = hole->data();
+          hole->set_handle(handle);
+          cur->set_handle(nullptr);
+          hole = hole->next();
+
+
+          // `cur` has now become a free block, so we have
+          // to add it to the freelist and coalesce it
+          fl_add(cur);
+          coalesce_free(cur);
+        }
+      } else {
+        // The hole is exactly big enough for the allocation
+        break;
+      }
+    }
+  }
+  //
   long end = alaska_timestamp();
   (void)(end - start);  // use so I can comment out the logging below
 
@@ -492,15 +518,18 @@ long anchorage::Chunk::defragment(void) {
   (void)free_blocks_before;
   (void)free_blocks_after;
 
-  dump(NULL, "After");
-  // char buf0[32];
-  // char buf1[32];
-  //
-  // printf("save:%-10s swps:%-10lu ms:%-10f total:%-10s blocks:%-10ld free_blocks:%ld->%ld
-  // (%ld)\n",
-  //     readable_fs(saved, buf0), swaps, (end - start) / 1000.0 / 1000.0, readable_fs(span(),
-  //     buf1), block_count, free_blocks_before, free_blocks_after, free_blocks_after -
-  //     free_blocks_before);
+  // // dump(NULL, "After");
+  char buf[32];
+	printf("Save %-10s ", readable_fs(saved, buf));
+	printf("Usage %-10s ", readable_fs(span(), buf));
+	printf("time: %-10fms ", (end - start) / 1000.0 / 1000.0);
+	printf("frag: %f -> %f ", frag_before, frag());
+	printf("\n");
+  // printf(
+  //     "save:%-10s swps:%-10lu ms:%-10f total:%-10s blocks:%-10ld free_blocks:%ld->%ld (% ld) %f\n",
+  //     readable_fs(saved, buf0), swaps, (end - start) / 1000.0 / 1000.0, readable_fs(span(), buf1),
+  //     block_count, free_blocks_before, free_blocks_after, free_blocks_after - free_blocks_before,
+  //     frag());
 
 
   return saved;

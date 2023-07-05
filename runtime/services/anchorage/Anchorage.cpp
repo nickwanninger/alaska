@@ -28,19 +28,17 @@
 #include <malloc.h>
 #include <ck/lock.h>
 
-// static uint64_t last_barrier_time = 0;
 
 static ck::mutex anch_lock;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-  // auto now = alaska_timestamp();
-  //
-  // if (now - last_barrier_time > 500 * 1000 * 1000) {
-  // 	last_barrier_time = now;
-  // 	alaska::service::barrier();
-  // }
-  alaska::service::barrier();
-
+  static uint64_t last_barrier_time = 0;
+  auto now = alaska_timestamp();
+  if (now - last_barrier_time > 5000 * 1000UL * 1000UL) {
+    last_barrier_time = now;
+    alaska::service::barrier();
+  }
+  // alaska::service::barrier();
 
   // Grab a lock
   ck::scoped_lock l(anch_lock);
@@ -61,6 +59,7 @@ retry:
     if (blk) {
       new_chunk = chunk;
       new_block = blk;
+			ALASKA_ASSERT(blk < chunk->tos, "An allocated block must be less than the top of stack");
       break;
     }
   }
@@ -192,7 +191,7 @@ void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   if (ent->ptr == nullptr) return;
   auto *block = anchorage::Block::get(ent->ptr);
   block->mark_locked(locked);
-  printf("Mark %p %d\n", ent, locked);
+  // printf("Mark %p %d\n", ent, locked);
   // for (auto chunk : anchorage::Chunk::all()) {
   //   // if (chunk->contains(block)) {
   //   chunk->dump(block, "mark");
