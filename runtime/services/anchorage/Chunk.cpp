@@ -504,7 +504,7 @@ long anchorage::Chunk::defragment(void) {
       }
     }
   }
-  //
+
   long end = alaska_timestamp();
   (void)(end - start);  // use so I can comment out the logging below
 
@@ -518,13 +518,25 @@ long anchorage::Chunk::defragment(void) {
   (void)free_blocks_before;
   (void)free_blocks_after;
 
-  // // dump(NULL, "After");
-  char buf[32];
-	printf("Save %-10s ", readable_fs(saved, buf));
-	printf("Usage %-10s ", readable_fs(span(), buf));
-	printf("time: %-10fms ", (end - start) / 1000.0 / 1000.0);
-	printf("frag: %f -> %f ", frag_before, frag());
-	printf("\n");
+	// madvise dont need the stuff thats left over
+	size_t saved_pages = saved / 4096;
+	if (saved_pages > 10) {
+		printf("Saved pages %zu\n", saved_pages);
+		uint64_t dont_need_start = (uint64_t)tos;
+		madvise((void*)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
+	}
+
+
+
+ //  char buf[32];
+	// printf("Save %-10s ", readable_fs(saved, buf));
+	// printf("Usage %-10s ", readable_fs(span(), buf));
+	// printf("time: %-10fms ", (end - start) / 1000.0 / 1000.0);
+	// printf("frag: %f -> %f ", frag_before, frag());
+	// printf("\n");
+
+
+
   // printf(
   //     "save:%-10s swps:%-10lu ms:%-10f total:%-10s blocks:%-10ld free_blocks:%ld->%ld (% ld) %f\n",
   //     readable_fs(saved, buf0), swaps, (end - start) / 1000.0 / 1000.0, readable_fs(span(), buf1),

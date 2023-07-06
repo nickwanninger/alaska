@@ -32,6 +32,7 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
+	printf("halloc %zu\n", sz);
   // void *x = malloc(sz);
   // if (zero) memset(x, 0, sz);
   // return x;

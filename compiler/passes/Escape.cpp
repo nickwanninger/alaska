@@ -23,8 +23,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       "hfree",
       "hfree_trace",
 
-			// Don't pre-translate
-			"alaska_usable_size",
+      // Don't pre-translate
+      "alaska_usable_size",
       // Anchorage stuff
       "anchorage_manufacture_locality",
       // "intrinsics"
@@ -35,8 +35,12 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       "strstr",
       "strchr",
 
-			// Redis hacks
-			"bioCreateLazyFreeJob",
+      // Redis hacks
+      "bioCreateLazyFreeJob",
+
+
+			// stub/net.c hacks
+			"dlsym",
   };
 
   for (auto r : alaska::wrapped_functions) {
@@ -135,7 +139,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
       return false;
     }
-		// TODO:
+    // TODO:
     return false;
   };
 
@@ -170,7 +174,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           IRBuilder<> b(call);
 
           // auto val = b.CreateGEP(arg->getType(), arg, {});
-					auto val = alaska::insertRootBefore(call, arg);
+          auto val = alaska::insertRootBefore(call, arg);
           auto translated = alaska::insertTranslationBefore(call, val);
           alaska::insertReleaseBefore(call->getNextNode(), arg);
           call->setArgOperand(i, translated);

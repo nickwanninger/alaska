@@ -206,3 +206,7 @@ void* alaska_ensure_present(alaska::Mapping* m) {
 extern "C" void __cxa_pure_virtual(void) {
 	abort();
 }
+
+extern "C" void *__alaska_leak(void *ptr) {
+	return alaska_translate(ptr);
+}

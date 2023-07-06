@@ -32,13 +32,13 @@
 static ck::mutex anch_lock;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-  static uint64_t last_barrier_time = 0;
-  auto now = alaska_timestamp();
-  if (now - last_barrier_time > 5000 * 1000UL * 1000UL) {
-    last_barrier_time = now;
-    alaska::service::barrier();
-  }
-  // alaska::service::barrier();
+  // static uint64_t last_barrier_time = 0;
+  // auto now = alaska_timestamp();
+  // if (now - last_barrier_time > 5000 * 1000UL * 1000UL) {
+  //   last_barrier_time = now;
+  //   alaska::service::barrier();
+  // }
+  // // alaska::service::barrier();
 
   // Grab a lock
   ck::scoped_lock l(anch_lock);
@@ -59,7 +59,7 @@ retry:
     if (blk) {
       new_chunk = chunk;
       new_block = blk;
-			ALASKA_ASSERT(blk < chunk->tos, "An allocated block must be less than the top of stack");
+      ALASKA_ASSERT(blk < chunk->tos, "An allocated block must be less than the top of stack");
       break;
     }
   }
@@ -74,7 +74,6 @@ retry:
     new anchorage::Chunk(required_pages);  // add a chunk
 
     goto retry;
-    // return alaska::service::alloc(ent, size);
   }
 
   if (m.ptr != NULL) {
@@ -82,16 +81,7 @@ retry:
     auto *old_chunk = anchorage::Chunk::get(m.ptr);
     size_t copy_size = old_block->size();
     if (new_block->size() < copy_size) copy_size = new_block->size();
-
-
-    // printf("realloc %p -> %p (%zu -> %zu) %zu\n", old_block, new_block, old_block->size(),
-    // new_block->size(), copy_size); old_block->dump_content("old before");
-    // new_block->dump_content("new before");
     memcpy(new_block->data(), old_block->data(), copy_size);
-
-    // old_block->dump_content("old after");
-    // new_block->dump_content("new after");
-    // printf("\n");
 
     new_block->set_handle(&m);
     ent->ptr = new_block->data();
@@ -101,8 +91,6 @@ retry:
     ent->ptr = new_block->data();
   }
 
-
-  // printf("[alaska] alloc %p %zu %zu\n", new_block, new_block->size(), size);
   return;
 }
 
@@ -123,34 +111,37 @@ void alaska::service::free(alaska::Mapping *ent) {
 }
 
 size_t alaska::service::usable_size(void *ptr) {
-  // auto *chunk = anchorage::Chunk::get(ptr);
-  // // printf("chunk %p\n", chunk);
-  // if (chunk == NULL) {
-  //   return malloc_usable_size(ptr);
-  // }
-  // printf("usable %p\n", ptr);
-  // alaska_dump_backtrace();
   auto *blk = anchorage::Block::get(ptr);
-  // printf("size %p %zu\n", blk, blk->size());
   return blk->size();
 }
 
 
 pthread_t anchorage_barrier_thread;
-static uint64_t barrier_interval_ms = 500;
+static uint64_t barrier_interval_ms = 1000;
 static void *barrier_thread_fn(void *) {
   // uint64_t thread_start_time = alaska_timestamp();
   while (1) {
     usleep(barrier_interval_ms * 1000);
-    uint64_t start = alaska_timestamp();
-    alaska_barrier();
-    // alaska::barrier::begin();
-    // printf("SEND\n");
-    // sleep(1); // sleep for a second
-    // alaska::barrier::end();
-    uint64_t end = alaska_timestamp();
-    (void)(end - start);
-    // printf("Barrier %zu\n", end - start);
+
+    bool needs_defrag = false;
+
+    anch_lock.lock();
+    // Defragment the chunks
+    for (auto chunk : anchorage::Chunk::all()) {
+      double frag = chunk->frag();
+      printf("frag: %f, free blocks:%zu, size: %fmb\n", frag, chunk->free_list.size(), chunk->span() / 1024.0 / 1024.0);
+      if (frag > 1.1) {
+        needs_defrag = true;
+      }
+    }
+    anch_lock.unlock();
+
+    if (needs_defrag) {
+			auto start = alaska_timestamp();
+			alaska::service::barrier();
+			auto end = alaska_timestamp();
+			printf("%f ms\n", (end - start) / 1024.0 / 1024.0);
+		}
   }
 
   return NULL;
@@ -160,7 +151,7 @@ static void *barrier_thread_fn(void *) {
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
-  // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 void alaska::service::deinit(void) {

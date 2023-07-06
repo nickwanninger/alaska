@@ -111,6 +111,7 @@ add_bitcode(alaska_compat SOURCES lib/compat.c)
 
 
 add_bitcode(alaska_stub SOURCES
+	stub/net.c
 	stub/stub.c
 	stub/memcpy.c)
 
