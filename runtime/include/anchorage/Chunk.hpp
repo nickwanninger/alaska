@@ -39,9 +39,8 @@ namespace anchorage {
     // How many active bytes are there - tracked by alloc/free
     size_t active_bytes = 0;
 
-    anchorage::FirstFitSingleFreeList free_list;
-    // anchorage::FirstFitSegregatedFreeList free_list;
-    // struct list_head free_list;
+    // anchorage::FirstFitSingleFreeList free_list;
+    anchorage::FirstFitSegFreeList free_list;
 
     // ctor/dtor
     Chunk(size_t pages);

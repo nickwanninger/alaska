@@ -86,6 +86,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
   for (auto &F : M) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
+
+		// alaska::println("inserting locks into ", F.getName());
     // Extract all the locks from the function
     auto translations = alaska::extractTranslations(F);
     // If the function had no locks, don't do anything
@@ -95,6 +97,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     std::map<alaska::Translation *, long> lock_cell_ids;
     // Interference - a mapping from locks to the locks it is alive along side of.
     std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
+
+		// alaska::println(translations.size(), " translations.");
 
     // Loop over each translation, then over it's live instructions. For each live instruction see
     // which other locks are live in those instructions. This is horrible and slow. (but works)
@@ -112,6 +116,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
     }
+
+		// alaska::println("Here.");
 
     // long cell_count = 0;  // the maximum level of interference
     // for (auto &[_, i] : interference) {

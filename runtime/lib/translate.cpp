@@ -69,8 +69,8 @@ void *alaska_translate(void *ptr) {
   // Optionally, Sanity check that a handle has been locked on this thread
   // *before* translating. This ensures it won't be moved during
   // the invocation of this function
-  ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
-      "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
+  // ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
+  //     "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
   int64_t bits = (int64_t)ptr;
 
   // If the pointer is "greater than zero", then it is not a handle. This is because we rely on the

@@ -85,12 +85,12 @@ GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
 
 if [ "$phase" = "compile" ]; then
-	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
+	$GCLANG $OPT -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
 	exit
 else
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
+	$GCLANG $OPT -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
 
 	get-bc $OUTFILE >/dev/null
 	if [ "$BASELINE" == "true" ]; then
@@ -108,7 +108,7 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 $OPT -ldl `alaska-config --ldflags` ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]}
+	$CLANG -gdwarf-4 $OPT ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	rm ${TMPFILE}
 fi
 

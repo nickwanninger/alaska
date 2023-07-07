@@ -26,34 +26,6 @@ space = wl.Workspace("bench")
 enable_openmp = False
 
 
-
-
-class LDPreloadRunner(Runner):
-    name = "ldpreload"
-
-    def run(self, workspace, config, binary):
-        """Run the benchmark, and return the metric. By default, it returns the execution time"""
-        assert binary.exists()
-
-        config.env["LD_PRELOAD"] = "/home/nick/dev/alaska/build/runtime/liblifetimemalloc.so"
-
-        start = time.time()
-        proc = subprocess.Popen(
-            [binary, *config.args],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=config.env,
-            cwd=config.cwd,
-        )
-        proc.wait()
-        end = time.time()
-        return {'time': end - start}
-
-# space.run(runner=LDPreloadRunner(), runs=1, compile=False)
-# exit()
-
-# space.run(runs=1, compile=True)
-
 linker_flags = os.popen("alaska-config --ldflags").read().strip().split("\n")
 print("linker flags:", linker_flags)
 
@@ -64,7 +36,7 @@ class AlaskaLinker(wl.Linker):
 
     def link(self, ws, objects, output, args=[]):
         # it's pretty safe to link using clang++.
-        ws.shell("clang++", *args, *linker_flags, *objects, "-o", output)
+        ws.shell("clang++", *args, '-ldl', *linker_flags, *objects, "-o", output)
 
 
 class AlaskaStage(wl.pipeline.Stage):
@@ -137,20 +109,14 @@ class PerfRunner(Runner):
 
 
 
-space.add_suite(wl.suites.Embench)
-space.add_suite(wl.suites.PolyBench, size="LARGE")
-space.add_suite(wl.suites.Stockfish)
-space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
-# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
+# space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.PolyBench, size="LARGE")
+# # space.add_suite(wl.suites.Stockfish)
+# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
+# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
 
 space.clear_pipelines()
-
-
-pl = waterline.pipeline.Pipeline("baseline")
-pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
-pl.add_stage(AlaskaBaselineStage(), name="Baseline")
-space.add_pipeline(pl)
 
 pl = waterline.pipeline.Pipeline("alaska")
 pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
@@ -158,12 +124,18 @@ pl.add_stage(AlaskaStage(), name="Alaska")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
+pl = waterline.pipeline.Pipeline("baseline")
+pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
+pl.add_stage(AlaskaBaselineStage(), name="Baseline")
+pl.set_linker(AlaskaLinker())
+space.add_pipeline(pl)
+
+
 
 compile = True
-results = space.run(runner=PerfRunner(), runs=10, compile=compile)
+results = space.run(runner=PerfRunner(), runs=1, compile=compile)
 print(results)
 results.to_csv("bench/results.csv", index=False)
-
 # exit()
 
 def plot_results(df, metric, baseline, modified, title='Result', ylabel='speedup'):

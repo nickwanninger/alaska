@@ -26,6 +26,7 @@
 #include <set>
 #include <optional>
 
+#include "../../runtime/include/alaska/utils.h"
 
 
 #include <noelle/core/DGBase.hpp>
@@ -142,63 +143,52 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
   return {
       LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
         PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-          // We *hate* exceptions.
-          // printf("Hello\n");
-          // MPM.addPass(PrintPassThing());
-          // return true;
+          bool baseline = getenv("ALASKA_COMPILER_BASELINE") != NULL;
 
-          if (getenv("ALASKA_COMPILER_BASELINE")) print_progress = false;
+          if (baseline) print_progress = false;
 
-          MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-          MPM.addPass(ProgressPass("Link Stub"));
 
-          MPM.addPass(adapt(LowerSwitchPass()));
+          // Only link the stub in non-baseline
+          if (!baseline) {
+            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+            MPM.addPass(ProgressPass("Link Stub"));
+          }
+
+          // MPM.addPass(adapt(LowerSwitchPass()));
           MPM.addPass(adapt(LowerInvokePass()));
-
-          // MPM.addPass(adapt(DCEPass()));
-          // MPM.addPass(adapt(DCEPass()));
-          // MPM.addPass(adapt(ADCEPass()));
-          // MPM.addPass(RealDCEPass());
-
-          // printf("Link stub %lf\n", alaska::time_ms() - start);
-          // start = alaska::time_ms();
+          MPM.addPass(adapt(DCEPass()));
+          MPM.addPass(adapt(DCEPass()));
+          MPM.addPass(adapt(ADCEPass()));
+          MPM.addPass(RealDCEPass());  // LowerInvoke leaves dangling basic blocks...
 
           // Run a normalization pass regardless of the environment configuration
           MPM.addPass(AlaskaNormalizePass());
           MPM.addPass(ProgressPass("Normalize"));
 
-          if (getenv("ALASKA_COMPILER_BASELINE") == NULL) {
-            if (!alaska::bootstrapping()) {
-              // run replacement on non-bootstrapped code
-              MPM.addPass(AlaskaReplacementPass());
-              MPM.addPass(ProgressPass("Replacement"));
-            }
-
-
+          if (!baseline) {
+            MPM.addPass(AlaskaReplacementPass());
+            MPM.addPass(ProgressPass("Replacement"));
 
 #ifdef ALASKA_COMPILER_TIMING
-            if (!alaska::bootstrapping()) MPM.addPass(CompilerTimingPass());
+            MPM.addPass(CompilerTimingPass());
 #endif
+
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(ProgressPass("Translate"));
-        // MPM.addPass(adapt(PromotePass()));
-        // MPM.addPass(ProgressPass("mem2reg"));
-        // return true;
-
 
 #ifdef ALASKA_ESCAPE_PASS
-            if (!alaska::bootstrapping()) {
-              MPM.addPass(AlaskaEscapePass());
-              MPM.addPass(ProgressPass("Escape"));
-            }
+            MPM.addPass(AlaskaEscapePass());
+            MPM.addPass(ProgressPass("Escape"));
 #endif
 
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(LockPrinterPass());
+            MPM.addPass(ProgressPass("Lock Printing"));
 #endif
+
             // MPM.addPass(RedundantArgumentLockElisionPass());
-            MPM.addPass(ProgressPass("RLE"));
+            // MPM.addPass(ProgressPass("RLE"));
 
             if (!alaska::bootstrapping()) {
               MPM.addPass(LockInsertionPass());
@@ -209,7 +199,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
             MPM.addPass(ProgressPass("Link runtime"));
 #endif
-
 
             MPM.addPass(AlaskaLowerPass());
             MPM.addPass(ProgressPass("Lowering"));

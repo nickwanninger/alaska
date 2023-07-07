@@ -32,11 +32,6 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
-	printf("halloc %zu\n", sz);
-  // void *x = malloc(sz);
-  // if (zero) memset(x, 0, sz);
-  // return x;
-
   alaska::Mapping *ent = alaska::table::get();
   if (unlikely(ent == NULL)) {
     fprintf(stderr, "alaska: out of space!\n");
@@ -96,6 +91,10 @@ void *hrealloc(void *handle, size_t new_size) {
   return handle;
 }
 
+
+
+extern void alaska_remove_from_local_lock_list(void *ptr);
+
 void hfree(void *ptr) {
   // printf("hfree %p\n", ptr);
   // return ::free(ptr);
@@ -111,9 +110,10 @@ void hfree(void *ptr) {
     return ::free(ptr);
   }
 
+  alaska_remove_from_local_lock_list(ptr);
+
   // Defer to the service to free
   alaska::service::free(m);
   num_alive--;
   alaska::table::put(m);
-
 }

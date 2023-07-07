@@ -46,6 +46,23 @@ static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
 
+void alaska_remove_from_local_lock_list(void* ptr) {
+#ifdef ALASKA_LOCK_TRACKING
+  alaska::LockFrame* cur;
+
+  cur = alaska_lock_root_chain;
+  while (cur != NULL) {
+    for (uint64_t i = 0; i < cur->count; i++) {
+      if (cur->locked[i] == ptr) {
+				cur->locked[i] = NULL;
+        return;
+      }
+    }
+    cur = cur->prev;
+  }
+#endif
+}
+
 
 
 int alaska_verify_is_locally_locked(void* ptr) {

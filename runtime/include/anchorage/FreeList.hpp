@@ -60,15 +60,15 @@ namespace anchorage {
     }
     inline void add(anchorage::Block *blk) override {
       auto *node = (struct list_head *)blk->data();
-      INIT_LIST_HEAD(node); // Simply initialize the list
-      list_add(node, &free_list); // Then add it to the free list
-      m_size++; // update the length
+      INIT_LIST_HEAD(node);        // Simply initialize the list
+      list_add(node, &free_list);  // Then add it to the free list
+      m_size++;                    // update the length
     }
 
     inline void remove(anchorage::Block *blk) override {
-			// Simply remove the block from the list and initialize the list to 0
+      // Simply remove the block from the list and initialize the list to 0
       list_del_init((struct list_head *)blk->data());
-      m_size--; // update the length
+      m_size--;  // update the length
     }
 
     inline anchorage::Block *search(size_t size) override {
@@ -103,6 +103,114 @@ namespace anchorage {
     size_t m_size = 0;
     // A single first-fit linked list
     struct list_head free_list = LIST_HEAD_INIT(free_list);
+  };
+
+
+
+
+  class FirstFitSegFreeList : public FreeList {
+   public:
+    // This class implements a barebones power-of-two segregated free list with `num_classes`
+    // classes. It's not great but hopefully it works
+    static constexpr int num_classes = 16;
+    inline FirstFitSegFreeList(anchorage::Chunk &chunk)
+        : FreeList(chunk) {
+      for (int i = 0; i < num_classes; i++) {
+        free_lists[i] = LIST_HEAD_INIT(free_lists[i]);
+      }
+    }
+
+    inline ~FirstFitSegFreeList() override {
+      // Nothing.
+    }
+
+
+    inline void add(anchorage::Block *blk) override {
+      size_t size = blk->size();
+      auto *list = get_free_list(size);
+      auto *node = (struct list_head *)blk->data();
+      INIT_LIST_HEAD(node);  // Simply initialize the list
+      list_add(node, list);  // Then add it to the free list
+      m_size++;              // update the length
+    }
+
+    inline void remove(anchorage::Block *blk) override {
+      // Simply remove the block from the list it's a part of.
+      list_del_init((struct list_head *)blk->data());
+      m_size--;  // update the length
+    }
+
+
+    inline anchorage::Block *search(size_t size) override {
+      for (int i = 0; i < num_classes; i++) {
+        // TODO: be smarter w/ log or something
+        if (size <= (1 << i)) {
+          auto blk = search_in_free_list(size, &free_lists[i]);
+					if (blk != nullptr) {
+						// printf("found %zu req in sc.%d\n", size, i);
+						return blk;
+					}
+        }
+      }
+      return search_in_free_list(size, &huge_free_list);
+    }
+
+
+    inline void collect(ck::vec<anchorage::Block *> &out) override {
+      out.ensure_capacity(size());
+      for (int i = 0; i < num_classes; i++) {
+        collect_from_freelist(&free_lists[i], out);
+      }
+      collect_from_freelist(&huge_free_list, out);
+    }
+
+
+    inline size_t size(void) override {
+      return m_size;
+    }
+
+   private:
+    inline anchorage::Block *search_in_free_list(size_t size, struct list_head *free_list) {
+      struct list_head *cur = nullptr;
+      list_for_each(cur, free_list) {
+        auto blk = anchorage::Block::get((void *)cur);
+        if (blk->size() >= size) {
+          remove(blk);
+          return blk;
+        }
+      }
+			return nullptr;
+    }
+
+    inline void collect_from_freelist(
+        struct list_head *free_list, ck::vec<anchorage::Block *> &out) {
+      // gather up all the holes
+      struct list_head *cur = nullptr;
+      list_for_each(cur, free_list) {
+        auto blk = anchorage::Block::get((void *)cur);
+        out.push(blk);
+      }
+    }
+
+
+    struct list_head *get_free_list(size_t object_size) {
+      // printf("size %zu\n", object_size);
+      for (int i = 0; i < num_classes; i++) {
+        // TODO: be smarter w/ log or something
+        if (object_size <= (1 << i)) {
+          // printf("   class %d\n", i);
+          return &free_lists[i];
+        }
+      }
+
+      // printf("   class 'huge'\n");
+      return &huge_free_list;
+    }
+
+    size_t m_size = 0;
+
+    struct list_head free_lists[num_classes];
+    struct list_head huge_free_list = LIST_HEAD_INIT(huge_free_list);
   };
 
 }  // namespace anchorage

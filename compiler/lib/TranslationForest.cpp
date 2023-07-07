@@ -168,7 +168,11 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
 
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
-  // double start = alaska::time_ms();
+  // if (func.getName() != "_Z17expressionyyparsev") {
+  //   return {};
+  // }
+  double start = alaska::time_ms();
+	(void)start;
   alaska::PointerFlowGraph G(func);
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
@@ -280,6 +284,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
+  // alaska::println(this->roots.size(), " roots");
 
 
 
@@ -358,11 +363,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     // auto &out = OUT[i];
     // IN = GEN U (OUT - KILL);
     IN[i] = GEN[i] | (OUT[i] - KILL[i]);
-    // for (auto &v : OUT[i]) {
-    //   if (KILL[i].find(v) == KILL[i].end()) {
-    //     IN[i].insert(v);
-    //   }
-    // }
 
     OUT[i].clear();
 
@@ -370,36 +370,21 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     if (auto *switch_inst = dyn_cast<SwitchInst>(i)) {
       for (auto caseIt : switch_inst->cases()) {
         OUT[i] |= IN[&caseIt.getCaseSuccessor()->front()];
-        // caseIt.
       }
-      //
     } else if (auto *invoke_inst = dyn_cast<InvokeInst>(i)) {
       if (auto normal_bb = invoke_inst->getNormalDest()) {
         OUT[i] |= IN[&normal_bb->front()];
-        // for (auto &v : IN[&normal_bb->front()]) {
-        //   OUT[i].insert(v);
-        // }
       }
 
       if (auto unwind_bb = invoke_inst->getUnwindDest()) {
         OUT[i] |= IN[&unwind_bb->front()];
-        // for (auto &v : IN[&unwind_bb->front()]) {
-        //   OUT[i].insert(v);
-        // }
       }
     } else if (auto *next_node = i->getNextNode()) {
       OUT[i] |= IN[next_node];
-      // for (auto &v : IN[next_node]) {
-      //   OUT[i].insert(v);
-      // }
     } else {
       // end of a basic block, get all successor basic blocks
       for (auto *bb : successors(i)) {
         OUT[i] |= IN[&bb->front()];
-        // for (auto &v : IN[&bb->front()]) {
-        //   // OUT[i].insert(v);
-        //   out.set(v);
-        // }
       }
     }
 
@@ -468,6 +453,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       }
     }
   }
+
+  // printf("insert release location %lf\n", alaska::time_ms() - start);
+  // start = alaska::time_ms();
 
   for (auto &[edge, bounds] : releaseTrampolines) {
     auto from = edge.first;

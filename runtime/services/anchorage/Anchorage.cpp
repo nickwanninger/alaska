@@ -20,6 +20,7 @@
 #include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
 
+#include <sys/resource.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
@@ -119,30 +120,47 @@ size_t alaska::service::usable_size(void *ptr) {
 pthread_t anchorage_barrier_thread;
 static uint64_t barrier_interval_ms = 1000;
 static void *barrier_thread_fn(void *) {
+  auto boot_time = alaska_timestamp();
+
+  FILE *log = fopen("/tmp/alaska.log", "a");
+  double ms_spent_defragmenting = 0;
   // uint64_t thread_start_time = alaska_timestamp();
   while (1) {
     usleep(barrier_interval_ms * 1000);
 
-    bool needs_defrag = false;
-
     anch_lock.lock();
+
+    long rss_bytes = alaska_translate_rss_kb() * 1024;
+    long heap_size = 0;
+
     // Defragment the chunks
     for (auto chunk : anchorage::Chunk::all()) {
-      double frag = chunk->frag();
-      printf("frag: %f, free blocks:%zu, size: %fmb\n", frag, chunk->free_list.size(), chunk->span() / 1024.0 / 1024.0);
-      if (frag > 1.1) {
-        needs_defrag = true;
-      }
+      // double frag = chunk->frag();
+      heap_size += chunk->active_bytes;
     }
     anch_lock.unlock();
 
-    if (needs_defrag) {
-			auto start = alaska_timestamp();
-			alaska::service::barrier();
-			auto end = alaska_timestamp();
-			printf("%f ms\n", (end - start) / 1024.0 / 1024.0);
-		}
+    double overall_fragmentation = rss_bytes / (double)heap_size;
+    // double heap_fragmentation = heap_bytes / (double)heap_size;
+
+
+    if (overall_fragmentation > 1.2) {
+      auto start = alaska_timestamp();
+      alaska::service::barrier();
+      auto end = alaska_timestamp();
+      ms_spent_defragmenting += (end - start) / 1024.0 / 1024.0;
+    }
+
+    auto time_since_boot = (alaska_timestamp() - boot_time) / 1024.0 / 1024.0;
+
+    fprintf(log, "pid=%d,rss=%lu,frag=%f,defrag_ms=%f,ms=%f,wasted_ratio=%f\n", getpid(), rss_bytes,
+        overall_fragmentation, ms_spent_defragmenting, time_since_boot,
+        ms_spent_defragmenting / time_since_boot);
+
+    fflush(log);
   }
+
+  fclose(log);
 
   return NULL;
 }
@@ -151,11 +169,11 @@ static void *barrier_thread_fn(void *) {
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
-  pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
+// TODO:
 void alaska::service::deinit(void) {
-  // TODO:
   anchorage::allocator_deinit();
 }
 

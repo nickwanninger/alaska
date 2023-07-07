@@ -23,13 +23,15 @@ $OPT -basic-aa -lowerswitch -mergereturn --break-crit-edges -loop-simplify -lcss
 # $OPT --mem2reg -lcssa -gvn --instnamer -gvn-hoist --aggressive-instcombine -dce -adce
 
 # $OPT -lowerinvoke
-$OPT -lowerswitch -dce -adce -lcssa
+# $OPT -lowerswitch -dce -adce -lcssa
  
 # cp $INPUT pre-alaska.bc
 # llvm-dis pre-alaska.bc
 
 # $OPT -dot-cfg
 # opt -load-pass-plugin=${PFX}/lib/Alaska.so $INPUT -o $INPUT --print-passes
+
+# gdb -ex run --args 
 clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
 # $OPT -sink -simplifycfg
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
