@@ -6,8 +6,11 @@ choice
 	config SERVICE_ANCHORAGE
 		bool "Anchorage allocator and defragmentation"
 
+	config SERVICE_JEMALLOC
+		bool "Jemalloc service (use jemalloc and a port of redis's activedefrag)"
+
 	config SERVICE_NONE
-		bool "No personality (use system malloc, no defrag)"
+		bool "No service (use system malloc, no defrag)"
 endchoice
 
 

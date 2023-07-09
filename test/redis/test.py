@@ -39,10 +39,8 @@ def track():
         # print(f'{cur - start_time},{get_rss()}')
         print(f'{rss},{frag}')
 
-# print('first round...')
 
-
-for i in range(70 * scale):
+for i in range(20 * scale):
     track()
     v = gen_value(240)
     r.set(gen_value(128), v)

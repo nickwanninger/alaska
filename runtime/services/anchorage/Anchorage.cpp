@@ -117,9 +117,74 @@ size_t alaska::service::usable_size(void *ptr) {
 }
 
 
+
+static double get_knob(const char *name, double default_value) {
+  if (const char *arg = getenv(name); arg != nullptr) {
+    return atof(arg);
+  }
+  return default_value;
+}
+
+static double get_overall_frag(void) {
+  anch_lock.lock();
+
+  long rss_bytes = alaska_translate_rss_kb() * 1024;
+  long heap_size = 0;
+
+  // Defragment the chunks
+  for (auto chunk : anchorage::Chunk::all()) {
+    // double frag = chunk->frag();
+    heap_size += chunk->active_bytes;
+  }
+  anch_lock.unlock();
+
+  return rss_bytes / (double)heap_size;
+}
+
+
+
+static void barrier_control_overhead_target(void) {
+	// "target overhead" is the maximum overhead we will permit the defragmenter to impart
+	// on the program. This is currently done using a simple control system where we run a
+	// barrier then wait for a period of time that would result in the requested overhead.
+	// This would be better to do by restricting the runtime of the barrier itself, but that
+	// is would be a bit too expensive, as the runtime would have 
+  float target_oh = get_knob("ANCH_TARG_OVERHEAD", 0.05);
+  // 1.0 is the "best" fragmentation. We will go a bit above that.
+	float target_frag = get_knob( "ANCH_TARG_FRAG", 1.1);
+  printf("target overhead: %f\n", target_oh);
+  printf("target frag:     %f\n", target_frag);
+
+  double ms_to_sleep = 1000;  // 1s out of the gate.
+  do {
+    usleep(ms_to_sleep * 1000);
+    auto start = alaska_timestamp();
+    if (get_overall_frag() > target_frag) {
+      alaska::service::barrier();
+    }
+    auto end = alaska_timestamp();
+    double ms_spent_defragmenting = (end - start) / 1024.0 / 1024.0;
+    ms_to_sleep = ms_spent_defragmenting / target_oh;
+
+    // You can sleep for a minimum of 10ms. This is relatively arbitrary, but ensures progress can
+    // be made, and avoids a defrag-storm when there is little work to be done.
+    if (ms_to_sleep < 10) {
+      ms_to_sleep = 10;
+    }
+
+  } while (1);
+}
+
+
+
 pthread_t anchorage_barrier_thread;
-static uint64_t barrier_interval_ms = 1000;
 static void *barrier_thread_fn(void *) {
+  // You are allowed to spend X% of time working on barriers
+  barrier_control_overhead_target();
+  return NULL;
+
+
+  uint64_t barrier_interval_ms = 1000;
   auto boot_time = alaska_timestamp();
 
   FILE *log = fopen("/tmp/alaska.log", "a");
@@ -169,7 +234,7 @@ static void *barrier_thread_fn(void *) {
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
-  // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 // TODO:

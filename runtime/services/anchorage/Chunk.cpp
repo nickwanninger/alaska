@@ -60,7 +60,8 @@ anchorage::Chunk::Chunk(size_t pages)
 
   madvise(tos, size, MADV_HUGEPAGE);
   // printf(
-  //     "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos + size);
+  //     "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos +
+  //     size);
   tos->set_next(nullptr);
   all_chunks->add(this);
 }
@@ -418,7 +419,7 @@ void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_hole
 // in this function, Dianoga does his work.
 long anchorage::Chunk::defragment(void) {
   long old_span = span();
-	double frag_before = frag();
+  double frag_before = frag();
   dump(nullptr, "Before");
   ck::vec<anchorage::Block *> holes;
   long swaps = 0;
@@ -518,30 +519,30 @@ long anchorage::Chunk::defragment(void) {
   (void)free_blocks_before;
   (void)free_blocks_after;
 
-	// madvise dont need the stuff thats left over
-	size_t saved_pages = saved / 4096;
-	if (saved_pages > 10) {
-		printf("Saved pages %zu\n", saved_pages);
-		uint64_t dont_need_start = (uint64_t)tos;
-		madvise((void*)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
-	}
+  // madvise dont need the stuff thats left over
+  size_t saved_pages = saved / 4096;
+  if (saved_pages > 10) {
+    // printf("Saved pages %zu\n", saved_pages);
+    uint64_t dont_need_start = (uint64_t)tos;
+    madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
+  }
 
 
 
- //  char buf[32];
-	// printf("Save %-10s ", readable_fs(saved, buf));
-	// printf("Usage %-10s ", readable_fs(span(), buf));
-	// printf("time: %-10fms ", (end - start) / 1000.0 / 1000.0);
-	// printf("frag: %f -> %f ", frag_before, frag());
-	// printf("\n");
+  // char buf[32];
+  // printf("Save %-10s ", readable_fs(saved, buf));
+  // printf("Usage %-10s ", readable_fs(span(), buf));
+  // printf("time: %-10fms ", (end - start) / 1000.0 / 1000.0);
+  // printf("frag: %f -> %f ", frag_before, frag());
+  // printf("\n");
 
 
 
   // printf(
-  //     "save:%-10s swps:%-10lu ms:%-10f total:%-10s blocks:%-10ld free_blocks:%ld->%ld (% ld) %f\n",
-  //     readable_fs(saved, buf0), swaps, (end - start) / 1000.0 / 1000.0, readable_fs(span(), buf1),
-  //     block_count, free_blocks_before, free_blocks_after, free_blocks_after - free_blocks_before,
-  //     frag());
+  //     "save:%-10s swps:%-10lu ms:%-10f total:%-10s blocks:%-10ld free_blocks:%ld->%ld (% ld)
+  //     %f\n", readable_fs(saved, buf0), swaps, (end - start) / 1000.0 / 1000.0,
+  //     readable_fs(span(), buf1), block_count, free_blocks_before, free_blocks_after,
+  //     free_blocks_after - free_blocks_before, frag());
 
 
   return saved;
