@@ -452,100 +452,92 @@ void alaska::printTranslationDot(llvm::Function &F,
 
 
 
-struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
+struct TranslationPDGConstructionVisitor
+    : public llvm::InstVisitor<TranslationPDGConstructionVisitor> {
   PDG &pdg;
-  NodeConstructionVisitor(PDG &pdg)
+  TranslationPDGConstructionVisitor(PDG &pdg)
       : pdg(pdg) {
   }
 
-	void add_use(llvm::Use *use) {
-		auto *value = use->get();
-		auto *user = dyn_cast<Value>(use->getUser());
+  void look_at(llvm::Value *val) {
+    // add the value to the pdg right away. This will ensure that circular dependencies don't
+    // infinitely recurse -- hopefully...!
+    pdg.addNode(val, 1);
 
-		pdg.fetchOrAddNode(value, 1);
-		pdg.fetchOrAddNode(user, 1);
+    if (auto *inst = dyn_cast<Instruction>(val)) {
+      this->visit(inst);
+    }
+  }
 
-		pdg.addEdge(user, value);
-	}
+  void add_use(llvm::Use &use) {
+    auto *user = dyn_cast<Value>(use.getUser());  // grab the dependant
+    auto *value = use.get();                      // Grab the depnedency
+    if (pdg.fetchNode(value) == NULL) {
+      // we need to visit the node!
+      look_at(value);
+    }
+
+    pdg.addEdge(user, value);
+  }
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    add_use(I.getOperandUse(0));
+  }
+
+  void visitStoreInst(llvm::StoreInst &I) {
+    add_use(I.getOperandUse(1));
+  }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     auto &use = I.getOperandUse(0);
-		add_use(use);
-    // node.add_in_edge(&use);
-    // node.type = alaska::Transient;
+    add_use(use);
   }
 
   void visitPHINode(llvm::PHINode &I) {
-		for (unsigned i = 0; i < I.getNumIncomingValues(); i++) {
-			auto &use = I.getOperandUse(i);
-			add_use(use);
-		}
+    for (unsigned i = 0; i < I.getNumIncomingValues(); i++) {
+      auto &use = I.getOperandUse(i);
+      add_use(use);
+    }
   }
 
   // all else
   void visitInstruction(llvm::Instruction &I) {
-		// Do nothing. Unhandled instructions have no incoming edges and
-		// are therefore roots of the tree that must be translated.
+    // Do nothing. Unhandled instructions have no incoming edges and
+    // are therefore roots of the tree that must be translated.
   }
 };
 
 
 void alaska::insertHoistedTranslations(llvm::Function &F) {
-	if (F.getName() != "sglib_ilist_sort") return;
+  alaska::TranslationForest forest(F);
+  (void)forest.apply();
+  return;
+  // if (F.getName() != "sglib_ilist_sort") return;
+  // if (F.getName() != "foo") return;
 
-  alaska::PointerFlowGraph G(F);
-  llvm::DominatorTree DT(F);
-  llvm::PostDominatorTree PDT(F);
+  // alaska::PointerFlowGraph G(F);
+  // llvm::DominatorTree DT(F);
+  // llvm::PostDominatorTree PDT(F);
   // llvm::LoopInfo loops(DT);
 
   PDG pdg;
 
-  // Add all the nodes...
-  for (auto *node : G.get_nodes()) {
-    pdg.addNode(node->value, 0);
-		alaska::println("node ", *node->value);
-  }
+  TranslationPDGConstructionVisitor vis(pdg);
+  std::vector<llvm::Instruction *> memoryInsts;
 
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto load = dyn_cast<LoadInst>(&I)) {
+        vis.look_at(load);
+        memoryInsts.push_back(load);
+      }
 
-  // Then mark all dependencies
-  for (auto *node : G.get_nodes()) {
-    // for (auto *child : node->get_in_nodes()) {
-    //   pdg.addEdge(child->value, node->value);
-    // }
-
-    for (auto *child : node->get_out_nodes()) {
-      pdg.addEdge(node->value, child->value);
+      if (auto store = dyn_cast<StoreInst>(&I)) {
+        vis.look_at(store);
+        memoryInsts.push_back(store);
+      }
     }
   }
-	alaska::println("here!");
-
-
-	// Preprocess to remove invalid phi node
-	// for (auto it = pdg.begin_nodes(); it != pdg.end_nodes(); it++) {
-	// 	auto *node = *it;
-	// 	auto *nodeV = node->getT();
-	//
-	// 	// alaska::println("nodeV: ", *nodeV);
-	//
-	//
-	// 	if (auto phi = dyn_cast<PHINode>(nodeV)) {
-	// 		// alaska::println("PHI ", node->numIncomingEdges(), " ",  phi->getNumIncomingValues());
-	// 		
-	// 		if (node->numIncomingEdges() != phi->getNumIncomingValues()) {
-	// 			// alaska::println("REMOVE!");
-	//
-	// 			std::vector<DGEdge<Value> *> edges(node->begin_incoming_edges(), node->end_incoming_edges());
-	// 			// Remove all incoming edges. This makes this node a root
-	// 			for (auto edge : edges) {
-	// 				// alaska::println("EDGE");
-	// 				pdg.removeEdge(edge);
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// Now, remove all nodes that don't have outgoing edges *and* are not load/store instructions.
-
 
   std::string name;
   name += ".pdg.";
@@ -563,142 +555,106 @@ void alaska::insertHoistedTranslations(llvm::Function &F) {
   std::vector<noelle::DGNode<Value> *> phiNodes;
 
 
-  // Insert translations at the root location. There's not a particular reason we do this
-	// outside of the main 'for each node' loop below other than for a bit of clarity.
-  for (auto *root : pdg.getTopLevelNodes(false)) {
-    auto *rootV = root->getT();
+  auto getSoleDependency = [](noelle::DGNode<Value> *node) {
+    ALASKA_SANITY(node->numOutgoingEdges() == 1, "Node does not have a depnedency");
+    return (*node->begin_outgoing_edges())->getIncomingNode();
+  };
 
-    llvm::Instruction *insertBefore = NULL;
 
-    if (auto rootI = dyn_cast<llvm::Instruction>(rootV)) {
-      insertBefore = rootI->getNextNode();
-    } else {
-      // It was not an instruction. We need to insert in the first non-phi in the function as it
-      // must be an argument and they are not instructions
-			insertBefore = F.front().getFirstNonPHIOrDbgOrLifetime();
+  // doTranslation: given an instruction, return it's value in tmap. If there is not
+  // a value in tmap yet, create it and return it. This could result in recursive calls
+  // to this function but it will reach a fixed point as we patch-up PHI/Select statements
+  // later. Those instructions must be handled specially later because they can create
+  // loops in dependencies, and could result in an infinite recursion here.
+  std::function<Instruction *(noelle::DGNode<Value> *)> doTranslation =
+      [&](noelle::DGNode<Value> *node) -> llvm::Instruction * {
+    auto *nodeV = node->getT();
+    if (tmap.contains(nodeV)) {
+      // TODO: double lookup!
+      return tmap[nodeV];
     }
 
-		// alaska::println("root: ", *rootV);
-		// alaska::println("ins:  ", *insertBefore);
-		// First, insert a `root` call. This forces the translation itself to be
-		// based on an instruction and is basically just a normalization feature.
-		// It also helps disambiguate roots that might be used in different
-		// translation calls from eachother.
-		auto *rootHandle = alaska::insertRootBefore(insertBefore, rootV);
-		// Then, insert a call to translate.
-		auto *translate = alaska::insertTranslationBefore(insertBefore, rootHandle);
-		// Record the pointer-space value to be used in the tmap.
-		tmap[rootV] = translate;
+
+    if (auto *phi = dyn_cast<PHINode>(nodeV)) {
+      // First, we insert a PHINode after this one, but give it no arguments. This is temporarially
+      // invalid, but we will patch it later.
+      IRBuilder<> b(phi);
+      auto newPhi = b.CreatePHI(phi->getType(), phi->getNumIncomingValues());
+      tmap[phi] = newPhi;
+
+      // Ensure the dependencies of this PHI are translated and create the edges. This is safe to do
+      // as we added the tmap entry for newPhi so recursive references will work.
+      for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+        auto ptr = phi->getIncomingValue(i);
+        if (auto node = pdg.fetchNode(ptr)) {
+          ptr = doTranslation(node);
+        }
+        auto blk = phi->getIncomingBlock(i);
+
+        newPhi->addIncoming(ptr, blk);
+      }
+
+
+      return newPhi;
+    } else if (auto *gep = dyn_cast<GetElementPtrInst>(nodeV)) {
+      ALASKA_SANITY(node->numOutgoingEdges() == 1, "A GEP must have only one incoming value");
+      auto incoming = getSoleDependency(node);
+      auto ptr = doTranslation(incoming);
+
+      auto derive = alaska::insertDerivedBefore(gep->getNextNode(), ptr, gep);
+      tmap[gep] = derive;
+      return derive;
+
+    } else {
+      llvm::Instruction *insertBefore = NULL;
+
+      if (auto leafI = dyn_cast<llvm::Instruction>(nodeV)) {
+        insertBefore = leafI->getNextNode();
+      } else {
+        // It was not an instruction. We need to insert in the first non-phi in the function as it
+        // must be an argument and they are not instructions
+        insertBefore = F.front().getFirstNonPHIOrDbgOrLifetime();
+      }
+
+      // First, insert an `alaska.root` call. This forces the translation itself to be
+      // based on an instruction and is basically just a normalization feature.
+      // It also helps disambiguate roots that might be used in different
+      // translation calls from eachother.
+      auto *handle = alaska::insertRootBefore(insertBefore, nodeV);
+      // Then, insert a call to translate.
+      auto *translate = alaska::insertTranslationBefore(insertBefore, handle);
+      // Record the pointer-space value to be used in the tmap.
+      tmap[nodeV] = translate;
+      // alaska::println("Unknown", *nodeV);
+      return translate;
+    }
+
+
+    return NULL;
+  };
+
+
+
+  for (auto *inst : memoryInsts) {
+    auto *node = pdg.fetchNode(inst);
+    // ALASKA_SANITY(node->numOutgoingEdges() == 1, "A sink node must have only one outoing edge");
+
+    auto dep = getSoleDependency(node);
+    // alaska::println("op: ", *inst);
+    // alaska::println("dep: ", *dep->getT());
+    auto ptr = doTranslation(dep);
+    if (auto loadInst = dyn_cast<LoadInst>(inst)) {
+      // alaska::println("load ", *loadInst);
+      loadInst->setOperand(0, ptr);
+    } else if (auto storeInst = dyn_cast<StoreInst>(inst)) {
+      // alaska::println("store ", *storeInst);
+      storeInst->setOperand(1, ptr);
+    } else {
+      alaska::println("unhandled: ", *inst);
+      abort();
+    }
   }
-
-
-	auto getSoleIncoming = [](noelle::DGNode<Value> *node) {
-		ALASKA_SANITY(node->numIncomingEdges() == 1, "Node does not have an incoming");
-		return (*node->begin_incoming_edges())->getOutgoingNode();
-	};
-
-
-	// doTranslation: given an instruction, return it's value in tmap. If there is not
-	// a value in tmap yet, create it and return it. This could result in recursive calls
-	// to this function but it will reach a fixed point as we patch-up PHI/Select statements
-	// later. Those instructions must be handled specially later because they can create
-	// loops in dependencies, and could result in an infinite recursion here.
-	std::function<Instruction *(noelle::DGNode<Value>*)> doTranslation = [&](noelle::DGNode<Value> *node) -> llvm::Instruction * {
-		auto *nodeV = node->getT();
-		if (tmap.contains(nodeV)) {
-			// TODO: double lookup!
-			return tmap[nodeV];
-		}
-
-
-		if (auto *phi = dyn_cast<PHINode>(nodeV)) {
-			// Then, we insert the DGNode into the "phiNodes" list so we can patch it later.
-			phiNodes.push_back(node);
-			// First, we insert a PHINode after this one, but give it no arguments. This is temporarially invalid,
-			// but we will patch it later.
-			IRBuilder<> b(phi);
-			auto newPhi = b.CreatePHI(phi->getType(), phi->getNumIncomingValues());
-
-			errs() << *phi << "\n";
-			errs() << *newPhi << "\n";
-			errs() << "\n";
-			tmap[phi] = newPhi;
-			return newPhi;
-		} else if (auto *gep = dyn_cast<GetElementPtrInst>(nodeV)) {
-
-			ALASKA_SANITY(node->numIncomingEdges() == 1, "A GEP must have only one incoming value");
-			auto incoming = getSoleIncoming(node);
-			auto ptr = doTranslation(incoming);
-
-			auto derive = alaska::insertDerivedBefore(gep->getNextNode(), ptr, gep);
-			tmap[gep] = derive;
-			return derive;
-
-		} else {
-			alaska::println("Unknown", *nodeV);
-			abort();
-		}
-
-		return NULL;
-	};
-
-	for (auto it = pdg.begin_nodes(); it != pdg.end_nodes(); it++) {
-		auto *node = *it;
-		auto *nodeV = node->getT();
-		if (node->numIncomingEdges() == 0) {
-			continue; // If there are no incoming edges, this is a root and we have handled it already.
-		}
-		// auto *inst = dyn_cast<Instruction>(nodeV); if (inst == NULL) continue;
-		
-
-		if (node->numOutgoingEdges() == 0) {
-			// If there are no outgoing edges, we have reached a sink (load/store)
-			ALASKA_SANITY(node->numIncomingEdges() == 1, "A sink node must have only one incoming edge");
-			auto incoming = getSoleIncoming(node);
-			auto ptr = doTranslation(incoming);
-			if (auto loadInst = dyn_cast<LoadInst>(nodeV)) {
-				loadInst->setOperand(0, ptr);
-			} else if (auto storeInst = dyn_cast<StoreInst>(nodeV)) {
-				storeInst->setOperand(1, ptr);
-			} else {
-				alaska::println("unhandled: ", *nodeV);
-				abort();
-			}
-
-		} else {
-			// Otherwise, this is a "transient" node, meaning it performs some kind
-			// of adjustment or offsetting. These are things like GEP,Select,PHI
-			doTranslation(node);
-		}
-		
-	}
-
-	for (auto *phiNode : phiNodes) {
-		auto *phi = dyn_cast<PHINode>(phiNode->getT());
-		if (phiNode->numIncomingEdges() != phi->getNumIncomingValues()) {
-			alaska::println("MISMATCH");
-		} else {
-			alaska::println("MATCH");
-		}
-		auto *tphi = dyn_cast<PHINode>(tmap[phi]);
-
-		for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
-			auto ptr = phi->getIncomingValue(i);
-			if (auto node = pdg.fetchNode(ptr)) {
-			 	ptr = doTranslation(node);
-			}
-			auto blk = phi->getIncomingBlock(i);
-
-			tphi->addIncoming(ptr, blk);
-		}
-	}
-
-
-  // alaska::TranslationForest forest(F);
-  // (void)forest.apply();
-  return;
 }
-
 
 
 

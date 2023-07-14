@@ -101,7 +101,6 @@ alaska::TranslationForest::Node::Node(
   this->val = val->value;
   this->parent = parent;
   for (auto *out : val->get_out_nodes()) {
-		alaska::println("out:", *out->value); 
     children.push_back(std::make_unique<Node>(out, this));
   }
 }
@@ -208,7 +207,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
   for (auto *root : temp_roots) {
-		alaska::println("Hello!", *root->value);
     auto node = std::make_unique<Node>(root);
 
     // compute which children dominate which siblings
