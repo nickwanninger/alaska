@@ -29,7 +29,13 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     //
   }
 
-
+  void visitPHINode(llvm::PHINode &I) {
+		for (unsigned i = 0; i < I.getNumIncomingValues(); i++) {
+			auto &use = I.getOperandUse(i);
+			node.add_in_edge(&use);
+		}
+    node.type = alaska::Transient;
+  }
 
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
@@ -285,12 +291,12 @@ void alaska::PointerFlowGraph::dump_dot(
       auto &v = node->graph.get_node_including_sinks(use->getUser());
       alaska::println(indent, "  n", node->id, " -> n", v.id, "[color=black,style=dashed];");
     }
-    for (auto *dominated : node->get_dominated(DT)) {
-      alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=red];");
-    }
-    for (auto *dominated : node->get_postdominated(PDT)) {
-      alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=blue];");
-    }
+    // for (auto *dominated : node->get_dominated(DT)) {
+    //   alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=red];");
+    // }
+    // for (auto *dominated : node->get_postdominated(PDT)) {
+    //   alaska::println(indent, "  n", node->id, " -> n", dominated->id, "[color=blue];");
+    // }
   };
 
 

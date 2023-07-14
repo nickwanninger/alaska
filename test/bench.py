@@ -109,12 +109,13 @@ class PerfRunner(Runner):
 
 
 
-# space.add_suite(wl.suites.Embench)
+space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # # space.add_suite(wl.suites.Stockfish)
 # space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
 # space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
-space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
+# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
+# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
 
 space.clear_pipelines()
 

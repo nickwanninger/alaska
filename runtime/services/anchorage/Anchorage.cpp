@@ -142,16 +142,105 @@ static double get_overall_frag(void) {
 }
 
 
+void pad_barrier_control_overhead_target(void) {
+  float target_oh_lb = get_knob("ANCH_TARG_OVERHEAD_LB", 0.001); // .01%  min overhead
+  float target_oh_ub = get_knob("ANCH_TARG_OVERHEAD_UB", 0.10); //  10% max overhead
+  float target_frag_lb = get_knob("ANCH_TARG_FRAG_LB", 1.0);
+  float target_frag_ub = get_knob("ANCH_TARG_FRAG_UB", 1.2);
+  float target_frag_improve_min = get_knob("ANCH_TARG_FRAG_IMPROVE_MIN", 0.05);
+  float aimd_add = get_knob("ANCH_AIMD_ADD", 1);
+  float aimd_mul = get_knob("ANCH_AIMD_MUL", 0.5);
+
+  // set initial state to be "right on target"
+  float this_frag_start;
+  float this_frag_end;
+  float this_oh_start;
+  float this_cost;
+  float cost_since_last_pass = 0;
+
+  int did_pass = 0;
+  int hit_lb = 0;
+  int hit_min = 0;
+  float last_pass_start = 0;
+
+  // control variable
+  double ms_to_sleep = 1000;  // 1s out of the gate.
+
+  printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
+  printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
+
+
+  do {
+    usleep(ms_to_sleep * 1000);
+    auto start = alaska_timestamp();
+    this_frag_start = get_overall_frag();
+    this_oh_start = cost_since_last_pass / (start - last_pass_start);
+
+    // do a pass only if we are past the upper fragmentation limit, and our overhead is too low
+    if ((this_frag_start > target_frag_ub) && (this_oh_start < target_oh_lb)) {
+      printf("current frag of %f exceeds high water mark and have time - doing pass\n",
+          this_frag_start);
+      // alaska::service::barrier(target_frag_lb);
+      alaska::service::barrier();
+      // estimate fragmentation at end of pass
+      // does not need to be this slow
+      this_frag_end = get_overall_frag();
+      did_pass = 1;
+      hit_lb = this_frag_end < target_frag_lb;
+      hit_min = (this_frag_start - this_frag_end) > target_frag_improve_min;
+      last_pass_start = start;
+      cost_since_last_pass = 0;  // reset here, will be computed later
+      printf("pass complete - resulting frag is %f (%s)\n", this_frag_end, hit_lb ? "hit" : "MISS");
+    } else {
+      this_frag_end = this_frag_start;
+      did_pass = 0;
+      hit_lb = 1;
+      hit_min = 1;
+    }
+    auto end = alaska_timestamp();
+    this_cost = (end - start);
+    cost_since_last_pass += this_cost;
+
+    // now update the control variable based on the regime we are in
+    if (did_pass) {
+      if (hit_lb) {
+        // normal behavior, do additive increase (slow down) to reduce overhead
+        ms_to_sleep += aimd_add;
+      } else {
+        // we missed hitting the fragmentation target
+        // it may be impossible for us to reach the defrag target, though
+        if (hit_min) {
+          // we did improve the situation a bit, so let's try more frequently
+          // multiplicative decrease (speed up)
+          ms_to_sleep *= aimd_mul;
+        } else {
+          // we did not improve things, keep time same
+          // ms_to_sleep = ms_to_sleep;
+        }
+      }
+    } else {
+      // we did not do a pass, which means we ran too soon, so additive increase (slow down)
+      ms_to_sleep += aimd_add;
+    }
+
+    if (ms_to_sleep < 10) {
+      ms_to_sleep = 10;
+    }
+
+  } while (1);
+}
+
+
 
 static void barrier_control_overhead_target(void) {
-	// "target overhead" is the maximum overhead we will permit the defragmenter to impart
-	// on the program. This is currently done using a simple control system where we run a
-	// barrier then wait for a period of time that would result in the requested overhead.
-	// This would be better to do by restricting the runtime of the barrier itself, but that
-	// is would be a bit too expensive, as the runtime would have 
+  // "target overhead" is the maximum overhead we will permit the defragmenter to impart
+  // on the program. This is currently done using a simple control system where we run a
+  // barrier then wait for a period of time that would result in the requested overhead.
+  // This would be better to do by restricting the runtime of the barrier itself, but that
+  // is would be a bit too expensive, as the runtime would have
   float target_oh = get_knob("ANCH_TARG_OVERHEAD", 0.05);
   // 1.0 is the "best" fragmentation. We will go a bit above that.
-	float target_frag = get_knob( "ANCH_TARG_FRAG", 1.1);
+  float target_frag = get_knob("ANCH_TARG_FRAG", 1.1);
   printf("target overhead: %f\n", target_oh);
   printf("target frag:     %f\n", target_frag);
 
@@ -180,7 +269,8 @@ static void barrier_control_overhead_target(void) {
 pthread_t anchorage_barrier_thread;
 static void *barrier_thread_fn(void *) {
   // You are allowed to spend X% of time working on barriers
-  barrier_control_overhead_target();
+  pad_barrier_control_overhead_target();
+  // barrier_control_overhead_target();
   return NULL;
 
 
@@ -234,7 +324,7 @@ static void *barrier_thread_fn(void *) {
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
-  pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 // TODO:
@@ -265,14 +355,6 @@ void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   if (ent->ptr == nullptr) return;
   auto *block = anchorage::Block::get(ent->ptr);
   block->mark_locked(locked);
-  // printf("Mark %p %d\n", ent, locked);
-  // for (auto chunk : anchorage::Chunk::all()) {
-  //   // if (chunk->contains(block)) {
-  //   chunk->dump(block, "mark");
-  //   // }
-  //   // long saved = chunk->defragment();
-  //   // printf("saved %ld bytes\n", saved);
-  // }
 }
 
 

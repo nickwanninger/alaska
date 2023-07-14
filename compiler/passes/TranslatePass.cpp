@@ -34,6 +34,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
 
   mdm.addMetadata("alaska", "did run");
 
+
   for (auto &F : M) {
     if (F.empty()) continue;
     auto section = F.getSection();

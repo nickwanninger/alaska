@@ -67,7 +67,7 @@ menu "Experimental"
 
 
 	config TRACK_TRANSLATION_HITRATE
-		bool "Track hit/miss rate for translations"
+		bool "Track hit/miss rate for translations. Warning: VERY SLOW"
 		default n
 endmenu
 

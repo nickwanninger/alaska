@@ -16,6 +16,7 @@
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/IR/PassTimingInfo.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
@@ -150,8 +151,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
           // Only link the stub in non-baseline
           if (!baseline) {
-            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-            MPM.addPass(ProgressPass("Link Stub"));
+            // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+            // MPM.addPass(ProgressPass("Link Stub"));
           }
 
           // MPM.addPass(adapt(LowerSwitchPass()));
@@ -165,6 +166,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           MPM.addPass(AlaskaNormalizePass());
           MPM.addPass(ProgressPass("Normalize"));
 
+          // Simplify the cfg
+          MPM.addPass(adapt(SimplifyCFGPass()));
+
           if (!baseline) {
             MPM.addPass(AlaskaReplacementPass());
             MPM.addPass(ProgressPass("Replacement"));
@@ -175,6 +179,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(ProgressPass("Translate"));
+
 
 #ifdef ALASKA_ESCAPE_PASS
             MPM.addPass(AlaskaEscapePass());

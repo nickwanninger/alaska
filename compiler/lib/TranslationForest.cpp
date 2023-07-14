@@ -101,6 +101,7 @@ alaska::TranslationForest::Node::Node(
   this->val = val->value;
   this->parent = parent;
   for (auto *out : val->get_out_nodes()) {
+		alaska::println("out:", *out->value); 
     children.push_back(std::make_unique<Node>(out, this));
   }
 }
@@ -180,6 +181,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   llvm::LoopInfo loops(DT);
 
 
+	// if (func.getName() == "strcat") {
+	// 	G.dump_dot(DT, PDT);
+	// }
   // for (auto loop : loops) {
   //   errs() << *loop << "\n";
   // }
@@ -197,11 +201,14 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
+
+
   // printf("grab roots %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
   // Create the forest from the roots, and compute dominance relationships among top-level siblings
   for (auto *root : temp_roots) {
+		alaska::println("Hello!", *root->value);
     auto node = std::make_unique<Node>(root);
 
     // compute which children dominate which siblings

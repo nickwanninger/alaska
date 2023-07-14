@@ -7,6 +7,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <noelle/core/DataFlow.hpp>
+#include <noelle/core/DGBase.hpp>
+#include <noelle/core/PDGPrinter.hpp>
 
 llvm::Value *alaska::Translation::getHandle(void) {
   // the pointer for this translation is simply the first argument of the call to `translate`
@@ -104,7 +106,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
   std::vector<std::unique_ptr<alaska::Translation>> trs;
 
 
-  auto start = alaska::time_ms();
 
   for (auto &I : instructions(F)) {
     if (auto inst = dyn_cast<CallInst>(&I)) {
@@ -126,7 +127,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
   //     }
   //   }
   // }
-  auto end = alaska::time_ms();
 
 
   // associate releases
@@ -399,282 +399,308 @@ void alaska::printTranslationDot(llvm::Function &F,
 
 
 
-struct PotentialSourceFinder : public llvm::InstVisitor<PotentialSourceFinder> {
-  std::set<llvm::Value *> srcs;
-  std::set<llvm::Value *> accessed;
-  std::set<llvm::Value *> seen;
+// static llvm::Loop *get_outermost_loop_for_translation(
+//     llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
+//   // return nullptr;
+//   if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
+//     return loopToCheck;
+//   }
+//
+//   for (auto *subLoop : loopToCheck->getSubLoops()) {
+//     if (auto *loop = get_outermost_loop_for_translation(subLoop, pointer, user)) {
+//       return loop;
+//     }
+//   }
+//   return nullptr;
+// }
+//
+//
+// static llvm::Instruction *compute_translation_insertion_location(
+//     llvm::Value *pointerToTranslate, llvm::Instruction *user, llvm::LoopInfo &loops) {
+//   // the instruction to consider as the "location of the pointer". This is done for things like
+//   // arguments.
+//   llvm::Instruction *effectivePointerInstruction = NULL;
+//   if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
+//     effectivePointerInstruction = pointerToTranslateInst;
+//   } else {
+//     // get the first instruction in the function the argument is a part of;
+//     effectivePointerInstruction = user->getParent()->getParent()->front().getFirstNonPHI();
+//   }
+//   ALASKA_SANITY(
+//       effectivePointerInstruction != NULL, "No effective instruction for pointerToTranslate");
+//
+//   llvm::Loop *targetLoop = NULL;
+//   for (auto loop : loops) {
+//     targetLoop = get_outermost_loop_for_translation(loop, effectivePointerInstruction, user);
+//     if (targetLoop != NULL) break;
+//   }
+//
+//   // If no loop was found, translate at the user.
+//   if (targetLoop == NULL) return user;
+//
+//   llvm::BasicBlock *incoming, *back;
+//   targetLoop->getIncomingAndBackEdge(incoming, back);
+//
+//
+//   // errs() << "Found loop for " << *pointerToTranslate << ": " << *targetLoop;
+//   if (incoming && incoming->getTerminator()) {
+//     return incoming->getTerminator();
+//   }
+//
+//   return user;
+// }
 
 
-  // returns true if this has been seen or not
-  bool track_seen(llvm::Value &v) {
-    if (seen.find(&v) != seen.end()) return true;
-    seen.insert(&v);
-    return false;
+
+struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
+  PDG &pdg;
+  NodeConstructionVisitor(PDG &pdg)
+      : pdg(pdg) {
   }
 
-  void add_if_pointer(llvm::Value *v) {
-    if (v->getType()->isPointerTy()) {
-      srcs.insert(v);
-    }
-  }
+	void add_use(llvm::Use *use) {
+		auto *value = use->get();
+		auto *user = dyn_cast<Value>(use->getUser());
 
-  void look_at(llvm::Value *v) {
-    if (track_seen(*v)) return;
-    // alaska::println("Look at ", *v);
+		pdg.fetchOrAddNode(value, 1);
+		pdg.fetchOrAddNode(user, 1);
 
-    if (auto inst = dyn_cast<llvm::Instruction>(v)) {
-      visit(*inst);
-    } else if (auto global_variable = dyn_cast<llvm::GlobalVariable>(v)) {
-      return;  // skip global variables
-    } else {
-      add_if_pointer(v);
-    }
-  }
+		pdg.addEdge(user, value);
+	}
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    look_at(I.getPointerOperand());
-  }
-
-  void visitLoadInst(llvm::LoadInst &I) {
-    add_if_pointer(&I);
-    accessed.insert(I.getPointerOperand());
-    look_at(I.getPointerOperand());
-  }
-
-  void visitStoreInst(llvm::StoreInst &I) {
-    // Simple
-    accessed.insert(I.getPointerOperand());
-    look_at(I.getPointerOperand());
+    auto &use = I.getOperandUse(0);
+		add_use(use);
+    // node.add_in_edge(&use);
+    // node.type = alaska::Transient;
   }
 
   void visitPHINode(llvm::PHINode &I) {
-    for (auto &incoming : I.incoming_values()) {
-      look_at(incoming);
-    }
+		for (unsigned i = 0; i < I.getNumIncomingValues(); i++) {
+			auto &use = I.getOperandUse(i);
+			add_use(use);
+		}
   }
 
-  void visitAllocaInst(llvm::AllocaInst &I) {
-    // Nothing. Don't translate allocas
-  }
-
-  void visitCallInst(llvm::CallInst &I) {
-    auto translateFunction = I.getFunction()->getParent()->getFunction("alaska.translate");
-    if (translateFunction != NULL && I.getCalledFunction() == translateFunction) {
-      return;
-    }
-    add_if_pointer(&I);
-  }
-
+  // all else
   void visitInstruction(llvm::Instruction &I) {
-    add_if_pointer(&I);
-  }
-};
-
-
-
-struct TransientMappingVisitor : public llvm::InstVisitor<TransientMappingVisitor> {
-  std::set<llvm::Instruction *> transients;
-  std::set<llvm::Value *> seen;
-
-  // returns true if this has been seen or not
-  bool track_seen(llvm::Value &v) {
-    if (seen.find(&v) != seen.end()) return true;
-    seen.insert(&v);
-    return false;
-  }
-
-  void look_at(llvm::Value *v) {
-    if (track_seen(*v)) return;
-    //
-    if (auto inst = dyn_cast<llvm::Instruction>(v)) {
-      visit(*inst);
-    }
-
-    for (auto user : v->users()) {
-      look_at(user);
-    }
-  }
-
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    transients.insert(&I);
-  }
-
-  void visitPHINode(llvm::PHINode &I) {
-    transients.insert(&I);
+		// Do nothing. Unhandled instructions have no incoming edges and
+		// are therefore roots of the tree that must be translated.
   }
 };
 
 
 void alaska::insertHoistedTranslations(llvm::Function &F) {
-  alaska::TranslationForest forest(F);
-  (void)forest.apply();
-  return;
-  // find all potential sources:
-  PotentialSourceFinder s;
+	if (F.getName() != "sglib_ilist_sort") return;
 
-  std::vector<llvm::Instruction *> insts;
+  alaska::PointerFlowGraph G(F);
+  llvm::DominatorTree DT(F);
+  llvm::PostDominatorTree PDT(F);
+  // llvm::LoopInfo loops(DT);
 
-  for (auto &BB : F)
-    for (auto &I : BB)
-      insts.push_back(&I);
+  PDG pdg;
 
-  for (auto *inst : insts)
-    s.look_at(inst);
+  // Add all the nodes...
+  for (auto *node : G.get_nodes()) {
+    pdg.addNode(node->value, 0);
+		alaska::println("node ", *node->value);
+  }
 
-  std::vector<std::unique_ptr<alaska::Translation>> translations;
-  std::map<llvm::Value *, alaska::Translation *> value_to_translation;
 
-  std::map<llvm::Value *, std::set<llvm::Value *>> sourceAliases;
-
-  auto &sources = s.srcs;
-  alaska::println("Potential sources for ", F.getName(), ":");
-  for (auto &src : sources) {
-    // If the source was not accessed, ignore it.
-    // if (s.accessed.find(src) == s.accessed.end()) {
-    //   continue;
+  // Then mark all dependencies
+  for (auto *node : G.get_nodes()) {
+    // for (auto *child : node->get_in_nodes()) {
+    //   pdg.addEdge(child->value, node->value);
     // }
-    sourceAliases[src].insert(src);
-    alaska::println("  - ", simpleFormat(src));
-    TransientMappingVisitor tv;
-    tv.look_at(src);
-    alaska::println("    Transients:");
-    for (auto &t : tv.transients) {
-      sourceAliases[t].insert(src);
-      alaska::println("       - ", simpleFormat(t));
+
+    for (auto *child : node->get_out_nodes()) {
+      pdg.addEdge(node->value, child->value);
     }
+  }
+	alaska::println("here!");
+
+
+	// Preprocess to remove invalid phi node
+	// for (auto it = pdg.begin_nodes(); it != pdg.end_nodes(); it++) {
+	// 	auto *node = *it;
+	// 	auto *nodeV = node->getT();
+	//
+	// 	// alaska::println("nodeV: ", *nodeV);
+	//
+	//
+	// 	if (auto phi = dyn_cast<PHINode>(nodeV)) {
+	// 		// alaska::println("PHI ", node->numIncomingEdges(), " ",  phi->getNumIncomingValues());
+	// 		
+	// 		if (node->numIncomingEdges() != phi->getNumIncomingValues()) {
+	// 			// alaska::println("REMOVE!");
+	//
+	// 			std::vector<DGEdge<Value> *> edges(node->begin_incoming_edges(), node->end_incoming_edges());
+	// 			// Remove all incoming edges. This makes this node a root
+	// 			for (auto edge : edges) {
+	// 				// alaska::println("EDGE");
+	// 				pdg.removeEdge(edge);
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	// Now, remove all nodes that don't have outgoing edges *and* are not load/store instructions.
+
+
+  std::string name;
+  name += ".pdg.";
+  name += F.getName().data();
+  name += ".dot";
+  errs() << "output PDG to " << name << "\n";
+
+  DGPrinter::writeGraph<PDG, llvm::Value>(name, &pdg);
+
+  // Now that we have the PDG, insert roots.
+  //
+  // tmap: the mapping from a value in the PDG (handle space) to either `alaska.*` calls or a
+  // phi/select statement that operates in pointer space.
+  std::unordered_map<llvm::Value *, llvm::Instruction *> tmap;
+  std::vector<noelle::DGNode<Value> *> phiNodes;
+
+
+  // Insert translations at the root location. There's not a particular reason we do this
+	// outside of the main 'for each node' loop below other than for a bit of clarity.
+  for (auto *root : pdg.getTopLevelNodes(false)) {
+    auto *rootV = root->getT();
+
+    llvm::Instruction *insertBefore = NULL;
+
+    if (auto rootI = dyn_cast<llvm::Instruction>(rootV)) {
+      insertBefore = rootI->getNextNode();
+    } else {
+      // It was not an instruction. We need to insert in the first non-phi in the function as it
+      // must be an argument and they are not instructions
+			insertBefore = F.front().getFirstNonPHIOrDbgOrLifetime();
+    }
+
+		// alaska::println("root: ", *rootV);
+		// alaska::println("ins:  ", *insertBefore);
+		// First, insert a `root` call. This forces the translation itself to be
+		// based on an instruction and is basically just a normalization feature.
+		// It also helps disambiguate roots that might be used in different
+		// translation calls from eachother.
+		auto *rootHandle = alaska::insertRootBefore(insertBefore, rootV);
+		// Then, insert a call to translate.
+		auto *translate = alaska::insertTranslationBefore(insertBefore, rootHandle);
+		// Record the pointer-space value to be used in the tmap.
+		tmap[rootV] = translate;
   }
 
 
-  alaska::println("Source Aliases:");
-  for (auto &[a, srcs] : sourceAliases) {
-    alaska::println(*a);
-    for (auto &src : srcs) {
-      alaska::println("    - ", simpleFormat(src));
-    }
-  }
+	auto getSoleIncoming = [](noelle::DGNode<Value> *node) {
+		ALASKA_SANITY(node->numIncomingEdges() == 1, "Node does not have an incoming");
+		return (*node->begin_incoming_edges())->getOutgoingNode();
+	};
 
 
+	// doTranslation: given an instruction, return it's value in tmap. If there is not
+	// a value in tmap yet, create it and return it. This could result in recursive calls
+	// to this function but it will reach a fixed point as we patch-up PHI/Select statements
+	// later. Those instructions must be handled specially later because they can create
+	// loops in dependencies, and could result in an infinite recursion here.
+	std::function<Instruction *(noelle::DGNode<Value>*)> doTranslation = [&](noelle::DGNode<Value> *node) -> llvm::Instruction * {
+		auto *nodeV = node->getT();
+		if (tmap.contains(nodeV)) {
+			// TODO: double lookup!
+			return tmap[nodeV];
+		}
+
+
+		if (auto *phi = dyn_cast<PHINode>(nodeV)) {
+			// Then, we insert the DGNode into the "phiNodes" list so we can patch it later.
+			phiNodes.push_back(node);
+			// First, we insert a PHINode after this one, but give it no arguments. This is temporarially invalid,
+			// but we will patch it later.
+			IRBuilder<> b(phi);
+			auto newPhi = b.CreatePHI(phi->getType(), phi->getNumIncomingValues());
+
+			errs() << *phi << "\n";
+			errs() << *newPhi << "\n";
+			errs() << "\n";
+			tmap[phi] = newPhi;
+			return newPhi;
+		} else if (auto *gep = dyn_cast<GetElementPtrInst>(nodeV)) {
+
+			ALASKA_SANITY(node->numIncomingEdges() == 1, "A GEP must have only one incoming value");
+			auto incoming = getSoleIncoming(node);
+			auto ptr = doTranslation(incoming);
+
+			auto derive = alaska::insertDerivedBefore(gep->getNextNode(), ptr, gep);
+			tmap[gep] = derive;
+			return derive;
+
+		} else {
+			alaska::println("Unknown", *nodeV);
+			abort();
+		}
+
+		return NULL;
+	};
+
+	for (auto it = pdg.begin_nodes(); it != pdg.end_nodes(); it++) {
+		auto *node = *it;
+		auto *nodeV = node->getT();
+		if (node->numIncomingEdges() == 0) {
+			continue; // If there are no incoming edges, this is a root and we have handled it already.
+		}
+		// auto *inst = dyn_cast<Instruction>(nodeV); if (inst == NULL) continue;
+		
+
+		if (node->numOutgoingEdges() == 0) {
+			// If there are no outgoing edges, we have reached a sink (load/store)
+			ALASKA_SANITY(node->numIncomingEdges() == 1, "A sink node must have only one incoming edge");
+			auto incoming = getSoleIncoming(node);
+			auto ptr = doTranslation(incoming);
+			if (auto loadInst = dyn_cast<LoadInst>(nodeV)) {
+				loadInst->setOperand(0, ptr);
+			} else if (auto storeInst = dyn_cast<StoreInst>(nodeV)) {
+				storeInst->setOperand(1, ptr);
+			} else {
+				alaska::println("unhandled: ", *nodeV);
+				abort();
+			}
+
+		} else {
+			// Otherwise, this is a "transient" node, meaning it performs some kind
+			// of adjustment or offsetting. These are things like GEP,Select,PHI
+			doTranslation(node);
+		}
+		
+	}
+
+	for (auto *phiNode : phiNodes) {
+		auto *phi = dyn_cast<PHINode>(phiNode->getT());
+		if (phiNode->numIncomingEdges() != phi->getNumIncomingValues()) {
+			alaska::println("MISMATCH");
+		} else {
+			alaska::println("MATCH");
+		}
+		auto *tphi = dyn_cast<PHINode>(tmap[phi]);
+
+		for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+			auto ptr = phi->getIncomingValue(i);
+			if (auto node = pdg.fetchNode(ptr)) {
+			 	ptr = doTranslation(node);
+			}
+			auto blk = phi->getIncomingBlock(i);
+
+			tphi->addIncoming(ptr, blk);
+		}
+	}
+
+
+  // alaska::TranslationForest forest(F);
+  // (void)forest.apply();
   return;
-
-  auto get_used = [&](llvm::Instruction *s) -> std::set<llvm::Value *> {
-    if (auto load = dyn_cast<LoadInst>(s)) return sourceAliases[load->getPointerOperand()];
-    if (auto store = dyn_cast<StoreInst>(s)) return sourceAliases[store->getPointerOperand()];
-    // We only really care about loads and stores
-    return {};
-  };
-
-
-  auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
-    for (auto *ptr : get_used(s)) {
-      df->GEN(s).insert(ptr);
-    }
-  };
-
-  auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
-    // KILL(s): The set of variables that are assigned a value in s (in many books, KILL (s) is also
-    // defined as the set of variables assigned a value in s before any use, but this does not
-    // change the solution of the dataflow equation). In this, we don't care about KILL, as we are
-    // operating on an SSA, where things are not redefined
-    for (auto *src : sources) {
-      if (s == src) df->KILL(s).insert(s);
-    }
-  };
-
-
-  auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
-    auto &gen = df->GEN(s);
-    auto &out = df->OUT(s);
-    auto &kill = df->KILL(s);
-
-    // everything in GEN...
-    IN.insert(gen.begin(), gen.end());
-
-    // ...and everything in OUT that isn't in KILL
-    for (auto o : out) {
-      // if o is not found in KILL...
-      if (kill.find(o) == kill.end()) {
-        // ...add to IN
-        IN.insert(o);
-      }
-    }
-  };
-
-  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
-    auto &INp = df->IN(p);
-    OUT.insert(INp.begin(), INp.end());
-  };
-
-  auto *df =
-      noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
-
-
-  for (auto *src : sources) {
-    // if (s.accessed.find(src) == s.accessed.end()) {
-    //   continue;
-    // }
-    auto tr = std::make_unique<alaska::Translation>();
-    value_to_translation[src] = tr.get();  // icky pointer leak
-    translations.push_back(std::move(tr));
-  }
-
-
-  for (auto &[ptr, tr] : value_to_translation) {
-    // If the ptr is an argument, translation it in the first instruction
-    if (auto argument = dyn_cast<Argument>(ptr)) {
-      tr->translation =
-          dyn_cast<CallInst>(insertTranslationBefore(&argument->getParent()->front().front(), ptr));
-      errs() << "translation: " << *tr->translation << "\n";
-    }
-
-
-    for (auto *i : insts) {
-      // Grab the IN and OUT sets
-      auto &IN = df->IN(i);
-      auto &OUT = df->OUT(i);
-      // Compute membership in those sets
-      bool in = (IN.find(ptr) != IN.end());
-      bool out = (OUT.find(ptr) != OUT.end());
-
-      // 1. Find locations to translate the pointer at.
-      //    These are locations where the value is in the OUT but not the IN
-      if (!in && out) {
-        ALASKA_SANITY(tr->translation == NULL, "Translation was not null");
-        // Put the translation after this instruction!
-        tr->translation = dyn_cast<CallInst>(insertTranslationBefore(i->getNextNode(), ptr));
-        errs() << "tr: " << *tr->translation << "\n";
-      }
-
-      // 2. If the instruction has the value in it's in set, but not it's
-      // out set, it is a release location.
-      if (!out && in) {
-        insertReleaseBefore(i->getNextNode(), ptr);
-        tr->releases.insert(dyn_cast<CallInst>(i->getNextNode()));
-      }
-
-
-      if (auto *branch = dyn_cast<BranchInst>(i)) {
-        for (auto succ : branch->successors()) {
-          break;
-          auto succInst = &succ->front();
-          auto &succIN = df->IN(succInst);
-          // if it's not in the IN of succ, translate on the edge
-          if (succIN.find(ptr) == succIN.end()) {
-            // HACK: split the edge and insert on the branch
-            BasicBlock *from = i->getParent();
-            BasicBlock *to = succ;
-            auto trampoline = llvm::SplitEdge(from, to);
-
-            tr->releases.insert(
-                dyn_cast<CallInst>(insertReleaseBefore(trampoline->getTerminator(), ptr)));
-          }
-        }
-      }
-    }
-  }
-
-
-  delete df;
 }
+
+
+
 
 
 void alaska::insertConservativeTranslations(llvm::Function &F) {
