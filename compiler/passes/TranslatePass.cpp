@@ -57,8 +57,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
 
     if (verifyFunction(F, &errs())) {
 			errs() << "Function verification failed!\n";
-      errs() << F << "\n";
-      // abort();
+      errs() << F.getName() << "\n";
     }
 
 

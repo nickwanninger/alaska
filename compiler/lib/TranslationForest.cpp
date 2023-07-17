@@ -128,7 +128,11 @@ static llvm::Instruction *compute_translation_insertion_location(
   // the instruction to consider as the "location of the pointer". This is done for things like
   // arguments.
   llvm::Instruction *effectivePointerInstruction = NULL;
-  if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
+
+
+	if (auto invokeInst = dyn_cast<llvm::InvokeInst>(pointerToTranslate)) {
+		effectivePointerInstruction = invokeInst->getNormalDest()->getFirstNonPHIOrDbg();
+	} else if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
     effectivePointerInstruction = pointerToTranslateInst;
   } else {
     // get the first instruction in the function the argument is a part of;
@@ -482,6 +486,10 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     auto l = std::make_unique<alaska::Translation>();
     l->translation = dyn_cast<CallInst>(tr->translated);
     for (auto *position : tr->releaseAfter) {
+			if (position == NULL) {
+				alaska::println("[WARNING] position was null!");
+				continue;
+			}
       if (auto phi = dyn_cast<PHINode>(position)) {
         position = phi->getParent()->getFirstNonPHI();
       }

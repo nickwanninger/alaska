@@ -151,12 +151,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
           // Only link the stub in non-baseline
           if (!baseline) {
-            // MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-            // MPM.addPass(ProgressPass("Link Stub"));
+            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+            MPM.addPass(ProgressPass("Link Stub"));
           }
 
-          // MPM.addPass(adapt(LowerSwitchPass()));
-          MPM.addPass(adapt(LowerInvokePass()));
+          MPM.addPass(adapt(LowerSwitchPass()));
+        	// MPM.addPass(adapt(LowerInvokePass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(ADCEPass()));
