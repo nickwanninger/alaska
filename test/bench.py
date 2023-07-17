@@ -27,7 +27,7 @@ enable_openmp = False
 
 
 linker_flags = os.popen("alaska-config --ldflags").read().strip().split("\n")
-print("linker flags:", linker_flags)
+# print("linker flags:", linker_flags)
 
 
 class AlaskaLinker(wl.Linker):
@@ -42,6 +42,7 @@ class AlaskaLinker(wl.Linker):
 class AlaskaStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
         shutil.copy(input, output)
+        print(f'alaska: compiling {input}')
         space.shell(f"{local}/bin/alaska-transform", output)
         space.shell("llvm-dis", output)
 
@@ -109,13 +110,44 @@ class PerfRunner(Runner):
 
 
 
+all_spec = [
+    600,
+    602,
+    605,
+    620,
+    623,
+    625,
+    631,
+    641,
+    657,
+    619,
+    638,
+    644,
+]
+
+spec_enable = [
+    605,
+    # 620,
+    623,
+    625,
+    631,
+    641,
+    657,
+    619,
+    638,
+    644,
+]
+
 space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # # space.add_suite(wl.suites.Stockfish)
-# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
-# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
+space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
 # space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
-# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="test")
+space.add_suite(wl.suites.SPEC2017,
+                tar="/home/nick/SPEC2017.tar.gz",
+                disabled=[t for t in all_spec if t not in spec_enable],
+                config="test")
 
 space.clear_pipelines()
 
@@ -133,9 +165,11 @@ space.add_pipeline(pl)
 
 
 
-compile = True
-results = space.run(runner=PerfRunner(), runs=10, compile=compile)
+results = space.run(runner=PerfRunner(), runs=1, compile=True)
 print(results)
+# exit()
+
+
 results.to_csv("bench/results.csv", index=False)
 # exit()
 
@@ -175,7 +209,7 @@ def plot_results(df, metric, baseline, modified, title='Result', ylabel='speedup
     g.set(xlabel='Benchmark')
     g.set(ylabel=ylabel)
 
-    # g.set_ylim((0, 2))
+    g.set_ylim((0, 2))
     plt.xticks(rotation=90)
     plt.tight_layout()
     plt.show()
