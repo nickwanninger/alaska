@@ -32,6 +32,11 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
+	// Just some big number.
+	if (sz > 0xFF'FF'FF) {
+		return ::malloc(sz);
+	}
+
   alaska::Mapping *ent = alaska::table::get();
   if (unlikely(ent == NULL)) {
     fprintf(stderr, "alaska: out of space!\n");
