@@ -92,7 +92,7 @@ class PerfRunner(Runner):
         print("running cd", cwd, "&&", binary, *config.args)
         with waterline.utils.cd(cwd):
             proc = subprocess.Popen(
-                ['perf', 'stat', '-e', ','.join(perf_stats), '-x', ',', '-o', f'{binary}.perf.csv', binary, *config.args],
+                ['perf', 'stat', '-e', ','.join(perf_stats), '-x', ',', '-o', f'{binary}.perf.csv', binary, *[str(arg) for arg in config.args]],
                 stdout=subprocess.DEVNULL,
                 # stderr=subprocess.DEVNULL,
                 env=config.env,
@@ -127,7 +127,6 @@ all_spec = [
 
 spec_enable = [
     605,
-    # 620,
     623,
     625,
     631,
@@ -141,13 +140,13 @@ spec_enable = [
 space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # # space.add_suite(wl.suites.Stockfish)
-space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False)
+space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
 space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
 # space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
                 disabled=[t for t in all_spec if t not in spec_enable],
-                config="test")
+                config="ref")
 
 space.clear_pipelines()
 
@@ -165,12 +164,10 @@ space.add_pipeline(pl)
 
 
 
-results = space.run(runner=PerfRunner(), runs=1, compile=True)
-print(results)
-# exit()
-
-
+results = space.run(runner=PerfRunner(), runs=10, compile=False)
 results.to_csv("bench/results.csv", index=False)
+
+# print(results)
 # exit()
 
 def plot_results(df, metric, baseline, modified, title='Result', ylabel='speedup'):
@@ -224,10 +221,14 @@ plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup
 # plot_results(df, 'maxrss', 'alaska', 'baseline', title='Benchmark RSS (Lower is better)', ylabel='speedup')
 
 # plot_results(df, 'duration_time', 'baseline', 'alaska', title='Benchmark Speedup (Higher is better)', ylabel='speedup')
-# plot_results(df, 'L1-dcache-loads', 'alaska', 'baseline', title='Loads from Level 1 data cache', ylabel='increase')
-# plot_results(df, 'L1-dcache-load-misses', 'alaska', 'baseline', title='Misses in Level 1 data cache', ylabel='increase')
-# plot_results(df, 'branch-instructions', 'alaska', 'baseline', title='Branch Instructions', ylabel='increase')
-# plot_results(df, 'branch-misses', 'alaska', 'baseline', title='Branch Misses', ylabel='increase')
+plot_results(df, 'L1-dcache-loads', 'alaska', 'baseline', title='Loads from Level 1 data cache', ylabel='increase')
+plot_results(df, 'L1-dcache-load-misses', 'alaska', 'baseline', title='Misses in Level 1 data cache', ylabel='increase')
+plot_results(df, 'branch-instructions', 'alaska', 'baseline', title='Branch Instructions', ylabel='increase')
+plot_results(df, 'branch-misses', 'alaska', 'baseline', title='Branch Misses', ylabel='increase')
+
+plot_results(df, 'cache-references', 'alaska', 'baseline', title='Cache References', ylabel='increase')
+plot_results(df, 'cache-misses', 'alaska', 'baseline', title='Cache Misses', ylabel='increase')
+
 # plot_results(df, 'dTLB-loads', 'alaska', 'baseline', title='Loads from data TLB', ylabel='increase')
 # plot_results(df, 'dTLB-load-misses', 'alaska', 'baseline', title='Loads from data TLB (misses)', ylabel='increase')
-# plot_results(df, 'instructions', 'alaska', 'baseline', title='Instruction count increase (Lower is better)', ylabel='increase in instruction count')
+plot_results(df, 'instructions', 'alaska', 'baseline', title='Instruction count increase (Lower is better)', ylabel='increase in instruction count')

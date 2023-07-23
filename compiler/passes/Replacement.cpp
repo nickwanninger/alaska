@@ -42,6 +42,8 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
       replace_function(M, "realloc_beebs", "hrealloc"); // embench
     }
 
+		// replace_function(M, "_ZdlPvm", "hfree");
+
     // even if calls to malloc are not replaced, we still ought to replace these functions for
     // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
     // for alaska_usable_size().

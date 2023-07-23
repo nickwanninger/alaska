@@ -119,6 +119,65 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
 };
 
 
+class AlaskaArgumentLockReductionPass
+    : public llvm::PassInfoMixin<AlaskaArgumentLockReductionPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      if (F.empty()) continue;
+      // Unsure how to handle this.
+      if (F.isVarArg()) continue;
+
+      // auto l = F.getLinkage();
+      // if (l != GlobalValue::InternalLinkage && l != GlobalValue::PrivateLinkage) {
+      //   continue;
+      // }
+
+      std::set<int> argIndsRequiringTranslations;
+      bool usedAsValue = false;
+
+      for (auto &use : F.uses()) {
+        if (auto callInst = dyn_cast<CallInst>(use.getUser())) {
+					if (callInst->getCalledFunction() != use) {
+          	usedAsValue = true;
+						continue;
+					}
+          int ind = 0;
+          for (auto &arg : callInst->args()) {
+            if (alaska::shouldTranslate(arg)) {
+              argIndsRequiringTranslations.insert(ind);
+            }
+            ind++;
+          }
+        }
+        //
+      }
+
+
+
+      // alaska::println(F.getLinkage());
+      if (usedAsValue) {
+        alaska::println(F.getName(), ": ALL");
+      } else {
+        alaska::print(F.getName(), ":");
+        for (auto ind : argIndsRequiringTranslations) {
+          alaska::print(" ", ind);
+        }
+        alaska::println();
+
+				for (auto &arg : F.args()) {
+					int ind = arg.getArgNo();
+					if (argIndsRequiringTranslations.contains(ind)) continue;
+					arg.addAttr(Attribute::AttrKind::InReg);
+				}
+      }
+    }
+
+    return PreservedAnalyses::none();
+  }
+};
+
+
 
 
 class RealDCEPass : public llvm::PassInfoMixin<RealDCEPass> {
@@ -156,7 +215,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           }
 
           MPM.addPass(adapt(LowerSwitchPass()));
-        	// MPM.addPass(adapt(LowerInvokePass()));
+          // MPM.addPass(adapt(LowerInvokePass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(ADCEPass()));
@@ -166,10 +225,14 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           MPM.addPass(AlaskaNormalizePass());
           MPM.addPass(ProgressPass("Normalize"));
 
+
           // Simplify the cfg
           MPM.addPass(adapt(SimplifyCFGPass()));
 
           if (!baseline) {
+            // MPM.addPass(AlaskaArgumentLockReductionPass());
+            MPM.addPass(ProgressPass("Argument Lock Reduction"));
+
             MPM.addPass(AlaskaReplacementPass());
             MPM.addPass(ProgressPass("Replacement"));
 
