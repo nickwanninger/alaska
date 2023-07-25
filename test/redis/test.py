@@ -2,33 +2,15 @@ import redis
 import string
 import random
 import time
-
-# this benchmark allocates 700,000 random keys of length 240
-# then, inserts 170,000 random keys of length 492
-# This operation is the same thing that is outlined in the MESH paper
-
-r = redis.Redis(host='localhost', port=6379, db=0)
+import threading
+import subprocess
+from pathlib import Path
+import os
 
 
-def get_rss():
-    temp = redis.Redis(host='localhost', port=6379, db=0)
-    info = temp.info('memory')
+ROOT_DIR = Path(os.path.dirname(__file__))
 
-    return info['used_memory_rss'], info['mem_fragmentation_ratio']
-
-
-def gen_value(length):
-    # length = random.randrange(64, length)
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
-
-def now():
-    return int(time.time())
-
-scale = 10000 # 10000
-
-
-start_time = now()
-last = start_time
+results = []
 
 def track():
     global last
@@ -36,20 +18,31 @@ def track():
     if cur > last:
         last = cur
         rss, frag = get_rss()
-        # print(f'{cur - start_time},{get_rss()}')
-        print(f'{rss},{frag}')
+        results.append((cur - start_time, rss))
+        print(f'{cur - start_time},{rss}')
+        # print(f'{rss},{frag}')
 
 
-for i in range(20 * scale):
-    track()
-    v = gen_value(240)
-    r.set(gen_value(128), v)
+for trial in range(10):
+    print('starting...')
+    os.system('rm -f dump.rdb')
+    env = os.environ.copy()
+    env['ALASKA_LOG'] = f'activedefrag_{trial}.log'
+    env['LD_PRELOAD'] = ROOT_DIR / '../../local/lib/libalaska.so'
+    # redis_cmd = subprocess.Popen([ROOT_DIR / 'build/redis-server.base', ROOT_DIR / 'redis.conf'], env=env)
+    redis_cmd = subprocess.Popen(['/home/nick/dev/redis/src/redis-server', ROOT_DIR / 'redis.conf'], env=env)
+    time.sleep(.5) # Wait for the server to start
+
+    os.system(f'cat {ROOT_DIR / "fragmentation.redis"} | redis-cli')
+    # wait 10 seconds to let defrag do it's thing
+    time.sleep(10)
+
+    print('ending...')
+    redis_cmd.kill()
+    print('joining...')
+    redis_cmd.wait()
 
 
-
-# print('second round...')
-
-for i in range(17 * scale):
-    track()
-    v = gen_value(1028)
-    r.set(gen_value(128), v)
+# print('time,rss')
+# for time, rss in results:
+#     print(f'{time},{rss}')

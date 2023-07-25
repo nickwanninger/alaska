@@ -21,111 +21,21 @@
 
 namespace anchorage {
 
-  // A FreeList is the base class for several different kinds of freelist implementations.
-  // The main goal is to store free `anchorage::Block`s in a way that
-  class FreeList {
-   public:
-    inline FreeList(anchorage::Chunk &chunk)
-        : m_chunk(chunk) {
-    }
-    virtual ~FreeList(){};
-
-    // Add a block to this free list
-    virtual void add(anchorage::Block *) = 0;
-    // removve a block from the free list
-    virtual void remove(anchorage::Block *) = 0;
-    // Search for a block that can fit a certain size. Remove
-    // it from the free list and return it.
-    virtual auto search(size_t size) -> anchorage::Block * = 0;
-    // Collect all the blocks in the free list (No sorting or anything)
-    virtual void collect(ck::vec<anchorage::Block *> &out) = 0;
-    // How many blocks does the free list constain?
-    virtual size_t size(void) = 0;
-
-    // The base class manages access to the chunk if the subclasses need it
-    inline auto &chunk() {
-      return m_chunk;
-    }
-
-   protected:
-    anchorage::Chunk &m_chunk;
-  };
-
-
-  class FirstFitSingleFreeList : public FreeList {
-   public:
-    using FreeList::FreeList;
-    inline ~FirstFitSingleFreeList() override {
-      // Nothing.
-    }
-    inline void add(anchorage::Block *blk) override {
-      auto *node = (struct list_head *)blk->data();
-      INIT_LIST_HEAD(node);        // Simply initialize the list
-      list_add(node, &free_list);  // Then add it to the free list
-      m_size++;                    // update the length
-    }
-
-    inline void remove(anchorage::Block *blk) override {
-      // Simply remove the block from the list and initialize the list to 0
-      list_del_init((struct list_head *)blk->data());
-      m_size--;  // update the length
-    }
-
-    inline anchorage::Block *search(size_t size) override {
-      // return nullptr;
-      struct list_head *cur = nullptr;
-      list_for_each(cur, &free_list) {
-        auto blk = anchorage::Block::get((void *)cur);
-        if (blk->size() >= size) {
-          remove(blk);
-          return blk;
-        }
-      }
-      return nullptr;
-    }
-
-    inline void collect(ck::vec<anchorage::Block *> &out) override {
-      out.ensure_capacity(size());
-      // gather up all the holes
-      struct list_head *cur = nullptr;
-      list_for_each(cur, &free_list) {
-        auto blk = anchorage::Block::get((void *)cur);
-        out.push(blk);
-      }
-    }
-
-
-    inline size_t size(void) override {
-      return m_size;
-    }
-
-   private:
-    size_t m_size = 0;
-    // A single first-fit linked list
-    struct list_head free_list = LIST_HEAD_INIT(free_list);
-  };
-
-
-
-
-  class FirstFitSegFreeList : public FreeList {
+  class FirstFitSegFreeList {
    public:
     // This class implements a barebones power-of-two segregated free list with `num_classes`
     // classes. It's not great but hopefully it works
     static constexpr int num_classes = 16;
+    static constexpr int num_free_lists = num_classes + 1;
+
     inline FirstFitSegFreeList(anchorage::Chunk &chunk)
-        : FreeList(chunk) {
+        : m_chunk(chunk) {
       for (int i = 0; i < num_classes; i++) {
         free_lists[i] = LIST_HEAD_INIT(free_lists[i]);
       }
     }
 
-    inline ~FirstFitSegFreeList() override {
-      // Nothing.
-    }
-
-
-    inline void add(anchorage::Block *blk) override {
+    inline void add(anchorage::Block *blk) {
       size_t size = blk->size();
       auto *list = get_free_list(size);
       auto *node = (struct list_head *)blk->data();
@@ -134,29 +44,29 @@ namespace anchorage {
       m_size++;              // update the length
     }
 
-    inline void remove(anchorage::Block *blk) override {
+    inline void remove(anchorage::Block *blk) {
       // Simply remove the block from the list it's a part of.
       list_del_init((struct list_head *)blk->data());
       m_size--;  // update the length
     }
 
 
-    inline anchorage::Block *search(size_t size) override {
+    inline anchorage::Block *search(size_t size) {
       for (int i = 0; i < num_classes; i++) {
         // TODO: be smarter w/ log or something
         if (size <= (1 << i)) {
           auto blk = search_in_free_list(size, &free_lists[i]);
-					if (blk != nullptr) {
-						// printf("found %zu req in sc.%d\n", size, i);
-						return blk;
-					}
+          if (blk != nullptr) {
+            // printf("found %zu req in sc.%d\n", size, i);
+            return blk;
+          }
         }
       }
       return search_in_free_list(size, &huge_free_list);
     }
 
 
-    inline void collect(ck::vec<anchorage::Block *> &out) override {
+    inline void collect(ck::vec<anchorage::Block *> &out) {
       out.ensure_capacity(size());
       for (int i = 0; i < num_classes; i++) {
         collect_from_freelist(&free_lists[i], out);
@@ -164,8 +74,13 @@ namespace anchorage {
       collect_from_freelist(&huge_free_list, out);
     }
 
+    inline void collect_freelists(struct list_head *lists[num_free_lists]) {
+      for (int i = 0; i < num_classes; i++)
+        lists[i] = &free_lists[i];
+      lists[num_classes] = &huge_free_list;
+    }
 
-    inline size_t size(void) override {
+    inline size_t size(void) {
       return m_size;
     }
 
@@ -179,7 +94,7 @@ namespace anchorage {
           return blk;
         }
       }
-			return nullptr;
+      return nullptr;
     }
 
     inline void collect_from_freelist(
@@ -207,10 +122,17 @@ namespace anchorage {
       return &huge_free_list;
     }
 
+
+    // The base class manages access to the chunk if the subclasses need it
+    inline auto &chunk() {
+      return m_chunk;
+    }
+
     size_t m_size = 0;
 
     struct list_head free_lists[num_classes];
     struct list_head huge_free_list = LIST_HEAD_INIT(huge_free_list);
+    anchorage::Chunk &m_chunk;
   };
 
 }  // namespace anchorage
