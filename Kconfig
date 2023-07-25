@@ -69,6 +69,12 @@ menu "Experimental"
 	config TRACK_TRANSLATION_HITRATE
 		bool "Track hit/miss rate for translations. Warning: VERY SLOW"
 		default n
+
+	config SNIPER_MAGIC_INSTRUCTION
+		bool "Translate with a Magic Instruction from Sniper"
+		depends on  !HANDLE_SQUEEZING
+		default n
+
 endmenu
 
 
