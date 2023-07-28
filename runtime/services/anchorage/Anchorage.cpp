@@ -13,7 +13,6 @@
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Chunk.hpp>
 #include <anchorage/Block.hpp>
-#include <anchorage/Defragmenter.hpp>
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
@@ -33,48 +32,28 @@
 static ck::mutex anch_lock;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
-  // static uint64_t last_barrier_time = 0;
-  // auto now = alaska_timestamp();
-  // if (now - last_barrier_time > 5000 * 1000UL * 1000UL) {
-  //   last_barrier_time = now;
-  //   alaska::service::barrier();
-  // }
-  // // alaska::service::barrier();
-
   // Grab a lock
-  ck::scoped_lock l(anch_lock);
+  anch_lock.lock();
 
   auto &m = *ent;
   using namespace anchorage;
   Block *new_block = NULL;
-  Chunk *new_chunk = NULL;
 
-retry:
-
-  // printf("alloc %zu into %p (there are %zu chunks)\n", size, &m, anchorage::Chunk::all().size());
-
-  // attempt to allocate from each chunk
-  for (auto *chunk : anchorage::Chunk::all()) {
-    auto blk = chunk->alloc(size);
-    // if the chunk could allocate, use the pointer it created
-    if (blk) {
-      new_chunk = chunk;
-      new_block = blk;
-      ALASKA_ASSERT(blk < chunk->tos, "An allocated block must be less than the top of stack");
-      break;
-    }
-  }
+  // Allocate from the to_space
+  auto new_chunk = anchorage::Chunk::to_space;
+  auto blk = new_chunk->alloc(size);
+  new_block = blk;
+  ALASKA_ASSERT(blk < new_chunk->tos, "An allocated block must be less than the top of stack");
   (void)new_chunk;
 
+  // If we couldn't find anything, trigger a barrier.
+  // TODO: mark *why* we want to barrier somewhere...
+  //       We should prioritize compaction
   if (new_block == NULL) {
-    size_t required_pages = (size / anchorage::page_size) * 2;
-    if (required_pages < anchorage::min_chunk_pages) {
-      required_pages = anchorage::min_chunk_pages;
-    }
-
-    new anchorage::Chunk(required_pages);  // add a chunk
-
-    goto retry;
+    anch_lock.unlock();
+    alaska::service::barrier();
+    alaska::service::alloc(ent, size);
+    return;
   }
 
   if (m.ptr != NULL) {
@@ -92,6 +71,7 @@ retry:
     ent->ptr = new_block->data();
   }
 
+  anch_lock.unlock();
   return;
 }
 
@@ -131,11 +111,28 @@ static double get_overall_frag(void) {
   long rss_bytes = alaska_translate_rss_kb() * 1024;
   long heap_size = 0;
 
-  // Defragment the chunks
-  for (auto chunk : anchorage::Chunk::all()) {
-    // double frag = chunk->frag();
-    heap_size += chunk->active_bytes;
-  }
+  heap_size += anchorage::Chunk::to_space->active_bytes;
+  heap_size += anchorage::Chunk::from_space->active_bytes;
+
+  anch_lock.unlock();
+
+  return rss_bytes / (double)heap_size;
+}
+
+
+static double get_heap_frag(void) {
+  anch_lock.lock();
+
+  long rss_bytes = 0;
+  long heap_size = 0;
+
+
+  rss_bytes += anchorage::Chunk::to_space->span();
+  rss_bytes += anchorage::Chunk::from_space->span();
+
+  heap_size += anchorage::Chunk::to_space->memory_used_including_overheads();
+  heap_size += anchorage::Chunk::from_space->memory_used_including_overheads();
+
   anch_lock.unlock();
 
   return rss_bytes / (double)heap_size;
@@ -143,10 +140,10 @@ static double get_overall_frag(void) {
 
 
 void pad_barrier_control_overhead_target(void) {
-  float target_oh_lb = get_knob("ANCH_TARG_OVERHEAD_LB", 0.001); // .01%  min overhead
-  float target_oh_ub = get_knob("ANCH_TARG_OVERHEAD_UB", 0.10); //  10% max overhead
-  float target_frag_lb = get_knob("ANCH_TARG_FRAG_LB", 1.0);
-  float target_frag_ub = get_knob("ANCH_TARG_FRAG_UB", 1.2);
+  float target_oh_lb = get_knob("ANCH_TARG_OVERHEAD_LB", 0.001);  // .01%  min overhead
+  float target_oh_ub = get_knob("ANCH_TARG_OVERHEAD_UB", 0.10);   //  10% max overhead
+  float target_frag_lb = get_knob("ANCH_TARG_FRAG_LB", 1.4);
+  float target_frag_ub = get_knob("ANCH_TARG_FRAG_UB", 2.0);
   float target_frag_improve_min = get_knob("ANCH_TARG_FRAG_IMPROVE_MIN", 0.05);
   float aimd_add = get_knob("ANCH_AIMD_ADD", 1);
   float aimd_mul = get_knob("ANCH_AIMD_MUL", 0.5);
@@ -166,15 +163,18 @@ void pad_barrier_control_overhead_target(void) {
   // control variable
   double ms_to_sleep = 1000;  // 1s out of the gate.
 
-  printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
-  printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
+  // printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
+  // printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
 
 
   do {
     usleep(ms_to_sleep * 1000);
     auto start = alaska_timestamp();
-    this_frag_start = get_overall_frag();
+    this_frag_start = get_heap_frag();
     this_oh_start = cost_since_last_pass / (start - last_pass_start);
+
+    long rss_bytes = alaska_translate_rss_kb() * 1024;
+    // printf("current frag = %f, rss = %fmb\n", this_frag_start, rss_bytes / 1024.0 / 1024.0);
 
     // do a pass only if we are past the upper fragmentation limit, and our overhead is too low
     if ((this_frag_start > target_frag_ub) && (this_oh_start < target_oh_lb)) {
@@ -184,13 +184,15 @@ void pad_barrier_control_overhead_target(void) {
       alaska::service::barrier();
       // estimate fragmentation at end of pass
       // does not need to be this slow
-      this_frag_end = get_overall_frag();
+      this_frag_end = get_heap_frag();
       did_pass = 1;
       hit_lb = this_frag_end < target_frag_lb;
       hit_min = (this_frag_start - this_frag_end) > target_frag_improve_min;
       last_pass_start = start;
       cost_since_last_pass = 0;  // reset here, will be computed later
-      printf("pass complete - resulting frag is %f (%s)\n", this_frag_end, hit_lb ? "hit" : "MISS");
+                                 // long rss_bytes = alaska_translate_rss_kb() * 1024;
+      printf("pass complete - resulting frag is %f (%s) %fMB\n", this_frag_end,
+          hit_lb ? "hit" : "MISS", alaska_translate_rss_kb() / 1024.0);
     } else {
       this_frag_end = this_frag_start;
       did_pass = 0;
@@ -240,25 +242,32 @@ static void barrier_control_overhead_target(void) {
   // is would be a bit too expensive, as the runtime would have
   float target_oh = get_knob("ANCH_TARG_OVERHEAD", 0.05);
   // 1.0 is the "best" fragmentation. We will go a bit above that.
-  float target_frag = get_knob("ANCH_TARG_FRAG", 1.1);
+  float target_frag = get_knob("ANCH_TARG_FRAG", 1.2);
   printf("target overhead: %f\n", target_oh);
   printf("target frag:     %f\n", target_frag);
 
   double ms_to_sleep = 1000;  // 1s out of the gate.
   do {
+    ms_to_sleep = 500;
     usleep(ms_to_sleep * 1000);
     auto start = alaska_timestamp();
-    if (get_overall_frag() > target_frag) {
+
+		float frag = get_heap_frag();
+
+    long rss_kb = alaska_translate_rss_kb();
+    printf("current frag = %f, rss = %fmb\n", frag, rss_kb / 1024.0);
+    if (frag > target_frag) {
       alaska::service::barrier();
     }
     auto end = alaska_timestamp();
     double ms_spent_defragmenting = (end - start) / 1024.0 / 1024.0;
+    printf("ms spent: %f %f\n", ms_spent_defragmenting, get_heap_frag());
     ms_to_sleep = ms_spent_defragmenting / target_oh;
 
     // You can sleep for a minimum of 10ms. This is relatively arbitrary, but ensures progress can
     // be made, and avoids a defrag-storm when there is little work to be done.
-    if (ms_to_sleep < 10) {
-      ms_to_sleep = 10;
+    if (ms_to_sleep < 100) {
+      ms_to_sleep = 100;
     }
 
   } while (1);
@@ -267,64 +276,48 @@ static void barrier_control_overhead_target(void) {
 
 
 pthread_t anchorage_barrier_thread;
+pthread_t anchorage_logger_thread;
 static void *barrier_thread_fn(void *) {
-  // You are allowed to spend X% of time working on barriers
-  pad_barrier_control_overhead_target();
-  // barrier_control_overhead_target();
-  return NULL;
-
-
-  uint64_t barrier_interval_ms = 1000;
-  auto boot_time = alaska_timestamp();
-
-  FILE *log = fopen("/tmp/alaska.log", "a");
-  double ms_spent_defragmenting = 0;
-  // uint64_t thread_start_time = alaska_timestamp();
-  while (1) {
-    usleep(barrier_interval_ms * 1000);
-
-    anch_lock.lock();
-
-    long rss_bytes = alaska_translate_rss_kb() * 1024;
-    long heap_size = 0;
-
-    // Defragment the chunks
-    for (auto chunk : anchorage::Chunk::all()) {
-      // double frag = chunk->frag();
-      heap_size += chunk->active_bytes;
-    }
-    anch_lock.unlock();
-
-    double overall_fragmentation = rss_bytes / (double)heap_size;
-    // double heap_fragmentation = heap_bytes / (double)heap_size;
-
-
-    if (overall_fragmentation > 1.2) {
-      auto start = alaska_timestamp();
-      alaska::service::barrier();
-      auto end = alaska_timestamp();
-      ms_spent_defragmenting += (end - start) / 1024.0 / 1024.0;
-    }
-
-    auto time_since_boot = (alaska_timestamp() - boot_time) / 1024.0 / 1024.0;
-
-    fprintf(log, "pid=%d,rss=%lu,frag=%f,defrag_ms=%f,ms=%f,wasted_ratio=%f\n", getpid(), rss_bytes,
-        overall_fragmentation, ms_spent_defragmenting, time_since_boot,
-        ms_spent_defragmenting / time_since_boot);
-
-    fflush(log);
-  }
-
-  fclose(log);
-
+  // pad_barrier_control_overhead_target();
+  barrier_control_overhead_target();
   return NULL;
 }
 
 
+
+static void *logger_thread_fn(void *) {
+  const char *log_filename = getenv("ALASKA_LOG");
+  printf("================= log_filename = %s =================\n", log_filename);
+  FILE *out = fopen(log_filename, "w+");
+  fprintf(out, "time,rss,frag\n");
+
+  long start = alaska_timestamp() / 1000 / 1000;
+  long last = start;
+  while (1) {
+    long now = alaska_timestamp() / 1000 / 1000;
+    if (last != now) {
+      last = now;
+      auto rss_kb = alaska_translate_rss_kb();
+      auto frag = get_overall_frag();
+      fprintf(out, "%lu,%lu,%f\n", now - start, rss_kb * 1024, frag);
+      fflush(out);
+    }
+    usleep(25 * 1000);
+  }
+
+  fclose(out);
+}
+
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
+
   // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+
+  const char *log_filename = getenv("ALASKA_LOG");
+  if (log_filename != NULL) {
+    pthread_create(&anchorage_logger_thread, NULL, logger_thread_fn, NULL);
+  }
 }
 
 // TODO:
@@ -338,14 +331,15 @@ void alaska::service::barrier(void) {
 
   // Get everyone prepped for a barrier
   alaska::barrier::begin();
+  // Swap the spaces.
+  anchorage::Chunk::swap_spaces();
 
-  // Defragment the chunks
-  for (auto chunk : anchorage::Chunk::all()) {
-    long saved = chunk->defragment();
-    (void)saved;
-    // printf("saved %ld bytes\n", saved);
-  }
-  // Release everyone from the barrier
+	anchorage::CompactionConfig config;
+	config.available_tokens = 30'000'000; // defragment 30mb
+
+	// Before swapping spaces, do some defragmentation
+  anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+
   alaska::barrier::end();
 }
 
@@ -353,6 +347,7 @@ void alaska::service::barrier(void) {
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   // HACK
   if (ent->ptr == nullptr) return;
+  // if (locked) printf("lock %p\n", ent->ptr);
   auto *block = anchorage::Block::get(ent->ptr);
   block->mark_locked(locked);
 }

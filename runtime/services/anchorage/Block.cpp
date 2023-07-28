@@ -100,26 +100,26 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
   }
 
 
-  // size_t count = (size() / anchorage::block_size);
-  // printf(" %zu ", size());
-	// putchar(' ');
-  if (0) {
-    set_fg(0x88'88'88);
-    size_t count = (size() + 16) / 8;
-    auto *d = static_cast<uint64_t *>(data());
-    if (count > 8) count = 8;
-
-    for (size_t i = 0; i < count; i++) {
-      // if (i % 8 == 0) printf(" ");
-      printf("%016lx ", d[i]);
-    }
-  } else {
-    size_t count = (size() / anchorage::block_size);
-    // printf(" %zu ", count);
-    for (size_t i = 0; i < count; i++) {
-      putchar(c);
-    }
-  }
+  size_t count = (size() / anchorage::block_size);
+  printf(" %zu ", size());
+	putchar(' ');
+  // if (0) {
+  //   set_fg(0x88'88'88);
+  //   size_t count = (size() + 16) / 8;
+  //   auto *d = static_cast<uint64_t *>(data());
+  //   if (count > 8) count = 8;
+  //
+  //   for (size_t i = 0; i < count; i++) {
+  //     // if (i % 8 == 0) printf(" ");
+  //     printf("%016lx ", d[i]);
+  //   }
+  // } else {
+  //   size_t count = (size() / anchorage::block_size);
+  //   // printf(" %zu ", count);
+  //   for (size_t i = 0; i < count; i++) {
+  //     putchar(c);
+  //   }
+  // }
   clear_format();
 
   return;

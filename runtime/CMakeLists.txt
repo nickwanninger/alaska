@@ -51,7 +51,6 @@ if (ALASKA_SERVICE_ANCHORAGE)
 		services/anchorage/Anchorage.cpp
 		services/anchorage/Block.cpp
 		services/anchorage/Chunk.cpp
-		services/anchorage/Defragmenter.cpp
 		services/anchorage/Swapper.cpp
 	)
 endif(ALASKA_SERVICE_ANCHORAGE)

@@ -72,12 +72,12 @@ void run_test(int count) {
 // this program is used in testing the anchorage bump allocator
 int main(int argc, char **argv) {
 
-	for (size_t i = 16; i < 2048 * 1024; i *= 2) {
-		void *x = malloc(i);
-		printf("x = %p\n", x);
-		free(x);
-	}
-	return 0;
+	// for (size_t i = 16; i < 2048 * 1024; i *= 2) {
+	// 	void *x = malloc(i);
+	// 	printf("x = %p\n", x);
+	// 	free(x);
+	// }
+	// return 0;
 
   run_test(24);
   return 0;

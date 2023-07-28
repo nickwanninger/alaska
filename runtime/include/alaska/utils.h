@@ -48,6 +48,8 @@
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 #define round_up(x, y) (((x) + (y)-1) & ~((y)-1))
+#define round_down(x, s) ((x) & ~((s)-1))
+
 
 #define ALASKA_EXPORT __attribute__((visibility("default")))
 

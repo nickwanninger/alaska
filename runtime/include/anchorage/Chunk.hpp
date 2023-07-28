@@ -17,7 +17,12 @@
 #include <ck/set.h>
 
 
+
 namespace anchorage {
+
+	struct CompactionConfig {
+		unsigned long available_tokens = ULONG_MAX;
+	};
 
   /**
    * A Chunk is allocated on a large mmap region given to us by the kernel.
@@ -27,8 +32,12 @@ namespace anchorage {
    * success.
    */
   struct Chunk {
-    // FreeList is a friend of chunks.
-    friend anchorage::FreeList;
+
+		static Chunk *to_space;
+		static Chunk *from_space;
+		static void swap_spaces(void);
+
+    friend anchorage::FirstFitSegFreeList;
 
     size_t pages;  // how many 4k pages this chunk uses.
     anchorage::Block
@@ -38,6 +47,7 @@ namespace anchorage {
 
     // How many active bytes are there - tracked by alloc/free
     size_t active_bytes = 0;
+		size_t active_blocks = 0;
 
     // anchorage::FirstFitSingleFreeList free_list;
     anchorage::FirstFitSegFreeList free_list;
@@ -67,15 +77,16 @@ namespace anchorage {
 
     // what is the current frag ratio?
     float frag() {
-      return span() / (double)active_bytes;
+      return span() / (float)memory_used_including_overheads();
     }
+
+		size_t memory_used_including_overheads() {
+			return active_bytes + 16 * active_blocks;
+		}
 
     // dump the chunk to stdout for debugging.
     void dump(Block *focus = NULL, const char *message = "");
     void dump_free_list(void);
-
-    // get all Chunks
-    static auto all(void) -> const ck::set<anchorage::Chunk *> &;
 
     // the total memory used in this heap
     size_t span(void) const;
@@ -90,8 +101,7 @@ namespace anchorage {
     }
 
 
-    // Defragment this chunk, returning the saved bytes off the end
-    long defragment();
+    long perform_compaction(anchorage::Chunk &to_space, anchorage::CompactionConfig &config);
 
     enum ShiftDirection { Right, Left };
 
