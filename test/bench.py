@@ -137,16 +137,13 @@ spec_enable = [
     644,
 ]
 
-space.add_suite(wl.suites.Embench)
-# space.add_suite(wl.suites.PolyBench, size="LARGE")
-# space.add_suite(wl.suites.Stockfish)
-space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
-# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
-space.add_suite(wl.suites.SPEC2017,
-                tar="/home/nick/SPEC2017.tar.gz",
-                disabled=[t for t in all_spec if t not in spec_enable],
-                config="ref")
+# space.add_suite(wl.suites.Embench)
+space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=14)
+# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+# space.add_suite(wl.suites.SPEC2017,
+#                 tar="/home/nick/SPEC2017.tar.gz",
+#                 disabled=[t for t in all_spec if t not in spec_enable],
+#                 config="ref")
 
 space.clear_pipelines()
 
@@ -171,11 +168,12 @@ space.add_pipeline(pl)
 
 
 
-results = space.run(runner=PerfRunner(), runs=1, compile=True)
+# results = space.run(runner=PerfRunner(), runs=1, compile=True)
+results = space.run(runs=1, compile=True)
+print(results)
 results.to_csv("bench/results.csv", index=False)
 
-# print(results)
-# exit()
+
 
 def plot_results(df, output_name, metric, baseline, modified, title='Result', ylabel='speedup'):
     df = df.pivot_table(index=['suite', 'benchmark'], columns='config', values=metric).reset_index()

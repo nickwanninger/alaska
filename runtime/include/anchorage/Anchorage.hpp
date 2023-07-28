@@ -44,4 +44,8 @@ namespace anchorage {
   static inline size_t size_with_overhead(size_t sz) {
     return sz + block_size;
   }
+
+
+	double get_heap_frag(void);
+	double get_heap_frag_locked(void);
 }  // namespace anchorage

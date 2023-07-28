@@ -63,9 +63,11 @@ static void *rsstrack_thread_func(void *arg) {
   while (1) {
 		uint64_t now = timestamp();
 
-		long rss_kb = current_rss();
+		long rss = current_rss() * 1024;
 
-		fprintf(out, "%zu,%zu\n", now - thread_start_time, rss_kb);
+		long t = (now - thread_start_time) / 1000 / 1000;
+
+		fprintf(out, "%zu,%zu\n", t, rss);
 		fflush(out);
     usleep(interval_ms * 1000);
   }

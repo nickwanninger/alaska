@@ -120,12 +120,9 @@ static double get_overall_frag(void) {
 }
 
 
-static double get_heap_frag(void) {
-  anch_lock.lock();
-
+double anchorage::get_heap_frag_locked(void) {
   long rss_bytes = 0;
   long heap_size = 0;
-
 
   rss_bytes += anchorage::Chunk::to_space->span();
   rss_bytes += anchorage::Chunk::from_space->span();
@@ -133,9 +130,14 @@ static double get_heap_frag(void) {
   heap_size += anchorage::Chunk::to_space->memory_used_including_overheads();
   heap_size += anchorage::Chunk::from_space->memory_used_including_overheads();
 
-  anch_lock.unlock();
-
   return rss_bytes / (double)heap_size;
+}
+
+double anchorage::get_heap_frag(void) {
+  anch_lock.lock();
+  double val = get_heap_frag_locked();
+  anch_lock.unlock();
+  return val;
 }
 
 
@@ -163,14 +165,14 @@ void pad_barrier_control_overhead_target(void) {
   // control variable
   double ms_to_sleep = 1000;  // 1s out of the gate.
 
-  // printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
-  // printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
+  printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
+  printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
 
 
   do {
     usleep(ms_to_sleep * 1000);
     auto start = alaska_timestamp();
-    this_frag_start = get_heap_frag();
+    this_frag_start = anchorage::get_heap_frag();
     this_oh_start = cost_since_last_pass / (start - last_pass_start);
 
     long rss_bytes = alaska_translate_rss_kb() * 1024;
@@ -184,7 +186,7 @@ void pad_barrier_control_overhead_target(void) {
       alaska::service::barrier();
       // estimate fragmentation at end of pass
       // does not need to be this slow
-      this_frag_end = get_heap_frag();
+      this_frag_end = anchorage::get_heap_frag();
       did_pass = 1;
       hit_lb = this_frag_end < target_frag_lb;
       hit_min = (this_frag_start - this_frag_end) > target_frag_improve_min;
@@ -234,35 +236,102 @@ void pad_barrier_control_overhead_target(void) {
 
 
 
+
 static void barrier_control_overhead_target(void) {
+  enum State {
+    COMPACTING,  // We are actively moving objects.
+    WAITING,     // We are waiting until frag is high enough to begin defrag
+  };
+
+  State state = WAITING;
+  long total_moved_this_cycle = 0;
+  double ms_spent_in_this_cycle = 0;
+
   // "target overhead" is the maximum overhead we will permit the defragmenter to impart
   // on the program. This is currently done using a simple control system where we run a
   // barrier then wait for a period of time that would result in the requested overhead.
   // This would be better to do by restricting the runtime of the barrier itself, but that
   // is would be a bit too expensive, as the runtime would have
   float target_oh = get_knob("ANCH_TARG_OVERHEAD", 0.05);
-  // 1.0 is the "best" fragmentation. We will go a bit above that.
-  float target_frag = get_knob("ANCH_TARG_FRAG", 1.2);
+
+  float frag_lb = get_knob("FRAG_LB", 1.05);  // if frag < lb, stop compacting.
+  float frag_ub = get_knob("FRAG_UB", 1.4);   // if frag > ub, start compacting
   printf("target overhead: %f\n", target_oh);
-  printf("target frag:     %f\n", target_frag);
+  printf("frag bounds:    [%f, %f]\n", frag_lb, frag_ub);
 
   double ms_to_sleep = 1000;  // 1s out of the gate.
   do {
-    ms_to_sleep = 500;
+    ms_to_sleep = 400;
     usleep(ms_to_sleep * 1000);
+
+    // if (anchorage::Chunk::to_space == NULL || anchorage::Chunk::from_space == NULL) {
+    // 	continue;
+    // }
     auto start = alaska_timestamp();
+    float frag_before = anchorage::get_heap_frag();
 
-		float frag = get_heap_frag();
+    auto to_use = anchorage::Chunk::to_space->memory_used_including_overheads();
+    auto from_use = anchorage::Chunk::from_space->memory_used_including_overheads();
 
-    long rss_kb = alaska_translate_rss_kb();
-    printf("current frag = %f, rss = %fmb\n", frag, rss_kb / 1024.0);
-    if (frag > target_frag) {
-      alaska::service::barrier();
+
+    if (state == WAITING) {
+      // If the fragmentation has gotten "out of hand", switch to the compacting state.
+      if (frag_before > frag_ub) {
+        state = COMPACTING;
+        total_moved_this_cycle = 0;
+        ms_spent_in_this_cycle = 0;
+      }
     }
-    auto end = alaska_timestamp();
-    double ms_spent_defragmenting = (end - start) / 1024.0 / 1024.0;
-    printf("ms spent: %f %f\n", ms_spent_defragmenting, get_heap_frag());
-    ms_to_sleep = ms_spent_defragmenting / target_oh;
+
+    printf("[ctrl frag=%2.4f %ld %ld] ", frag_before, to_use / 1024 / 1024, from_use / 1024 / 1024);
+    switch (state) {
+      case WAITING:
+        printf("Waiting...\n", frag_before);
+        break;
+      case COMPACTING:
+        printf("Compacting! (%5.2fMB in %fms)\n", total_moved_this_cycle / 1024.0 / 1024.0,
+            ms_spent_in_this_cycle);
+        break;
+    }
+
+    if (state == COMPACTING) {
+      ck::scoped_lock l(anch_lock);
+      // Get everyone prepped for a barrier
+      alaska::barrier::begin();
+      anchorage::CompactionConfig config;
+      // config.available_tokens = anchorage::Chunk::to_space->memory_used_including_overheads() *
+      // 0.25;
+      config.available_tokens = 50'000'000;  // how many bytes can you defrag?
+      // Before swapping spaces, do some defragmentation
+      auto moved =
+          anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+      total_moved_this_cycle += moved;
+      ms_spent_in_this_cycle += (alaska_timestamp() - start) / 1024.0 / 1024.0;
+
+      float frag_after = anchorage::get_heap_frag_locked();
+
+      alaska::barrier::end();
+      if (moved == 0 or frag_after < frag_lb) {
+        // Swap the spaces and switch to waiting.
+        anchorage::Chunk::swap_spaces();
+        state = WAITING;
+        printf("Stopping. Ran out of things to move. Swapping.\n");
+      } else if (frag_after < frag_lb) {
+        printf("Stopping. hit lower bound. Not swapping\n");
+        state = WAITING;
+      }
+    }
+
+
+    if (state == COMPACTING) {
+      auto end = alaska_timestamp();
+      double ms_spent_defragmenting = (end - start) / 1024.0 / 1024.0;
+      // If we are actively defragmenting. Respect the overhead request of the user.
+      ms_to_sleep = ms_spent_defragmenting / target_oh;
+    }
+    if (state == WAITING) {
+      ms_to_sleep = 300;  // come back later!
+    }
 
     // You can sleep for a minimum of 10ms. This is relatively arbitrary, but ensures progress can
     // be made, and avoids a defrag-storm when there is little work to be done.
@@ -285,39 +354,43 @@ static void *barrier_thread_fn(void *) {
 
 
 
-static void *logger_thread_fn(void *) {
-  const char *log_filename = getenv("ALASKA_LOG");
-  printf("================= log_filename = %s =================\n", log_filename);
-  FILE *out = fopen(log_filename, "w+");
-  fprintf(out, "time,rss,frag\n");
-
-  long start = alaska_timestamp() / 1000 / 1000;
-  long last = start;
-  while (1) {
-    long now = alaska_timestamp() / 1000 / 1000;
-    if (last != now) {
-      last = now;
-      auto rss_kb = alaska_translate_rss_kb();
-      auto frag = get_overall_frag();
-      fprintf(out, "%lu,%lu,%f\n", now - start, rss_kb * 1024, frag);
-      fflush(out);
-    }
-    usleep(25 * 1000);
-  }
-
-  fclose(out);
-}
+// static void *logger_thread_fn(void *vlog) {
+//   const char *log_filename = (const char *)vlog;
+//   printf("================= log_filename = %s =================\n", log_filename);
+//   FILE *out = fopen(log_filename, "w+");
+//   fprintf(out, "time,rss,frag\n");
+//
+//   long start = alaska_timestamp() / 1000 / 1000;
+//   long last = start;
+//
+// 	usleep(1000 * 20);
+//   while (1) {
+//     long now = alaska_timestamp() / 1000 / 1000;
+//     if (last != now) {
+//       last = now;
+//       auto rss_kb = alaska_translate_rss_kb();
+//       auto frag = get_overall_frag();
+//       fprintf(out, "%lu,%lu,%f\n", now - start, rss_kb * 1024, frag);
+//       fflush(out);
+//     }
+//     usleep(25 * 1000);
+//   }
+//
+//   fclose(out);
+// }
 
 void alaska::service::init(void) {
   anch_lock.init();
   anchorage::allocator_init();
 
-  // pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+	if (getenv("ANCH_NO_DEFRAG") == NULL) {
+  	pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+	}
 
-  const char *log_filename = getenv("ALASKA_LOG");
-  if (log_filename != NULL) {
-    pthread_create(&anchorage_logger_thread, NULL, logger_thread_fn, NULL);
-  }
+  // const char *log_filename = getenv("ALASKA_LOG");
+  // if (log_filename != NULL) {
+  //   pthread_create(&anchorage_logger_thread, NULL, logger_thread_fn, (void*)log_filename);
+  // }
 }
 
 // TODO:
@@ -334,10 +407,10 @@ void alaska::service::barrier(void) {
   // Swap the spaces.
   anchorage::Chunk::swap_spaces();
 
-	anchorage::CompactionConfig config;
-	config.available_tokens = 30'000'000; // defragment 30mb
+  anchorage::CompactionConfig config;
+  config.available_tokens = 30'000'000;  // defragment 30mb
 
-	// Before swapping spaces, do some defragmentation
+  // Before swapping spaces, do some defragmentation
   anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
 
   alaska::barrier::end();
