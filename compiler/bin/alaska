@@ -44,6 +44,11 @@ do
 				shift
 				;;
 
+			--alaska-no-hoist)
+				export ALASKA_NO_HOIST=true
+				shift
+				;;
+
 			-O*)
 				OPT="$1"
 				shift

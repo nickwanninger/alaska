@@ -44,19 +44,27 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
-    auto start = alaska::timestamp();
+    bool hoist = false;
 #ifdef ALASKA_HOIST_TRANSLATIONS
-    alaska::insertHoistedTranslations(F);
-#else
-    alaska::insertConservativeTranslations(F);
+    hoist = true;
 #endif
+		if (getenv("ALASKA_NO_HOIST") != NULL) {
+			hoist = false;
+		}
+
+    auto start = alaska::timestamp();
+    if (hoist) {
+      alaska::insertHoistedTranslations(F);
+    } else {
+      alaska::insertConservativeTranslations(F);
+    }
     auto end = alaska::timestamp();
     (void)(end - start);
 
 
 
     if (verifyFunction(F, &errs())) {
-			errs() << "Function verification failed!\n";
+      errs() << "Function verification failed!\n";
       errs() << F.getName() << "\n";
     }
 
