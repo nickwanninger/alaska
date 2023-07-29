@@ -34,6 +34,10 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
 }
 
 PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
+
+	if (getenv("ALASKA_NO_TRACKING") != NULL) {
+  	return PreservedAnalyses::all();
+	}
 #ifndef ALASKA_LOCK_TRACKING
   return PreservedAnalyses::all();
 #endif
