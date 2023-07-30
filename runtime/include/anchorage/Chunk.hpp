@@ -70,10 +70,16 @@ namespace anchorage {
     // "Does this chunk contain this allocation"
     bool contains(void *allocation);
 
+    bool split_free_block(anchorage::Block *to_split, size_t required_size);
+    long perform_compaction(anchorage::Chunk &to_space, anchorage::CompactionConfig &config);
+		void validate_heap(const char *context_name);
+
 
     // add and remove blocks from the free list
     void fl_add(Block *blk);
     void fl_del(Block *blk);
+    // the total memory used in this heap
+    size_t span(void) const;
 
     // what is the current frag ratio?
     float frag() {
@@ -84,14 +90,10 @@ namespace anchorage {
 			return active_bytes + 16 * active_blocks;
 		}
 
-    // dump the chunk to stdout for debugging.
+
+		// Debug Helpers:
     void dump(Block *focus = NULL, const char *message = "");
     void dump_free_list(void);
-
-    // the total memory used in this heap
-    size_t span(void) const;
-
-    bool split_free_block(anchorage::Block *to_split, size_t required_size);
 
     inline BlockIterator begin(void) {
       return BlockIterator(front);
@@ -101,15 +103,6 @@ namespace anchorage {
     }
 
 
-    long perform_compaction(anchorage::Chunk &to_space, anchorage::CompactionConfig &config);
-
-    enum ShiftDirection { Right, Left };
-
-    bool shift_hole(anchorage::Block **hole_ptr, ShiftDirection dir);
-    void gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes);
-
-		// Go through the heap and validate a bunch of stuff
-		void validate_heap(const char *context_name);
   };
 
 }  // namespace anchorage

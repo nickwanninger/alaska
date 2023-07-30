@@ -122,3 +122,27 @@ void hfree(void *ptr) {
   num_alive--;
   alaska::table::put(m);
 }
+
+
+// operator new
+extern "C" void *alaska_Znwm(size_t sz) {
+	return halloc(sz);
+}
+
+extern "C" void *alaska_Znam(size_t sz) {
+	return halloc(sz);
+}
+
+// operator delete[]
+extern "C" void alaska_ZdaPv(void *ptr) {
+	hfree(ptr);
+}
+
+// operator delete
+extern "C" void alaska_ZdlPv(void *ptr) {
+	hfree(ptr);
+}
+
+extern "C" void alaska_ZdlPvm(void *ptr, unsigned long s) {
+	hfree(ptr);
+}

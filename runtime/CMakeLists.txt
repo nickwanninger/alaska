@@ -190,7 +190,7 @@ target_link_libraries(alaska alaska_translate_native)
 
 add_library(rsstracker SHARED extra/rsstracker.c)
 target_link_libraries(rsstracker dl pthread)
-
+install(TARGETS rsstracker)
 
 
 install(FILES include/alaska.h DESTINATION include)

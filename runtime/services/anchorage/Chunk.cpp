@@ -68,7 +68,7 @@ anchorage::Chunk::Chunk(size_t pages)
   front->set_next(tos);
   dump(NULL, "Setup!");
 
-  madvise(tos, size, MADV_HUGEPAGE);
+  // madvise(tos, size, MADV_HUGEPAGE);
   printf(
       "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos + size);
   tos->set_next(nullptr);
@@ -125,13 +125,13 @@ void anchorage::Chunk::fl_del(Block *blk) {
 
 
 
+static volatile bool doing_shit = false;
+
 anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   validate_heap("alloc - start");
-  // dump(NULL, "Before");
+
   size_t size = round_up(requested_size, anchorage::block_size);
   if (size == 0) size = anchorage::block_size;
-  // printf("Allocate %zu\n", size);
-
 
   if (auto blk = free_list.search(size); blk != nullptr) {
     if (split_free_block(blk, size)) {
@@ -143,6 +143,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
       return blk;
     }
   }
+
 
   // The distance from the top_of_stack pointer to the end of the chunk
   off_t end_of_chunk = (off_t)this->front + this->pages * anchorage::page_size;
@@ -190,6 +191,20 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
   validate_heap("free - before coalesce_free, after fl_add");
   coalesce_free(blk);
   validate_heap("free - after coalesce_free");
+
+  // auto frag_before = this->frag();
+  //
+  // if (not doing_shit) {
+  //   doing_shit = true;
+  //   alaska::barrier::begin();
+  //   anchorage::CompactionConfig config;
+  //   auto target = to_space;
+  //   if (this == target) target = from_space;
+  //   this->perform_compaction(*target, config);
+  //   alaska::barrier::end();
+  //   doing_shit = false;
+  // }
+
   // printf("frag: %-10.6f\n", span() / (double)active_bytes);
   // dump(blk, "Free");
 }
@@ -311,84 +326,6 @@ void anchorage::allocator_init(void) {
 void anchorage::allocator_deinit(void) {
 }
 
-bool anchorage::Chunk::shift_hole(anchorage::Block **hole_ptr, ShiftDirection dir) {
-  auto *hole = *hole_ptr;
-  // first, check that it can shift :)
-  anchorage::Block *shiftee = nullptr;
-  switch (dir) {
-    case ShiftDirection::Left:
-      shiftee = hole->prev();
-      break;
-
-    case ShiftDirection::Right:
-      shiftee = hole->next();
-      break;
-  }
-
-  // We can't shift if the shiftee is locked or free
-  // The reason we don't want to shift a free block is to avoid infinite loops
-  // of swapping two non-coalesced holes back and forth
-  if (shiftee == nullptr || shiftee->is_locked() || shiftee->is_free()) {
-    return false;
-  }
-
-
-
-  void *src = shiftee->data();
-  void *dst = hole->data();
-
-  alaska::Mapping *handle = shiftee->handle();
-
-  if (dir == ShiftDirection::Right) {
-    fl_del(hole);
-    // printf("\n");
-    // shiftee->dump_content("Shiftee");
-    // hole->dump_content("Hole");
-
-    anchorage::Block *trailing_free = (anchorage::Block *)((uint8_t *)dst + shiftee->size());
-
-    // This is the most trivial movement. If the blocks are
-    // adjacent to eachother, they effectively swap places.
-    // Lets say you have these blocks:
-    //    |--|########|XXXX
-    // After this operation it should look like this:
-    //    |########|--|XXXX
-    //       ^     ^ This is `trailing_free`
-    //       | to_move metadata clobbered here.
-
-
-    // This is the |XXXX block above.
-    anchorage::Block *new_next = shiftee->next();  // the next of the successor
-    // Remove the old block from the free list
-    // chunk.fl_del(free_block);
-    // move the data
-    ::memmove(dst, src, shiftee->size());
-
-    // Update the handle to point to the new location
-    // (TODO: maybe make this atomic? This is where a concurrent GC would do hard work)
-    handle->ptr = dst;              // Update the handle to point to the new block
-    hole->clear();                  // Clear the old block's metadata
-    hole->set_handle(handle);       // move the handle over
-    hole->set_next(trailing_free);  // now, patch up the next of `cur`
-    // to_move->set_handle(nullptr);         // patch with free block
-
-    trailing_free->clear();
-    trailing_free->set_next(new_next);
-    trailing_free->set_handle(nullptr);
-
-    // Add the trailing block to the free list
-    // dump(trailing_free, "TF");
-    fl_add(trailing_free);
-
-    // hole->dump_content("after_move");
-    // trailing_free->dump_content("trailing_free");
-    // coalesce_free(trailing_free);
-    *hole_ptr = trailing_free;
-    return true;
-  }
-
-  return false;
-}
 
 void anchorage::Chunk::validate_heap(const char *context_name) {
   return;
@@ -416,25 +353,16 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
 }
 
 
-
-void anchorage::Chunk::gather_sorted_holes(ck::vec<anchorage::Block *> &out_holes) {
-  out_holes.clear();
-
-  free_list.collect(out_holes);
-
-  // sort the list of holes
-  // TODO: maybe keep track of if we need this or not...
-  ::qsort(out_holes.data(), out_holes.size(), sizeof(anchorage::Block *),
-      [](const void *va, const void *vb) -> int {
-        auto a = (uint64_t) * (void **)va;
-        auto b = (uint64_t) * (void **)vb;
-        return a - b;
-      });
-}
-
-
 // In this function, Dianoga does his work.
-long anchorage::Chunk::perform_compaction(anchorage::Chunk &dst_space, anchorage::CompactionConfig &config) {
+long anchorage::Chunk::perform_compaction(
+    anchorage::Chunk &dst_space, anchorage::CompactionConfig &config) {
+
+	// How much free space is there in the heap at the start?
+	long used_start = memory_used_including_overheads();
+
+
+	// double frag_before = frag();
+ //  auto begin = alaska_timestamp();
   unsigned long tokens_spent = 0;
   long blocked = 0;
 
@@ -453,16 +381,16 @@ long anchorage::Chunk::perform_compaction(anchorage::Chunk &dst_space, anchorage
   auto migrate_blk = [&](anchorage::Block *blk) {
     auto new_blk = dst_space.alloc(blk->size());
     ALASKA_ASSERT(new_blk != NULL, "Could not allocate a block in the to space");
-		spend_tokens(blk->size());
     // Move the data
     memcpy(new_blk->data(), blk->data(), blk->size());
+		// Spend tokens to track we moved this object
+    spend_tokens(blk->size());
     // Patch the handle
     new_blk->set_handle(blk->handle());
     auto *handle = blk->handle();
     handle->ptr = new_blk->data();
 
     this->free(blk);
-
   };
 
   long old_span = span();
@@ -484,16 +412,14 @@ long anchorage::Chunk::perform_compaction(anchorage::Chunk &dst_space, anchorage
     //   alldump(cur, "move");
     migrate_blk(cur);
 
-		if (out_of_tokens()) break;
+    if (out_of_tokens()) break;
   }
 
 
   struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
   free_list.collect_freelists(lists);
 
-  uint64_t saved_bytes = 0;
-
-  if (true or not out_of_tokens()) {
+  if (not out_of_tokens()) {
     bool hit_end = false;
     for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
       if (hit_end) break;
@@ -512,27 +438,29 @@ long anchorage::Chunk::perform_compaction(anchorage::Chunk &dst_space, anchorage
           continue;
         }
 
-        saved_bytes += end - start;
-
         madvise((void *)start, end - start, MADV_DONTNEED);
       }
     }
   }
-  // printf("\n");
 
 
   long end_saved = old_span - span();
-  saved_bytes += end_saved;
-  // madvise dont need the stuff thats left over
   size_t saved_pages = end_saved / 4096;
   // printf("saved_pages = %zu. blocked = %ld, blocks = %ld\n", saved_pages, blocked, n_blocks);
-  if (saved_pages > 10) {
+  if (saved_pages > 2) {
     // printf("Saved pages %zu\n", saved_pages);
     uint64_t dont_need_start = (uint64_t)tos;
     madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
   }
 
-  printf("tokens: %lu, \t%lu\n", tokens_spent, end_saved);
 
-  return tokens_spent;
+
+	long used_end = memory_used_including_overheads();
+
+ //  auto end = alaska_timestamp();
+	// auto frag_after = frag();
+
+ //  printf("%fms  %10f %10f\n", (end - begin) / 1000.0 / 1000.0, frag_before, frag_after);
+	// printf("spn:%zu use:%zu\n", span(), memory_used_including_overheads());
+  return used_start - used_end;
 }
