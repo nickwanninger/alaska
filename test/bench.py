@@ -46,6 +46,14 @@ class AlaskaStage(wl.pipeline.Stage):
         space.shell(f"{local}/bin/alaska-transform", output)
         space.shell("llvm-dis", output)
 
+class AlaskaNoTrackingStage(wl.pipeline.Stage):
+    def run(self, input, output, benchmark):
+        shutil.copy(input, output)
+        env = os.environ.copy()
+        env['ALASKA_NO_TRACKING'] = 'true'
+        space.shell(f"{local}/bin/alaska-transform", output, env=env)
+        space.shell("llvm-dis", output)
+
 class AlaskaNoHoistStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
         shutil.copy(input, output)
@@ -141,7 +149,7 @@ space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # space.add_suite(wl.suites.Stockfish)
 space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
 # space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
@@ -157,9 +165,15 @@ pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
 
-pl = waterline.pipeline.Pipeline("alaska-nohoist")
+# pl = waterline.pipeline.Pipeline("alaska-nohoist")
+# pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
+# pl.add_stage(AlaskaNoHoistStage(), name="Unhoisted-Alaska")
+# pl.set_linker(AlaskaLinker())
+# space.add_pipeline(pl)
+
+pl = waterline.pipeline.Pipeline("alaska-untracked")
 pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
-pl.add_stage(AlaskaNoHoistStage(), name="Unhoisted-Alaska")
+pl.add_stage(AlaskaNoTrackingStage(), name="Alaska-untracked")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
@@ -171,11 +185,11 @@ space.add_pipeline(pl)
 
 
 
-results = space.run(runner=PerfRunner(), runs=1, compile=True)
+results = space.run(runner=PerfRunner(), runs=3, compile=True)
 results.to_csv("bench/results.csv", index=False)
 
 # print(results)
-# exit()
+exit()
 
 def plot_results(df, output_name, metric, baseline, modified, title='Result', ylabel='speedup'):
     df = df.pivot_table(index=['suite', 'benchmark'], columns='config', values=metric).reset_index()
