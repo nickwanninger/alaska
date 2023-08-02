@@ -47,6 +47,7 @@ static long barrier_last_num_threads = 0;
 
 
 void alaska_remove_from_local_lock_list(void* ptr) {
+	return;
 #ifdef ALASKA_LOCK_TRACKING
   alaska::LockFrame* cur;
 

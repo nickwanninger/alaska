@@ -65,6 +65,9 @@ char *strpbrk(const char *s, const char *b) {
   return *s ? (char *)s : 0;
 }
 
+size_t __strlen_avx2(const char *s) {
+	return strlen(s);
+}
 
 size_t strlen(const char *s) {
   const char *a = s;

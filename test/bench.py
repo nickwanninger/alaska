@@ -71,31 +71,29 @@ class AlaskaBaselineStage(wl.pipeline.Stage):
 
 
 perf_stats = [
-    "instructions",
-    "cycles",
     "duration_time",
 
-    "cache-misses",
-    "cache-references",
-    "L1-dcache-load-misses",
-    "L1-dcache-loads",
-    "L1-dcache-prefetches",
-
+    "instructions",
     "branch-instructions",
     "branch-misses",
+    "L1-dcache-loads",
+    "L1-dcache-load-misses",
+    "de_dis_dispatch_token_stalls1.store_queue_rsrc_stall", # We think this is store queue full
+    "de_dis_dispatch_token_stalls1.load_queue_rsrc_stall", # We think this is load queue full
 
-    "dTLB-load-misses",
-    "dTLB-loads",
-    "macro_ops_retired",
+    "cycles",
 ]
 
+run = 0
 class PerfRunner(Runner):
     def run(self, workspace, config, binary):
         cwd = os.getcwd() if config.cwd is None else config.cwd
         print("running cd", cwd, "&&", binary, *config.args)
+        global run
+        run += 1
         with waterline.utils.cd(cwd):
             proc = subprocess.Popen(
-                ['perf', 'stat', '-e', ','.join(perf_stats), '-x', ',', '-o', f'{binary}.perf.csv', binary, *[str(arg) for arg in config.args]],
+                ['perf', 'stat', '-e', ','.join(perf_stats), '-x', ',', '-o', f'{binary}.{run}.perf.csv', binary, *[str(arg) for arg in config.args]],
                 stdout=subprocess.DEVNULL,
                 # stderr=subprocess.DEVNULL,
                 env=config.env,
@@ -104,14 +102,16 @@ class PerfRunner(Runner):
             proc.wait()
 
 
-        df = pd.read_csv(f'{binary}.perf.csv', comment='#', header=None)
+        df = pd.read_csv(f'{binary}.{run}.perf.csv', comment='#', header=None)
         out = {}
         print(df)
         for val, name in zip(df[0], df[2]):
             # Sanity check the results...
             print(name, val)
             if val == '<not supported>':
-                val = -1
+                val = float("NAN")
+            if val == '<not counted>':
+                val = float("NAN")
             out[name] = int(val)
         # print(out)
         return out
@@ -134,7 +134,7 @@ all_spec = [
 ]
 
 spec_enable = [
-    605,
+    605, # mcf
     623,
     625,
     631,
@@ -150,7 +150,6 @@ space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.Stockfish)
 space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
 space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
-# space.add_suite(wl.suites.SPEC2017, tar="/home/nick/SPEC2017.tar.gz", config="ref")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
                 disabled=[t for t in all_spec if t not in spec_enable],
@@ -183,5 +182,6 @@ pl.add_stage(AlaskaBaselineStage(), name="Baseline")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
-results = space.run(runner=PerfRunner(), runs=3, compile=True)
+results = space.run(runner=PerfRunner(), runs=5, compile=True)
+print(results)
 results.to_csv("bench/results.csv", index=False)

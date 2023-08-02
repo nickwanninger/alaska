@@ -161,8 +161,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     long cell_count = max_cell + 1;  // account for 0 index
 
-    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
-        translations.size(), F.getName().data());
+    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
+    //     translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
