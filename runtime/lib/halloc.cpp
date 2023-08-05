@@ -32,6 +32,7 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
+	// return malloc(sz);
 	// Just some big number.
 	if (sz > 0xFF'FF'FF) {
 		return ::malloc(sz);
@@ -51,6 +52,7 @@ static void *_halloc(size_t sz, int zero) {
   void *out = ent->to_handle(0);
   num_alive++;
 
+	// printf("halloc %zu -> %p\n", sz, out);
   return out;
 }
 
@@ -60,11 +62,13 @@ void *halloc(size_t sz) noexcept {
 
 void *hcalloc(size_t nmemb, size_t size) {
   void *out = _halloc(nmemb * size, 1);
+	// printf("hcalloc %p\n", out);
   return out;
 }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
+	// printf("hrealloc %p\n", handle);
   // return realloc(handle, new_size);
 
   // If the handle is null, then this call is equivalent to malloc(size)

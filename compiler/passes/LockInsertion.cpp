@@ -161,8 +161,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     long cell_count = max_cell + 1;  // account for 0 index
 
-    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
-    //     translations.size(), F.getName().data());
+    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
+        translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
@@ -212,11 +212,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       b.CreateStore(handle, cell, false);
 
       // Insert a store right after all the releases to say "we're done with this handle".
-      for (auto unlock : translation->releases) {
-        b.SetInsertPoint(unlock->getNextNode());
-        b.CreateStore(
-            llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
-      }
+      // for (auto unlock : translation->releases) {
+      //   b.SetInsertPoint(unlock->getNextNode());
+      //   b.CreateStore(
+      //       llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+      // }
     }
 
     // For each instruction that escapes...

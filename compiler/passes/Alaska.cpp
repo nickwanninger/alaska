@@ -214,12 +214,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(ProgressPass("Link Stub"));
           }
 
-          MPM.addPass(adapt(LowerSwitchPass()));
+          // MPM.addPass(adapt(LowerSwitchPass()));
           // MPM.addPass(adapt(LowerInvokePass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(ADCEPass()));
-          MPM.addPass(RealDCEPass());  // LowerInvoke leaves dangling basic blocks...
+          // MPM.addPass(RealDCEPass());  // LowerInvoke leaves dangling basic blocks...
 
           // Run a normalization pass regardless of the environment configuration
           MPM.addPass(AlaskaNormalizePass());
@@ -248,7 +248,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(AlaskaEscapePass());
             MPM.addPass(ProgressPass("Escape"));
 #endif
-
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(LockPrinterPass());

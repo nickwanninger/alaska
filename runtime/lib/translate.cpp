@@ -28,18 +28,18 @@
 #if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
 
 #if defined(__x86_64__)
-#define SimMagic1(cmd, arg0) ({              \
-   unsigned long _cmd = (cmd), _arg0 = (arg0), _res; \
-   __asm__ __volatile__ (                    \
-   "mov %1, %%rax\n"             \
-   "\tmov %2, %%edx\n"           \
-   "\txchg %%bx, %%bx\n"                     \
-   : "=a" (_res)           /* output    */   \
-   : "g"(_cmd),                              \
-     "g"(_arg0)            /* input     */   \
-   : "%ecx");    /* clobbered */   \
-   _res;                                     \
-})
+#define SimMagic1(cmd, arg0)                          \
+  ({                                                  \
+    unsigned long _cmd = (cmd), _arg0 = (arg0), _res; \
+    __asm__ __volatile__(                             \
+        "mov %1, %%rax\n"                             \
+        "\tmov %2, %%edx\n"                           \
+        "\txchg %%bx, %%bx\n"                         \
+        : "=a"(_res)            /* output    */       \
+        : "g"(_cmd), "g"(_arg0) /* input     */       \
+        : "%ecx");              /* clobbered */       \
+    _res;                                             \
+  })
 
 #else
 #error "Magic instructions only work on x86_64"
@@ -74,8 +74,8 @@ void *alaska_translate(void *ptr) {
 #if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
   auto value = (void *)SimMagic1(128, (unsigned long)ptr);
 
-	printf("%p -> %p\n", ptr, value);
-	return value;
+  printf("%p -> %p\n", ptr, value);
+  return value;
 #endif
 
   // This function is written in a strange way on purpose. It's written

@@ -44,13 +44,19 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
+
+		alaska::println("Translating in ", F.getName());
+    // if (F.getName() != "find_call_stack_args") {
+    //   continue;
+    // }
+
     bool hoist = false;
 #ifdef ALASKA_HOIST_TRANSLATIONS
     hoist = true;
 #endif
-		if (getenv("ALASKA_NO_HOIST") != NULL) {
-			hoist = false;
-		}
+    if (getenv("ALASKA_NO_HOIST") != NULL) {
+      hoist = false;
+    }
 
     auto start = alaska::timestamp();
     if (hoist) {
@@ -66,6 +72,12 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     if (verifyFunction(F, &errs())) {
       errs() << "Function verification failed!\n";
       errs() << F.getName() << "\n";
+      auto l = alaska::extractTranslations(F);
+      if (l.size() > 0) {
+        alaska::printTranslationDot(F, l);
+      }
+      // errs() << F << "\n";
+      exit(EXIT_FAILURE);
     }
 
 

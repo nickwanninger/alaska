@@ -134,6 +134,10 @@ static llvm::Instruction *compute_translation_insertion_location(
 		effectivePointerInstruction = invokeInst->getNormalDest()->getFirstNonPHIOrDbg();
 	} else if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
     effectivePointerInstruction = pointerToTranslateInst;
+	} else if (auto arg = dyn_cast<llvm::Argument>(pointerToTranslate)) {
+    auto *func = arg->getParent();
+    auto &in_bb = func->getEntryBlock();
+    return in_bb.getFirstNonPHI();
   } else {
     // get the first instruction in the function the argument is a part of;
     effectivePointerInstruction = user->getParent()->getParent()->front().getFirstNonPHI();

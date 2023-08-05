@@ -32,8 +32,11 @@ static void replace_function(
     new_name = "alaska_wrapped_" + original_name;
   }
   auto oldFunction = M.getFunction(original_name);
+
   if (oldFunction) {
     auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
+		std::vector<llvm::Use *> uses;
+
     for (auto &use : oldFunction->uses()) {
       if (is_allocator) {
         auto user = use.getUser();
@@ -48,8 +51,13 @@ static void replace_function(
         }
       }
 
-      use.set(newFunction);
+			uses.push_back(&use);
     }
+
+
+		for (auto *use : uses) {
+      use->set(newFunction);
+		}
   }
   // delete oldFunction;
 }
