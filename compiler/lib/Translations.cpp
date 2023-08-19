@@ -116,18 +116,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
       }
     }
   }
-  // Find all users of translation that are in this function
-  // for (auto user : translateFunction->users()) {
-  // users++;
-  //   if (auto inst = dyn_cast<CallInst>(user)) {
-  //     if (inst->getFunction() == &F && inst->getCalledFunction() == translateFunction) {
-  //       auto tr = std::make_unique<alaska::Translation>();
-  //       tr->translation = inst;
-  //       trs.push_back(std::move(tr));
-  //     }
-  //   }
-  // }
-
 
   // associate releases
   if (releaseFunction != NULL) {
@@ -148,10 +136,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
   }
 
   computeTranslationLiveness(F, trs);
-
-  // printf("%10f %s %d\n", (end - start), F.getName().data());
-  // alaska::println(F.getName(), " ", (long)(end - start), "ms");
-  // printf("f%lu iters\n", iters);
 
   return trs;
 }

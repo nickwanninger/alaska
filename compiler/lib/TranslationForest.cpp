@@ -330,10 +330,10 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // printf("compute release %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
-  std::map<Instruction *, llvm::SparseBitVector<128>> GEN;
-  std::map<Instruction *, llvm::SparseBitVector<128>> KILL;
-  std::map<Instruction *, llvm::SparseBitVector<128>> IN;
-  std::map<Instruction *, llvm::SparseBitVector<128>> OUT;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> GEN;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> KILL;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> IN;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> OUT;
 
   std::set<Instruction *> todo;
 

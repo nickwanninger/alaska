@@ -42,7 +42,7 @@ static void replace_function(
         auto user = use.getUser();
         if (auto inst = dyn_cast<Instruction>(user)) {
           auto callingFunc = inst->getFunction();
-          alaska::println("Allocation replacement in ", callingFunc->getName());
+          // alaska::println("Allocation replacement in ", callingFunc->getName());
           if (is_allocation_blacklisted(callingFunc->getName())) {
             alaska::println("Not replacing ", original_name, " in ", callingFunc->getName(),
                 " because it is blackisted");

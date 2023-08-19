@@ -45,7 +45,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     }
 
 
-		alaska::println("Translating in ", F.getName());
+		// alaska::println("Translating in ", F.getName());
     // if (F.getName() != "find_call_stack_args") {
     //   continue;
     // }
