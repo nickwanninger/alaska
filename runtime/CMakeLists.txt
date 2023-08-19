@@ -28,17 +28,17 @@ include_directories(
 
 set(SRC_FILES
 	# The core of the runtime
-	lib/runtime.cpp
-	lib/table.cpp
-	lib/translate.cpp
-	lib/prefetch.cpp
-	lib/halloc.cpp
-	lib/barrier.cpp
-	lib/glue.cpp # Stuff to support a nostdlibc++ environment
+	core/runtime.cpp
+	core/table.cpp
+	core/translate.cpp
+	core/prefetch.cpp
+	core/halloc.cpp
+	core/barrier.cpp
+	core/glue.cpp # Stuff to support a nostdlibc++ environment
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
-	lib/compat.c
+	core/compat.c
 )
 
 
@@ -172,9 +172,9 @@ set(SRC_FILES extra/lifetime.c)
 add_library(lifetimemalloc SHARED ${SRC_FILES})
 target_link_libraries(lifetimemalloc dl)
 
-add_bitcode(alaska_translate SOURCES lib/translate.cpp)
-add_bitcode(alaska_prefetch SOURCES lib/prefetch.cpp)
-add_bitcode(alaska_compat SOURCES lib/compat.c)
+add_bitcode(alaska_translate SOURCES core/translate.cpp)
+add_bitcode(alaska_prefetch SOURCES core/prefetch.cpp)
+add_bitcode(alaska_compat SOURCES core/compat.c)
 
 
 add_bitcode(alaska_stub SOURCES
