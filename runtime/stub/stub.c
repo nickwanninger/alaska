@@ -13,7 +13,6 @@
 
 // Most of these functions are straight up stolen from musl libc
 
-
 void setbuf(FILE *stream, char *buf) {
 	// NOP
 }

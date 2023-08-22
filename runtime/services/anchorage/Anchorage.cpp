@@ -175,7 +175,7 @@ void pad_barrier_control_overhead_target(void) {
     this_frag_start = anchorage::get_heap_frag();
     this_oh_start = cost_since_last_pass / (start - last_pass_start);
 
-    long rss_bytes = alaska_translate_rss_kb() * 1024;
+    // long rss_bytes = alaska_translate_rss_kb() * 1024;
     // printf("current frag = %f, rss = %fmb\n", this_frag_start, rss_bytes / 1024.0 / 1024.0);
 
     // do a pass only if we are past the upper fragmentation limit, and our overhead is too low

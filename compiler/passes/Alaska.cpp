@@ -4,6 +4,7 @@
 #include <alaska/Translations.h>
 #include <ct/Pass.hpp>
 #include <alaska/Passes.h>
+#include <alaska/PlaceSafepoints.h>  // Stolen from LLVM
 
 // LLVM includes
 #include <llvm/Pass.h>
@@ -17,6 +18,7 @@
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
+// #include "llvm/Transforms/Scalar/PlaceSafepoints.h"
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
@@ -27,7 +29,7 @@
 #include <set>
 #include <optional>
 
-#include "../../runtime/include/alaska/utils.h"
+// #include "../../runtime/include/alaska/utils.h"
 
 
 #include <noelle/core/DGBase.hpp>
@@ -96,6 +98,7 @@ class PrefetchPass : public llvm::PassInfoMixin<PrefetchPass> {
 class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    std::vector<llvm::CallInst *> toInline;
     for (auto &F : M) {
       if (F.empty()) continue;
       if (F.getName().startswith("alaska_")) {
@@ -103,12 +106,15 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
         for (auto user : F.users()) {
           if (auto call = dyn_cast<CallInst>(user)) {
             if (call->getCalledFunction() != &F) continue;
-
-            llvm::InlineFunctionInfo IFI;
-            llvm::InlineFunction(*call, IFI);
+            toInline.push_back(call);
           }
         }
       }
+    }
+
+    for (auto *call : toInline) {
+      llvm::InlineFunctionInfo IFI;
+      llvm::InlineFunction(*call, IFI);
     }
     // inlineCallsTo(M.getFunction("alaska_translate"));
     // inlineCallsTo(M.getFunction("alaska_release"));
@@ -119,77 +125,7 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
 };
 
 
-class AlaskaArgumentLockReductionPass
-    : public llvm::PassInfoMixin<AlaskaArgumentLockReductionPass> {
- public:
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    for (auto &F : M) {
-      if (F.empty()) continue;
-      // Unsure how to handle this.
-      if (F.isVarArg()) continue;
 
-      // auto l = F.getLinkage();
-      // if (l != GlobalValue::InternalLinkage && l != GlobalValue::PrivateLinkage) {
-      //   continue;
-      // }
-
-      std::set<int> argIndsRequiringTranslations;
-      bool usedAsValue = false;
-
-      for (auto &use : F.uses()) {
-        if (auto callInst = dyn_cast<CallInst>(use.getUser())) {
-					if (callInst->getCalledFunction() != use) {
-          	usedAsValue = true;
-						continue;
-					}
-          int ind = 0;
-          for (auto &arg : callInst->args()) {
-            if (alaska::shouldTranslate(arg)) {
-              argIndsRequiringTranslations.insert(ind);
-            }
-            ind++;
-          }
-        }
-        //
-      }
-
-
-
-      // alaska::println(F.getLinkage());
-      if (usedAsValue) {
-        alaska::println(F.getName(), ": ALL");
-      } else {
-        alaska::print(F.getName(), ":");
-        for (auto ind : argIndsRequiringTranslations) {
-          alaska::print(" ", ind);
-        }
-        alaska::println();
-
-				for (auto &arg : F.args()) {
-					int ind = arg.getArgNo();
-					if (argIndsRequiringTranslations.contains(ind)) continue;
-					arg.addAttr(Attribute::AttrKind::InReg);
-				}
-      }
-    }
-
-    return PreservedAnalyses::none();
-  }
-};
-
-
-
-
-class RealDCEPass : public llvm::PassInfoMixin<RealDCEPass> {
- public:
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    for (auto &F : M) {
-      if (F.empty()) continue;
-      llvm::EliminateUnreachableBlocks(F);
-    }
-    return PreservedAnalyses::none();
-  }
-};
 
 template <typename T>
 auto adapt(T &&fp) {
@@ -214,12 +150,12 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(ProgressPass("Link Stub"));
           }
 
-          // MPM.addPass(adapt(LowerSwitchPass()));
-          // MPM.addPass(adapt(LowerInvokePass()));
+
+
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(DCEPass()));
           MPM.addPass(adapt(ADCEPass()));
-          // MPM.addPass(RealDCEPass());  // LowerInvoke leaves dangling basic blocks...
+          MPM.addPass(ProgressPass("DCE"));
 
           // Run a normalization pass regardless of the environment configuration
           MPM.addPass(AlaskaNormalizePass());
@@ -230,9 +166,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           MPM.addPass(adapt(SimplifyCFGPass()));
 
           if (!baseline) {
-            // MPM.addPass(AlaskaArgumentLockReductionPass());
-            MPM.addPass(ProgressPass("Argument Lock Reduction"));
-
             MPM.addPass(AlaskaReplacementPass());
             MPM.addPass(ProgressPass("Replacement"));
 
@@ -242,6 +175,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
             MPM.addPass(AlaskaTranslatePass());
             MPM.addPass(ProgressPass("Translate"));
+
 
 
 #ifdef ALASKA_ESCAPE_PASS
@@ -254,8 +188,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             MPM.addPass(ProgressPass("Lock Printing"));
 #endif
 
-            // MPM.addPass(RedundantArgumentLockElisionPass());
-            // MPM.addPass(ProgressPass("RLE"));
+            MPM.addPass(adapt(PlaceSafepointsPass()));
+            MPM.addPass(ProgressPass("Safepoint Placement"));
 
             if (!alaska::bootstrapping()) {
               MPM.addPass(LockInsertionPass());
@@ -277,6 +211,10 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #endif
           }
 
+          MPM.addPass(adapt(DCEPass()));
+          MPM.addPass(adapt(DCEPass()));
+          MPM.addPass(adapt(ADCEPass()));
+          MPM.addPass(ProgressPass("DCE"));
           return true;
         });
       }};

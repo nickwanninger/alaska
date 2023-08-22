@@ -109,9 +109,9 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       lock_cell_ids[first.get()] = -1;
       // A lock interferes with itself
       interference[first.get()].insert(first.get());
-      for (auto inst : first->liveInstructions) {
+      for (auto b1 : first->liveBlocks) {
         for (auto &second : translations) {
-          if (second != first && second->isLive(inst)) {
+          if (second != first && second->isLive(b1)) {
             // interference!
             interference[first.get()].insert(second.get());
             interference[second.get()].insert(first.get());
@@ -152,7 +152,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     long cell_count = max_cell + 1;  // account for 0 index
 
-    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
+    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n",
+    // cell_count,
     //     translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.

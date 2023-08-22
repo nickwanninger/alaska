@@ -39,6 +39,10 @@ extern long alaska_translate_rss_kb(void);
 extern unsigned long alaska_timestamp(void);
 
 
+// The implementation of the safepoint poll function
+extern void alaska_safepoint(void);
+
+
 // Not a good function to call. This is always an external function in the compiler's eyes
 extern void *__alaska_leak(void *);
 

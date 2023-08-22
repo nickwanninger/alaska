@@ -15,13 +15,14 @@
 #include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
 
-
 #include <pthread.h>
 #include <alaska/list_head.h>
 #include <stdbool.h>
 #include <sys/signal.h>
 #include <string.h>
 #include <assert.h>
+
+bool alaska_should_safepoint = false;
 
 // The definition for thread-local root chains
 alaska::LockFrame alaska_lock_chain_base = {NULL, 0};

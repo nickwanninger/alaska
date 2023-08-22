@@ -20,7 +20,7 @@ namespace alaska {
     std::set<llvm::Instruction *> users;
     // Instructions where this translation is alive. This is computed
     // using a very simple liveness analysis
-    std::set<llvm::Instruction *> liveInstructions;
+    std::set<llvm::BasicBlock *> liveBlocks;
 
     // get the pointer and handle that was translated
     llvm::Value *getPointer(void);
@@ -29,13 +29,26 @@ namespace alaska {
     llvm::Function *getFunction(void);
     bool isUser(llvm::Instruction *inst);
     bool isLive(llvm::Instruction *inst);
+    bool isLive(llvm::BasicBlock *inst);
     // Compute the liveness for this translation (populate liveInstructions)
-    void computeLiveness(void);
+    void computeLiveness(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT);
     // *Fully* remove the translation from the function. This will delete
     // all calls to `translate` and `release`, as well as reverse the usages
     void remove();
     // get the root (static) allocation that this is translating.
     llvm::Value *getRootAllocation(void);
+
+
+		template<typename F>
+			void each_live_inst(F &f) {
+				for (auto *bb : liveBlocks) {
+					for (auto &I : *bb) {
+						if (isLive(&I)) {
+							f(I);
+						}
+					}
+				}
+			}
   };
 
   // Return if a certain value should be translated before use. This, simply, checks if the `val` is
@@ -48,9 +61,6 @@ namespace alaska {
 
   // Several useful utility functions
   std::vector<std::unique_ptr<alaska::Translation>> extractTranslations(llvm::Function &F);
-  void computeTranslationLiveness(
-      llvm::Function &F, std::vector<std::unique_ptr<alaska::Translation>> &trs);
-  void computeTranslationLiveness(llvm::Function &F, std::vector<alaska::Translation *> &trs);
 
 
   void printTranslationDot(llvm::Function &F,

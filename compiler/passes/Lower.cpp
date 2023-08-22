@@ -27,6 +27,15 @@ std::vector<llvm::CallBase *> collectCalls(llvm::Module &M, const char *name) {
 llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
   std::set<llvm::Instruction *> to_delete;
 
+
+	// Lower GC rooting.
+  if (auto func = M.getFunction("alaska.safepoint_poll")) {
+    auto pollFunc = M.getOrInsertFunction("alaska_safepoint", func->getFunctionType());
+    for (auto call : collectCalls(M, "alaska.safepoint_poll")) {
+      call->setCalledFunction(pollFunc);
+    }
+  }
+
   // Lower alaska.root
   for (auto *call : collectCalls(M, "alaska.root")) {
     // alaska::println(*call);
@@ -40,6 +49,8 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   }
 
 
+
+
   // Lower alaska.translate
   if (auto func = M.getFunction("alaska.translate")) {
     auto translateFunc = M.getOrInsertFunction("alaska_translate", func->getFunctionType());
@@ -47,6 +58,8 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
       call->setCalledFunction(translateFunc);
     }
   }
+
+
 
   // Lower alaska.release
   for (auto call : collectCalls(M, "alaska.release")) {

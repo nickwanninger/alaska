@@ -184,13 +184,13 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     }
   }
 
-  for (auto f : externalFunctionEscapes) {
-    if (f != NULL) {
-      if (auto *func = dyn_cast<llvm::Function>(f)) {
-        alaska::println("\e[33mWARNING\e[0m: escape handle to function ", func->getName());
-      }
-    }
-  }
+  // for (auto f : externalFunctionEscapes) {
+  //   if (f != NULL) {
+  //     if (auto *func = dyn_cast<llvm::Function>(f)) {
+  //       alaska::println("\e[33mWARNING\e[0m: escape handle to function ", func->getName());
+  //     }
+  //   }
+  // }
 
   return PreservedAnalyses::none();
 }
