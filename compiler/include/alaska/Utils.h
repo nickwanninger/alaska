@@ -1,3 +1,5 @@
+#pragma once
+
 #include "llvm/IR/Instruction.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -176,27 +176,14 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
 
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
-  // if (func.getName() != "_Z17expressionyyparsev") {
-  //   return {};
-  // }
   double start = alaska::time_ms();
 	(void)start;
   alaska::PointerFlowGraph G(func);
+
   // Compute the {,post}dominator trees and get loops
   llvm::DominatorTree DT(func);
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
-
-
-	// if (func.getName() == "strcat") {
-	// 	G.dump_dot(DT, PDT);
-	// }
-  // for (auto loop : loops) {
-  //   errs() << *loop << "\n";
-  // }
-
-  // printf("init %lf\n", alaska::time_ms() - start);
-  // start = alaska::time_ms();
 
   // The nodes which have no in edges that it post dominates
   std::set<alaska::FlowNode *> temp_roots;
@@ -207,8 +194,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       temp_roots.insert(node);
     }
   }
-
-
 
   // printf("grab roots %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
@@ -330,10 +315,10 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // printf("compute release %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
-  std::map<Instruction *, llvm::SparseBitVector<128>> GEN;
-  std::map<Instruction *, llvm::SparseBitVector<128>> KILL;
-  std::map<Instruction *, llvm::SparseBitVector<128>> IN;
-  std::map<Instruction *, llvm::SparseBitVector<128>> OUT;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> GEN;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> KILL;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> IN;
+  std::unordered_map<Instruction *, llvm::SparseBitVector<128>> OUT;
 
   std::set<Instruction *> todo;
 

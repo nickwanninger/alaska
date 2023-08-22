@@ -34,10 +34,9 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
 }
 
 PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
-
-	if (getenv("ALASKA_NO_TRACKING") != NULL) {
-  	return PreservedAnalyses::all();
-	}
+  if (getenv("ALASKA_NO_TRACKING") != NULL) {
+    return PreservedAnalyses::all();
+  }
 #ifndef ALASKA_LOCK_TRACKING
   return PreservedAnalyses::all();
 #endif
@@ -91,7 +90,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
 
-		// alaska::println("inserting locks into ", F.getName());
+    // alaska::println("inserting locks into ", F.getName());
     // Extract all the locks from the function
     auto translations = alaska::extractTranslations(F);
     // If the function had no locks, don't do anything
@@ -102,7 +101,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     // Interference - a mapping from locks to the locks it is alive along side of.
     std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
 
-		// alaska::println(translations.size(), " translations.");
+    // alaska::println(translations.size(), " translations.");
 
     // Loop over each translation, then over it's live instructions. For each live instruction see
     // which other locks are live in those instructions. This is horrible and slow. (but works)
@@ -110,9 +109,9 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       lock_cell_ids[first.get()] = -1;
       // A lock interferes with itself
       interference[first.get()].insert(first.get());
-      for (auto inst : first->liveInstructions) {
+      for (auto b1 : first->liveBlocks) {
         for (auto &second : translations) {
-          if (second != first && second->isLive(inst)) {
+          if (second != first && second->isLive(b1)) {
             // interference!
             interference[first.get()].insert(second.get());
             interference[second.get()].insert(first.get());
@@ -121,21 +120,13 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       }
     }
 
-		// alaska::println("Here.");
-
-    // long cell_count = 0;  // the maximum level of interference
-    // for (auto &[_, i] : interference) {
-    //   if (cell_count < (long)i.size()) cell_count = (long)i.size();
-    // }
-
-
     // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
     // coloring allocation here, as we don't need to worry about register spilling
     // (we can just make more "registers" instead of spilling). All cells are equal as well,
     // so there aren't any restrictions on which lock can get which cell.
     for (auto &[lock, intr] : interference) {
       long available_cell = -1;
-			llvm::SparseBitVector<128> unavail;
+      llvm::SparseBitVector<128> unavail;
       for (auto other : intr) {
         long cell = lock_cell_ids[other];
         if (cell != -1) {
@@ -161,8 +152,9 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     long cell_count = max_cell + 1;  // account for 0 index
 
-    fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n", cell_count,
-        translations.size(), F.getName().data());
+    // fprintf(stderr, "%3ld dynamic cells required for %zu static translations in %s\n",
+    // cell_count,
+    //     translations.size(), F.getName().data());
 
     // Create the type that will go on the stack.
     EltTys.clear();
@@ -215,7 +207,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       // for (auto unlock : translation->releases) {
       //   b.SetInsertPoint(unlock->getNextNode());
       //   b.CreateStore(
-      //       llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+      //       llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell,
+      //       true);
       // }
     }
 
@@ -229,7 +222,6 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       AtExit->CreateStore(SavedHead, Head);
       // AtExit->CreateStore(CurrentHead, Head);
     }
-
   }
 
   return PreservedAnalyses::none();

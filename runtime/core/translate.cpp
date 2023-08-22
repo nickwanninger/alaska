@@ -137,12 +137,9 @@ void alaska_release(void *ptr) {
 }
 
 
-
-
-static int needs_barrier = 0;
-void alaska_time_hook_fire(void) {
-  // printf("checking for barrier!\n");
-  if (needs_barrier) {
-    printf("needs barrier!\n");
-  }
+extern bool alaska_should_safepoint;
+extern "C" void alaska_safepoint(void) {
+	if (unlikely(alaska_should_safepoint)) {
+		printf("safepoint!\n");
+	}
 }

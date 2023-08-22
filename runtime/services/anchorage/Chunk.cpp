@@ -125,8 +125,6 @@ void anchorage::Chunk::fl_del(Block *blk) {
 
 
 
-static volatile bool doing_shit = false;
-
 anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   validate_heap("alloc - start");
 
@@ -364,7 +362,6 @@ long anchorage::Chunk::perform_compaction(
 	// double frag_before = frag();
  //  auto begin = alaska_timestamp();
   unsigned long tokens_spent = 0;
-  long blocked = 0;
 
   // Returns true if you are out of tokens.
   auto out_of_tokens = [&]() -> bool {
@@ -397,7 +394,6 @@ long anchorage::Chunk::perform_compaction(
   alldump(nullptr, "Before");
 
 
-  long n_blocks = 0;
   // for (auto *cur = front; cur != tos; cur = cur->next()) {
   for (auto *cur = tos->prev(); cur != NULL; cur = cur->prev()) {
     if (cur->is_free()) {
@@ -405,7 +401,6 @@ long anchorage::Chunk::perform_compaction(
     }
 
     if (cur->is_locked()) {
-      blocked++;
       continue;
     }
 
@@ -446,8 +441,8 @@ long anchorage::Chunk::perform_compaction(
 
   long end_saved = high_watermark - span();
   size_t saved_pages = end_saved / 4096;
-  if (saved_pages > 1) {
-		printf("SAVED %lu\n", saved_pages);
+  if (saved_pages > 2) {
+    // printf("Saved pages %zu\n", saved_pages);
     uint64_t dont_need_start = (uint64_t)tos;
     madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
 

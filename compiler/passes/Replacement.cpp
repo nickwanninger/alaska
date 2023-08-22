@@ -42,7 +42,7 @@ static void replace_function(
         auto user = use.getUser();
         if (auto inst = dyn_cast<Instruction>(user)) {
           auto callingFunc = inst->getFunction();
-          alaska::println("Allocation replacement in ", callingFunc->getName());
+          // alaska::println("Allocation replacement in ", callingFunc->getName());
           if (is_allocation_blacklisted(callingFunc->getName())) {
             alaska::println("Not replacing ", original_name, " in ", callingFunc->getName(),
                 " because it is blackisted");
@@ -74,11 +74,11 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
     replace_function(M, "realloc_beebs", "hrealloc", true);  // embench
   }
 
-  replace_function(M, "_Znwm", "alaska_Znwm", true);
-  replace_function(M, "_Znam", "alaska_Znam", true);
-  replace_function(M, "_ZdaPv", "alaska_ZdaPv");
-  replace_function(M, "_ZdlPv", "alaska_ZdlPv");
-  replace_function(M, "_ZdlPvm", "alaksa_ZdlPvm");
+  // replace_function(M, "_Znwm", "alaska_Znwm", true);
+  // replace_function(M, "_Znam", "alaska_Znam", true);
+  // replace_function(M, "_ZdaPv", "alaska_ZdaPv");
+  // replace_function(M, "_ZdlPv", "alaska_ZdlPv");
+  // replace_function(M, "_ZdlPvm", "alaksa_ZdlPvm");
 
   // even if calls to malloc are not replaced, we still ought to replace these functions for
   // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same

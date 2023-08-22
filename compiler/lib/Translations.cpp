@@ -25,10 +25,25 @@ llvm::Function *alaska::Translation::getFunction(void) {
   return translation->getFunction();
 }
 
-void alaska::Translation::computeLiveness(void) {
-  if (auto *func = getFunction()) {
-    std::vector<alaska::Translation *> lps = {this};
-    alaska::computeTranslationLiveness(*func, lps);
+void alaska::Translation::computeLiveness(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) {
+  liveBlocks.insert(translation->getParent());
+  for (auto &rel : releases) {
+    liveBlocks.insert(rel->getParent());
+  }
+
+  for (auto &BB : *translation->getFunction()) {
+    bool valid = true;
+    if (!DT.dominates(translation, &BB)) continue;
+
+    for (auto &rel : releases) {
+      if (!PDT.dominates(rel, &BB.front())) {
+				valid = false;
+				break;
+			}
+    }
+
+		if (!valid) continue;
+		liveBlocks.insert(&BB);
   }
 }
 
@@ -43,15 +58,41 @@ void alaska::Translation::remove(void) {
   this->translation = nullptr;
   this->releases.clear();
   this->users.clear();
-  this->liveInstructions.clear();
+  this->liveBlocks.clear();
 }
 
 
 bool alaska::Translation::isUser(llvm::Instruction *inst) {
   return users.find(inst) != users.end();
 }
+
+
 bool alaska::Translation::isLive(llvm::Instruction *inst) {
-  return liveInstructions.find(inst) != liveInstructions.end();
+	if (isLive(inst->getParent())) {
+		if (inst == translation) {
+			return true;
+		}
+
+		if (inst->getParent() == translation->getParent()) {
+			if (!translation->comesBefore(inst)) {
+				return false;
+			}
+		}
+
+		for (auto &rel : releases) {
+			if (inst == rel) return true;
+			if (inst->getParent() == rel->getParent()) {
+				return inst->comesBefore(rel);
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+
+bool alaska::Translation::isLive(llvm::BasicBlock *bb) {
+	return liveBlocks.find(bb) != liveBlocks.end();
 }
 
 llvm::Value *alaska::Translation::getRootAllocation() {
@@ -92,8 +133,14 @@ static void extract_users(llvm::Instruction *inst, std::set<llvm::Instruction *>
   }
 }
 
+
 std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(llvm::Function &F) {
+  // We need dominator trees to recalculate the "live blocks"
+  llvm::DominatorTree DT(F);
+  llvm::PostDominatorTree PDT(F);
+
   auto &M = *F.getParent();
+
 
   // find the translation and release functions
   auto *translateFunction = M.getFunction("alaska.translate");
@@ -116,18 +163,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
       }
     }
   }
-  // Find all users of translation that are in this function
-  // for (auto user : translateFunction->users()) {
-  // users++;
-  //   if (auto inst = dyn_cast<CallInst>(user)) {
-  //     if (inst->getFunction() == &F && inst->getCalledFunction() == translateFunction) {
-  //       auto tr = std::make_unique<alaska::Translation>();
-  //       tr->translation = inst;
-  //       trs.push_back(std::move(tr));
-  //     }
-  //   }
-  // }
-
 
   // associate releases
   if (releaseFunction != NULL) {
@@ -145,124 +180,12 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
   }
   for (auto &tr : trs) {
     extract_users(tr->translation, tr->users);
+    tr->computeLiveness(DT, PDT);
   }
-
-  computeTranslationLiveness(F, trs);
-
-  // printf("%10f %s %d\n", (end - start), F.getName().data());
-  // alaska::println(F.getName(), " ", (long)(end - start), "ms");
-  // printf("f%lu iters\n", iters);
 
   return trs;
 }
 
-
-void alaska::computeTranslationLiveness(
-    llvm::Function &F, std::vector<std::unique_ptr<alaska::Translation>> &trs) {
-  std::vector<alaska::Translation *> tr_ptrs;
-
-  for (auto &tr : trs)
-    tr_ptrs.push_back(tr.get());
-
-  return computeTranslationLiveness(F, tr_ptrs);
-}
-
-void alaska::computeTranslationLiveness(
-    llvm::Function &F, std::vector<alaska::Translation *> &trs) {
-  // mapping from instructions to the translation they use.
-  std::map<llvm::Instruction *, std::set<alaska::Translation *>> inst_to_tr;
-  // map from the call to alaska_translate to the translation structure it belongs to.
-  std::map<llvm::Instruction *, alaska::Translation *> tr_inst_to_tr;
-
-  for (auto &tr : trs) {
-    // clear the existing liveness info
-    tr->liveInstructions.clear();
-    tr_inst_to_tr[tr->translation] = tr;
-
-    for (auto &user : tr->users) {
-      inst_to_tr[user].insert(tr);
-    }
-  }
-
-  auto get_translation_of = [](llvm::Instruction *inst) -> llvm::Value * {
-    if (auto call = dyn_cast<CallInst>(inst)) {
-      auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska.translate") {
-        return call->getArgOperandUse(0);
-      }
-    }
-
-    return nullptr;
-  };
-
-  auto get_release_of = [](llvm::Instruction *inst) -> llvm::Value * {
-    if (auto call = dyn_cast<CallInst>(inst)) {
-      auto func = call->getCalledFunction();
-      if (func && func->getName() == "alaska.release") {
-        return call->getArgOperandUse(0);
-      }
-    }
-
-    return nullptr;
-  };
-
-
-  // gen is every release
-  auto computeGEN = [&](Instruction *s, noelle::DataFlowResult *df) {
-    if (auto v = get_release_of(s)) {
-      df->GEN(s).insert(v);
-    }
-  };
-
-  // Kill is every translation
-  auto computeKILL = [&](Instruction *s, noelle::DataFlowResult *df) {
-    if (auto v = get_translation_of(s)) {
-      df->KILL(s).insert(v);
-    }
-  };
-
-  auto computeIN = [&](std::set<Value *> &IN, Instruction *s, noelle::DataFlowResult *df) {
-    // IN[s] = GEN[s] U (OUT[s] - KILL[s])
-    auto &gen = df->GEN(s);
-    auto &out = df->OUT(s);
-    auto &kill = df->KILL(s);
-
-    // everything in GEN...
-    IN.insert(gen.begin(), gen.end());
-
-    // ...and everything in OUT that isn't in KILL
-    for (auto o : out) {
-      // if o is not found in KILL...
-      if (kill.find(o) == kill.end()) {
-        // ...add to IN
-        IN.insert(o);
-      }
-    }
-  };
-
-  auto computeOUT = [&](std::set<Value *> &OUT, Instruction *p, noelle::DataFlowResult *df) {
-    // OUT[s] = IN[p] where p is every successor of s
-    auto &INp = df->IN(p);
-    OUT.insert(INp.begin(), INp.end());
-  };
-
-  auto *df =
-      noelle::DataFlowEngine().applyBackward(&F, computeGEN, computeKILL, computeIN, computeOUT);
-
-  // I don't like this.
-  for (auto &[inst, values] : df->IN()) {
-    for (auto l : values) {
-      for (auto &tr : trs) {
-        if (tr->getHandle() == l) {
-          tr->liveInstructions.insert(inst);
-        }
-      }
-    }
-  }
-
-
-  delete df;
-}
 
 
 
@@ -372,7 +295,7 @@ void alaska::printTranslationDot(llvm::Function &F,
 
 
       for (auto &[tr, color] : colors) {
-        if (tr->liveInstructions.find(&I) != tr->liveInstructions.end() || &I == tr->translation ||
+        if (tr->isLive(&I) || &I == tr->translation ||
             tr->releases.find(dyn_cast<CallInst>(&I)) != tr->releases.end()) {
           alaska::fprint(out, "<td align=\"left\" border=\"0\" bgcolor=\"", color, "\"> ");
           tr->getHandle()->printAsOperand(out);

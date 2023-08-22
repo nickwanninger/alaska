@@ -1,4 +1,4 @@
-using BenchmarkTools
+# using BenchmarkTools
 
 struct Tree
 	left::Union{Tree, Nothing}
@@ -22,7 +22,7 @@ function num_nodes(tree)
 	return 1 + num_nodes(tree.right) + num_nodes(tree.left)
 end
 
-x = create_tree(27)
+x = create_tree(4)
 # @benchmark num_nodes(x)
 
 

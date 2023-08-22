@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     trials = atoi(argv[1]);
   }
 
-  volatile int *ptr = (volatile int *)halloc(sizeof(int));
+  volatile int *ptr = (volatile int *)malloc(sizeof(int));
   *ptr = 0;
 
   for (int j = 0; j < trials; j++) {
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     double time = (double)(alaska_timestamp() - start);
     time /= (double)COUNT;
     printf("%lf ns per inc (%d)\n", time, *ptr);
-    histogram_add(&h, time);
+    histogram_add(&h, time * 1000);
   }
 
   printf("Median: %f\n", histogram_median(&h));
@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
   printf("99th: %f\n", histogram_percentile(&h, 0.99));
 
   histogram_print(&h, stdout);
+
 
   return 0;
 }
