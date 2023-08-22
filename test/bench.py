@@ -112,7 +112,7 @@ class PerfRunner(Runner):
                 val = float("NAN")
             if val == '<not counted>':
                 val = float("NAN")
-            out[name] = int(val)
+            out[name] = float(val)
         # print(out)
         return out
 
@@ -145,11 +145,11 @@ spec_enable = [
     644,
 ]
 
-space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # space.add_suite(wl.suites.Stockfish)
-space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
+# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
+# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
                 disabled=[t for t in all_spec if t not in spec_enable],
@@ -170,11 +170,11 @@ space.add_pipeline(pl)
 # pl.set_linker(AlaskaLinker())
 # space.add_pipeline(pl)
 
-pl = waterline.pipeline.Pipeline("alaska-untracked")
-pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
-pl.add_stage(AlaskaNoTrackingStage(), name="Alaska-untracked")
-pl.set_linker(AlaskaLinker())
-space.add_pipeline(pl)
+# pl = waterline.pipeline.Pipeline("alaska-untracked")
+# pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
+# pl.add_stage(AlaskaNoTrackingStage(), name="Alaska-untracked")
+# pl.set_linker(AlaskaLinker())
+# space.add_pipeline(pl)
 
 pl = waterline.pipeline.Pipeline("baseline")
 pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
@@ -182,6 +182,6 @@ pl.add_stage(AlaskaBaselineStage(), name="Baseline")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
-results = space.run(runner=PerfRunner(), runs=5, compile=True)
+results = space.run(runner=PerfRunner(), runs=1, compile=False)
 print(results)
 results.to_csv("bench/results.csv", index=False)

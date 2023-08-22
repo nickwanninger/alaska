@@ -419,38 +419,39 @@ long anchorage::Chunk::perform_compaction(
   struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
   free_list.collect_freelists(lists);
 
-  if (not out_of_tokens()) {
-    bool hit_end = false;
-    for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
-      if (hit_end) break;
-      struct list_head *cur = nullptr;
-      list_for_each(cur, lists[i]) {
-        auto blk = anchorage::Block::get((void *)cur);
-        // cur->dump(false);
-        off_t start = (off_t)blk->data();
-        off_t end = start + blk->size();
+  // if (not out_of_tokens()) {
+  //   bool hit_end = false;
+  //   for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
+  //     if (hit_end) break;
+  //     struct list_head *cur = nullptr;
+  //     list_for_each(cur, lists[i]) {
+  //       auto blk = anchorage::Block::get((void *)cur);
+  //       // cur->dump(false);
+  //       off_t start = (off_t)blk->data();
+  //       off_t end = start + blk->size();
+  //
+  //
+  //       start = round_up(start, 4096);
+  //       end = round_down(end, 4096);
+  //       if (end - start < 10 * 4096) {
+  //         hit_end = true;
+  //         continue;
+  //       }
+  //
+  //       madvise((void *)start, end - start, MADV_DONTNEED);
+  //     }
+  //   }
+  // }
 
 
-        start = round_up(start, 4096);
-        end = round_down(end, 4096);
-        if (end - start < 10 * 4096) {
-          hit_end = true;
-          continue;
-        }
-
-        madvise((void *)start, end - start, MADV_DONTNEED);
-      }
-    }
-  }
-
-
-  long end_saved = old_span - span();
+  long end_saved = high_watermark - span();
   size_t saved_pages = end_saved / 4096;
-  // printf("saved_pages = %zu. blocked = %ld, blocks = %ld\n", saved_pages, blocked, n_blocks);
-  if (saved_pages > 2) {
-    // printf("Saved pages %zu\n", saved_pages);
+  if (saved_pages > 1) {
+		printf("SAVED %lu\n", saved_pages);
     uint64_t dont_need_start = (uint64_t)tos;
     madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
+
+		high_watermark = span();
   }
 
 
