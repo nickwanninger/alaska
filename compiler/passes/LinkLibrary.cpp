@@ -7,8 +7,10 @@
 #include <llvm/Linker/Linker.h>
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Transforms/IPO/Internalize.h>
+#include <llvm/IR/DebugInfo.h>
 // #include <llvm/Transforms/IPO/Internalize.h>
 
+#include <llvm/Linker/IRMover.h>
 
 using namespace llvm;
 
@@ -21,8 +23,9 @@ AlaskaLinkLibraryPass::AlaskaLinkLibraryPass(
 
 
 void AlaskaLinkLibraryPass::prepareLibrary(Module &M) {
-  for (auto &G : M.globals())
-    if (!G.isDeclaration()) G.setLinkage(linkage);
+  // for (auto &G : M.globals())
+  //   if (!G.isDeclaration()) G.setLinkage(linkage);
+	llvm::StripDebugInfo(M);
 
   for (auto &A : M.aliases())
     if (!A.isDeclaration()) A.setLinkage(linkage);
@@ -45,10 +48,10 @@ PreservedAnalyses AlaskaLinkLibraryPass::run(Module &M, ModuleAnalysisManager &A
 
   prepareLibrary(*other_module);
 
+	// llvm::IRMover mv(*other_module);
+
   unsigned ApplicableFlags = Linker::Flags::OverrideFromSrc;
-
   llvm::Linker L(M);
-
   L.linkInModule(std::move(other_module), ApplicableFlags, [](Module &M, const StringSet<> &GVS) {
     llvm::internalizeModule(M, [&GVS](const GlobalValue &GV) {
       return !GV.hasName() || (GVS.count(GV.getName()) == 0);

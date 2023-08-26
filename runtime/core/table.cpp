@@ -19,13 +19,6 @@
 // handle translation  It abstracts the management of the table's backing
 // memory, as well as the get/put interface to allocate a new handle
 
-
-#ifdef ALASKA_HANDLE_SQUEEZING
-#define TABLE_START 0x400000000LU
-#else
-#define TABLE_START 0x80000000LU
-#endif
-
 static pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
 // How many handles are in the table
 static size_t table_size;
@@ -42,16 +35,17 @@ static alaska::Mapping *bump_next = NULL;
 
 
 static void table_dump(void) {
-	unsigned long count = 0;
-	for (alaska::Mapping *ent = next_free; ent != nullptr; ent = (alaska::Mapping*)ent->ptr) {
-		count++;
-	}
-	printf("table: %zu free, %zu slots, freelist: %lu ", table_nfree, table_size, count);
-	unsigned long z = count;
-	if (z > 16) z = 16;
-	for (unsigned long i = 0; i < z; i++) printf("#");
-	if (count > 16) printf("...");
-	printf("\n");
+  unsigned long count = 0;
+  for (alaska::Mapping *ent = next_free; ent != nullptr; ent = (alaska::Mapping *)ent->ptr) {
+    count++;
+  }
+  printf("table: %zu free, %zu slots, freelist: %lu ", table_nfree, table_size, count);
+  unsigned long z = count;
+  if (z > 16) z = 16;
+  for (unsigned long i = 0; i < z; i++)
+    printf("#");
+  if (count > 16) printf("...");
+  printf("\n");
 }
 
 // grow the table by a factor of 2
@@ -67,13 +61,14 @@ static void alaska_table_grow() {
   } else {
     table_memory = (alaska::Mapping *)mremap(table_memory, oldbytes, newbytes, 0, table_memory);
   }
+
   if (table_memory == MAP_FAILED) {
     fprintf(stderr, "could not resize table!\n");
     abort();
   }
   // newsize is now the number of entries
   size_t newsize = newbytes / MAP_ENTRY_SIZE;
-	// printf("grow %zu -> %zu\n", table_size, newsize);
+  // printf("grow %zu -> %zu\n", table_size, newsize);
   // Update the bump allocator to point to the new data.
   bump_next = &table_memory[table_size];
   table_nfree += (newsize - table_size);
@@ -123,7 +118,7 @@ void alaska::table::init() {
 
 void alaska::table::deinit() {
   // TODO: this is only ever called at program teardown. Should we even bother with this?
-  munmap(table_memory, table_size * MAP_ENTRY_SIZE);
+  // munmap(table_memory, table_size * MAP_ENTRY_SIZE);
 }
 
 alaska::Mapping *alaska::table::begin(void) {

@@ -113,7 +113,10 @@ else
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
-	$CLANG -gdwarf-4 $OPT ${TMPFILE} -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
-	rm ${TMPFILE}
+	# Compile the bitcode to object code
+	llc $OPT ${TMPFILE} --relocation-model=pic --filetype=obj -o ${TMPFILE}.o
+	# Link with clang/clang++
+	$CLANG -gdwarf-4 $OPT ${TMPFILE}.o -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
+	rm ${TMPFILE} ${TMPFILE}.o
 fi
 

@@ -19,6 +19,7 @@
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 // #include "llvm/Transforms/Scalar/PlaceSafepoints.h"
+#include "llvm/Transforms/Scalar/RewriteStatepointsForGC.h"
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
@@ -85,12 +86,13 @@ class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
 double ProgressPass::progress_start = 0.0;
 
 
-class PrefetchPass : public llvm::PassInfoMixin<PrefetchPass> {
+class PrintyPass : public llvm::PassInfoMixin<PrintyPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    replace_function(M, "alaska_translate", "alaska_prefetch_translate");
-    replace_function(M, "alaska_release", "alaska_prefetch_release");
-    return PreservedAnalyses::none();
+    for (auto &F : M) {
+      if (F.getName() == "main") alaska::println(F);
+    }
+    return PreservedAnalyses::all();
   }
 };
 
@@ -102,7 +104,6 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
     for (auto &F : M) {
       if (F.empty()) continue;
       if (F.getName().startswith("alaska_")) {
-        alaska::println("inlining calls to ", F.getName());
         for (auto user : F.users()) {
           if (auto call = dyn_cast<CallInst>(user)) {
             if (call->getCalledFunction() != &F) continue;
@@ -116,10 +117,6 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
       llvm::InlineFunctionInfo IFI;
       llvm::InlineFunction(*call, IFI);
     }
-    // inlineCallsTo(M.getFunction("alaska_translate"));
-    // inlineCallsTo(M.getFunction("alaska_release"));
-    // replace_function(M, "alaska_translate", "alaska_prefetch_translate");
-    // replace_function(M, "alaska_release", "alaska_prefetch_release");
     return PreservedAnalyses::none();
   }
 };
@@ -134,88 +131,105 @@ auto adapt(T &&fp) {
   return createModuleToFunctionPassAdaptor(std::move(FPM));
 }
 
-// Register the alaska passes with the new pass manager
-extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
-  return {
-      LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
-        PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel) {
-          bool baseline = getenv("ALASKA_COMPILER_BASELINE") != NULL;
+void populateMPM(ModulePassManager &MPM) {
+  bool baseline = getenv("ALASKA_COMPILER_BASELINE") != NULL;
 
-          if (baseline) print_progress = false;
+  if (baseline) print_progress = false;
 
 
-          // Only link the stub in non-baseline
-          if (!baseline) {
-            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-            MPM.addPass(ProgressPass("Link Stub"));
-          }
+  // Only link the stub in non-baseline
+  if (!baseline) {
+    MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
+    MPM.addPass(ProgressPass("Link Stub"));
+  }
 
 
 
-          MPM.addPass(adapt(DCEPass()));
-          MPM.addPass(adapt(DCEPass()));
-          MPM.addPass(adapt(ADCEPass()));
-          MPM.addPass(ProgressPass("DCE"));
+  MPM.addPass(adapt(DCEPass()));
+  MPM.addPass(adapt(DCEPass()));
+  MPM.addPass(adapt(ADCEPass()));
+  MPM.addPass(ProgressPass("DCE"));
 
-          // Run a normalization pass regardless of the environment configuration
-          MPM.addPass(AlaskaNormalizePass());
-          MPM.addPass(ProgressPass("Normalize"));
-
-
-          // Simplify the cfg
-          MPM.addPass(adapt(SimplifyCFGPass()));
-
-          if (!baseline) {
-            MPM.addPass(AlaskaReplacementPass());
-            MPM.addPass(ProgressPass("Replacement"));
-
-#ifdef ALASKA_COMPILER_TIMING
-            MPM.addPass(CompilerTimingPass());
-#endif
-
-            MPM.addPass(AlaskaTranslatePass());
-            MPM.addPass(ProgressPass("Translate"));
+  // Run a normalization pass regardless of the environment configuration
+  MPM.addPass(AlaskaNormalizePass());
+  MPM.addPass(ProgressPass("Normalize"));
 
 
+  // Simplify the cfg
+  MPM.addPass(adapt(SimplifyCFGPass()));
+
+  if (!baseline) {
+    MPM.addPass(AlaskaReplacementPass());
+    MPM.addPass(ProgressPass("Replacement"));
+
+    MPM.addPass(AlaskaTranslatePass());
+    MPM.addPass(ProgressPass("Translate"));
 
 #ifdef ALASKA_ESCAPE_PASS
-            MPM.addPass(AlaskaEscapePass());
-            MPM.addPass(ProgressPass("Escape"));
+    MPM.addPass(AlaskaEscapePass());
+    MPM.addPass(ProgressPass("Escape"));
 #endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
-            MPM.addPass(LockPrinterPass());
-            MPM.addPass(ProgressPass("Lock Printing"));
+    MPM.addPass(LockPrinterPass());
+    MPM.addPass(ProgressPass("Lock Printing"));
 #endif
 
-            MPM.addPass(adapt(PlaceSafepointsPass()));
-            MPM.addPass(ProgressPass("Safepoint Placement"));
+    // MPM.addPass(adapt(PlaceSafepointsPass()));
+    // MPM.addPass(ProgressPass("Safepoint Placement"));
 
-            if (!alaska::bootstrapping()) {
-              MPM.addPass(LockInsertionPass());
-              MPM.addPass(ProgressPass("Lock Insertion"));
-            }
+    if (!alaska::bootstrapping()) {
+      MPM.addPass(LockInsertionPass());
+      MPM.addPass(ProgressPass("Lock Insertion"));
+    }
 
 #ifdef ALASKA_INLINE_TRANSLATION
-            MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
-            MPM.addPass(ProgressPass("Link runtime"));
+    MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
+    MPM.addPass(ProgressPass("Link runtime"));
 #endif
 
-            MPM.addPass(AlaskaLowerPass());
-            MPM.addPass(ProgressPass("Lowering"));
+    MPM.addPass(AlaskaLowerPass());
+    MPM.addPass(ProgressPass("Lowering"));
 
 #ifdef ALASKA_INLINE_TRANSLATION
-            // Force inlines of alaska runtime functions
-            MPM.addPass(TranslationInlinePass());
-            MPM.addPass(ProgressPass("Inline runtime"));
+    // Force inlines of alaska runtime functions
+    MPM.addPass(TranslationInlinePass());
+    MPM.addPass(ProgressPass("Inline runtime"));
 #endif
-          }
+  }
+  MPM.addPass(RewriteStatepointsForGC());
+  // MPM.addPass(PrintyPass());
 
-          MPM.addPass(adapt(DCEPass()));
-          MPM.addPass(adapt(DCEPass()));
-          MPM.addPass(adapt(ADCEPass()));
-          MPM.addPass(ProgressPass("DCE"));
-          return true;
-        });
-      }};
+
+  MPM.addPass(adapt(DCEPass()));
+  MPM.addPass(adapt(DCEPass()));
+  MPM.addPass(adapt(ADCEPass()));
+  MPM.addPass(ProgressPass("DCE"));
+}
+
+// llvm::PassPluginLibraryInfo getPluginInfo() {
+//   return {LLVM_PLUGIN_API_VERSION, "alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
+//             PB.registerPipelineParsingCallback(
+//                 [](StringRef Name, ModulePassManager &MPM,
+//                 ArrayRef<PassBuilder::PipelineElement>) {
+//                   alaska::println("what up ", Name);
+//                   populateMPM(MPM);
+//                   // MPM.addPass(CompilerTimingPass());
+//                   return true;
+//                 });
+//           }};
+// }
+
+// extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
+//   return getPluginInfo();
+// }
+
+// Register the alaska passes with the new pass manager
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
+            PB.registerOptimizerLastEPCallback(
+                [](ModulePassManager &MPM, OptimizationLevel optLevel) {
+                  populateMPM(MPM);
+                });
+          }};
 }

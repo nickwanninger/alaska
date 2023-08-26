@@ -19,6 +19,7 @@
 #include <alaska/list_head.h>
 #include <stdbool.h>
 #include <sys/signal.h>
+#include <sys/mman.h>
 #include <string.h>
 #include <assert.h>
 
@@ -247,4 +248,10 @@ void alaska::barrier::remove_thread(pthread_t* thread) {
 
   list_del(&pos->list_head);
   pthread_mutex_unlock(&all_threads_lock);
+}
+
+
+void alaska::barrier::initialize_safepoint_page(void) {
+	auto res = mmap(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	assert(res == ALASKA_SAFEPOINT_PAGE && "Failed to allocate safepoint page");
 }

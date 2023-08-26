@@ -80,17 +80,17 @@ STATISTIC(FiniteExecution, "Number of loops without safepoints finite execution"
 
 // Ignore opportunities to avoid placing safepoints on backedges, useful for
 // validation
-static cl::opt<bool> AllBackedges("spp-all-backedges", cl::Hidden, cl::init(false));
+static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::init(false));
 
 /// How narrow does the trip count of a loop have to be to have to be considered
 /// "counted"?  Counted loops do not get safepoints at backedges.
-static cl::opt<int> CountedLoopTripWidth("spp-counted-loop-trip-width", cl::Hidden, cl::init(32));
+static cl::opt<int> CountedLoopTripWidth("alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(32));
 
 // If true, split the backedge of a loop when placing the safepoint, otherwise
 // split the latch block itself.  Both are useful to support for
 // experimentation, but in practice, it looks like splitting the backedge
 // optimizes better.
-static cl::opt<bool> SplitBackedge("spp-split-backedge", cl::Hidden, cl::init(false));
+static cl::opt<bool> SplitBackedge("alaska-spp-split-backedge", cl::Hidden, cl::init(false));
 
 namespace {
   /// An analysis pass whose purpose is to identify each of the backedges in
@@ -103,7 +103,7 @@ namespace {
     /// pointing at the branch) which need a poll inserted.
     std::vector<Instruction *> PollLocations;
 
-    /// True unless we're running spp-no-calls in which case we need to disable
+    /// True unless we're running alaska-spp-no-calls in which case we need to disable
     /// the call-dependent placement opts.
     bool CallSafepointsEnabled;
 
@@ -151,9 +151,9 @@ namespace {
   };
 }  // namespace
 
-static cl::opt<bool> NoEntry("spp-no-entry", cl::Hidden, cl::init(false));
-static cl::opt<bool> NoCall("spp-no-call", cl::Hidden, cl::init(false));
-static cl::opt<bool> NoBackedge("spp-no-backedge", cl::Hidden, cl::init(false));
+static cl::opt<bool> NoEntry("alaska-spp-no-entry", cl::Hidden, cl::init(false));
+static cl::opt<bool> NoCall("alaska-spp-no-call", cl::Hidden, cl::init(false));
+static cl::opt<bool> NoBackedge("alaska-spp-no-backedge", cl::Hidden, cl::init(false));
 
 char PlaceBackedgeSafepointsLegacyPass::ID = 0;
 

@@ -14,7 +14,7 @@
 // Most of these functions are straight up stolen from musl libc
 
 void setbuf(FILE *stream, char *buf) {
-	// NOP
+  // NOP
 }
 
 char *strstr(const char *hs, const char *ne) {
@@ -65,7 +65,7 @@ char *strpbrk(const char *s, const char *b) {
 }
 
 size_t __strlen_avx2(const char *s) {
-	return strlen(s);
+  return strlen(s);
 }
 
 size_t strlen(const char *s) {
@@ -225,4 +225,18 @@ char *strncat(char *restrict d, const char *restrict s, size_t n) {
     n--, *d++ = *s++;
   *d++ = 0;
   return a;
+}
+
+// in barrier.cpp
+extern void alaska_register_stack_map(void *map);
+
+
+extern int __LLVM_StackMaps __attribute__((weak));
+
+static void __attribute__((constructor)) alaska_init(void) {
+  int *stackmaps = &__LLVM_StackMaps;
+  printf("stackmaps: %p\n", stackmaps);
+  if (stackmaps) {
+    alaska_register_stack_map(stackmaps);
+  }
 }

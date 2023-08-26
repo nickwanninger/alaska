@@ -30,5 +30,7 @@ namespace alaska {
     void init();
     void deinit();
 
+		void initialize_safepoint_page();
+
   }  // namespace barrier
 }  // namespace alaska

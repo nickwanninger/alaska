@@ -39,6 +39,15 @@ extern long alaska_translate_rss_kb(void);
 extern unsigned long alaska_timestamp(void);
 
 
+
+#ifdef ALASKA_HANDLE_SQUEEZING
+#define TABLE_START 0x400000000LU
+#else
+#define TABLE_START 0x80000000LU
+#endif
+
+// The alaska safepoint page lives immediately before the table start
+#define ALASKA_SAFEPOINT_PAGE ((void*)(TABLE_START - 0x1000))
 // The implementation of the safepoint poll function
 extern void alaska_safepoint(void);
 

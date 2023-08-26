@@ -12,24 +12,17 @@ export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
 INPUT=$1
 shift
 
-AA="--basic-aa --globals-aa --cfl-steens-aa -tbaa --cfl-anders-aa -scev-aa "
-LOOPS="-loops -loop-simplify -lcssa -domtree -scalar-evolution"
-# AA=""
-# LOOPS=""
+echo $@
 
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
 $OPT -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-# $OPT --mem2reg -lcssa -gvn --instnamer -gvn-hoist --aggressive-instcombine -dce -adce
 $OPT -strip-debug
 
-# $OPT -lowerinvoke
-# $OPT -lowerswitch -dce -adce -lcssa
- 
-# cp $INPUT pre-alaska.bc
-# llvm-dis pre-alaska.bc
-
+# llvm-link ${PFX
+# opt -load-pass-plugin=${PFX}/lib/Alaska.so -time-passes -passes=alaska $INPUT -o $INPUT
+# opt -load-pass-plugin=${PFX}/lib/Alaska.so -time-passes -passes=alaska-inline $INPUT -o $INPUT
 clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
+$OPT -strip-debug
 
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
-# $OPT -O3

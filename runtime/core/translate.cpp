@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <alaska.h>
+#include <dlfcn.h>
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
 
@@ -69,6 +70,9 @@ static ALASKA_INLINE void alaska_track_miss(void) {
 }
 
 
+extern "C" {
+	extern int __LLVM_StackMaps __attribute__((weak));
+}
 
 void *alaska_translate(void *ptr) {
 #if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
@@ -139,7 +143,11 @@ void alaska_release(void *ptr) {
 
 extern bool alaska_should_safepoint;
 extern "C" void alaska_safepoint(void) {
-	if (unlikely(alaska_should_safepoint)) {
-		printf("safepoint!\n");
+
+	if (alaska_should_safepoint) {
+		puts("safepoint!\n");
 	}
+	// // Simply load from the safepoint page. If we have a barrier pending, this will fault into the segfault handler.
+	// uint64_t res = *(volatile uint64_t *)ALASKA_SAFEPOINT_PAGE;
+	// (void)res;
 }

@@ -34,9 +34,54 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
 }
 
 PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
+  auto &ctx = M.getContext();
   if (getenv("ALASKA_NO_TRACKING") != NULL) {
     return PreservedAnalyses::all();
   }
+  // return PreservedAnalyses::all();
+
+
+  for (auto &F : M) {
+    // Ignore functions with no bodies
+    if (F.empty()) continue;
+    // Update the gc implementation
+    // F.setGC("coreclr");
+    F.setGC("statepoint-example");
+    // F.setGC("shadow-stack");
+		continue;
+
+    // Extract all the locks from the function
+    auto translations = alaska::extractTranslations(F);
+
+
+    alaska::println(F.getName(), " has ", translations.size());
+    // If the function had no locks, don't do anything
+    if (translations.empty()) {
+      continue;
+    }
+    llvm::IRBuilder<> b(ctx);
+
+    for (auto &tr : translations) {
+      auto ptrValue = tr->getHandle();
+
+      b.SetInsertPoint(F.front().getFirstNonPHIOrDbg());
+      auto alloca = b.CreateAlloca(ptrValue->getType());
+      // Create the gc.root intrinsic call
+      std::vector<llvm::Value *> gcRootArgs = {
+          alloca, Constant::getNullValue(PointerType::get(ctx, 0))};
+      llvm::Function *gcRootFunc = llvm::Intrinsic::getDeclaration(&M, llvm::Intrinsic::gcroot);
+      b.CreateCall(gcRootFunc, gcRootArgs);
+
+      b.SetInsertPoint(dyn_cast<Instruction>(tr->getPointer()));
+      b.CreateStore(ptrValue, alloca, /* isVolatile= */true);
+    }
+  }
+  return PreservedAnalyses::none();
+  // >>>>>>>>>>>>>>> !!!! GC EXPERIMENTS !!!! >>>>>>>>>>>>>>>
+
+
+
+
 #ifndef ALASKA_LOCK_TRACKING
   return PreservedAnalyses::all();
 #endif

@@ -14,6 +14,7 @@
 #include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
 #include "alaska/utils.h"
+#include <ck/vec.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -42,11 +43,11 @@ long alaska::translation_hits = 0;
 long alaska::translation_misses = 0;
 
 void alaska::record_translation_info(bool hit) {
-	if (hit) {
-		alaska::translation_hits++;
-	} else {
-		alaska::translation_misses++;
-	}
+  if (hit) {
+    alaska::translation_hits++;
+  } else {
+    alaska::translation_misses++;
+  }
 }
 
 struct alaska_pthread_trampoline_arg {
@@ -88,9 +89,198 @@ extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t
   return rc;
 }
 
+#include <alaska/StackMapParser.h>
 
+const char* regname(int r) {
+  switch (r) {
+    case 0:
+      return "RAX";
+    case 1:
+      return "RDX";
+    case 2:
+      return "RCX";
+    case 3:
+      return "RBX";
+    case 4:
+      return "RSI";
+    case 5:
+      return "RDI";
+    case 6:
+      return "RBP";
+    case 7:
+      return "RSP";
+    case 8:
+      return "R8";
+    case 9:
+      return "R9";
+    case 10:
+      return "R10";
+    case 11:
+      return "R11";
+    case 12:
+      return "R12";
+    case 13:
+      return "R13";
+    case 14:
+      return "R14";
+    case 15:
+      return "R15";
+    case 16:
+      return "RIP";
+    case 17:
+      return "XMM0";
+    case 33:
+      return "ST0";
+    case 34:
+      return "ST1";
+    case 35:
+      return "ST2";
+    case 36:
+      return "ST3";
+    case 37:
+      return "ST4";
+    case 38:
+      return "ST5";
+    case 39:
+      return "ST6";
+    case 40:
+      return "ST7";
+    case 49:
+      return "EFLAGS";
+    case 50:
+      return "ES";
+    case 51:
+      return "CS";
+    case 52:
+      return "SS";
+    case 53:
+      return "DS";
+    case 54:
+      return "FS";
+    case 55:
+      return "GS";
+    case 62:
+      return "TR";
+    case 63:
+      return "LDTR";
+    case 64:
+      return "MXCSR";
+    case 65:
+      return "CTRL";
+    case 66:
+      return "STAT";
+  }
+  return "UNK";
+}
+
+
+static alaska::StackMapParser* p;
+void readStackMap(uint8_t* t) {
+  p = new alaska::StackMapParser(t);
+
+  printf("Version:     %d\n", p->getVersion());
+  printf("Constants:   %d\n", p->getNumConstants());
+  printf("Functions:   %d\n", p->getNumFunctions());
+
+  int cur_record = 0;
+
+  for (auto it = p->functions_begin(); it != p->functions_end(); it++) {
+    auto& f = *it;
+    // printf("Function addr:%p, sz:%zd, rec:%zd\n", f.getFunctionAddress(), f.getStackSize(),
+    //     f.getRecordCount());
+
+    for (uint64_t c = 0; c < f.getRecordCount(); c++) {
+      auto r = p->getRecord(cur_record);
+      cur_record++;
+
+      off_t addr = f.getFunctionAddress() + r.getInstructionOffset();
+      for (unsigned loc = 0; loc < r.getNumLocations(); loc++) {
+        auto l = r.getLocation(loc);
+        if (l.getKind() >= alaska::StackMapParser::LocationKind::Constant) {
+          continue;
+        }
+
+        // auto sz = l.getSizeInBytes();
+        auto dwarfRegNum = l.getDwarfRegNum();
+        auto offset = l.getOffset();
+        printf("%016p ", addr);
+        switch (l.getKind()) {
+          case alaska::StackMapParser::LocationKind::Register:
+            printf("Register %d\n", dwarfRegNum);
+            break;
+          case alaska::StackMapParser::LocationKind::Direct:
+            printf("Direct %s + %d\n", regname(dwarfRegNum), offset);
+            break;
+          case alaska::StackMapParser::LocationKind::Indirect:
+            printf("Indirect %s + %d\n", regname(dwarfRegNum), offset);
+            break;
+
+          case alaska::StackMapParser::LocationKind::Constant:
+          case alaska::StackMapParser::LocationKind::ConstantIndex:
+            printf("<Constant>\n");
+            break;
+        }
+      }
+      for (uint64_t c = 0; c < r.getNumLiveOuts(); c++) {
+        auto lo = r.getLiveOut(c);
+        printf("%016p LiveOut %s", addr, regname(lo.getDwarfRegNum()));
+      }
+    }
+  }
+}
+
+extern "C" void alaska_test_sm() {
+  return;
+  if (p == NULL) return;
+  uint64_t retAddr = (uint64_t)__builtin_return_address(0);
+  printf("Return address: %p\n", retAddr);
+
+  int cur_record = 0;
+
+  for (auto it = p->functions_begin(); it != p->functions_end(); it++) {
+    auto& f = *it;
+    for (uint64_t c = 0; c < f.getRecordCount(); c++) {
+      auto r = p->getRecord(cur_record);
+      cur_record++;
+      uint64_t recAddr = f.getFunctionAddress() + r.getInstructionOffset();
+      if (recAddr != retAddr) {
+        continue;
+      }
+      printf("  Record %p locs:%d  (%p)\n", r.getInstructionOffset(), r.getNumLocations(),
+          f.getFunctionAddress() + r.getInstructionOffset());
+      for (unsigned loc = 0; loc < r.getNumLocations(); loc++) {
+        auto l = r.getLocation(loc);
+        printf("  - k:%d sz:%d reg:%d", l.getKind(), l.getSizeInBytes(), l.getDwarfRegNum());
+
+        if (l.getKind() == alaska::StackMapParser::LocationKind::Direct ||
+            l.getKind() == alaska::StackMapParser::LocationKind::Indirect) {
+          printf(" offset:%d", l.getOffset());
+        }
+        if (l.getKind() == alaska::StackMapParser::LocationKind::ConstantIndex) {
+          printf(" ci:%d", l.getConstantIndex());
+        }
+        printf("\n");
+      }
+
+      for (auto i = 0; i < r.getNumLiveOuts(); i++) {
+        auto lo = r.getLiveOut(i);
+        printf("  liveout - %d %d\n", lo.getDwarfRegNum(), lo.getSizeInBytes());
+      }
+    }
+  }
+}
+
+
+extern "C" void alaska_register_stack_map(void* map) {
+  if (map) {
+    printf("Register stack map %p\n", map);
+    readStackMap((uint8_t*)map);
+  }
+}
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
+  alaska::barrier::initialize_safepoint_page();
+
   // Add the main thread to the list of active threads
   // Note: the main thread never removes itself from the barrier thread list
   pthread_t self = pthread_self();
@@ -204,9 +394,9 @@ void* alaska_ensure_present(alaska::Mapping* m) {
 
 
 extern "C" void __cxa_pure_virtual(void) {
-	abort();
+  abort();
 }
 
-extern "C" void *__alaska_leak(void *ptr) {
-	return alaska_translate(ptr);
+extern "C" void* __alaska_leak(void* ptr) {
+  return alaska_translate(ptr);
 }

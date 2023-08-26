@@ -97,6 +97,8 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 		esac
 	fi
 
+	# LLVM_FILE=""
+
 	if [ "${LLVM_FILE}" != "" ]; then
 
 		if [ ! -f llvm.tar.xz ]; then
@@ -106,26 +108,27 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 
 	else
 		echo "We have to compile LLVM from source on your platform..."
-		if [ ! -f llvm.tar.xz ]; then
+		sleep 4
+		if [ ! -d llvm-project-${LLVM_VERSION}.src ]; then
 			wget -O llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/llvm-project-${LLVM_VERSION}.src.tar.xz
 			tar xvf llvm.tar.xz
 		fi
 		pushd llvm-project-${LLVM_VERSION}.src
-			mkdir build
+			mkdir -p build
 			pushd build
 				cmake ../llvm -G Ninja                                    \
 					-DCMAKE_INSTALL_PREFIX=${PREFIX}                        \
 					-DCMAKE_BUILD_TYPE=Release                              \
 					-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
-					-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"                         \
-					-DLLVM_ENABLE_LLD=True
+					-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"
+					# -DLLVM_ENABLE_LLD=True
 
 				ninja install
 			popd
 		popd
 	fi
 
-	rm -rf llvm.tar.xz
+	# rm -rf llvm.tar.xz
 
 	
 
