@@ -38,9 +38,13 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
 
   // Lower alaska.root
   for (auto *call : collectCalls(M, "alaska.root")) {
-    // alaska::println(*call);
+
+
+    IRBuilder<> b(call);  // insert after the call
+                          //
+    // auto cast = b.CreateAddrSpaceCast(call->getArgOperand(0), PointerType::get(M.getContext(), 0));
+    // call->replaceAllUsesWith(cast);
     call->replaceAllUsesWith(call->getArgOperand(0));
-		// alaska::println("root:", *call->getArgOperand(0));
     to_delete.insert(call);
     if (auto *invoke = dyn_cast<llvm::InvokeInst>(call)) {
       auto *landing_pad = invoke->getLandingPadInst();
@@ -55,6 +59,9 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   if (auto func = M.getFunction("alaska.translate")) {
     auto translateFunc = M.getOrInsertFunction("alaska_translate", func->getFunctionType());
     for (auto call : collectCalls(M, "alaska.translate")) {
+
+      IRBuilder<> b(call);  // insert after the call
+      // b.CreateLifetimeStart(call->getArgOperand(0));
       call->setCalledFunction(translateFunc);
     }
   }
@@ -64,6 +71,8 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   // Lower alaska.release
   for (auto call : collectCalls(M, "alaska.release")) {
     to_delete.insert(call);
+    // IRBuilder<> b(call);  // insert after the call
+    // b.CreateLifetimeEnd(call->getArgOperand(0));
   }
 
   // Lower alaska.derive

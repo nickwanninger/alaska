@@ -20,6 +20,8 @@
 #include <alaska/list_head.h>
 
 
+#define HANDLE_ADDRSPACE __attribute__((address_space(1)))
+
 namespace alaska {
 
 #ifdef ALASKA_HANDLE_SQUEEZING
@@ -114,9 +116,12 @@ void *alaska_encode(alaska::Mapping *m, off_t offset);
 void *alaska_translate(void *ptr);
 void alaska_release(void *ptr);
 
+
+
 // Ensure a handle is present.
 void *alaska_ensure_present(alaska::Mapping *m);
 }
+
 
 
 extern void alaska_dump_backtrace(void);

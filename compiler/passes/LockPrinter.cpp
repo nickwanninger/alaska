@@ -22,6 +22,8 @@ PreservedAnalyses LockPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
 
   for (auto &F : M) {
     if (focus.size() == 0 || (focus_on.find(std::string(F.getName())) != focus_on.end())) {
+      if (F.empty()) continue;
+      errs() << F.getName() << "\n";
       auto l = alaska::extractTranslations(F);
       if (l.size() > 0) {
         alaska::printTranslationDot(F, l);

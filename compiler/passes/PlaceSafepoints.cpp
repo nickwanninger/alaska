@@ -84,13 +84,14 @@ static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::in
 
 /// How narrow does the trip count of a loop have to be to have to be considered
 /// "counted"?  Counted loops do not get safepoints at backedges.
-static cl::opt<int> CountedLoopTripWidth("alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(32));
+static cl::opt<int> CountedLoopTripWidth(
+    "alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(32));
 
 // If true, split the backedge of a loop when placing the safepoint, otherwise
 // split the latch block itself.  Both are useful to support for
 // experimentation, but in practice, it looks like splitting the backedge
 // optimizes better.
-static cl::opt<bool> SplitBackedge("alaska-spp-split-backedge", cl::Hidden, cl::init(false));
+static cl::opt<bool> SplitBackedge("alaska-spp-split-backedge", cl::Hidden, cl::init(true));
 
 namespace {
   /// An analysis pass whose purpose is to identify each of the backedges in
@@ -602,7 +603,7 @@ static Instruction *findLocationForEntrySafepoint(Function &F, DominatorTree &DT
 }
 
 // const char GCSafepointPollName[] = "gc.safepoint_poll";
-const char GCSafepointPollName[] = "alaska.safepoint_poll";
+const char GCSafepointPollName[] = "alaska_safepoint";
 
 static bool isGCSafepointPoll(Function &F) {
   return F.getName().equals(GCSafepointPollName);
@@ -612,7 +613,11 @@ static bool isGCSafepointPoll(Function &F) {
 /// polls and parseable call sites.  The main point of this function is to be
 /// an extension point for custom logic.
 static bool shouldRewriteFunction(Function &F) {
+  // TODO: do this w/ the gc interface instead!
   // TODO: This should check the GCStrategy
+  if (F.getName().startswith("alaska")) {
+    return false;
+  }
   // if (F.hasGC()) {
   //   const auto &FunctionGCName = F.getGC();
   //   const StringRef StatepointExampleName("statepoint-example");
@@ -668,13 +673,13 @@ static void InsertSafepointPoll(Instruction *InsertBefore,
   assert(After != OrigBB->end() && "must have successor");
 
   // Do the actual inlining
-  // InlineFunctionInfo IFI;
-  // bool InlineStatus = InlineFunction(*PollCall, IFI).isSuccess();
-  // assert(InlineStatus && "inline must succeed");
-  // (void)InlineStatus;  // suppress warning in release-asserts
+  InlineFunctionInfo IFI;
+  bool InlineStatus = InlineFunction(*PollCall, IFI).isSuccess();
+  assert(InlineStatus && "inline must succeed");
+  (void)InlineStatus;  // suppress warning in release-asserts
 
   // Check post-conditions
-  // assert(IFI.StaticAllocas.empty() && "can't have allocs");
+  assert(IFI.StaticAllocas.empty() && "can't have allocs");
 
   std::vector<CallInst *> Calls;  // new calls
   DenseSet<BasicBlock *> BBs;     // new BBs + insertee
@@ -702,6 +707,7 @@ static void InsertSafepointPoll(Instruction *InsertBefore,
     // These are likely runtime calls.  Should we assert that via calling
     // convention or something?
     ParsePointsNeeded.push_back(CI);
+    // errs() << "Parse point :" << *CI << "\n";
   }
   assert(ParsePointsNeeded.size() <= Calls.size());
 }

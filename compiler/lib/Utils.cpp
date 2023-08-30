@@ -99,13 +99,15 @@ llvm::DILocation *getFirstDILocationInFunctionKillMe(llvm::Function *F) {
 }
 
 
+
 llvm::Instruction *alaska::insertRootBefore(llvm::Instruction *inst, llvm::Value *pointer) {
   auto *headBB = inst->getParent();
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
   LLVMContext &ctx = M.getContext();
-  auto ptrType = PointerType::get(ctx, 0);
-  auto translateFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+  auto inputType = PointerType::get(ctx, 0);
+  auto outputType = PointerType::get(ctx, 0);
+  auto translateFunctionType = FunctionType::get(outputType, {inputType}, false);
   std::string name = "alaska.root";
   auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
   IRBuilder<> b(inst);
@@ -117,12 +119,12 @@ llvm::Instruction *alaska::insertTranslationBefore(llvm::Instruction *inst, llvm
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
   LLVMContext &ctx = M.getContext();
-  auto ptrType = PointerType::get(ctx, 0);
-  auto translateFunctionType = FunctionType::get(ptrType, {ptrType}, false);
+  auto fType =
+      FunctionType::get(PointerType::get(ctx, 0), {PointerType::get(ctx, 0)}, false);
   std::string name = "alaska.translate";
-  auto translateFunction = M.getOrInsertFunction(name, translateFunctionType).getCallee();
+  auto translateFunction = M.getOrInsertFunction(name, fType).getCallee();
   IRBuilder<> b(inst);
-  return b.CreateCall(translateFunctionType, translateFunction, {pointer});
+  return b.CreateCall(fType, translateFunction, {pointer});
 }
 
 llvm::Instruction *alaska::insertReleaseBefore(llvm::Instruction *inst, llvm::Value *pointer) {
@@ -130,8 +132,7 @@ llvm::Instruction *alaska::insertReleaseBefore(llvm::Instruction *inst, llvm::Va
   auto &F = *headBB->getParent();
   auto &M = *F.getParent();
   LLVMContext &ctx = M.getContext();
-  auto ptrType = PointerType::get(ctx, 0);
-  auto ftype = FunctionType::get(Type::getVoidTy(ctx), {ptrType}, false);
+  auto ftype = FunctionType::get(Type::getVoidTy(ctx), {PointerType::get(ctx, 0)}, false);
 
   std::string name = "alaska.release";
   auto func = M.getOrInsertFunction(name, ftype).getCallee();

@@ -1,6 +1,7 @@
 #include <alaska/Passes.h>
 #include <alaska/Translations.h>
 #include <alaska/Utils.h>
+#include <optional>
 
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/IR/PassManager.h"
@@ -38,46 +39,6 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
   if (getenv("ALASKA_NO_TRACKING") != NULL) {
     return PreservedAnalyses::all();
   }
-  // return PreservedAnalyses::all();
-
-
-  for (auto &F : M) {
-    // Ignore functions with no bodies
-    if (F.empty()) continue;
-    // Update the gc implementation
-    // F.setGC("coreclr");
-    F.setGC("statepoint-example");
-    // F.setGC("shadow-stack");
-		continue;
-
-    // Extract all the locks from the function
-    auto translations = alaska::extractTranslations(F);
-
-
-    alaska::println(F.getName(), " has ", translations.size());
-    // If the function had no locks, don't do anything
-    if (translations.empty()) {
-      continue;
-    }
-    llvm::IRBuilder<> b(ctx);
-
-    for (auto &tr : translations) {
-      auto ptrValue = tr->getHandle();
-
-      b.SetInsertPoint(F.front().getFirstNonPHIOrDbg());
-      auto alloca = b.CreateAlloca(ptrValue->getType());
-      // Create the gc.root intrinsic call
-      std::vector<llvm::Value *> gcRootArgs = {
-          alloca, Constant::getNullValue(PointerType::get(ctx, 0))};
-      llvm::Function *gcRootFunc = llvm::Intrinsic::getDeclaration(&M, llvm::Intrinsic::gcroot);
-      b.CreateCall(gcRootFunc, gcRootArgs);
-
-      b.SetInsertPoint(dyn_cast<Instruction>(tr->getPointer()));
-      b.CreateStore(ptrValue, alloca, /* isVolatile= */true);
-    }
-  }
-  return PreservedAnalyses::none();
-  // >>>>>>>>>>>>>>> !!!! GC EXPERIMENTS !!!! >>>>>>>>>>>>>>>
 
 
 
@@ -85,6 +46,10 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
 #ifndef ALASKA_LOCK_TRACKING
   return PreservedAnalyses::all();
 #endif
+
+// Define this to enable the old lock system.
+#define OLD_LOCK
+#ifdef OLD_LOCK
   std::vector<Type *> EltTys;
 
   auto pointerType = llvm::PointerType::get(M.getContext(), 0);
@@ -103,37 +68,16 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
         llvm::GlobalValue::InitialExecTLSModel);
   }
 
-  // TODO: instead of getting this from a global variable, it would be interesting to see how
-  // versioning functions with an additional argument containing the root chain might improve
-  // performance for "short" functions.  Then, when you call a function it does not have to look up
-  // the address of the thread-local pointer. Effectively, we would take this code:
-  //
-  //     void write_ptr(int *x) {
-  //       root_chain = ...
-  //       *x = 0;
-  //     }
-  //     and convert it to this code:
-  //     void write_ptr(int *x) {
-  //       root_chain = ...
-  //       write_ptr.rc(x, root_chain);
-  //     }
-  //     void write_ptr.rc(int *x, root_chain *rc) {
-  //       *x = 0;
-  //     }
-  //
-  // That way, functions would simply take the pointer to the current root chain as a function,
-  // which would reduce prelude overhead significantly on ARM. If the old function was called
-  // without passing the root chain, it would simply load the location and call into the versioned
-  // function with that pointer.
-
-
   Head->setThreadLocal(true);
   Head->setLinkage(GlobalValue::ExternalWeakLinkage);
   Head->setInitializer(NULL);
+#endif
+
 
   for (auto &F : M) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
+
 
     // alaska::println("inserting locks into ", F.getName());
     // Extract all the locks from the function
@@ -141,12 +85,12 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     // If the function had no locks, don't do anything
     if (translations.empty()) continue;
 
+    F.setGC("coreclr");
+
     // Given a lock, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> lock_cell_ids;
     // Interference - a mapping from locks to the locks it is alive along side of.
     std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
-
-    // alaska::println(translations.size(), " translations.");
 
     // Loop over each translation, then over it's live instructions. For each live instruction see
     // which other locks are live in those instructions. This is horrible and slow. (but works)
@@ -188,7 +132,64 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       lock_cell_ids[lock] = available_cell;
     }
 
+    llvm::DenseMap<CallInst *, std::set<alaska::Translation *>> liveTranslations;
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto *call = dyn_cast<IntrinsicInst>(&I)) {
+          continue;
+        }
+        if (auto *call = dyn_cast<CallInst>(&I)) {
+          if (call->isInlineAsm()) continue;
+          auto targetFuncType = call->getFunctionType();
+          if (targetFuncType->isVarArg()) {
+            // TODO: Remove this limitation
+            //       This is a restriction of the backend, I think.
+            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
+          }
+          if (auto func = call->getCalledFunction(); func != nullptr) {
+            if (func->getName().startswith("alaska.")) continue;
+          }
+          // access the call so it exists.
+          liveTranslations[call];
+          for (auto &tr : translations) {
+            if (tr->isLive(call)) {
+              liveTranslations[call].insert(tr.get());
+            }
+          }
+        }
+      }
+    }
 
+
+
+    for (auto &[call, translations] : liveTranslations) {
+      // continue;
+      // errs() << *call << "\n";
+      // for (auto *tr : translations) {
+      //   errs() << "   " << *tr->getPointer() << "\n";
+      // }
+
+      IRBuilder<> b(call);
+      std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
+      std::vector<llvm::Value *> gcArgs;
+      for (auto *tr : translations) {
+        gcArgs.push_back(tr->getHandle());
+      }
+      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+
+
+      auto called = call->getCalledOperand();
+
+      // Value * > GCArgs, const Twine &Name="")
+      auto token = b.CreateGCStatepointCall(0xABCDEF00, 0,
+          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
+          "statepoint");
+      auto result = b.CreateGCResult(token, call->getType());
+      call->replaceAllUsesWith(result);
+      call->eraseFromParent();
+    }
+
+#ifdef OLD_LOCK
     // Figure out the max available cell
     long max_cell = 0;  // the maximum level of interference
     for (auto &[_, i] : lock_cell_ids) {
@@ -232,8 +233,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     for (long ind = 0; ind < cell_count; ind++) {
       char buf[512];
       snprintf(buf, 512, "lockCell.%ld", ind);
+
       auto cell =
           CreateGEP(M.getContext(), atEntry, concreteStackEntryTy, stackEntry, ind + 1, buf);
+      atEntry.CreateStore(
+          llvm::ConstantPointerNull::get(PointerType::get(M.getContext(), 0)), cell, true);
       lockCells.push_back(cell);
     }
 
@@ -249,12 +253,11 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       b.CreateStore(handle, cell, false);
 
       // Insert a store right after all the releases to say "we're done with this handle".
-      // for (auto unlock : translation->releases) {
-      //   b.SetInsertPoint(unlock->getNextNode());
-      //   b.CreateStore(
-      //       llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell,
-      //       true);
-      // }
+      for (auto unlock : translation->releases) {
+        b.SetInsertPoint(unlock->getNextNode());
+        b.CreateStore(
+            llvm::ConstantPointerNull::get(dyn_cast<PointerType>(handle->getType())), cell, true);
+      }
     }
 
     // For each instruction that escapes...
@@ -267,6 +270,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       AtExit->CreateStore(SavedHead, Head);
       // AtExit->CreateStore(CurrentHead, Head);
     }
+#endif
   }
 
   return PreservedAnalyses::none();

@@ -5,7 +5,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <ck/vec.h>
 
 namespace alaska {
 
@@ -378,7 +378,7 @@ public:
 
   /// Return a RecordAccessor for the given record index.
   RecordAccessor getRecord(unsigned RecordIndex) const {
-    std::size_t RecordOffset = StackMapRecordOffsets[RecordIndex];
+    size_t RecordOffset = StackMapRecordOffsets[RecordIndex];
     return RecordAccessor(StackMapSection + RecordOffset);
   }
 
@@ -419,11 +419,11 @@ private:
   static const unsigned FunctionSize = 3 * sizeof(uint64_t);
   static const unsigned ConstantSize = sizeof(uint64_t);
 
-  std::size_t getFunctionOffset(unsigned FunctionIndex) const {
+  size_t getFunctionOffset(unsigned FunctionIndex) const {
     return FunctionListOffset + FunctionIndex * FunctionSize;
   }
 
-  std::size_t getConstantOffset(unsigned ConstantIndex) const {
+  size_t getConstantOffset(unsigned ConstantIndex) const {
     return ConstantsListOffset + ConstantIndex * ConstantSize;
   }
 

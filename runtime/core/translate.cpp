@@ -26,6 +26,8 @@
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
 
+
+
 #if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
 
 #if defined(__x86_64__)
@@ -71,7 +73,7 @@ static ALASKA_INLINE void alaska_track_miss(void) {
 
 
 extern "C" {
-	extern int __LLVM_StackMaps __attribute__((weak));
+extern int __LLVM_StackMaps __attribute__((weak));
 }
 
 void *alaska_translate(void *ptr) {
@@ -140,14 +142,27 @@ void alaska_release(void *ptr) {
   // and should not have any real meaning in the runtime
 }
 
+uint64_t base_start = 0;
+
+void print_backtrace() {
+  void *rbp = (void *)__builtin_frame_address(0);
+  uint64_t start, end;
+  start = (uint64_t)rbp;
+  while ((uint64_t)rbp > 0x1000) {
+    end = (uint64_t)rbp;
+    if (end > base_start) base_start = end;
+    rbp = *(void **)rbp;  // Follow the chain of rbp values
+  }
+  printf(" (%zd)\n", end - start);
+}
 
 extern bool alaska_should_safepoint;
+extern "C" void alaska_test_sm(void);
 extern "C" void alaska_safepoint(void) {
-
-	if (alaska_should_safepoint) {
-		puts("safepoint!\n");
-	}
-	// // Simply load from the safepoint page. If we have a barrier pending, this will fault into the segfault handler.
-	// uint64_t res = *(volatile uint64_t *)ALASKA_SAFEPOINT_PAGE;
-	// (void)res;
+  alaska_test_sm();
+  // if (unlikely(alaska_should_safepoint)) {
+  //   alaska_test_sm();
+  // }
+  // // Simply load from the safepoint page. If we have a barrier pending, this will fault into the
+  // segfault handler. uint64_t res = *(volatile uint64_t *)ALASKA_SAFEPOINT_PAGE; (void)res;
 }

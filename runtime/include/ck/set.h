@@ -49,6 +49,15 @@ namespace ck {
       return find(key) != end();
     }
 
+    bool is_subset_of(const set<T> &other) {
+      for (auto &v : *this) {
+        if (!other.contains(v)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     void remove(const T& value) {
       auto it = find(value);
       if (it != end()) remove(it);

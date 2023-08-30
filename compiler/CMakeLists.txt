@@ -72,6 +72,7 @@ add_llvm_library(Alaska MODULE
 	passes/LinkLibrary.cpp
 	passes/Lower.cpp
 	passes/PlaceSafepoints.cpp
+  passes/RewriteStatepointsForGC.cpp
 
 	PLUGIN_TOOL
 	opt

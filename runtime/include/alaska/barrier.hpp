@@ -13,7 +13,7 @@
 
 
 #include <alaska/alaska.hpp>
-
+#include <ck/set.h>
 #include <pthread.h>
 
 namespace alaska {
@@ -31,6 +31,8 @@ namespace alaska {
     void deinit();
 
 		void initialize_safepoint_page();
+
+    ck::set<void *> get_locked(void);
 
   }  // namespace barrier
 }  // namespace alaska

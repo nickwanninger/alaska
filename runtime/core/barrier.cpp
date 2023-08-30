@@ -8,6 +8,9 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+#include <alaska/StackMapParser.h>
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
@@ -15,6 +18,12 @@
 #include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
 
+#include <ck/map.h>
+#include <ck/set.h>
+#include <ck/vec.h>
+
+
+#include <execinfo.h>
 #include <pthread.h>
 #include <alaska/list_head.h>
 #include <stdbool.h>
@@ -23,6 +32,13 @@
 #include <string.h>
 #include <assert.h>
 
+
+struct IndirectMapping {
+  uint32_t regNum;
+  int32_t offset;
+};
+
+static ck::map<uintptr_t, ck::vec<IndirectMapping>> stack_maps;
 bool alaska_should_safepoint = false;
 
 // The definition for thread-local root chains
@@ -49,7 +65,7 @@ static long barrier_last_num_threads = 0;
 
 
 void alaska_remove_from_local_lock_list(void* ptr) {
-	return;
+  return;
 #ifdef ALASKA_LOCK_TRACKING
   alaska::LockFrame* cur;
 
@@ -57,7 +73,7 @@ void alaska_remove_from_local_lock_list(void* ptr) {
   while (cur != NULL) {
     for (uint64_t i = 0; i < cur->count; i++) {
       if (cur->locked[i] == ptr) {
-				cur->locked[i] = NULL;
+        cur->locked[i] = NULL;
         return;
       }
     }
@@ -102,6 +118,28 @@ static void record_handle(void* possible_handle, bool marked) {
 
 
 
+static bool might_be_handle(void* possible_handle) {
+  alaska::Mapping* m = alaska::Mapping::from_handle_safe(possible_handle);
+  return m != nullptr;
+}
+
+
+
+ck::set<void*> alaska::barrier::get_locked(void) {
+  ck::set<void*> out;
+
+  alaska::LockFrame* cur;
+
+  cur = alaska_lock_root_chain;
+  while (cur != NULL) {
+    for (uint64_t i = 0; i < cur->count; i++) {
+      if (might_be_handle(cur->locked[i])) out.add(cur->locked[i]);
+    }
+    cur = cur->prev;
+  }
+
+  return out;
+}
 
 static void alaska_barrier_join(bool leader) {
   alaska::LockFrame* cur;
@@ -252,6 +290,212 @@ void alaska::barrier::remove_thread(pthread_t* thread) {
 
 
 void alaska::barrier::initialize_safepoint_page(void) {
-	auto res = mmap(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	assert(res == ALASKA_SAFEPOINT_PAGE && "Failed to allocate safepoint page");
+  auto res =
+      mmap(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  assert(res == ALASKA_SAFEPOINT_PAGE && "Failed to allocate safepoint page");
+}
+
+
+
+
+const char* regname(int r) {
+  switch (r) {
+    case 0:
+      return "RAX";
+    case 1:
+      return "RDX";
+    case 2:
+      return "RCX";
+    case 3:
+      return "RBX";
+    case 4:
+      return "RSI";
+    case 5:
+      return "RDI";
+    case 6:
+      return "RBP";
+    case 7:
+      return "RSP";
+    case 8:
+      return "R8";
+    case 9:
+      return "R9";
+    case 10:
+      return "R10";
+    case 11:
+      return "R11";
+    case 12:
+      return "R12";
+    case 13:
+      return "R13";
+    case 14:
+      return "R14";
+    case 15:
+      return "R15";
+    case 16:
+      return "RIP";
+    case 17:
+      return "XMM0";
+    case 33:
+      return "ST0";
+    case 34:
+      return "ST1";
+    case 35:
+      return "ST2";
+    case 36:
+      return "ST3";
+    case 37:
+      return "ST4";
+    case 38:
+      return "ST5";
+    case 39:
+      return "ST6";
+    case 40:
+      return "ST7";
+    case 49:
+      return "EFLAGS";
+    case 50:
+      return "ES";
+    case 51:
+      return "CS";
+    case 52:
+      return "SS";
+    case 53:
+      return "DS";
+    case 54:
+      return "FS";
+    case 55:
+      return "GS";
+    case 62:
+      return "TR";
+    case 63:
+      return "LDTR";
+    case 64:
+      return "MXCSR";
+    case 65:
+      return "CTRL";
+    case 66:
+      return "STAT";
+  }
+  return "UNK";
+}
+
+
+
+void readStackMap(uint8_t* t) {
+  alaska::StackMapParser p(t);
+
+  printf("Version:     %d\n", p.getVersion());
+  printf("Constants:   %d\n", p.getNumConstants());
+  printf("Functions:   %d\n", p.getNumFunctions());
+
+
+  auto currFunc = p.functions_begin();
+  size_t recordCount = 0;
+
+  for (auto it = p.records_begin(); it != p.records_end(); it++) {
+    auto record = *it;
+    std::uintptr_t addr = currFunc->getFunctionAddress() + record.getInstructionOffset();
+    if (++recordCount == currFunc->getRecordCount()) {
+      currFunc++;
+      recordCount = 0;
+    }
+
+    ck::vec<IndirectMapping> mappings;
+    for (std::uint16_t i = 3; i < record.getNumLocations(); i++) {
+      auto l = record.getLocation(i);
+      printf("%p ", addr);
+
+      void* array[1];
+      array[0] = (void*)addr;
+      char** names = backtrace_symbols(array, 1);
+      printf("(%s) + %-5d ", names[0], record.getInstructionOffset());
+      free(names);
+      switch (l.getKind()) {
+        case alaska::StackMapParser::LocationKind::Register:
+          printf("Register %d\n", l.getDwarfRegNum());
+          break;
+        case alaska::StackMapParser::LocationKind::Direct:
+          printf("Direct %s + %d\n", regname(l.getDwarfRegNum()), l.getOffset());
+          break;
+        case alaska::StackMapParser::LocationKind::Indirect:
+          mappings.push({l.getDwarfRegNum(), l.getOffset()});
+          printf("Indirect %s + %d %d\n", regname(l.getDwarfRegNum()), l.getOffset(),
+              l.getSizeInBytes());
+          break;
+
+        case alaska::StackMapParser::LocationKind::Constant:
+          printf("Constant %d\n", l.getSmallConstant());
+          break;
+        case alaska::StackMapParser::LocationKind::ConstantIndex:
+          printf("<Constant Index>\n");
+          break;
+      }
+    }
+
+    stack_maps[addr] = move(mappings);
+  }
+}
+
+
+
+void show_backtrace(void) {
+  ck::set<void*> old_set, new_set;
+
+  old_set = alaska::barrier::get_locked();
+  // return;
+  unw_cursor_t cursor;
+  unw_context_t uc;
+  unw_word_t ip, sp, reg;
+
+  unw_getcontext(&uc);
+  unw_init_local(&cursor, &uc);
+  while (unw_step(&cursor) > 0) {
+    unw_get_reg(&cursor, UNW_REG_IP, &ip);
+    unw_get_reg(&cursor, UNW_REG_SP, &sp);
+
+
+    auto it = stack_maps.find(ip);
+
+    if (it != stack_maps.end()) {
+      auto& mappings = *it;
+
+      for (auto& m : mappings.value) {
+        unw_get_reg(&cursor, m.regNum, &reg);
+        void* loc = *(void**)(reg + m.offset);
+        if (might_be_handle(loc)) {
+          new_set.add(loc);
+        }
+      }
+    }
+  }
+
+
+
+  if (old_set.is_subset_of(new_set)) {
+    // Nothing
+  } else {
+    printf("Not a subset!\n");
+    printf("Old:");
+    for (auto p : old_set)
+      printf(" %p", p);
+    printf("\n");
+    printf("New:");
+    for (auto p : new_set)
+      printf(" %p", p);
+    printf("\n");
+  }
+}
+
+extern "C" void alaska_test_sm() {
+  show_backtrace();
+  return;
+}
+
+
+extern "C" void alaska_register_stack_map(void* map) {
+  if (map) {
+    printf("Register stack map %p\n", map);
+    readStackMap((uint8_t*)map);
+  }
 }

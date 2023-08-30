@@ -16,6 +16,8 @@ struct FunctionEscapeInfo {
 
 llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
   std::set<std::string> functions_to_ignore = {
+      "__alaska_leak",
+
       "halloc",
       "hrealloc",
       "hrealloc_trace",

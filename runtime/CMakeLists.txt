@@ -18,6 +18,10 @@ include_directories(
 	include/
 )
 
+find_library(LIBUNWIND_LIBRARIES NAMES unwind )
+message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
+
+
 
 # Alaska and it's services are written in no-std c++. This is to
 # enable some of the nice compile-time features that c++ has,
@@ -136,7 +140,8 @@ add_library(alaska SHARED ${SRC_FILES})
 # add_library(alaska STATIC ${SRC_FILES})
 target_include_directories(alaska PUBLIC include/)
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska dl pthread)
+
+target_link_libraries(alaska dl pthread ${LIBUNWIND_LIBRARIES})
 
 
 function(add_bitcode name)
@@ -182,8 +187,6 @@ add_bitcode(alaska_stub SOURCES
 	stub/obstack.c
 	stub/stub.c
 	stub/memcpy.c)
-
-
 
 
 target_link_libraries(alaska alaska_translate_native)
