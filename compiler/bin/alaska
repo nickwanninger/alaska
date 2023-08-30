@@ -25,6 +25,7 @@ OPT="-O3"
 phase="link"
 
 
+
 while [[ $# -gt 0 ]]
 do
     case $1 in
@@ -90,14 +91,20 @@ GCLANG="${ALASKA_GCLANG:=gclang}"
 CLANG="${ALASKA_CLANG:=clang}"
 
 if [ "$phase" = "compile" ]; then
-	$GCLANG $OPT -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
+	$GCLANG -O0 -Xclang -disable-llvm-passes -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
 	exit
 else
+
+  set -x
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG $OPT -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
+	$GCLANG -O0 -Xclang -disable-llvm-passes -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
 
 	get-bc $OUTFILE >/dev/null
+	TMPFILE=${OUTFILE}.bc
+
+  opt -O3 ${TMPFILE} -o ${TMPFILE}
+  llvm-dis ${TMPFILE} -o ahh.ll
 	if [ "$BASELINE" == "true" ]; then
 
 		mv $OUTFILE $OUTFILE.base_input
@@ -105,18 +112,17 @@ else
 		TMPFILE=${OUTFILE}.base.bc
 		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 
-		$CLANG -gdwarf-4 $OPT ${TMPFILE} -o $OUTFILE.base ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags`
+    llc -O3 ${TMPFILE} --relocation-model=pic --filetype=obj -o ${TMPFILE}.o
+    $CLANG -gdwarf-4 ${TMPFILE}.o -o $OUTFILE.base ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	fi
-	TMPFILE=${OUTFILE}.bc
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll
 	$PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.out.ll
 
 	# Compile the bitcode to object code
-	llc $OPT ${TMPFILE} --relocation-model=pic --filetype=obj -o ${TMPFILE}.o
-	# Link with clang/clang++
-	$CLANG -gdwarf-4 $OPT ${TMPFILE}.o -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
+	llc -O3 ${TMPFILE} --relocation-model=pic --filetype=obj -o ${TMPFILE}.o
+	$CLANG -gdwarf-4 ${TMPFILE}.o -o $OUTFILE ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	rm ${TMPFILE} ${TMPFILE}.o
 fi
 

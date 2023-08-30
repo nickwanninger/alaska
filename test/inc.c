@@ -10,8 +10,12 @@
 extern void alaska_test_sm(void);
 
 
-__attribute__((noinline)) void inc(volatile int *x) {
-  (*x) += 1;
+__attribute__((noinline)) volatile int *inc(volatile int *x) {
+  int val = *x;
+  // alaska_test_sm();
+  *x = val + 1;
+
+  return x;
 }
 
 // volatile int managed *slow_inc(volatile int managed *x) {
@@ -39,8 +43,8 @@ int main(int argc, char **argv) {
   volatile int *ptr = (volatile int *)malloc(sizeof(int));
   *ptr = 0;
 
-	inc(ptr);
-	return 0;
+  inc(ptr);
+  alaska_test_sm();
 
   for (int j = 0; j < trials; j++) {
     uint64_t start = alaska_timestamp();
@@ -50,7 +54,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < count; i++) {
       inc(ptr);
     }
-		alaska_test_sm();
+    alaska_test_sm();
 
 
     double time = (double)(alaska_timestamp() - start);
@@ -59,7 +63,7 @@ int main(int argc, char **argv) {
     histogram_add(&h, time * 1000);
   }
 
-	printf("Measured in picoseconds:\n");
+  printf("Measured in picoseconds:\n");
   printf("Median: %f\n", histogram_median(&h));
   printf("Average: %f\n", histogram_average(&h));
   printf("StdDev: %f\n", histogram_stddev(&h));

@@ -35,6 +35,7 @@ class AlaskaLinker(wl.Linker):
     args = [f"-L{local}/lib", "-lalaska"]
 
     def link(self, ws, objects, output, args=[]):
+        print("objects: ", objects);
         # it's pretty safe to link using clang++.
         ws.shell("clang++", *args, '-ldl', *linker_flags, *objects, "-o", output)
 
@@ -78,8 +79,8 @@ perf_stats = [
     "branch-misses",
     "L1-dcache-loads",
     "L1-dcache-load-misses",
-    "de_dis_dispatch_token_stalls1.store_queue_rsrc_stall", # We think this is store queue full
-    "de_dis_dispatch_token_stalls1.load_queue_rsrc_stall", # We think this is load queue full
+    # "de_dis_dispatch_token_stalls1.store_queue_rsrc_stall", # We think this is store queue full
+    # "de_dis_dispatch_token_stalls1.load_queue_rsrc_stall", # We think this is load queue full
 
     "cycles",
 ]
@@ -145,16 +146,16 @@ spec_enable = [
     644,
 ]
 
-# space.add_suite(wl.suites.Embench)
+space.add_suite(wl.suites.Embench)
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 # space.add_suite(wl.suites.Stockfish)
-# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=20)
-# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
-space.add_suite(wl.suites.SPEC2017,
-                tar="/home/nick/SPEC2017.tar.gz",
-                disabled=[t for t in all_spec if t not in spec_enable],
-                config="ref")
-
+space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=15)
+space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+# space.add_suite(wl.suites.SPEC2017,
+#                 tar="/home/nick/SPEC2017.tar.gz",
+#                 disabled=[t for t in all_spec if t not in spec_enable],
+#                 config="ref")
+#
 space.clear_pipelines()
 
 pl = waterline.pipeline.Pipeline("alaska")
@@ -182,6 +183,6 @@ pl.add_stage(AlaskaBaselineStage(), name="Baseline")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
-results = space.run(runner=PerfRunner(), runs=1, compile=False)
+results = space.run(runner=PerfRunner(), runs=1, compile=True)
 print(results)
 results.to_csv("bench/results.csv", index=False)
