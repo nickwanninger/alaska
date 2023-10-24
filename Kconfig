@@ -1,16 +1,20 @@
 
 choice
 	prompt "Runtime Service"
-	default SERVICE_ANCHORAGE
+	default SERVICE_NONE
+
+	config SERVICE_NONE
+		bool "No service"
 
 	config SERVICE_ANCHORAGE
 		bool "Anchorage allocator and defragmentation"
 
-	config SERVICE_JEMALLOC
-		bool "Jemalloc service (use jemalloc and a port of redis's activedefrag)"
+	config SERVICE_CORDOVA
+		bool "Cordova File Mapping"
 
-	config SERVICE_NONE
-		bool "No service (use system malloc, no defrag)"
+	config SERVICE_JEMALLOC
+		bool "jemalloc + Activedefrag"
+
 endchoice
 
 
@@ -61,34 +65,20 @@ menu "Experimental"
 		bool "Enable swap-in checking in the translation operation"
 		default n
 
-	config HANDLE_SQUEEZING
-		bool "Squeeze more handles into the encoding space by lobbing off alignment bits when encoding (not recommended)"
-		default n
-
-
 	config TRACK_TRANSLATION_HITRATE
 		bool "Track hit/miss rate for translations. Warning: VERY SLOW"
-		default n
-
-	config SNIPER_MAGIC_INSTRUCTION
-		bool "Translate with a Magic Instruction from Sniper"
-		depends on  !HANDLE_SQUEEZING
 		default n
 
 endmenu
 
 
+config SIZE_BITS
+  int "How many bits to use for handle sizes. Smaller = more handles. Larger = less handles"
+  default 32
+
+
 config ESCAPE_PASS
 	bool "Translate before argument escapes"
-	default y
-
-config HOIST_TRANSLATIONS
-	bool "Hoist translations out of loops"
-	default y
-
-
-config LOCK_TRACKING
-	bool "Enable lock tracking via shadow-stack rooting"
 	default y
 
 config INLINE_TRANSLATION

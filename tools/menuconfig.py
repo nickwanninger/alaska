@@ -1849,8 +1849,8 @@ class Kconfig(object):
             f.write(contents)
 
         # write the autoconf file
-        self.write_autoconf('runtime/include/alaska/config.h')
-        self.write_autoconf('compiler/include/config.h')
+        self.write_autoconf('runtime/include/alaska/autoconf.h')
+        # self.write_autoconf('compiler/include/_config.h')
         if self._write_if_changed('config.cmake', self._cmake_contents(header)):
             return "config.cmake saved".format(filename)
 
