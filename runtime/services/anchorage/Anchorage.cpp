@@ -18,6 +18,7 @@
 #include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
 #include <alaska/barrier.hpp>
+#include <alaska/table.hpp>
 
 #include <sys/resource.h>
 #include <pthread.h>
@@ -304,7 +305,7 @@ static void barrier_control_overhead_target(void) {
       auto moved =
           anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
       total_moved_this_cycle += moved;
-      ms_spent_in_this_cycle += (alaska_timestamp() - start) / 1024.0 / 1024.0;
+      ms_spent_in_this_cycle += (alaska_timestamp() - start) / 1000.0 / 1000.0;
 
       float frag_after = anchorage::get_heap_frag_locked();
 
@@ -323,7 +324,7 @@ static void barrier_control_overhead_target(void) {
 
     if (state == COMPACTING) {
       auto end = alaska_timestamp();
-      double ms_spent_defragmenting = (end - start) / 1024.0 / 1024.0;
+      double ms_spent_defragmenting = (end - start) / 1000.0 / 1000.0;
       // If we are actively defragmenting. Respect the overhead request of the user.
       ms_to_sleep = ms_spent_defragmenting / target_oh;
     } else if (state == WAITING) {
@@ -355,12 +356,63 @@ static void barrier_control_overhead_target(void) {
 }
 
 
+static int mark_swaps(bool swap) {
+  int count = 0;
+  for (auto *m = alaska::table::begin(); m != alaska::table::end(); m++) {
+    void *addr = (void *)m->alt.misc;  // grab the bits
+
+    // printf("m = %p\n", m);
+    if (anchorage::Chunk::to_space->contains(addr) ||
+        anchorage::Chunk::from_space->contains(addr)) {
+      auto copy = *m;
+
+      auto oldP = copy.ptr;
+      copy.alt.swap = swap;
+      auto newP = copy.ptr;
+
+      if (__sync_bool_compare_and_swap(&m->ptr, oldP, newP)) {
+        count++;
+      }
+
+      // printf("     %p\n", m->ptr);
+      m->alt.swap = swap;
+      // printf("  -> %p\n", m->ptr);
+    }
+  }
+
+  return count;
+}
+
+
+static void barrier_simple_time(void) {
+  sleep(1);
+  while (1) {
+    usleep(1000 * 100);
+    continue;
+    // Mark all the handle entries!
+    long marked = mark_swaps(1);
+    // usleep(1000 * 10);
+    alaska::barrier::begin();
+    printf("Barrier!\n");
+    alaska::barrier::end();
+    usleep(1000 * 10);
+
+    long unmarked = mark_swaps(0);
+
+    long diff = abs(marked - unmarked);
+    if (diff != 0) {
+      printf("diff = %d (total=%d)\n", diff, marked);
+    }
+    // alaska::service::barrier();
+  }
+}
 
 pthread_t anchorage_barrier_thread;
 pthread_t anchorage_logger_thread;
 static void *barrier_thread_fn(void *) {
   // pad_barrier_control_overhead_target();
-  barrier_control_overhead_target();
+  // barrier_control_overhead_target();
+  barrier_simple_time();
   return NULL;
 }
 
