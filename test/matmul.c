@@ -2,7 +2,6 @@
 #include <alaska.h>
 
 
-extern void alaska_test_sm();
 #define SZ 512
 
 __attribute__((noinline)) void matmul(double a[SZ][SZ], double b[SZ][SZ], double c[SZ][SZ]) {

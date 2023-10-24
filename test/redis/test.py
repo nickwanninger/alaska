@@ -54,8 +54,8 @@ def run_trials(binary, preload='',  waiting_time=10, with_defrag=True, env={}, c
 #             'ANCH_AGGRO': aggro})
 #         res.to_csv(f'alaska-lb{lb}-aggro{aggro}.csv', index=False)
 
-res = run_trials('/home/nick/dev/redis/src/redis-server', with_defrag=False, config='ad.conf')
-res.to_csv('baseline.csv', index=False)
+# res = run_trials('/home/nick/dev/redis/src/redis-server', with_defrag=False, config='ad.conf')
+# res.to_csv('baseline.csv', index=False)
 #
 res = run_trials(ROOT_DIR / 'build/redis-server')
 res.to_csv('anchorage.csv', index=False)

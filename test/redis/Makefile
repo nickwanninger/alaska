@@ -18,12 +18,14 @@ redis: build/redis-server.bc FORCE
 	cp build/redis-server.bc build/alaska.bc
 	alaska-transform build/alaska.bc
 	llvm-dis build/alaska.bc
-	clang build/alaska.bc $(shell alaska-config --ldflags --cflags) -ldl -o build/redis-server
+	llc -O3 build/alaska.bc --relocation-model=pic --filetype=obj -o build/alaska.o
+	clang build/alaska.o $(shell alaska-config --ldflags --cflags) -ldl -o build/redis-server
 
 	cp build/redis-server.bc build/baseline.bc
 	ALASKA_COMPILER_BASELINE=true alaska-transform build/baseline.bc
 	llvm-dis build/baseline.bc
-	clang build/baseline.bc $(shell alaska-config --ldflags --cflags) -ldl -o build/redis-server.base
+	llc -O3 build/baseline.bc --relocation-model=pic --filetype=obj -o build/baseline.o
+	clang build/baseline.o $(shell alaska-config --ldflags --cflags) -ldl -o build/redis-server.base
 	# @#ALASKA_NO_REPLACE_MALLOC=1 alaska -O1 build/redis-server.bc -o build/redis-server -ldl
 	# @alaska -k -b -O2 build/redis-server.bc -o build/redis-server -ldl
 
