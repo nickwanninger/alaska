@@ -35,20 +35,81 @@ GetElementPtrInst *CreateGEP(LLVMContext &Context, IRBuilder<> &B, Type *Ty, Val
 }
 
 PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
-  auto &ctx = M.getContext();
   if (getenv("ALASKA_NO_TRACKING") != NULL) {
     return PreservedAnalyses::all();
   }
 
+  for (auto &F : M) {
+    // Ignore functions with no bodies
+    if (F.empty()) continue;
+    // Extract all the locks from the function
+    auto translations = alaska::extractTranslations(F);
+    // If the function had no locks, don't do anything
+    if (translations.empty()) continue;
+    llvm::DenseMap<CallInst *, std::set<alaska::Translation *>> liveTranslations;
+    for (auto &BB : F) {
+      F.setGC("coreclr");
+      for (auto &I : BB) {
+        if (auto *call = dyn_cast<IntrinsicInst>(&I)) {
+          continue;
+        }
+        if (auto *call = dyn_cast<CallInst>(&I)) {
+          if (call->isInlineAsm()) continue;
+          auto targetFuncType = call->getFunctionType();
+          if (targetFuncType->isVarArg()) {
+            // TODO: Remove this limitation
+            //       This is a restriction of the backend, I think.
+            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
+          }
+          if (auto func = call->getCalledFunction(); func != nullptr) {
+            if (func->getName().startswith("alaska.")) continue;
+            if (func->getName().startswith("__alaska")) continue;
+          }
+          // access the call so it exists.
+          liveTranslations[call];
+          for (auto &tr : translations) {
+            if (tr->isLive(call)) {
+              liveTranslations[call].insert(tr.get());
+            }
+          }
+        }
+      }
+    }
 
 
 
-#ifndef ALASKA_LOCK_TRACKING
-  return PreservedAnalyses::all();
-#endif
+    for (auto &[call, translations] : liveTranslations) {
+      IRBuilder<> b(call);
+      std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
+      std::vector<llvm::Value *> gcArgs;
+      for (auto *tr : translations) {
+        gcArgs.push_back(tr->getHandle());
+      }
+      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+
+      auto called = call->getCalledOperand();
+      int patch_size = 0;
+      int id = 0xABCDEF00;
+      if (auto func = call->getCalledFunction()) {
+        if (func->getName() == "alaska_barrier_poll") {
+          id = 'PATC';
+          patch_size = 8;
+        }
+      }
+
+      // Value * > GCArgs, const Twine &Name="")
+      auto token = b.CreateGCStatepointCall(id, patch_size,
+          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
+          "statepoint");
+      auto result = b.CreateGCResult(token, call->getType());
+      call->replaceAllUsesWith(result);
+      call->eraseFromParent();
+    }
+  }
+
 
 // Define this to enable the old lock system.
-#define OLD_LOCK
+// #define OLD_LOCK
 #ifdef OLD_LOCK
   std::vector<Type *> EltTys;
 
@@ -71,7 +132,6 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
   Head->setThreadLocal(true);
   Head->setLinkage(GlobalValue::ExternalWeakLinkage);
   Head->setInitializer(NULL);
-#endif
 
 
   for (auto &F : M) {
@@ -132,64 +192,6 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       lock_cell_ids[lock] = available_cell;
     }
 
-    llvm::DenseMap<CallInst *, std::set<alaska::Translation *>> liveTranslations;
-    for (auto &BB : F) {
-      for (auto &I : BB) {
-        if (auto *call = dyn_cast<IntrinsicInst>(&I)) {
-          continue;
-        }
-        if (auto *call = dyn_cast<CallInst>(&I)) {
-          if (call->isInlineAsm()) continue;
-          auto targetFuncType = call->getFunctionType();
-          if (targetFuncType->isVarArg()) {
-            // TODO: Remove this limitation
-            //       This is a restriction of the backend, I think.
-            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
-          }
-          if (auto func = call->getCalledFunction(); func != nullptr) {
-            if (func->getName().startswith("alaska.")) continue;
-          }
-          // access the call so it exists.
-          liveTranslations[call];
-          for (auto &tr : translations) {
-            if (tr->isLive(call)) {
-              liveTranslations[call].insert(tr.get());
-            }
-          }
-        }
-      }
-    }
-
-
-
-    for (auto &[call, translations] : liveTranslations) {
-      // continue;
-      // errs() << *call << "\n";
-      // for (auto *tr : translations) {
-      //   errs() << "   " << *tr->getPointer() << "\n";
-      // }
-
-      IRBuilder<> b(call);
-      std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
-      std::vector<llvm::Value *> gcArgs;
-      for (auto *tr : translations) {
-        gcArgs.push_back(tr->getHandle());
-      }
-      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
-
-
-      auto called = call->getCalledOperand();
-
-      // Value * > GCArgs, const Twine &Name="")
-      auto token = b.CreateGCStatepointCall(0xABCDEF00, 0,
-          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
-          "statepoint");
-      auto result = b.CreateGCResult(token, call->getType());
-      call->replaceAllUsesWith(result);
-      call->eraseFromParent();
-    }
-
-#ifdef OLD_LOCK
     // Figure out the max available cell
     long max_cell = 0;  // the maximum level of interference
     for (auto &[_, i] : lock_cell_ids) {
@@ -270,8 +272,8 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       AtExit->CreateStore(SavedHead, Head);
       // AtExit->CreateStore(CurrentHead, Head);
     }
-#endif
   }
+#endif
 
   return PreservedAnalyses::none();
 }

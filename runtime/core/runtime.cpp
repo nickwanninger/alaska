@@ -73,7 +73,7 @@ static void* alaska_pthread_trampoline(void* varg) {
 
 
 // Hook into thread creation by overriding the pthread_create function
-// #undef pthread_create
+#undef pthread_create
 extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr,
     void* (*start)(void*), void* __restrict arg) {
   int rc;
@@ -192,10 +192,10 @@ uint64_t alaska_timestamp() {
 
 
 void* alaska_ensure_present(alaska::Mapping* m) {
-  // If the pointer is not null, we shouldn't do anything.
-  if (m->ptr != NULL) {
-    return m->ptr;
-  }
+  // // If the pointer is not null, we shouldn't do anything.
+  // if (m->ptr != NULL) {
+  //   return m->ptr;
+  // }
 
   // Instead, if the pointer is null, we need to ask the service to swap it in!
   alaska::service::swap_in(m);

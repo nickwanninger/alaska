@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-set -e
+# set -e
 
 PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
 
@@ -95,7 +95,6 @@ if [ "$phase" = "compile" ]; then
 	exit
 else
 
-  set -x
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
 	$GCLANG -O0 -Xclang -disable-llvm-passes -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
@@ -103,8 +102,7 @@ else
 	get-bc $OUTFILE >/dev/null
 	TMPFILE=${OUTFILE}.bc
 
-  opt -O3 ${TMPFILE} -o ${TMPFILE}
-  llvm-dis ${TMPFILE} -o ahh.ll
+  opt $OPT ${TMPFILE} -o ${TMPFILE}
 	if [ "$BASELINE" == "true" ]; then
 
 		mv $OUTFILE $OUTFILE.base_input

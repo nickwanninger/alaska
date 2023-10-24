@@ -27,28 +27,6 @@
 #include <alaska/config.h>
 
 
-
-#if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
-
-#if defined(__x86_64__)
-#define SimMagic1(cmd, arg0)                          \
-  ({                                                  \
-    unsigned long _cmd = (cmd), _arg0 = (arg0), _res; \
-    __asm__ __volatile__(                             \
-        "mov %1, %%rax\n"                             \
-        "\tmov %2, %%edx\n"                           \
-        "\txchg %%bx, %%bx\n"                         \
-        : "=a"(_res)            /* output    */       \
-        : "g"(_cmd), "g"(_arg0) /* input     */       \
-        : "%ecx");              /* clobbered */       \
-    _res;                                             \
-  })
-
-#else
-#error "Magic instructions only work on x86_64"
-#endif
-#endif
-
 /**
  * Note: This file is inlined by the compiler to make locks faster.
  * Do not declare any global variables here, as they may get overwritten
@@ -77,28 +55,6 @@ extern int __LLVM_StackMaps __attribute__((weak));
 }
 
 void *alaska_translate(void *ptr) {
-#if defined(ALASKA_SNIPER_MAGIC_INSTRUCTION)
-  auto value = (void *)SimMagic1(128, (unsigned long)ptr);
-
-  printf("%p -> %p\n", ptr, value);
-  return value;
-#endif
-
-  // This function is written in a strange way on purpose. It's written
-  // with a close understanding of how it will be lowered into LLVM IR
-  // (mainly how it will be lowered into PHI instructions).
-  //
-  // On ARM64 with swapping disabled, this function compiles into only
-  // three instructions after the branch:
-  //
-  //   tbz   x0, 63, skip         ; Skip translation if the top bit is 0
-  //   lsr   x0, x0, SHIFT_AMT    ; Shift the handle mapping addr down
-  //   ldr   x8, [x8]             ; Load the address from the mapping
-  //   add   x0, x8, w0, uxtw     ; Add the low 32 bits to the address
-  // skip:
-  //   <use x0 as a pointer>      ; Now we can use it!
-  //
-
   // Optionally, Sanity check that a handle has been locked on this thread
   // *before* translating. This ensures it won't be moved during
   // the invocation of this function
@@ -114,6 +70,7 @@ void *alaska_translate(void *ptr) {
     return ptr;
   }
 
+
   alaska_track_hit();
 
   // Grab the mapping from the runtime
@@ -122,13 +79,13 @@ void *alaska_translate(void *ptr) {
   void *mapped = m->ptr;
 #ifdef ALASKA_SWAP_SUPPORT
   // If swapping is enabled, the top bit will be set, so we need to check that
-  if (unlikely(m->swap.flag)) {
+  if (unlikely(m->alt.swap)) {
     // Ask the runtime to "swap" the object back in. We blindly assume that
     // this will succeed for performance reasons.
     mapped = alaska_ensure_present(m);
   }
 #endif
-  ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
+  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
   // Apply the offset to the mapping and return it.
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
@@ -157,12 +114,27 @@ void print_backtrace() {
 }
 
 extern bool alaska_should_safepoint;
-extern "C" void alaska_test_sm(void);
+extern "C" uint64_t alaska_barrier_poll();
+extern "C" void alaska_show_backtrace(void);
+
+
 extern "C" void alaska_safepoint(void) {
-  alaska_test_sm();
+  // *(volatile int *)ALASKA_SAFEPOINT_PAGE;
+  // alaska_show_backtrace();
+  alaska_barrier_poll();
   // if (unlikely(alaska_should_safepoint)) {
-  //   alaska_test_sm();
+  //   alaska_barrier_poll();
   // }
   // // Simply load from the safepoint page. If we have a barrier pending, this will fault into the
   // segfault handler. uint64_t res = *(volatile uint64_t *)ALASKA_SAFEPOINT_PAGE; (void)res;
+}
+
+
+
+extern "C" void alaska_barrier_before_escape(void) {
+  // printf("before!\n");
+}
+
+extern "C" void alaska_barrier_after_escape(void) {
+  // printf("after!\n");
 }

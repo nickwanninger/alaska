@@ -64,6 +64,7 @@ static void replace_function(
 
 
 PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &AM) {
+#ifdef ALASKA_REPLACE_MALLOC
   if (getenv("ALASKA_NO_REPLACE_MALLOC") == NULL) {
     replace_function(M, "malloc", "halloc", true);
     replace_function(M, "calloc", "hcalloc", true);
@@ -73,6 +74,7 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
     replace_function(M, "calloc_beebs", "hcalloc", true);    // embench
     replace_function(M, "realloc_beebs", "hrealloc", true);  // embench
   }
+#endif
 
   // replace_function(M, "_Znwm", "alaska_Znwm", true);
   // replace_function(M, "_Znam", "alaska_Znam", true);

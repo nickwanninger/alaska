@@ -25,21 +25,28 @@ void alaska::service::swap_in(alaska::Mapping *m) {
 
 
 void anchorage::swap_in(alaska::Mapping &m) {
-  if (m.swap.flag == 0) {
-    return;
+  // if (m.alt.swap == 0) {
+  //   return;
+  // }
+  // printf("Swap on %p\n", m);
+  // TODO: CAS
+  // m.alt.swap = 0; // unswap
+  // m.ptr = (void*)m.alt.misc;
+  if (!__sync_bool_compare_and_swap(&m.ptr, m.ptr, (void*)m.alt.misc)) {
+    printf("CAS failed!\n");
   }
-  m.ptr = (void *)m.swap.info;
+  // m.ptr = (void *)m.swap.info;
   // auto block = anchorage::Block::get(m.ptr);
   // m.size = block->size();
 }
 
 
 void anchorage::swap_out(alaska::Mapping &m) {
-#ifdef ALASKA_SWAP_SUPPORT
-  void *ptr = m.ptr;
-  // next translation will "fault" and figure out what to do.
-  m.ptr = NULL;
-  m.swap.flag = 1;
-  m.swap.info = (size_t)ptr;
-#endif
+// #ifdef ALASKA_SWAP_SUPPORT
+//   void *ptr = m.ptr;
+//   // next translation will "fault" and figure out what to do.
+//   m.ptr = NULL;
+//   m.swap.flag = 1;
+//   m.swap.info = (size_t)ptr;
+// #endif
 }

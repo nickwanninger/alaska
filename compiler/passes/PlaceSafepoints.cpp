@@ -70,6 +70,9 @@
 
 using namespace llvm;
 
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(x) x
+
 #define DEBUG_TYPE "place-safepoints"
 
 STATISTIC(NumEntrySafepoints, "Number of entry safepoints inserted");
@@ -92,6 +95,11 @@ static cl::opt<int> CountedLoopTripWidth(
 // experimentation, but in practice, it looks like splitting the backedge
 // optimizes better.
 static cl::opt<bool> SplitBackedge("alaska-spp-split-backedge", cl::Hidden, cl::init(true));
+
+
+static cl::opt<bool> NoEntry("alaska-spp-no-entry", cl::Hidden, cl::init(true));
+static cl::opt<bool> NoCall("alaska-spp-no-call", cl::Hidden, cl::init(true));
+static cl::opt<bool> NoBackedge("alaska-spp-no-backedge", cl::Hidden, cl::init(false));
 
 namespace {
   /// An analysis pass whose purpose is to identify each of the backedges in
@@ -152,9 +160,6 @@ namespace {
   };
 }  // namespace
 
-static cl::opt<bool> NoEntry("alaska-spp-no-entry", cl::Hidden, cl::init(false));
-static cl::opt<bool> NoCall("alaska-spp-no-call", cl::Hidden, cl::init(false));
-static cl::opt<bool> NoBackedge("alaska-spp-no-backedge", cl::Hidden, cl::init(false));
 
 char PlaceBackedgeSafepointsLegacyPass::ID = 0;
 
@@ -223,7 +228,7 @@ bool PlaceBackedgeSafepointsLegacyPass::runOnLoop(Loop *L) {
     // variables) and branches to the true header
     Instruction *Term = Pred->getTerminator();
 
-    LLVM_DEBUG(dbgs() << "[LSP] terminator instruction: " << *Term);
+    LLVM_DEBUG(dbgs() << "[LSP] terminator instruction: " << *Term << "\n");
 
     PollLocations.push_back(Term);
   }

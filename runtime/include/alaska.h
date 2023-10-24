@@ -40,14 +40,17 @@ extern unsigned long alaska_timestamp(void);
 
 
 
-#ifdef ALASKA_HANDLE_SQUEEZING
-#define TABLE_START 0x400000000LU
+// #define TABLE_START 0x80000000LU
+//
+#if ALASKA_SIZE_BITS >= 17
+#define TABLE_START (0x8000000000000000LLU >> ALASKA_SIZE_BITS)
 #else
-#define TABLE_START 0x80000000LU
+#error "Cannot handle size bits less than 17"
 #endif
 
 // The alaska safepoint page lives immediately before the table start
-#define ALASKA_SAFEPOINT_PAGE ((void*)(TABLE_START - 0x1000))
+// #define ALASKA_SAFEPOINT_PAGE ((void*)(TABLE_START - 0x1000))
+#define ALASKA_SAFEPOINT_PAGE (void*)(0x7ffff000UL)
 // The implementation of the safepoint poll function
 extern void alaska_safepoint(void);
 

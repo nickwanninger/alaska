@@ -13,11 +13,15 @@
 #include <llvm/Transforms/Utils/Mem2Reg.h>
 #include <llvm/Transforms/Utils/LowerInvoke.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
+#include "llvm/Transforms/IPO/WholeProgramDevirt.h"
+#include "llvm/Transforms/Utils/SCCPSolver.h"
+#include "llvm/Transforms/Utils/PredicateInfo.h"
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
@@ -33,19 +37,19 @@
 
 #include <noelle/core/DGBase.hpp>
 
+// // SVF
+// // #include "WPA/WPAPass.h"
+// #include "SVF-LLVM/LLVMModule.h"
+// #include "WPA/Andersen.h"
+// #include "MemoryModel/PointerAnalysis.h"
+// #include "MSSA/MemSSA.h"
+// #include "SVF-LLVM/SVFIRBuilder.h"
 
-static void replace_function(Module &M, std::string original_name, std::string new_name = "") {
-  if (new_name == "") {
-    new_name = "alaska_wrapped_" + original_name;
-  }
-  auto oldFunction = M.getFunction(original_name);
-  if (oldFunction) {
-    auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
-    oldFunction->replaceAllUsesWith(newFunction);
-    oldFunction->eraseFromParent();
-  }
-}
-
+// #include "Util/SVFModule.h"
+// #include "Util/PTACallGraph.h"
+// #include "WPA/Andersen.h"
+// #include "MemoryModel/PointerAnalysis.h"
+// #include "MSSA/MemSSA.h"
 
 
 class PrintPassThing : public llvm::PassInfoMixin<PrintPassThing> {
@@ -131,6 +135,161 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
 
 
 
+std::vector<llvm::Value *> getAllValues(llvm::Module &M) {
+  std::vector<llvm::Value *> vals;
+
+  // for (auto &G : M.globals()) {
+  //   vals.push_back(&G);
+  // }
+
+  for (auto &F : M) {
+    // vals.push_back(&F);
+    if (F.empty()) continue;
+    for (auto &arg : F.args())
+      vals.push_back(&arg);
+
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        vals.push_back(&I);
+      }
+    }
+  }
+
+  return vals;
+}
+
+
+
+class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      if (F.empty()) continue;
+
+
+      llvm::DominatorTree DT(F);
+      llvm::PostDominatorTree PDT(F);
+      llvm::LoopInfo loops(DT);
+
+      bool hasProblematicCalls = false;
+
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (auto *call = dyn_cast<CallInst>(&I)) {
+            auto *calledFunction = call->getCalledFunction();
+            // Is it an intrinsic?
+            if (calledFunction->getName().startswith("llvm.")) continue;
+
+            hasProblematicCalls = true;
+          }
+        }
+      }
+
+
+      alaska::println(
+          loops.getLoopsInPreorder().size(), "\t", hasProblematicCalls, "\t", F.getName());
+    }
+    return PreservedAnalyses::all();
+  }
+};
+
+// class SVFTestPass : public llvm::PassInfoMixin<SVFTestPass> {
+//  public:
+//   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+//     // auto &aa = AM.getResult<AAManager>(M);
+//     //
+//     // auto values = getAllValues(M);
+//     // printf("%zd vals\n", values.size());
+//     //
+//     // for (auto *v1 : values) {
+//     //   alaska::println(*v1);
+//     //   for (auto *v2 : values) {
+//     //     if (v1 == v2) continue;
+//     //     auto res = aa.alias(v1, v2);
+//     //     alaska::println("   ", res, *v2);
+//     //   }
+//     // }
+//     using namespace SVF;
+//     auto mod = SVF::LLVMModuleSet::buildSVFModule(M);
+//     /// Build SVFIR
+//     SVF::SVFIRBuilder builder(mod);
+//     auto pag = builder.build();
+//     // SVF::WPAPass wpa;
+//
+//     auto *pta = SVF::AndersenWaveDiff::createAndersenWaveDiff(pag);
+//     // pta->analyze();
+//     // pag->print();
+//     // return PreservedAnalyses::none();
+//
+//     //
+//     // // SVFIR *pag = pta->getPAG();
+//     for (SVFIR::iterator lit = pag->begin(), elit = pag->end(); lit != elit; ++lit) {
+//       PAGNode *node1 = lit->second;
+//       PAGNode *node2 = node1;
+//       for (SVFIR::iterator rit = lit, erit = pag->end(); rit != erit; ++rit) {
+//         node2 = rit->second;
+//         if (node1 == node2) continue;
+//         const SVFFunction *fun1 = node1->getFunction();
+//         const SVFFunction *fun2 = node2->getFunction();
+//         auto result = pta->alias(node1->getId(), node2->getId());
+//
+//         // auto result = wpa.alias(node1->getValue(), node2->getValue());
+//         if (result == SVF::AliasResult::NoAlias) continue;
+//
+//         const char *str = "\e[32mMayAlias\e[0m";
+//         if (result == SVF::AliasResult::NoAlias) str = "NoAlias";
+//         if (result == SVF::AliasResult::MustAlias) str = "\e[31mMustAlias\e[0m";
+//         if (result == SVF::AliasResult::PartialAlias) str = "PartialAlias";
+//         SVFUtil::outs() << str << " var" << node1->getId() << "[" << node1->getValueName() << "@"
+//                         << (fun1 == nullptr ? "" : fun1->getName()) << "] --"
+//                         << " var" << node2->getId() << "[" << node2->getValueName() << "@"
+//                         << (fun2 == nullptr ? "" : fun2->getName()) << "]\n";
+//       }
+//     }
+//     // errs() << M << "\n";
+//
+//     return PreservedAnalyses::none();
+//   }
+// };
+
+
+
+
+// class SpecializationPass : public llvm::PassInfoMixin<SpecializationPass> {
+//  public:
+//   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+//     const DataLayout &DL = M.getDataLayout();
+//     auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+//     auto GetTLI = [&FAM](Function &F) -> TargetLibraryInfo & {
+//       return FAM.getResult<TargetLibraryAnalysis>(F);
+//     };
+//     auto GetTTI = [&FAM](Function &F) -> TargetTransformInfo & {
+//       return FAM.getResult<TargetIRAnalysis>(F);
+//     };
+//     auto GetAC = [&FAM](Function &F) -> AssumptionCache & {
+//       return FAM.getResult<AssumptionAnalysis>(F);
+//     };
+//     auto GetAnalysis = [&FAM](Function &F) -> AnalysisResultsForFn {
+//       DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+//       return {std::make_unique<PredicateInfo>(F, DT, FAM.getResult<AssumptionAnalysis>(F)), &DT,
+//           FAM.getCachedResult<PostDominatorTreeAnalysis>(F)};
+//     };
+//
+//     if (!runFunctionSpecialization(M, DL, GetTLI, GetTTI, GetAC, GetAnalysis)) {
+//       printf("failed!\n");
+//       return PreservedAnalyses::all();
+//     }
+//
+//     PreservedAnalyses PA;
+//     PA.preserve<DominatorTreeAnalysis>();
+//     PA.preserve<PostDominatorTreeAnalysis>();
+//     PA.preserve<FunctionAnalysisManagerModuleProxy>();
+//     return PA;
+//   }
+// };
+
+
+
 
 template <typename T>
 auto adapt(T &&fp) {
@@ -143,6 +302,9 @@ void populateMPM(ModulePassManager &MPM) {
   bool baseline = getenv("ALASKA_COMPILER_BASELINE") != NULL;
 
   if (baseline) print_progress = false;
+
+  // MPM.addPass(SVFTestPass());
+  // return;
 
 
   // Only link the stub in non-baseline
@@ -158,10 +320,18 @@ void populateMPM(ModulePassManager &MPM) {
   MPM.addPass(adapt(ADCEPass()));
   MPM.addPass(ProgressPass("DCE"));
 
+
+  MPM.addPass(WholeProgramDevirtPass());
+
+  // Label 'simple' functions.
+  MPM.addPass(SimpleFunctionPass());
+
+  // MPM.addPass(SpecializationPass());
+  // MPM.addPass(ProgressPass("Specialize"));
+
   // Run a normalization pass regardless of the environment configuration
   MPM.addPass(AlaskaNormalizePass());
   MPM.addPass(ProgressPass("Normalize"));
-
 
   // Simplify the cfg
   MPM.addPass(adapt(SimplifyCFGPass()));
@@ -183,6 +353,7 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
     MPM.addPass(ProgressPass("Link runtime"));
 
+#ifdef ALASKA_LOCK_TRACKING
     MPM.addPass(adapt(PlaceSafepointsPass()));
     MPM.addPass(ProgressPass("Safepoint Placement"));
 
@@ -190,7 +361,7 @@ void populateMPM(ModulePassManager &MPM) {
       MPM.addPass(LockInsertionPass());
       MPM.addPass(ProgressPass("Lock Insertion"));
     }
-
+#endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
     MPM.addPass(LockPrinterPass());

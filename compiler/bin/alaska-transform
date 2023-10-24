@@ -16,13 +16,12 @@ echo $@
 
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
 
+# Run a load of enabler passes to make our analysis easier
 $OPT -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-# $OPT -strip-debug
+$OPT -strip-debug
 
-# llvm-link ${PFX
-# opt -load-pass-plugin=${PFX}/lib/Alaska.so -time-passes -passes=alaska $INPUT -o $INPUT
-# opt -load-pass-plugin=${PFX}/lib/Alaska.so -time-passes -passes=alaska-inline $INPUT -o $INPUT
+# Run the Alaska passes w/ clang (the passes are internally scheduled)
 clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
-# $OPT -strip-debug
 
+# Run some optimizations after our passes
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce

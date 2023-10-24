@@ -68,6 +68,11 @@ if (ALASKA_SERVICE_NONE)
 endif(ALASKA_SERVICE_NONE)
 
 
+if (ALASKA_SERVICE_CORDOVA)
+	set(SRC_FILES ${SRC_FILES} services/cordova/service.cpp)
+endif(ALASKA_SERVICE_CORDOVA)
+
+
 if (ALASKA_SERVICE_JEMALLOC)
 	set(SRC_FILES ${SRC_FILES}
 		services/jemalloc/service.cpp
@@ -199,6 +204,7 @@ install(TARGETS rsstracker)
 
 install(FILES include/alaska.h DESTINATION include)
 install(FILES include/alaska/config.h DESTINATION include/alaska)
+install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
 
 install(
   TARGETS alaska

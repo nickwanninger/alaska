@@ -41,16 +41,16 @@ namespace alaska {
     union {
       void *ptr;  // Raw pointer memory
       struct {
-        uint64_t info : 63;  // Some kind of info for the swap system
-        unsigned flag : 1;   // the high bit indicates this is swapped out
-      } swap __attribute__((packed));
+        uint64_t misc : 62; // Some kind of extra info (usually just a pointer)
+        unsigned invl : 1;  // This is not a handle
+        unsigned swap : 1;  // This handle is swapped
+      } alt __attribute__((packed));
     };
 
     // Encode a handle into the representation used in the
-    // top-half of a handle encoding. This *must* be 32bits.
-    ALASKA_INLINE uint32_t encode(void) const {
-      auto out = (uint32_t)((uint64_t)this >> handle_squeeze);
-      // printf("encode %p to %p\n", this, out);
+    // top-half of a handle encoding
+    ALASKA_INLINE uint64_t encode(void) const {
+      auto out = (uint64_t)((uint64_t)this >> handle_squeeze);
       return out;
     }
 
@@ -59,7 +59,7 @@ namespace alaska {
     ALASKA_INLINE void *to_handle(uint32_t offset = 0) const {
       // The table ensures the m address has bit 32 set. This meaning
       // decoding just checks is a 'is the top bit set?'
-      uint64_t out = ((uint64_t)encode() << 32) + offset;
+      uint64_t out = ((uint64_t)encode() << ALASKA_SIZE_BITS) + offset;
       // printf("encode %p %zu -> %p\n", this, offset, out);
       return (void *)out;
     }
@@ -68,7 +68,7 @@ namespace alaska {
     // perform any checking, and will blindly translate any pointer regardless of if it really
     // contains a handle internally.
     static ALASKA_INLINE alaska::Mapping *from_handle(void *handle) {
-      return (alaska::Mapping *)((uint64_t)handle >> (32 - handle_squeeze));
+      return (alaska::Mapping *)((uint64_t)handle >> (ALASKA_SIZE_BITS - handle_squeeze));
     }
 
     // Extract an encoded mapping out of the bits of a handle. This variant of the function

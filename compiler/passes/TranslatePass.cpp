@@ -50,13 +50,10 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     //   continue;
     // }
 
-    bool hoist = false;
-#ifdef ALASKA_HOIST_TRANSLATIONS
-    hoist = true;
+    bool hoist = true;
+#ifdef ALASKA_UNOPT_TRANSLATIONS
+    hoist = false;
 #endif
-    if (getenv("ALASKA_NO_HOIST") != NULL) {
-      hoist = false;
-    }
 
     auto start = alaska::timestamp();
     if (hoist) {

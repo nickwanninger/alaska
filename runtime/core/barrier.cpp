@@ -196,14 +196,18 @@ void alaska::barrier::begin(void) {
     barrier_last_num_threads = num_threads;
   }
 
-  // send signals to every other thread.
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->thread != pthread_self()) {
-      pthread_kill(pos->thread, SIGUSR2);
-    }
-  }
+  printf("Threads: %d\n", num_threads);
 
+
+  alaska::barrier::block_access_to_safepoint_page();
+  // send signals to every other thread.
+  // struct alaska_thread_info* pos;
+  // list_for_each_entry(pos, &all_threads, list_head) {
+  //   if (pos->thread != pthread_self()) {
+  //     pthread_kill(pos->thread, SIGUSR2);
+  //   }
+  // }
+  //
   alaska_barrier_join(true);
 }
 
@@ -211,6 +215,7 @@ void alaska::barrier::begin(void) {
 
 
 void alaska::barrier::end(void) {
+  alaska::barrier::allow_access_to_safepoint_page();
   // Join the barrier to signal everyone we are done.
   alaska_barrier_leave(true);
   // Unlock all the locks we took.
@@ -222,8 +227,11 @@ void alaska::barrier::end(void) {
 
 
 void alaska_barrier(void) {
+  // auto start = alaska_timestamp();
   // Simply defer to the service. It will begin/end the barrier
   alaska::service::barrier();
+  // auto end = alaska_timestamp();
+  // printf("%f\n", (end - start) / 1000.0);
 }
 
 
@@ -240,8 +248,11 @@ static void barrier_signal_handler(int sig) {
 
 
 void alaska::barrier::add_thread(pthread_t* thread) {
-  // Setup a signal handler for SIGUSR2 for remote barrier calls. We basically just hope that the
-  // app doesn't need this signal, as we are SOL if they do!
+  assert(pthread_equal(*thread, pthread_self()));
+  // Setup a signal handler for SIGUSR2 for remote
+  // barrier calls. We basically just hope that the
+  // app doesn't need this signal, as we are SOL if
+  // they do!
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = barrier_signal_handler;
@@ -249,6 +260,11 @@ void alaska::barrier::add_thread(pthread_t* thread) {
 
   // signal(SIGUSR2, barrier_signal_handler);
   if (sigaction(SIGUSR2, &act, NULL) != 0) {
+    perror("Failed to add sigaction to new thread.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  if (sigaction(SIGSEGV, &act, NULL) != 0) {
     perror("Failed to add sigaction to new thread.\n");
     exit(EXIT_FAILURE);
   }
@@ -293,6 +309,14 @@ void alaska::barrier::initialize_safepoint_page(void) {
   auto res =
       mmap(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   assert(res == ALASKA_SAFEPOINT_PAGE && "Failed to allocate safepoint page");
+}
+
+void alaska::barrier::block_access_to_safepoint_page() {
+  mprotect(ALASKA_SAFEPOINT_PAGE, 4096, PROT_NONE);
+}
+
+void alaska::barrier::allow_access_to_safepoint_page() {
+  mprotect(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ);
 }
 
 
@@ -382,12 +406,24 @@ const char* regname(int r) {
 
 
 
+const uint8_t patch_bytes[] = {
+    // test qword [0x7ffff000], rax
+    // 0x48, 0x85, 0x04, 0x25, 0x00, 0xf0, 0xff, 0x7f,
+    //
+    // mov rax,QWORD PTR ds:0x7ffff000
+    0x48, 0x8b, 0x04, 0x25, 0x00, 0xf0, 0xff, 0x7f
+
+    // mov [0x7ffff000],edi
+    // 0x48, 0x89, 0x3c, 0x25, 0x00, 0xf0, 0xff, 0x7f
+};
 void readStackMap(uint8_t* t) {
   alaska::StackMapParser p(t);
 
   printf("Version:     %d\n", p.getVersion());
   printf("Constants:   %d\n", p.getNumConstants());
   printf("Functions:   %d\n", p.getNumFunctions());
+
+  auto start = alaska_timestamp();
 
 
   auto currFunc = p.functions_begin();
@@ -401,10 +437,21 @@ void readStackMap(uint8_t* t) {
       recordCount = 0;
     }
 
+    if (record.getID() == 'PATC') {
+      // continue;
+      // Apply the instruction patch
+      auto* patch_addr = (void*)(addr - sizeof(patch_bytes));
+      auto patch_page = (void*)((uintptr_t)patch_addr & ~0xFFF);
+      mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
+      memcpy(patch_addr, patch_bytes, sizeof(patch_bytes));
+      // mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ);
+    }
+    continue;
+
     ck::vec<IndirectMapping> mappings;
     for (std::uint16_t i = 3; i < record.getNumLocations(); i++) {
       auto l = record.getLocation(i);
-      printf("%p ", addr);
+      printf("a:%p id:%p ", addr, record.getID());
 
       void* array[1];
       array[0] = (void*)addr;
@@ -435,14 +482,30 @@ void readStackMap(uint8_t* t) {
 
     stack_maps[addr] = move(mappings);
   }
+
+  auto end = alaska_timestamp();
+
+  printf("patching took %lu\n", (end - start) / 1000);
+}
+
+
+extern "C" void alaska_register_stack_map(void* map) {
+  if (map) {
+    printf("Register stack map %p\n", map);
+    readStackMap((uint8_t*)map);
+  }
 }
 
 
 
-void show_backtrace(void) {
+extern "C" void alaska_show_backtrace(void) {
+  return;
+  // if (p == NULL) return;
   ck::set<void*> old_set, new_set;
 
   old_set = alaska::barrier::get_locked();
+
+  auto start = alaska_timestamp();
   // return;
   unw_cursor_t cursor;
   unw_context_t uc;
@@ -470,7 +533,15 @@ void show_backtrace(void) {
     }
   }
 
-
+  auto end = alaska_timestamp();
+  (void)end;
+  (void)start;
+  // printf("%f ms\n", (end - start) / 1000.0 / 1000.0);
+  // if (new_set.size() == 0) return;
+  // printf("New:");
+  // for (auto p : new_set)
+  //   printf(" %p", p);
+  // printf("\n");
 
   if (old_set.is_subset_of(new_set)) {
     // Nothing
@@ -487,15 +558,9 @@ void show_backtrace(void) {
   }
 }
 
-extern "C" void alaska_test_sm() {
-  show_backtrace();
+extern "C" void alaska_barrier_poll(volatile int* foo) {
+  // int x = *(volatile int *)ALASKA_SAFEPOINT_PAGE;
+  // alaska_show_backtrace();
+  // asm __volatile__(".byte 0x48, 0x85, 0x04, 0x25, 0x00, 0xf0, 0xff, 0x7f\n");
   return;
-}
-
-
-extern "C" void alaska_register_stack_map(void* map) {
-  if (map) {
-    printf("Register stack map %p\n", map);
-    readStackMap((uint8_t*)map);
-  }
 }

@@ -31,6 +31,8 @@ namespace alaska {
     void deinit();
 
 		void initialize_safepoint_page();
+		void block_access_to_safepoint_page();
+		void allow_access_to_safepoint_page();
 
     ck::set<void *> get_locked(void);
 

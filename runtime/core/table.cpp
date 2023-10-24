@@ -52,6 +52,7 @@ static void table_dump(void) {
 static void alaska_table_grow() {
   size_t oldbytes = table_size * MAP_ENTRY_SIZE;
   size_t newbytes = oldbytes * 2;
+  printf("Map table to %p\n", TABLE_START);
   // size_t newbytes = oldbytes + MAP_GRANULARITY;
   if (table_memory == NULL) {
     newbytes = MAP_GRANULARITY;
@@ -61,6 +62,7 @@ static void alaska_table_grow() {
   } else {
     table_memory = (alaska::Mapping *)mremap(table_memory, oldbytes, newbytes, 0, table_memory);
   }
+  printf("memory: %p\n", table_memory);
 
   if (table_memory == MAP_FAILED) {
     fprintf(stderr, "could not resize table!\n");
@@ -102,6 +104,7 @@ alaska::Mapping *alaska::table::get(void) {
 void alaska::table::put(alaska::Mapping *ent) {
   pthread_mutex_lock(&table_lock);
   ent->ptr = next_free;
+  // ent->alt.invl = 1;
   table_nfree++;
   next_free = ent;
   pthread_mutex_unlock(&table_lock);
