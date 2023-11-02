@@ -39,6 +39,204 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     return PreservedAnalyses::all();
   }
 
+
+
+  // TODO:
+  // for each function
+  //    extract the translations
+  //    for each the escape sites (polls and calls)
+  //       if a translation is alive at the escape site
+  //           add it to the "must track" set
+  //    allocate an array on the stack that is big enough to track the "must track" set
+  //    for each element in the "must track" set
+  //       store to one entry of that stack array right before translation
+  //    Replace call instructions with associated statepoint gc intrinsics
+  //       ... passing the stack array as an arg in the "deopt" bundle
+
+#if 1
+
+  for (auto &F : M) {
+    // Ignore functions with no bodies
+    if (F.empty()) continue;
+
+    // If the function is simple, it can't poll, so we can skip it! Yippee!
+    if (F.hasFnAttribute("alaska_is_simple")) {
+      continue;
+    }
+    // Extract all the locks from the function
+    auto translations = alaska::extractTranslations(F);
+    // If the function had no locks, don't do anything
+    if (translations.empty()) continue;
+
+    // The set of translations that *must* be translated.
+    std::set<alaska::Translation *> mustTrack;
+    // A set of all
+    std::set<CallInst *> statepointCalls;
+
+
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto *call = dyn_cast<IntrinsicInst>(&I)) {
+          continue;
+        }
+        if (auto *call = dyn_cast<CallInst>(&I)) {
+          if (call->isInlineAsm()) continue;
+          auto targetFuncType = call->getFunctionType();
+          if (targetFuncType->isVarArg()) {
+            // TODO: Remove this limitation
+            //       This is a restriction of the backend, I think.
+            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
+          }
+          if (auto func = call->getCalledFunction(); func != nullptr) {
+            if (func->getName().startswith("alaska.")) continue;
+            if (func->getName().startswith("__alaska")) continue;
+          }
+          statepointCalls.insert(call);
+          for (auto &tr : translations) {
+            mustTrack.insert(tr.get());
+            if (tr->isLive(call)) {
+              mustTrack.insert(tr.get());
+            }
+          }
+        }
+      }
+    }
+
+
+
+    // If there are no translations in the mustTranslate set,
+    // give up. This function doesn't need tracking added! Yippee!
+    if (mustTrack.size() == 0) continue;
+
+
+    // TODO: put this in the right place!
+    F.setGC("coreclr");
+
+
+
+
+    // Given a lock, which cell does it belong to? (eagerly)
+    std::map<alaska::Translation *, long> lock_cell_ids;
+    // Interference - a mapping from locks to the locks it is alive along side of.
+    std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
+
+    // Loop over each translation, then over it's live instructions. For each live instruction see
+    // which other locks are live in those instructions. This is horrible and slow. (but works)
+    for (auto &first : mustTrack) {
+      lock_cell_ids[first] = -1;
+      // A lock interferes with itself
+      interference[first].insert(first);
+      for (auto b1 : first->liveBlocks) {
+        for (auto &second : mustTrack) {
+          if (second != first && second->isLive(b1)) {
+            // interference!
+            interference[first].insert(second);
+            interference[second].insert(first);
+          }
+        }
+      }
+    }
+
+    // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
+    // coloring allocation here, as we don't need to worry about register spilling
+    // (we can just make more "registers" instead of spilling). All cells are equal as well,
+    // so there aren't any restrictions on which lock can get which cell.
+    for (auto &[lock, intr] : interference) {
+      long available_cell = -1;
+      llvm::SparseBitVector<128> unavail;
+      for (auto other : intr) {
+        long cell = lock_cell_ids[other];
+        if (cell != -1) {
+          unavail.set(cell);
+        }
+      }
+      // find a cell that hasn't been used by any of the interfering locks.
+      for (long current_cell = 0;; current_cell++) {
+        if (!unavail.test(current_cell)) {
+          available_cell = current_cell;
+          break;
+        }
+      }
+      lock_cell_ids[lock] = available_cell;
+    }
+
+    // {
+    //   long ind = 0;
+    //   for (auto tr : mustTrack) {
+    //     lock_cell_ids[tr] = ind++;
+    //   }
+    // }
+
+    // Figure out the max available cell
+    long max_cell = 0;  // the maximum level of interference
+    for (auto &[_, i] : lock_cell_ids) {
+      if (max_cell < i) max_cell = i;
+    }
+
+    max_cell++;  // handle zero index vs. size.
+    // long max_cell = mustTrack.size() + 1;
+
+    auto pointerType = llvm::PointerType::get(M.getContext(), 0);
+    auto *arrayType = ArrayType::get(pointerType, max_cell);
+
+    IRBuilder<> atEntry(F.front().getFirstNonPHI());
+
+
+    auto trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
+    // atEntry.CreateStore(ConstantAggregateZero::get(arrayType), trackSet, true);
+
+
+    alaska::println(mustTrack.size(), "\t", max_cell, "\t", F.getName());
+
+    for (auto *tr : mustTrack) {
+      // (void)tr;
+      // char buf[512];
+      long ind = lock_cell_ids[tr];
+      // snprintf(buf, 512, "pinCell.%ld", ind);
+      IRBuilder<> b(tr->translation);
+      auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
+      auto handle = tr->getHandle();
+      b.CreateStore(handle, cell, true);
+    }
+
+
+    for (auto &call : statepointCalls) {
+      IRBuilder<> b(call);
+      std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
+      std::vector<llvm::Value *> gcArgs;
+      gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), mustTrack.size()));
+      gcArgs.push_back(trackSet);
+
+      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+
+      auto called = call->getCalledOperand();
+      int patch_size = 0;
+      int id = 0xABCDEF00;
+      if (auto func = call->getCalledFunction()) {
+        if (func->getName() == "alaska_barrier_poll") {
+          id = 'PATC';
+          patch_size = 8;
+        }
+      }
+
+      // Value * > GCArgs, const Twine &Name="")
+      auto token = b.CreateGCStatepointCall(id, patch_size,
+          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
+          "statepoint");
+      auto result = b.CreateGCResult(token, call->getType());
+      call->replaceAllUsesWith(result);
+      call->eraseFromParent();
+    }
+  }
+#endif
+
+
+
+  // return PreservedAnalyses::none();
+
+#if 0
+
+
   for (auto &F : M) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
@@ -76,16 +274,30 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       }
     }
 
+    IRBuilder<> atEntry(F.front().getFirstNonPHI());
+
+
+    std::vector<Type *> EltTys;
+    auto pointerType = llvm::PointerType::get(M.getContext(), 0);
+    // auto i64Ty = IntegerType::get(M.getContext(), 64);
+    auto stackEntryTy = StructType::create(M.getContext(), "alaska_pin_set_entry");
+    EltTys.clear();
+    EltTys.push_back(pointerType);  // ptr
+    stackEntryTy->setBody(EltTys);
+    auto a = atEntry.CreateAlloca(stackEntryTy, nullptr, "localPinSet");
 
 
     for (auto &[call, translations] : liveTranslations) {
       IRBuilder<> b(call);
       std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
       std::vector<llvm::Value *> gcArgs;
-      for (auto *tr : translations) {
-        gcArgs.push_back(tr->getHandle());
-      }
+      gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), 42));
+      gcArgs.push_back(a);
+      // for (auto *tr : translations) {
+      //   gcArgs.push_back(tr->getHandle());
+      // }
       Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+      alaska::println(translations.size(), "\t", *call);
 
       auto called = call->getCalledOperand();
       int patch_size = 0;
@@ -106,6 +318,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       call->eraseFromParent();
     }
   }
+#endif
 
 
 // Define this to enable the old lock system.
@@ -117,6 +330,7 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto i64Ty = IntegerType::get(M.getContext(), 64);
   auto stackEntryTy = StructType::create(M.getContext(), "alaska_stackentry");
   EltTys.clear();
+  EltTys.push_back(PointerType::getUnqual(stackEntryTy));  // ptr
   EltTys.push_back(PointerType::getUnqual(stackEntryTy));  // ptr
   EltTys.push_back(i64Ty);                                 // i64
   stackEntryTy->setBody(EltTys);
@@ -218,9 +432,12 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto *stackEntry = atEntry.CreateAlloca(concreteStackEntryTy, nullptr, "lockStackFrame");
     atEntry.CreateStore(ConstantAggregateZero::get(concreteStackEntryTy), stackEntry, true);
 
+    auto *FunctionPtr =
+        CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.func");
+    atEntry.CreateStore(&F, FunctionPtr, true);
 
     auto *EntryCountPtr =
-        CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 1, "lockStackFrame.count");
+        CreateGEP(M.getContext(), atEntry, stackEntryTy, stackEntry, 2, "lockStackFrame.count");
     // cur->count = N;
     atEntry.CreateStore(ConstantInt::get(i64Ty, cell_count), EntryCountPtr, true);
     // cur->prev = head;

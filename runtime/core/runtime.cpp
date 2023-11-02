@@ -63,10 +63,9 @@ static void* alaska_pthread_trampoline(void* varg) {
   free(arg);
 
 
-  pthread_t self = pthread_self();
-  alaska::barrier::add_thread(&self);
+  alaska::barrier::add_self_thread();
   void* ret = start(thread_arg);
-  alaska::barrier::remove_thread(&self);
+  alaska::barrier::remove_self_thread();
 
   return ret;
 }
@@ -95,8 +94,7 @@ void __attribute__((constructor(102))) alaska_init(void) {
 
   // Add the main thread to the list of active threads
   // Note: the main thread never removes itself from the barrier thread list
-  pthread_t self = pthread_self();
-  alaska::barrier::add_thread(&self);
+  alaska::barrier::add_self_thread();
 
   alaska::table::init();
   alaska::service::init();

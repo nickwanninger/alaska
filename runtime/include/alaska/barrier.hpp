@@ -19,8 +19,9 @@
 namespace alaska {
   namespace barrier {
 
-    void add_thread(pthread_t *);
-    void remove_thread(pthread_t *);
+    // Thread tracking lifetime
+    void add_self_thread(void);
+    void remove_self_thread(void);
 
     // Barrier operational lifetime.
     void begin();
@@ -34,7 +35,7 @@ namespace alaska {
 		void block_access_to_safepoint_page();
 		void allow_access_to_safepoint_page();
 
-    ck::set<void *> get_locked(void);
+    void get_locked(ck::set<void*> &out);
 
   }  // namespace barrier
 }  // namespace alaska

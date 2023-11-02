@@ -18,47 +18,30 @@ struct FunctionEscapeInfo {
 static bool mightBlock(llvm::Function &F) {
   // This is a big list of library functions that may end up blocking in the kernel or
   std::set<StringRef> blocking_whitelist = {
-      // "memcmp",
-      // "llvm.memset.p0.i64",
-      "printf",
-      // "strcmp",
-      // "llvm.dbg.label",
+      // "printf",
       "epoll_create",
       "close",
-      // "__errno_location",
       "epoll_ctl",
       "epoll_wait",
-      // "strerror",
       "poll",
       "getsockopt",
       "fcntl64",
-      // "llvm.va_start",
-      // "vsnprintf",
-      // "llvm.va_end",
       "setsockopt",
       "getaddrinfo",
-      // "gai_strerror",
       "inet_ntop",
       "freeaddrinfo",
-      // "snprintf",
       "socket",
       "bind",
       "connect",
       "listen",
       "chmod",
-      // "ntohs",
       "accept4",
       "getpeername",
       "getsockname",
       "pipe2",
       "pipe",
-      // "gettimeofday",
-      // "random",
-      // "rand",
       "fopen64",
       "fprintf",
-      // "getpid",
-      // "strftime",
       "fflush",
       "fclose",
       "syslog",
@@ -66,9 +49,6 @@ static bool mightBlock(llvm::Function &F) {
       "write",
       "time",
       "_exit",
-      // "malloc_usable_size",
-      // "llvm.ctlz.i64",
-      // "localtime_r",
       "waitpid",
       "exit",
       "fdatasync",
@@ -79,22 +59,15 @@ static bool mightBlock(llvm::Function &F) {
       "usleep",
       "execve",
       "read",
-      // "atoi",
       "getrlimit64",
       "setrlimit64",
       "fgets",
-      // "pthread_setcancelstate",
-      // "pthread_setcanceltype",
       "signal",
       "openlog",
-      // "pthread_self",
       "setlocale",
       "sigemptyset",
       "sigaction",
-      // "llvm.stacksave",
-      // "llvm.stackrestore",
       "uname",
-      // "strtol",
       "getrusage",
       "prctl",
       "fork",
@@ -110,22 +83,8 @@ static bool mightBlock(llvm::Function &F) {
       "srandom",
       "umask",
       "__assert_fail",
-      // "llvm.va_copy",
-      // "tolower",
-      // "toupper",
-      // "__ctype_b_loc",
-      "free",
-      "malloc",
-      "calloc",
-      "realloc",
-
       "abort",
-      // "strtoll",
-      // "strncmp",
       "perror",
-
-      "qsort",  // Bounded time, but may not return for quite some time.
-
       "pthread_mutex_lock",
       "pthread_mutex_unlock",
       "pthread_setname_np",
@@ -133,10 +92,8 @@ static bool mightBlock(llvm::Function &F) {
       "pthread_create",
       "pthread_cancel",
       "pthread_join",
-
       "fwrite",
       "fread",
-      // "getcwd",
       "stat64",
       "mkdir",
       "opendir",
@@ -145,8 +102,6 @@ static bool mightBlock(llvm::Function &F) {
       "fstat64",
       "rmdir",
       "dirname",
-      // "strcoll",
-      // "llvm.fmuladd.f64",
       "strtoul",
       "sleep",
       "ftruncate64",
@@ -155,9 +110,6 @@ static bool mightBlock(llvm::Function &F) {
       "rename",
       "lstat64",
       "lseek64",
-      // "htonl",
-      // "ntohl",
-      // "__isoc99_sscanf",
       "kill",
       "chdir",
       "glob64",
@@ -169,8 +121,6 @@ static bool mightBlock(llvm::Function &F) {
       "fseek",
       "ftello64",
       "truncate64",
-      // "backtrace",
-      // "backtrace_symbols_fd",
       "mmap64",
       "nanosleep",
       "dladdr",
@@ -213,11 +163,6 @@ static bool mightBlock(llvm::Function &F) {
       "fputs",
       "vfprintf",
       "dcgettext",
-      "halloc",
-      "hcalloc",
-      "hrealloc",
-      "hfree",
-      "alaska_usable_size",
   };
 
 
@@ -375,16 +320,16 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
 
   std::set<llvm::Function *> blockingFunctions;
-  std::set<llvm::CallInst *> escapeSites;
+  std::set<llvm::CallInst *> blockingSites;
 
   for (auto &F : M) {
     if (F.empty()) {
       if (mightBlock(F)) {
-        alaska::println("\e[31m\"", F.getName(), "\",\e[0m");
+        // alaska::println("\e[31m\"", F.getName(), "\",\e[0m");
+        blockingFunctions.insert(&F);
       } else {
-        alaska::println("\"", F.getName(), "\",");
+        // alaska::println("\"", F.getName(), "\",");
       }
-      blockingFunctions.insert(&F);
       continue;
     }
 
@@ -393,9 +338,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     for (auto &I : llvm::instructions(F)) {
       if (auto *call = dyn_cast<CallInst>(&I)) {
         if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
-          auto &info = escapeInfo[func];
-          if (info.isEscape) {
-            escapeSites.insert(call);
+          if (mightBlock(*func)) {
+            blockingSites.insert(call);
           }
         }
         int i = -1;
@@ -421,7 +365,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   }
 
 
-  for (auto *call : escapeSites) {
+  for (auto *call : blockingSites) {
     // Now that we have the arguments all translated, let's insert
     // logic to handle barriers - because they are poll based, we
     // will not be able to poll while in an external function.

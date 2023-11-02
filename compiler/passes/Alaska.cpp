@@ -185,9 +185,12 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
         }
       }
 
+      if (loops.getLoopsInPreorder().size() == 0 && hasProblematicCalls == false) {
+        F.addFnAttr("alaska_is_simple");
+      }
 
-      alaska::println(
-          loops.getLoopsInPreorder().size(), "\t", hasProblematicCalls, "\t", F.getName());
+      // alaska::println(
+      //     loops.getLoopsInPreorder().size(), "\t", hasProblematicCalls, "\t", F.getName());
     }
     return PreservedAnalyses::all();
   }
@@ -356,7 +359,6 @@ void populateMPM(ModulePassManager &MPM) {
 #ifdef ALASKA_LOCK_TRACKING
     MPM.addPass(adapt(PlaceSafepointsPass()));
     MPM.addPass(ProgressPass("Safepoint Placement"));
-
     if (!alaska::bootstrapping()) {
       MPM.addPass(LockInsertionPass());
       MPM.addPass(ProgressPass("Lock Insertion"));

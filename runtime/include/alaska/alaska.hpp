@@ -98,6 +98,7 @@ namespace alaska {
    */
   struct LockFrame {
     alaska::LockFrame *prev;
+    void *func;
     uint64_t count;
     void *locked[];
   };

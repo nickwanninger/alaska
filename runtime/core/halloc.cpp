@@ -53,6 +53,8 @@ static void *_halloc(size_t sz, int zero) {
   void *out = ent->to_handle(0);
   num_alive++;
 
+  // fprintf(stderr, "%zu\n", sz);
+
 	// printf("halloc %zu -> %p\n", sz, out);
   return out;
 }

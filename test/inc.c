@@ -16,8 +16,8 @@ __attribute__((noinline)) static volatile int *inc(volatile int *x) {
 int main(int argc, char **argv) {
 
   printf("Hello!\n");
-  // int a = 0;
-  // inc(&a);
+  int a = 0;
+  inc(&a);
   // Histogram h;
   // histogram_clear(&h);
   //

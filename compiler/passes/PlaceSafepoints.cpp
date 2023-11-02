@@ -67,7 +67,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-
+#include "llvm/Analysis/PostDominators.h"
 using namespace llvm;
 
 // #undef LLVM_DEBUG
@@ -623,6 +623,13 @@ static bool shouldRewriteFunction(Function &F) {
   if (F.getName().startswith("alaska")) {
     return false;
   }
+
+
+  if (F.hasFnAttribute("alaska_is_simple")) {
+    return false;
+  }
+
+
   // if (F.hasGC()) {
   //   const auto &FunctionGCName = F.getGC();
   //   const StringRef StatepointExampleName("statepoint-example");

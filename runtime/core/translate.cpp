@@ -25,6 +25,7 @@
 #include <dlfcn.h>
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
+#include <alaska/utils.h>
 
 
 /**
@@ -54,12 +55,28 @@ extern "C" {
 extern int __LLVM_StackMaps __attribute__((weak));
 }
 
+
+extern "C" void *alaska_translate_uncond(void *ptr) {
+  int64_t bits = (int64_t)ptr;
+
+  auto m = alaska::Mapping::from_handle(ptr);
+  // Pull the address from the mapping
+  void *mapped = m->ptr;
+#ifdef ALASKA_SWAP_SUPPORT
+  // If swapping is enabled, the top bit will be set, so we need to check that
+  if (unlikely(m->alt.swap)) {
+    // Ask the runtime to "swap" the object back in. We blindly assume that
+    // this will succeed for performance reasons.
+    mapped = alaska_ensure_present(m);
+  }
+#endif
+  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
+  // Apply the offset to the mapping and return it.
+  ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
+  return ptr;
+}
+
 void *alaska_translate(void *ptr) {
-  // Optionally, Sanity check that a handle has been locked on this thread
-  // *before* translating. This ensures it won't be moved during
-  // the invocation of this function
-  // ALASKA_SANITY(alaska_verify_is_locally_locked(ptr),
-  //     "Pointer '%p' is not locked on the shadow stack before calling translate\n", ptr);
   int64_t bits = (int64_t)ptr;
 
   // If the pointer is "greater than zero", then it is not a handle. This is because we rely on the
@@ -69,7 +86,6 @@ void *alaska_translate(void *ptr) {
     alaska_track_miss();
     return ptr;
   }
-
 
   alaska_track_hit();
 
@@ -114,7 +130,7 @@ void print_backtrace() {
 }
 
 extern bool alaska_should_safepoint;
-extern "C" uint64_t alaska_barrier_poll();
+extern "C" __attribute__((preserve_all)) uint64_t alaska_barrier_poll();
 extern "C" void alaska_show_backtrace(void);
 
 
@@ -132,9 +148,12 @@ extern "C" void alaska_safepoint(void) {
 
 
 extern "C" void alaska_barrier_before_escape(void) {
+  atomic_inc(alaska_thread_state.escaped, 1);
+  // alaska_thread_state.escaped = 1;
   // printf("before!\n");
 }
 
 extern "C" void alaska_barrier_after_escape(void) {
+  atomic_dec(alaska_thread_state.escaped, 1);
   // printf("after!\n");
 }

@@ -8,6 +8,15 @@
 extern "C" {
 #endif
 
+typedef struct {
+  // Track the depth of escape of a given thread. If this number is zero,
+  // the thread is in 'managed' code and will eventually poll the barrier
+  uint64_t escaped;
+
+  // ...
+} alaska_thread_state_t;
+
+extern __thread alaska_thread_state_t alaska_thread_state;
 
 
 // Allocate a handle as well as it's backing memory if the runtime decides to do so.

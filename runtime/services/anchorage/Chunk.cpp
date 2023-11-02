@@ -375,11 +375,14 @@ long anchorage::Chunk::perform_compaction(
   };
 
 
+
   auto migrate_blk = [&](anchorage::Block *blk) {
+    // printf("migrate %p %zu\n", blk, blk->size());
     auto new_blk = dst_space.alloc(blk->size());
     ALASKA_ASSERT(new_blk != NULL, "Could not allocate a block in the to space");
     // Move the data
     memcpy(new_blk->data(), blk->data(), blk->size());
+    memset(blk->data(), 0, blk->size());
 		// Spend tokens to track we moved this object
     spend_tokens(blk->size());
     // Patch the handle
@@ -390,7 +393,7 @@ long anchorage::Chunk::perform_compaction(
     this->free(blk);
   };
 
-  long old_span = span();
+  // long old_span = span();
   alldump(nullptr, "Before");
 
 
