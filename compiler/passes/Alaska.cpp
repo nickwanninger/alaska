@@ -359,10 +359,8 @@ void populateMPM(ModulePassManager &MPM) {
 #ifdef ALASKA_LOCK_TRACKING
     MPM.addPass(adapt(PlaceSafepointsPass()));
     MPM.addPass(ProgressPass("Safepoint Placement"));
-    if (!alaska::bootstrapping()) {
-      MPM.addPass(LockInsertionPass());
-      MPM.addPass(ProgressPass("Lock Insertion"));
-    }
+    MPM.addPass(LockInsertionPass());
+    MPM.addPass(ProgressPass("Lock Insertion"));
 #endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
@@ -375,9 +373,14 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(AlaskaLowerPass());
     MPM.addPass(ProgressPass("Lowering"));
 
+#ifdef ALASKA_ARGUMENT_TRACE
+    MPM.addPass(AlaskaArgumentTracePass());
+    MPM.addPass(ProgressPass("Argument Trace"));
+#endif
+
     // Force inlines of alaska runtime functions
-    MPM.addPass(TranslationInlinePass());
-    MPM.addPass(ProgressPass("Inline runtime"));
+    // MPM.addPass(TranslationInlinePass());
+    // MPM.addPass(ProgressPass("Inline runtime"));
   }
 
 

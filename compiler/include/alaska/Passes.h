@@ -96,3 +96,10 @@ class AlaskaLowerPass : public llvm::PassInfoMixin<AlaskaLowerPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
+
+
+
+class AlaskaArgumentTracePass : public llvm::PassInfoMixin<AlaskaArgumentTracePass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
+};

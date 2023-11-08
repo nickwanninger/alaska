@@ -32,12 +32,36 @@
 #include <dlfcn.h>
 #include <pthread.h>
 
-#ifndef MAX
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#endif
+
+struct TrackedArg {
+  uint64_t hits = 0;
+  uint64_t misses = 0;
+};
+ck::map<char*, ck::vec<TrackedArg>> arg_track_results;
+
+extern "C" void alaska_argtrack(char* name, uint64_t nargs, ...) {
+  va_list ap;
+  va_start(ap, nargs);
+
+  auto& v = arg_track_results[name];
+  if (v.size() == 0) v.resize(nargs);
+  // printf("%s", name);
+  for (uint64_t i = 0; i < nargs; i++) {
+    auto& a = v[i];
+    void* arg = va_arg(ap, void*);
+    if (alaska::Mapping::is_handle(arg)) {
+      // printf(" hit");
+      a.hits++;
+    } else {
+      // printf(" mis");
+      a.misses++;
+    }
+  }
+  // printf("\n");
 
 
+  va_end(ap);
+}
 
 long alaska::translation_hits = 0;
 long alaska::translation_misses = 0;
@@ -103,6 +127,18 @@ void __attribute__((constructor(102))) alaska_init(void) {
 void __attribute__((destructor)) alaska_deinit(void) {
   alaska::service::deinit();
   alaska::table::deinit();
+
+
+  if (arg_track_results.size() > 0) {
+    for (auto& [f, args] : arg_track_results) {
+      printf("%40s", f);
+      for (auto& a : args) {
+        printf(" %3d", (int)(100 * (a.hits / (float)(a.misses + a.hits))));
+        // printf("\t%d,%d", a.hits, a.misses);
+      }
+      printf("\n");
+    }
+  }
 
 
 #ifdef ALASKA_TRACK_TRANSLATION_HITRATE
@@ -201,6 +237,7 @@ void* alaska_ensure_present(alaska::Mapping* m) {
   ALASKA_SANITY(m->ptr != NULL, "Service did not swap in a handle");
   return m->ptr;
 }
+
 
 
 extern "C" void __cxa_pure_virtual(void) {
