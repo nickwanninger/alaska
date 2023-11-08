@@ -190,7 +190,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
   // all the sources are roots in the pointer flow graph
   for (auto *node : G.get_nodes()) {
-    if (node->type == alaska::NodeType::Source) {
+    if (node->type == alaska::NodeType::Source && alaska::shouldTranslate(node->value)) {
       temp_roots.insert(node);
     }
   }
