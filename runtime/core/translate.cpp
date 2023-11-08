@@ -130,19 +130,11 @@ void print_backtrace() {
 }
 
 extern bool alaska_should_safepoint;
-extern "C" __attribute__((preserve_all)) uint64_t alaska_barrier_poll();
-extern "C" void alaska_show_backtrace(void);
+extern "C" uint64_t alaska_barrier_poll();
 
 
 extern "C" void alaska_safepoint(void) {
-  // *(volatile int *)ALASKA_SAFEPOINT_PAGE;
-  // alaska_show_backtrace();
   alaska_barrier_poll();
-  // if (unlikely(alaska_should_safepoint)) {
-  //   alaska_barrier_poll();
-  // }
-  // // Simply load from the safepoint page. If we have a barrier pending, this will fault into the
-  // segfault handler. uint64_t res = *(volatile uint64_t *)ALASKA_SAFEPOINT_PAGE; (void)res;
 }
 
 

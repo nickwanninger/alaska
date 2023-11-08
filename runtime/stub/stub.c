@@ -227,8 +227,17 @@ char *strncat(char *restrict d, const char *restrict s, size_t n) {
   return a;
 }
 
+
+extern void alaska_barrier_signal_join(void);
+// This function is the "signal" function to the runtime that gets patched
+// into the code whenever a barrier needs to occur.
+__attribute__((preserve_all))
+void __alaska_signal(void) {
+  alaska_barrier_signal_join();
+}
+
 // in barrier.cpp
-extern void alaska_register_stack_map(void *map);
+extern void alaska_register_stack_map(void *map, void *signalFunc);
 
 
 extern int __LLVM_StackMaps __attribute__((weak));
@@ -237,6 +246,6 @@ static void __attribute__((constructor)) alaska_init(void) {
   int *stackmaps = &__LLVM_StackMaps;
   printf("stackmaps: %p\n", stackmaps);
   if (stackmaps) {
-    alaska_register_stack_map(stackmaps);
+    alaska_register_stack_map(stackmaps, (void *)__alaska_signal);
   }
 }

@@ -389,21 +389,20 @@ extern void alaska_dump_thread_states(void);
 static void barrier_simple_time(void) {
   usleep(40 * 1000);
   while (1) {
-    // ck::scoped_lock l(anch_lock);
+    usleep(100 * 1000);
+    ck::scoped_lock l(anch_lock);
     // Get everyone prepped for a barrier
-    // printf("BEGIN BARRIER\n");
-    // anch_lock.lock();
-    // alaska::barrier::begin();
-    // anchorage::CompactionConfig config;
-    // auto moved =
-    //     anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
-    // printf("MOVED %d\n", moved);
-    // anchorage::Chunk::swap_spaces();
-    // alaska::barrier::end();
-    // anch_lock.unlock();
-    // anch_lock.unlock();
-    // printf("DONE.\n");
-    usleep(500 * 1000);
+    auto start = alaska_timestamp();
+    alaska::barrier::begin();
+    auto end = alaska_timestamp();
+    anchorage::CompactionConfig config;
+    printf("barrier in %luns\n", end - start);
+    // Before swapping spaces, do some defragmentation
+    anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+
+    alaska::barrier::end();
+    // Swap the spaces and switch to waiting.
+    anchorage::Chunk::swap_spaces();
   }
 }
 
@@ -413,7 +412,7 @@ static void *barrier_thread_fn(void *) {
   alaska_thread_state.escaped = 1;
   // pad_barrier_control_overhead_target();
   // barrier_control_overhead_target();
-  barrier_simple_time();
+  // barrier_simple_time();
   return NULL;
 }
 
@@ -490,7 +489,7 @@ void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
 
   if (anchorage::Chunk::to_space->contains(block) ||
       anchorage::Chunk::from_space->contains(block)) {
-    printf("commit %p as %d\n", ent, locked);
+    // printf("commit %p as %d\n", ent, locked);
     block->mark_locked(locked);
   }
 }

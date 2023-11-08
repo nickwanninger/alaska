@@ -34,7 +34,7 @@ set(SRC_FILES
 	# The core of the runtime
 	core/runtime.cpp
 	core/table.cpp
-	core/translate.cpp
+  # core/translate.cpp
 	core/prefetch.cpp
 	core/halloc.cpp
 	core/barrier.cpp
@@ -50,7 +50,6 @@ set(SRC_FILES
 if (ALASKA_SERVICE_ANCHORAGE)
 	# Anchorage's allocator relies on a modified version of
 	# Heap-Layers, which we have vendored here:
-	include_directories(services/anchorage/heaplayers)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
 		services/anchorage/Block.cpp
@@ -185,6 +184,7 @@ target_link_libraries(lifetimemalloc dl)
 add_bitcode(alaska_translate SOURCES core/translate.cpp)
 add_bitcode(alaska_prefetch SOURCES core/prefetch.cpp)
 add_bitcode(alaska_compat SOURCES core/compat.c)
+
 
 
 add_bitcode(alaska_stub SOURCES

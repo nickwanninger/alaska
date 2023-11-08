@@ -625,9 +625,9 @@ static bool shouldRewriteFunction(Function &F) {
   }
 
 
-  if (F.hasFnAttribute("alaska_is_simple")) {
-    return false;
-  }
+  // if (F.hasFnAttribute("alaska_is_simple")) {
+  //   return false;
+  // }
 
 
   // if (F.hasGC()) {

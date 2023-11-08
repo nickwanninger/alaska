@@ -237,6 +237,9 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     // if (F.getName().startswith("llvm.memset")) ignore = true;
     if (F.getName().startswith("llvm.experimental.noalias")) ignore = true;
 
+    // Openmp stuff :)
+    // if (F.getName().startswith("__kmp")) ignore = true;
+
     if (ignore) functions_to_ignore.insert(std::string(F.getName()));
   }
 

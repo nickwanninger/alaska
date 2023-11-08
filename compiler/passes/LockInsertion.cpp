@@ -60,19 +60,25 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
     if (F.empty()) continue;
 
     // If the function is simple, it can't poll, so we can skip it! Yippee!
-    if (F.hasFnAttribute("alaska_is_simple")) {
-      continue;
-    }
+    // if (F.hasFnAttribute("alaska_is_simple")) {
+    //   continue;
+    // }
+
+    F.setGC("coreclr");
+
     // Extract all the locks from the function
     auto translations = alaska::extractTranslations(F);
     // If the function had no locks, don't do anything
-    if (translations.empty()) continue;
+    // if (translations.empty()) continue;
 
     // The set of translations that *must* be translated.
     std::set<alaska::Translation *> mustTrack;
     // A set of all
     std::set<CallInst *> statepointCalls;
 
+    for (auto &tr : translations) {
+      mustTrack.insert(tr.get());
+    }
 
     for (auto &BB : F) {
       for (auto &I : BB) {
@@ -89,29 +95,18 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
           }
           if (auto func = call->getCalledFunction(); func != nullptr) {
             if (func->getName().startswith("alaska.")) continue;
-            if (func->getName().startswith("__alaska")) continue;
+            // if (func->getName().startswith("__alaska")) continue;
           }
           statepointCalls.insert(call);
-          for (auto &tr : translations) {
-            mustTrack.insert(tr.get());
-            if (tr->isLive(call)) {
-              mustTrack.insert(tr.get());
-            }
-          }
+          // for (auto &tr : translations) {
+          //   mustTrack.insert(tr.get());
+          //   if (tr->isLive(call)) {
+          //     mustTrack.insert(tr.get());
+          //   }
+          // }
         }
       }
     }
-
-
-
-    // If there are no translations in the mustTranslate set,
-    // give up. This function doesn't need tracking added! Yippee!
-    if (mustTrack.size() == 0) continue;
-
-
-    // TODO: put this in the right place!
-    F.setGC("coreclr");
-
 
 
 
@@ -160,39 +155,23 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       lock_cell_ids[lock] = available_cell;
     }
 
-    // {
-    //   long ind = 0;
-    //   for (auto tr : mustTrack) {
-    //     lock_cell_ids[tr] = ind++;
-    //   }
-    // }
-
-    // Figure out the max available cell
-    long max_cell = 0;  // the maximum level of interference
-    for (auto &[_, i] : lock_cell_ids) {
-      if (max_cell < i) max_cell = i;
+    long ind = 0;
+    for (auto tr : mustTrack) {
+      lock_cell_ids[tr] = ind++;
     }
 
-    max_cell++;  // handle zero index vs. size.
-    // long max_cell = mustTrack.size() + 1;
+    llvm::AllocaInst *trackSet = NULL;
+
+    long max_cell = mustTrack.size() + 1;
 
     auto pointerType = llvm::PointerType::get(M.getContext(), 0);
     auto *arrayType = ArrayType::get(pointerType, max_cell);
 
     IRBuilder<> atEntry(F.front().getFirstNonPHI());
-
-
-    auto trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
-    // atEntry.CreateStore(ConstantAggregateZero::get(arrayType), trackSet, true);
-
-
-    alaska::println(mustTrack.size(), "\t", max_cell, "\t", F.getName());
+    trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
 
     for (auto *tr : mustTrack) {
-      // (void)tr;
-      // char buf[512];
       long ind = lock_cell_ids[tr];
-      // snprintf(buf, 512, "pinCell.%ld", ind);
       IRBuilder<> b(tr->translation);
       auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
       auto handle = tr->getHandle();
@@ -204,100 +183,12 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       IRBuilder<> b(call);
       std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
       std::vector<llvm::Value *> gcArgs;
+      // if (trackSet != NULL) {
       gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), mustTrack.size()));
       gcArgs.push_back(trackSet);
-
-      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
-
-      auto called = call->getCalledOperand();
-      int patch_size = 0;
-      int id = 0xABCDEF00;
-      if (auto func = call->getCalledFunction()) {
-        if (func->getName() == "alaska_barrier_poll") {
-          id = 'PATC';
-          patch_size = 8;
-        }
-      }
-
-      // Value * > GCArgs, const Twine &Name="")
-      auto token = b.CreateGCStatepointCall(id, patch_size,
-          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
-          "statepoint");
-      auto result = b.CreateGCResult(token, call->getType());
-      call->replaceAllUsesWith(result);
-      call->eraseFromParent();
-    }
-  }
-#endif
-
-
-
-  // return PreservedAnalyses::none();
-
-#if 0
-
-
-  for (auto &F : M) {
-    // Ignore functions with no bodies
-    if (F.empty()) continue;
-    // Extract all the locks from the function
-    auto translations = alaska::extractTranslations(F);
-    // If the function had no locks, don't do anything
-    if (translations.empty()) continue;
-    llvm::DenseMap<CallInst *, std::set<alaska::Translation *>> liveTranslations;
-    for (auto &BB : F) {
-      F.setGC("coreclr");
-      for (auto &I : BB) {
-        if (auto *call = dyn_cast<IntrinsicInst>(&I)) {
-          continue;
-        }
-        if (auto *call = dyn_cast<CallInst>(&I)) {
-          if (call->isInlineAsm()) continue;
-          auto targetFuncType = call->getFunctionType();
-          if (targetFuncType->isVarArg()) {
-            // TODO: Remove this limitation
-            //       This is a restriction of the backend, I think.
-            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
-          }
-          if (auto func = call->getCalledFunction(); func != nullptr) {
-            if (func->getName().startswith("alaska.")) continue;
-            if (func->getName().startswith("__alaska")) continue;
-          }
-          // access the call so it exists.
-          liveTranslations[call];
-          for (auto &tr : translations) {
-            if (tr->isLive(call)) {
-              liveTranslations[call].insert(tr.get());
-            }
-          }
-        }
-      }
-    }
-
-    IRBuilder<> atEntry(F.front().getFirstNonPHI());
-
-
-    std::vector<Type *> EltTys;
-    auto pointerType = llvm::PointerType::get(M.getContext(), 0);
-    // auto i64Ty = IntegerType::get(M.getContext(), 64);
-    auto stackEntryTy = StructType::create(M.getContext(), "alaska_pin_set_entry");
-    EltTys.clear();
-    EltTys.push_back(pointerType);  // ptr
-    stackEntryTy->setBody(EltTys);
-    auto a = atEntry.CreateAlloca(stackEntryTy, nullptr, "localPinSet");
-
-
-    for (auto &[call, translations] : liveTranslations) {
-      IRBuilder<> b(call);
-      std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
-      std::vector<llvm::Value *> gcArgs;
-      gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), 42));
-      gcArgs.push_back(a);
-      // for (auto *tr : translations) {
-      //   gcArgs.push_back(tr->getHandle());
       // }
+
       Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
-      alaska::println(translations.size(), "\t", *call);
 
       auto called = call->getCalledOperand();
       int patch_size = 0;
@@ -305,14 +196,16 @@ PreservedAnalyses LockInsertionPass::run(Module &M, ModuleAnalysisManager &AM) {
       if (auto func = call->getCalledFunction()) {
         if (func->getName() == "alaska_barrier_poll") {
           id = 'PATC';
-          patch_size = 8;
+          patch_size = 5;  // TODO: handle ARM
+          alaska::println("patch: ", *call);
+        } else {
+          alaska::println("no patch: ", *call);
         }
       }
 
       // Value * > GCArgs, const Twine &Name="")
       auto token = b.CreateGCStatepointCall(id, patch_size,
-          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {},
-          "statepoint");
+          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {}, "");
       auto result = b.CreateGCResult(token, call->getType());
       call->replaceAllUsesWith(result);
       call->eraseFromParent();

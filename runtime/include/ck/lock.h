@@ -19,6 +19,9 @@ namespace ck {
     ~mutex(void) {
       pthread_mutex_destroy(&m_mutex);
     }
+    int try_lock(void) {
+      return pthread_mutex_trylock(&m_mutex);
+    }
 
     void lock(void) {
       pthread_mutex_lock(&m_mutex);

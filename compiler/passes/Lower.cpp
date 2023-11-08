@@ -31,7 +31,6 @@ std::vector<llvm::CallBase *> collectCalls(llvm::Module &M, const char *name) {
     }
   }
 
-
   return calls;
 }
 

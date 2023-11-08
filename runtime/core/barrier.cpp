@@ -55,23 +55,43 @@ struct StackMapping {
 };
 
 
-// #define INSTRUCTION_BARRIER ((uint64_t)0x7ffff00025048b48ULL)  // mov rax, QWORD PTR ds:0x7ffff000
-#define INSTRUCTION_BARRIER ((uint64_t)0x0b0fULL)  // mov rax, QWORD PTR ds:0x7ffff000
-#define INSTRUCTION_NOP ((uint64_t)0x0000020000841f0fULL)      // nopl   0x200(%rax,%rax,1)
-
+// #define INSTRUCTION_BARRIER ((uint64_t)0x7ffff00025048b48ULL)  // mov rax, QWORD PTR
+// ds:0x7ffff000
+#define INSTRUCTION_BARRIER ((uint64_t)0x0b0fULL)          // mov rax, QWORD PTR ds:0x7ffff000
+#define INSTRUCTION_NOP ((uint64_t)0x0000020000841f0fULL)  // nopl   0x200(%rax,%rax,1)
+#define PATCH_SIZE 5
+static void* alaska_signal_function = NULL;
 static ck::map<uintptr_t, ck::vec<StackMapping>> stack_maps;
-static ck::vec<void*> patchPoints;
 
 
-template <typename T>
-static void patch(T inst) {
-  // return;
-  for (auto& patch_addr : patchPoints) {
-    auto* dst = (T*)patch_addr;
-    __atomic_store_n(dst, inst, __ATOMIC_RELEASE);
+
+// TODO: ARM
+using inst_t = uint64_t;
+
+struct PatchPoint {
+  inst_t* pc;
+  inst_t inst_nop;
+  inst_t inst_call;
+};
+static ck::vec<PatchPoint> patchPoints;
+
+
+static void patchCall() {
+  // TODO: ARM
+  // X86:
+  for (auto& p : patchPoints) {
+    __atomic_store_n(p.pc, p.inst_call, __ATOMIC_RELEASE);
   }
 }
 
+
+static void patchNop(void) {
+  // TODO: ARM
+  // X86:
+  for (auto& p : patchPoints) {
+    __atomic_store_n(p.pc, p.inst_nop, __ATOMIC_RELEASE);
+  }
+}
 
 // The definition for thread-local root chains
 alaska::LockFrame alaska_lock_chain_base = {NULL, NULL, 0};
@@ -171,15 +191,54 @@ static bool might_be_handle(void* possible_handle) {
 void alaska::barrier::get_locked(ck::set<void*>& out) {
   unw_cursor_t cursor;
   unw_context_t uc;
-  unw_word_t ip, sp, reg;
+  unw_word_t pc, sp, reg;
 
   unw_getcontext(&uc);
   unw_init_local(&cursor, &uc);
-  while (unw_step(&cursor) > 0) {
-    unw_get_reg(&cursor, UNW_REG_IP, &ip);
+  while (1) {
+    int res = unw_step(&cursor);
+    if (res == 0) {
+      break;
+    }
+    // if (res == 0) {
+    //   break;
+    // } else if (res < 0) {
+    //   switch (-res) {
+    //     case UNW_EUNSPEC:
+    //       printf("Unspec\n");
+    //       break;
+    //     case UNW_ENOINFO:
+    //       printf(
+    //           "Libunwind was unable to locate the unwind-info needed to complete the
+    //           operation.\n");
+    //       break;
+    //     case UNW_EBADVERSION:
+    //       printf(
+    //           "The unwind-info needed to complete the operation has a version or a format that is
+    //           " "not understood by libunwind.\n");
+    //       break;
+    //     case UNW_EINVALIDIP:
+    //       printf(
+    //           "The instruction-pointer of the next stack frame is invalid (e.g., not properly "
+    //           "aligned).\n");
+    //       break;
+    //     case UNW_EBADFRAME:
+    //       printf("The next stack frame is invalid.\n");
+    //       break;
+    //     case UNW_ESTOPUNWIND:
+    //       printf("Returned if a call to find_proc_info() returned -UNW_ESTOPUNWIND.\n");
+    //       break;
+    //     default:
+    //       printf("Unknown error %d\n", -res);
+    //   }
+    //   break;
+    // } else {
+    //   printf("%d   ", res);
+    // }
+    unw_get_reg(&cursor, UNW_REG_IP, &pc);
     unw_get_reg(&cursor, UNW_REG_SP, &sp);
-
-    auto it = pin_map.find(ip);
+    // printf("pc:%016lx sp:%016lx ", pc, sp);
+    auto it = pin_map.find(pc);
     if (it != pin_map.end()) {
       auto& psi = it->value;
       unw_get_reg(&cursor, psi.regNum, &reg);
@@ -188,58 +247,22 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
       void** localSet = (void**)(reg + psi.offset);
 
 
-      printf("%p %d (%p) |", ip, psi.count, localSet);
-
+      // printf("%p %d (%p) |", pc, psi.count, localSet);
       for (uint32_t i = 0; i < psi.count; i++) {
-        printf(" %016llx", localSet[i]);
-        out.add(localSet[i]);
+        if (might_be_handle(localSet[i])) {
+          out.add(localSet[i]);
+          // printf(" %016llx", localSet[i]);
+        }
       }
-
-      printf("\n");
-
-      // for (auto& m : mappings.value) {
-      //   if (m.direct) {
-      //     unw_get_reg(&cursor, m.regNum, &reg);
-      //     void* loc = (void*)(reg + m.offset);
-      //     out.add(loc);
-      //     assert(out.contains(loc));
-      //   } else {
-      //     unw_get_reg(&cursor, m.regNum, &reg);
-      //     void* loc = *(void**)(reg + m.offset);
-      //     out.add(loc);
-      //     assert(out.contains(loc));
-      //   }
-      // }
     }
-
-    // auto it = stack_maps.find(ip);
-    // if (it != stack_maps.end()) {
-    //   auto& mappings = *it;
-    //
-    //   for (auto& m : mappings.value) {
-    //     if (m.direct) {
-    //       unw_get_reg(&cursor, m.regNum, &reg);
-    //       void* loc = (void*)(reg + m.offset);
-    //       out.add(loc);
-    //       assert(out.contains(loc));
-    //     } else {
-    //       unw_get_reg(&cursor, m.regNum, &reg);
-    //       void* loc = *(void**)(reg + m.offset);
-    //       out.add(loc);
-    //       assert(out.contains(loc));
-    //     }
-    //   }
-    // }
+    // printf("\n");
   }
 }
 
 static void alaska_barrier_join(bool leader, const ck::set<void*>& ps) {
-  // if (!leader) {
   for (auto* p : ps) {
     record_handle(p, true);
   }
-  // }
-
   // Wait on the barrier so everyone's state has been commited.
   if (num_threads > 1) {
     pthread_barrier_wait(&the_barrier);
@@ -277,21 +300,13 @@ void alaska::barrier::begin(void) {
     barrier_last_num_threads = num_threads;
   }
 
-  printf("Threads: %d\n", num_threads);
-
+  alaska_dump_thread_states();
 
   alaska::barrier::block_access_to_safepoint_page();
-  patch(INSTRUCTION_BARRIER);
-  // send signals to every other thread.
-  // struct alaska_thread_info* pos;
-  // list_for_each_entry(pos, &all_threads, list_head) {
-  //   if (pos->thread != pthread_self()) {
-  //     pthread_kill(pos->thread, SIGUSR2);
-  //   }
-  // }
-  //
+  patchCall();
+
   ck::set<void*> locked;
-  alaska::barrier::get_locked(locked);  // TODO: slow!
+  // alaska::barrier::get_locked(locked);  // TODO: slow!
   alaska_barrier_join(true, locked);
 }
 
@@ -299,10 +314,11 @@ void alaska::barrier::begin(void) {
 
 
 void alaska::barrier::end(void) {
-  patch(INSTRUCTION_NOP);
+  patchNop();
+  // patch(INSTRUCTION_NOP);
   alaska::barrier::allow_access_to_safepoint_page();
   ck::set<void*> locked;
-  alaska::barrier::get_locked(locked);  // TODO: slow!
+  // alaska::barrier::get_locked(locked);  // TODO: slow!
   // Join the barrier to signal everyone we are done.
   alaska_barrier_leave(true, locked);
   // Unlock all the locks we took.
@@ -323,70 +339,18 @@ void alaska_barrier(void) {
 
 
 
+extern "C" void alaska_barrier_signal_join(void) {
+  ck::set<void*> ps;
+  alaska_dump_backtrace();
+  alaska::barrier::get_locked(ps);  // TODO: slow!
+  alaska_barrier_join(false, ps);
+  alaska_barrier_leave(false, ps);
+}
+
 
 static void barrier_signal_handler(int sig) {
   ck::set<void*> ps;
   alaska::barrier::get_locked(ps);  // TODO: slow!
-#if 0
-  // printf("\n\n\n");
-  // unw_context_t context;
-  // unw_cursor_t cursor;
-  // unw_getcontext(&context);
-  // unw_init_local(&cursor, &context);
-  // unw_word_t pc, sp;
-  // do {
-  //   unw_get_reg(&cursor, UNW_REG_IP, &pc);
-  //   unw_get_reg(&cursor, UNW_REG_SP, &sp);
-  //   printf("pc=0x%p sp=0x%016zx", (size_t)pc, (size_t)sp);
-  //   Dl_info info = {};
-  //   if (dladdr((void*)pc, &info))
-  //     printf(" %s:%s", info.dli_fname, info.dli_sname ? info.dli_sname : "");
-  //   puts("");
-  //
-  //   auto it = stack_maps.find(pc);
-  //
-  //   if (it != stack_maps.end()) {
-  //     auto& mappings = *it;
-  //     for (auto& m : mappings.value) {
-  //       printf("   %d %d\n", m.regNum, m.offset);
-  //     }
-  //   }
-  // } while (unw_step(&cursor) > 0);
-
-
-
-
-  ck::set<void*> pss;
-  for (auto p : ps) {
-    // printf("pinned %p\n", p);
-    pss.add(p);
-  }
-
-  printf("===== Checking =====\n");
-  bool valid = true;
-  alaska::LockFrame* cur = alaska_lock_root_chain;
-  while (cur != NULL) {
-    printf("cur = %p, f = %p\n", cur, cur->func);
-    for (uint64_t i = 0; i < cur->count; i++) {
-      void* p = cur->locked[i];
-      if (p == NULL) continue;
-      if (!pss.contains(p)) {
-        printf("%p not in set!\n", p);
-        valid = false;
-      } else {
-        printf("%p in set!\n", p);
-      }
-    }
-    cur = cur->prev;
-  }
-  if (!valid) {
-    printf("\e[31m============================\e[0m\n");
-    printf("Not valid! Aborting\n");
-    abort();
-  }
-
-  printf("\n\n");
-#endif
 
   // Simply join the barrier, then leave immediately. This
   // will deal with all the synchronization that needs done.
@@ -396,36 +360,19 @@ static void barrier_signal_handler(int sig) {
 }
 
 
-
-
 void alaska::barrier::add_self_thread(void) {
   auto self = pthread_self();
-  // Setup a signal handler for SIGUSR2 for remote
-  // barrier calls. We basically just hope that the
-  // app doesn't need this signal, as we are SOL if
-  // they do!
+  pthread_mutex_lock(&all_threads_lock);
+  num_threads++;
+
+
   struct sigaction act;
   memset(&act, 0, sizeof(act));
   act.sa_handler = barrier_signal_handler;
-
-
-  // signal(SIGUSR2, barrier_signal_handler);
-  // if (sigaction(SIGUSR2, &act, NULL) != 0) {
-  //   perror("Failed to add sigaction to new thread.\n");
-  //   exit(EXIT_FAILURE);
-  // }
-
-  // if (sigaction(SIGSEGV, &act, NULL) != 0) {
-  //   perror("Failed to add sigaction to new thread.\n");
-  //   exit(EXIT_FAILURE);
-  // }
   if (sigaction(SIGILL, &act, NULL) != 0) {
     perror("Failed to add sigaction to new thread.\n");
     exit(EXIT_FAILURE);
   }
-
-  pthread_mutex_lock(&all_threads_lock);
-  num_threads++;
 
   auto* tinfo = (alaska_thread_info*)calloc(1, sizeof(alaska_thread_info));
   tinfo->thread = self;
@@ -569,7 +516,7 @@ const char* regname(int r) {
  * This function parses a stackmap emitted from LLVM and pushes all
  * the patch points to
  */
-void readStackMap(uint8_t* t) {
+void readStackMap(uint8_t* t, void* signalFunc) {
   // return;
   alaska::StackMapParser p(t);
 
@@ -590,13 +537,51 @@ void readStackMap(uint8_t* t) {
 
     if (record.getID() == 'PATC') {
       // Apply the instruction patch
-      auto* patch_addr = (void*)(addr - sizeof(INSTRUCTION_BARRIER));
-      auto patch_page = (void*)((uintptr_t)patch_addr & ~0xFFF);
+      auto* rip = (void*)(addr - PATCH_SIZE);
+      auto patch_page = (void*)((uintptr_t)rip & ~0xFFF);
       mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
-      patchPoints.push(patch_addr);
+
+
+      // Byte pointer to the instruction.
+      uint8_t* ripB = (uint8_t*)rip;
+
+      PatchPoint p;
+
+      p.pc = (inst_t*)rip;
+      // TODO: ARM
+
+      {
+        // uint8_t inst[8] = {0xe8, 0, 0, 0, 0, 1, 1, 1};
+        // uint8_t inst[8] = {0xcc, 0, 0, 0, 0, 1, 1, 1};
+        uint8_t inst[8] = {0x0F, 0xFF, 0, 0, 0, 1, 1, 1};
+
+        // Compute the address after the call inst.
+        // uint64_t after = (uint64_t)rip + PATCH_SIZE;
+        // uint32_t dstRel = (uint64_t)signalFunc - after;
+        // *(uint32_t*)(inst + 1) = dstRel;
+
+        // inst[5] = ripB[5];
+        // inst[6] = ripB[6];
+        // inst[7] = ripB[7];
+        p.inst_call = *(uint64_t*)inst;
+      }
+
+      {
+        uint8_t inst[8] = {0x0f, 0x1f, 0x44, 0x00, 0x08, 1, 1, 1};
+        uint8_t* ripB = (uint8_t*)rip;
+
+        inst[5] = ripB[5];
+        inst[6] = ripB[6];
+        inst[7] = ripB[7];
+
+        p.inst_nop = *(uint64_t*)inst;
+      }
+
+
+      patchPoints.push(p);
     }
     if (record.getID() == 'PATC') {
-      addr -= sizeof(INSTRUCTION_BARRIER);
+      addr -= PATCH_SIZE;
     }
 
     PinSetInfo psi;
@@ -604,36 +589,36 @@ void readStackMap(uint8_t* t) {
     ck::vec<StackMapping> mappings;
     for (std::uint16_t i = 3; i < record.getNumLocations(); i++) {
       auto l = record.getLocation(i);
-      printf("a:%p id:%p ", addr, record.getID());
+      // printf("a:%p id:%p ", addr, record.getID());
 
       void* array[1];
       array[0] = (void*)addr;
       char** names = backtrace_symbols(array, 1);
-      printf("(%s) + %-5d ", names[0], record.getInstructionOffset());
+      // printf("(%s) + %-5d ", names[0], record.getInstructionOffset());
       free(names);
       switch (l.getKind()) {
         case alaska::StackMapParser::LocationKind::Indirect:
           mappings.push({false, l.getDwarfRegNum(), l.getOffset(), record.getID()});
-          printf("Indirect %s + %d %d\n", regname(l.getDwarfRegNum()), l.getOffset(),
-              l.getSizeInBytes());
+          // printf("Indirect %s + %d %d\n", regname(l.getDwarfRegNum()), l.getOffset(),
+          //     l.getSizeInBytes());
           break;
 
         case alaska::StackMapParser::LocationKind::Register:
-          printf("Register %d\n", l.getDwarfRegNum());
+          // printf("Register %d\n", l.getDwarfRegNum());
           break;
         case alaska::StackMapParser::LocationKind::Direct:
           mappings.push({true, l.getDwarfRegNum(), l.getOffset(), record.getID()});
           psi.regNum = l.getDwarfRegNum();
           psi.offset = l.getOffset();
-          printf("Direct %s + %d\n", regname(l.getDwarfRegNum()), l.getOffset());
+          // printf("Direct %s + %d\n", regname(l.getDwarfRegNum()), l.getOffset());
           break;
 
         case alaska::StackMapParser::LocationKind::Constant:
           psi.count = l.getSmallConstant();
-          printf("Constant %d\n", l.getSmallConstant());
+          // printf("Constant %d\n", l.getSmallConstant());
           break;
         case alaska::StackMapParser::LocationKind::ConstantIndex:
-          printf("<Constant Index>\n");
+          // printf("<Constant Index>\n");
           break;
       }
     }
@@ -642,35 +627,21 @@ void readStackMap(uint8_t* t) {
 
     stack_maps[addr] = move(mappings);
 
-    printf("\n");
+    // printf("\n");
   }
 
-  // exit(-1);
-
-
-  auto start = alaska_timestamp();
-  patch(INSTRUCTION_NOP);
-  auto end = alaska_timestamp();
+  patchNop();
 
 
 
-  // printf("\n\n\n");
-  // for (auto& [addr, mappings] : stack_maps) {
-  //   for (auto m : mappings) {
-  //     if (m.id == 'PATC') {
-  //       printf("%p %d %d\n", addr, m.regNum, m.offset);
-  //     }
-  //   }
-  // }
-
-  printf("patching %ld points took %lu\n", patchPoints.size(), (end - start) / 1000);
+  alaska_signal_function = signalFunc;
 }
 
 
-extern "C" void alaska_register_stack_map(void* map) {
+extern "C" void alaska_register_stack_map(void* map, void* signalFunc) {
   if (map) {
     printf("Register stack map %p\n", map);
-    readStackMap((uint8_t*)map);
+    readStackMap((uint8_t*)map, signalFunc);
   }
 }
 
@@ -678,9 +649,7 @@ extern "C" void alaska_register_stack_map(void* map) {
 
 // This function doesn't really need to exist,
 extern "C" void alaska_barrier_poll(void) {
-  int x = *(volatile int*)ALASKA_SAFEPOINT_PAGE;
-  (void)x;
-  // alaska_show_backtrace();
-  // asm __volatile__(".byte 0x48, 0x85, 0x04, 0x25, 0x00, 0xf0, 0xff, 0x7f\n");
+  printf("yee\n");
+  abort();
   return;
 }

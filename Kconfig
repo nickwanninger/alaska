@@ -69,6 +69,11 @@ menu "Experimental"
 		bool "Track hit/miss rate for translations. Warning: VERY SLOW"
 		default n
 
+
+	config ARGUMENT_TRACE
+		bool "Dynamically trace if arguments to functions are handles or not and dump it to a trace file"
+		default n
+
 endmenu
 
 
