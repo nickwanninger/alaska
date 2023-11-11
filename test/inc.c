@@ -16,8 +16,10 @@ __attribute__((noinline)) static volatile int *inc(volatile int *x) {
 int main(int argc, char **argv) {
 
   printf("Hello!\n");
-  int a = 0;
-  inc(&a);
+  // int a = 0;
+  int *p = malloc(sizeof(*p));
+  inc(p);
+  printf("%p\n", p);
   // Histogram h;
   // histogram_clear(&h);
   //
@@ -27,10 +29,10 @@ int main(int argc, char **argv) {
   //   trials = atoi(argv[1]);
   // }
   //
-  // volatile int *ptr = (volatile int *)malloc(sizeof(int));
-  // *ptr = 0;
-  //
-  // inc(ptr);
+  volatile int *ptr = (volatile int *)malloc(sizeof(int));
+  *ptr = 0;
+
+  inc(ptr);
   //
   // for (int j = 0; j < trials; j++) {
   //   uint64_t start = alaska_timestamp();

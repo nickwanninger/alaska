@@ -37,13 +37,13 @@ void alaska::Translation::computeLiveness(llvm::DominatorTree &DT, llvm::PostDom
 
     for (auto &rel : releases) {
       if (!PDT.dominates(rel, &BB.front())) {
-				valid = false;
-				break;
-			}
+        valid = false;
+        break;
+      }
     }
 
-		if (!valid) continue;
-		liveBlocks.insert(&BB);
+    if (!valid) continue;
+    liveBlocks.insert(&BB);
   }
 }
 
@@ -68,31 +68,31 @@ bool alaska::Translation::isUser(llvm::Instruction *inst) {
 
 
 bool alaska::Translation::isLive(llvm::Instruction *inst) {
-	if (isLive(inst->getParent())) {
-		if (inst == translation) {
-			return true;
-		}
+  if (isLive(inst->getParent())) {
+    if (inst == translation) {
+      return true;
+    }
 
-		if (inst->getParent() == translation->getParent()) {
-			if (!translation->comesBefore(inst)) {
-				return false;
-			}
-		}
+    if (inst->getParent() == translation->getParent()) {
+      if (!translation->comesBefore(inst)) {
+        return false;
+      }
+    }
 
-		for (auto &rel : releases) {
-			if (inst == rel) return true;
-			if (inst->getParent() == rel->getParent()) {
-				return inst->comesBefore(rel);
-			}
-		}
-		return true;
-	}
-	return false;
+    for (auto &rel : releases) {
+      if (inst == rel) return true;
+      if (inst->getParent() == rel->getParent()) {
+        return inst->comesBefore(rel);
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 
 bool alaska::Translation::isLive(llvm::BasicBlock *bb) {
-	return liveBlocks.find(bb) != liveBlocks.end();
+  return liveBlocks.find(bb) != liveBlocks.end();
 }
 
 llvm::Value *alaska::Translation::getRootAllocation() {
@@ -191,10 +191,14 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
 
 bool alaska::shouldTranslate(llvm::Value *val) {
   if (!val->getType()->isPointerTy()) return false;
+  return true;
+
   if (dyn_cast<PoisonValue>(val)) return false;
   if (dyn_cast<GlobalValue>(val)) return false;
   if (dyn_cast<AllocaInst>(val)) return false;
   if (dyn_cast<ConstantPointerNull>(val)) return false;
+
+
   // if (auto arg = dyn_cast<Argument>(val)) {
   //   auto *func = arg->getParent();
   //   if (func) {
@@ -594,32 +598,52 @@ void alaska::insertHoistedTranslations(llvm::Function &F) {
 void alaska::insertConservativeTranslations(llvm::Function &F) {
   alaska::PointerFlowGraph G(F);
 
-  // Naively insert translate/release around loads and stores (the sinks in the graph provided)
-  auto nodes = G.get_nodes();
-  // Loop over all the nodes...
-  for (auto node : nodes) {
-    // only operate on sinks...
-    if (node->type != alaska::Sink) continue;
-    auto inst = dyn_cast<Instruction>(node->value);
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto *load = dyn_cast<LoadInst>(&I)) {
+        auto ptr = load->getPointerOperand();
+        auto t = insertTranslationBefore(&I, ptr);
+        load->setOperand(0, t);
+        alaska::insertReleaseBefore(I.getNextNode(), ptr);
+        continue;
+      }
 
-    auto dbg = inst->getDebugLoc();
-    // Insert the translate/release.
-    // We have to handle load and store seperately, as their operand ordering is different
-    // (annoyingly...)
-    if (auto *load = dyn_cast<LoadInst>(inst)) {
-      auto ptr = load->getPointerOperand();
-      auto t = insertTranslationBefore(inst, ptr);
-      load->setOperand(0, t);
-      alaska::insertReleaseBefore(inst->getNextNode(), ptr);
-      continue;
-    }
-
-    if (auto *store = dyn_cast<StoreInst>(inst)) {
-      auto ptr = store->getPointerOperand();
-      auto t = insertTranslationBefore(inst, ptr);
-      store->setOperand(1, t);
-      insertReleaseBefore(inst->getNextNode(), ptr);
-      continue;
+      if (auto *store = dyn_cast<StoreInst>(&I)) {
+        auto ptr = store->getPointerOperand();
+        auto t = insertTranslationBefore(&I, ptr);
+        store->setOperand(1, t);
+        insertReleaseBefore(I.getNextNode(), ptr);
+        continue;
+      }
     }
   }
+
+  // // Naively insert translate/release around loads and stores (the sinks in the graph provided)
+  // auto nodes = G.get_nodes();
+  // // Loop over all the nodes...
+  // for (auto node : nodes) {
+  //   // only operate on sinks...
+  //   if (node->type != alaska::Sink) continue;
+  //   auto inst = dyn_cast<Instruction>(node->value);
+
+  //   auto dbg = inst->getDebugLoc();
+  //   // Insert the translate/release.
+  //   // We have to handle load and store seperately, as their operand ordering is different
+  //   // (annoyingly...)
+  //   if (auto *load = dyn_cast<LoadInst>(inst)) {
+  //     auto ptr = load->getPointerOperand();
+  //     auto t = insertTranslationBefore(inst, ptr);
+  //     load->setOperand(0, t);
+  //     alaska::insertReleaseBefore(inst->getNextNode(), ptr);
+  //     continue;
+  //   }
+
+  //   if (auto *store = dyn_cast<StoreInst>(inst)) {
+  //     auto ptr = store->getPointerOperand();
+  //     auto t = insertTranslationBefore(inst, ptr);
+  //     store->setOperand(1, t);
+  //     insertReleaseBefore(inst->getNextNode(), ptr);
+  //     continue;
+  //   }
+  // }
 }

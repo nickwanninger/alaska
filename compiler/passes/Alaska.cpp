@@ -357,14 +357,14 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(ProgressPass("Link runtime"));
 
 #ifdef ALASKA_LOCK_TRACKING
-    MPM.addPass(adapt(PlaceSafepointsPass()));
-    MPM.addPass(ProgressPass("Safepoint Placement"));
-    MPM.addPass(LockInsertionPass());
-    MPM.addPass(ProgressPass("Lock Insertion"));
+    // MPM.addPass(adapt(PlaceSafepointsPass()));
+    // MPM.addPass(ProgressPass("Safepoint Placement"));
+    // MPM.addPass(PinTrackingPass());
+    // MPM.addPass(ProgressPass("Lock Insertion"));
 #endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
-    MPM.addPass(LockPrinterPass());
+    MPM.addPass(TranslationPrinterPass());
     MPM.addPass(ProgressPass("Lock Printing"));
 #endif
 

@@ -47,7 +47,8 @@ llvm::Function *versionFunction(llvm::Function &F, std::set<llvm::Argument *> ha
   auto *new_func_type = FunctionType::get(return_type, param_types, is_var_arg);
 
   // Create an empty function to clone into.
-  auto *new_function = Function::Create(new_func_type, F.getLinkage(), F.getName() + ".alaska", module);
+  auto *new_function =
+      Function::Create(new_func_type, F.getLinkage(), F.getName() + ".alaska", module);
 
   // Map the arguments.
   ValueToValueMapTy vmap;
@@ -77,9 +78,7 @@ llvm::Function *versionFunction(llvm::Function &F, std::set<llvm::Argument *> ha
   return new_function;
 }
 
-llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
-    Module &M, ModuleAnalysisManager &AM) {
-
+llvm::PreservedAnalyses RedundantArgumentPinElisionPass::run(Module &M, ModuleAnalysisManager &AM) {
   return PreservedAnalyses::all();
   // Which arguments does each function lock internally? (Array of true and false for each index of
   // the args)
@@ -113,7 +112,7 @@ llvm::PreservedAnalyses RedundantArgumentLockElisionPass::run(
   // Version the function.
   std::map<llvm::Function *, std::vector<llvm::Argument *>> versioned_arguments;
   for (auto &[func, locked] : locked_arguments) {
-		continue;
+    continue;
     // Get the handle arguments.
     std::set<llvm::Argument *> handle_arguments;
     for (unsigned i = 0; i < locked.size(); i++) {

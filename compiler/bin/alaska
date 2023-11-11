@@ -82,7 +82,7 @@ do
     esac
 done
 
-COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize")
+COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize -fno-discard-value-names")
 COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
 COLLECT_CLANG_ARGS+=("$OPT ")
 

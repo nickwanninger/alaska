@@ -26,7 +26,7 @@ namespace alaska {
     // The location to call alaska_translation
     llvm::Instruction *translateBefore;
     // The locations to alaska_release
-    std::set<llvm::Instruction *> releaseAfter;
+    std::set<llvm::Instruction *> releaseBefore;
   };
 
   struct TranslationForest {

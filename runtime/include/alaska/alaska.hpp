@@ -41,9 +41,9 @@ namespace alaska {
     union {
       void *ptr;  // Raw pointer memory
       struct {
-        uint64_t misc : 62; // Some kind of extra info (usually just a pointer)
-        unsigned invl : 1;  // This is not a handle
-        unsigned swap : 1;  // This handle is swapped
+        uint64_t misc : 62;  // Some kind of extra info (usually just a pointer)
+        unsigned invl : 1;   // This is not a handle
+        unsigned swap : 1;   // This handle is swapped
       } alt __attribute__((packed));
     };
 
@@ -88,32 +88,17 @@ namespace alaska {
     }
   };
 
-
-  /**
-   * LockFrame - inserted by the LockInsertion pass in the compiler, this
-   * structure is allocated and maintained on each thread managed by alaska.
-   * Internally, it contains a all of the actively translated handles in a
-   * function. The handles referenced in these LockFrames cannot be moved
-   * currently, but could in the future :)
-   */
-  struct LockFrame {
-    alaska::LockFrame *prev;
-    void *func;
-    uint64_t count;
-    void *locked[];
-  };
-
   // runtime.cpp
   extern void record_translation_info(bool hit);
 }  // namespace alaska
 
 
 // In barrier.c
-extern "C" __thread alaska::LockFrame *alaska_lock_root_chain;
 
 extern "C" {
 // src/lock.c
 void *alaska_encode(alaska::Mapping *m, off_t offset);
+void *alaska_translate_escape(void *ptr);
 void *alaska_translate(void *ptr);
 void alaska_release(void *ptr);
 

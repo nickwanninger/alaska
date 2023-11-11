@@ -130,11 +130,11 @@ static llvm::Instruction *compute_translation_insertion_location(
   llvm::Instruction *effectivePointerInstruction = NULL;
 
 
-	if (auto invokeInst = dyn_cast<llvm::InvokeInst>(pointerToTranslate)) {
-		effectivePointerInstruction = invokeInst->getNormalDest()->getFirstNonPHIOrDbg();
-	} else if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
+  if (auto invokeInst = dyn_cast<llvm::InvokeInst>(pointerToTranslate)) {
+    effectivePointerInstruction = invokeInst->getNormalDest()->getFirstNonPHIOrDbg();
+  } else if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
     effectivePointerInstruction = pointerToTranslateInst;
-	} else if (auto arg = dyn_cast<llvm::Argument>(pointerToTranslate)) {
+  } else if (auto arg = dyn_cast<llvm::Argument>(pointerToTranslate)) {
     auto *func = arg->getParent();
     auto &in_bb = func->getEntryBlock();
     return in_bb.getFirstNonPHI();
@@ -177,7 +177,7 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
   double start = alaska::time_ms();
-	(void)start;
+  (void)start;
   alaska::PointerFlowGraph G(func);
 
   // Compute the {,post}dominator trees and get loops
@@ -423,7 +423,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
         // if the value is not in the OUT, translate after this instruction
         if (!iOUT.test(trbounds->id)) {
-          trbounds->releaseAfter.insert(I.getNextNode());
+          trbounds->releaseBefore.insert(I.getNextNode());
           continue;
         }
 
@@ -452,21 +452,15 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
     }
   }
 
-  // printf("insert release location %lf\n", alaska::time_ms() - start);
-  // start = alaska::time_ms();
-
   for (auto &[edge, bounds] : releaseTrampolines) {
     auto from = edge.first;
     auto to = edge.second;
     auto trampoline = llvm::SplitEdge(from, to);
 
     for (auto b : bounds) {
-      b->releaseAfter.insert(trampoline->getTerminator());
+      b->releaseBefore.insert(trampoline->getTerminator());
     }
   }
-
-  // printf("insert releases %lf\n", alaska::time_ms() - start);
-  // start = alaska::time_ms();
 
   std::vector<std::unique_ptr<alaska::Translation>> out;
 
@@ -474,11 +468,11 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   for (auto &[lid, tr] : translations) {
     auto l = std::make_unique<alaska::Translation>();
     l->translation = dyn_cast<CallInst>(tr->translated);
-    for (auto *position : tr->releaseAfter) {
-			if (position == NULL) {
-				alaska::println("[WARNING] position was null!");
-				continue;
-			}
+    for (auto *position : tr->releaseBefore) {
+      if (position == NULL) {
+        alaska::println("[WARNING] position was nulld in ", func.getName());
+        continue;
+      }
       if (auto phi = dyn_cast<PHINode>(position)) {
         position = phi->getParent()->getFirstNonPHI();
       }

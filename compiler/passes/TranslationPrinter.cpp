@@ -4,7 +4,7 @@
 
 using namespace llvm;
 
-PreservedAnalyses LockPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses TranslationPrinterPass::run(Module &M, ModuleAnalysisManager &AM) {
   std::set<std::string> focus_on;
   std::string focus;
 

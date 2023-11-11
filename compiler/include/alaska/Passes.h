@@ -24,38 +24,31 @@ class AlaskaTranslatePass : public llvm::PassInfoMixin<AlaskaTranslatePass> {
 
 
 /**
- * LockInsertionPass - Insert lock roots on the stack so the runtime knows where
+ * PinTrackingPass - Insert pin roots on the stack so the runtime knows where
  * all active handles are. In a runtime that is able to move handles, it must be
  * aware of all the handles that *cannot* be moved as they are currently in use.
- *
- * The way this is done is via a standard method seen in almost every garbage
- * collected system. Effectively, the compiler inserts an allocation on each
- * call stack frame that uses handles. This allocations is simply a node in a
- * 'shadow stack' with a well defined structure that contains each handle that
- * is currently in use. When a translation is performed, this pass will track
- * that handle in the 'shadow stack'.
  *
  * This allows each thread to track their active handles *privately* without
  * communicating with other threads until they need to.
  */
-class LockInsertionPass : public llvm::PassInfoMixin<LockInsertionPass> {
+class PinTrackingPass : public llvm::PassInfoMixin<PinTrackingPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
 
 /**
- * LockPrinterPass - A pass which extracts translation information of each
+ * TranslationPrinterPass - A pass which extracts translation information of each
  * function and prints them to stdout in a .dot format.
  */
-class LockPrinterPass : public llvm::PassInfoMixin<LockPrinterPass> {
+class TranslationPrinterPass : public llvm::PassInfoMixin<TranslationPrinterPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
 
-class RedundantArgumentLockElisionPass
-    : public llvm::PassInfoMixin<RedundantArgumentLockElisionPass> {
+class RedundantArgumentPinElisionPass
+    : public llvm::PassInfoMixin<RedundantArgumentPinElisionPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };

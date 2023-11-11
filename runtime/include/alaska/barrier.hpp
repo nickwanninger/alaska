@@ -14,6 +14,7 @@
 
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
+#include <ck/func.h>
 #include <pthread.h>
 
 namespace alaska {
@@ -23,19 +24,21 @@ namespace alaska {
     void add_self_thread(void);
     void remove_self_thread(void);
 
-    // Barrier operational lifetime.
+    // Barrier operational lifetime. It is not recommended to use this interface, and
+    // instead use `with_barrier` interface below:
     void begin();
     void end();
+
+    // struct BarrierInfo {};
+    // bool with_barrier(ck::func<void(BarrierInfo &)> &&cb);
 
     // Initialization and deinitialization
     void init();
     void deinit();
 
-		void initialize_safepoint_page();
-		void block_access_to_safepoint_page();
-		void allow_access_to_safepoint_page();
 
-    void get_locked(ck::set<void*> &out);
+
+    void get_locked(ck::set<void *> &out);
 
   }  // namespace barrier
 }  // namespace alaska

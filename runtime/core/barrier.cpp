@@ -45,8 +45,6 @@ struct PinSetInfo {
 static ck::map<uintptr_t, PinSetInfo> pin_map;
 
 
-
-
 struct StackMapping {
   bool direct;
   uint32_t regNum;
@@ -55,14 +53,9 @@ struct StackMapping {
 };
 
 
-// #define INSTRUCTION_BARRIER ((uint64_t)0x7ffff00025048b48ULL)  // mov rax, QWORD PTR
-// ds:0x7ffff000
-#define INSTRUCTION_BARRIER ((uint64_t)0x0b0fULL)          // mov rax, QWORD PTR ds:0x7ffff000
-#define INSTRUCTION_NOP ((uint64_t)0x0000020000841f0fULL)  // nopl   0x200(%rax,%rax,1)
 #define PATCH_SIZE 5
 static void* alaska_signal_function = NULL;
 static ck::map<uintptr_t, ck::vec<StackMapping>> stack_maps;
-
 
 
 // TODO: ARM
@@ -76,7 +69,7 @@ struct PatchPoint {
 static ck::vec<PatchPoint> patchPoints;
 
 
-static void patchCall() {
+static void patchSignal() {
   // TODO: ARM
   // X86:
   for (auto& p : patchPoints) {
@@ -94,8 +87,6 @@ static void patchNop(void) {
 }
 
 // The definition for thread-local root chains
-alaska::LockFrame alaska_lock_chain_base = {NULL, NULL, 0};
-extern "C" __thread alaska::LockFrame* alaska_lock_root_chain = &alaska_lock_chain_base;
 __thread alaska_thread_state_t alaska_thread_state;
 
 extern uint64_t alaska_next_usage_timestamp;
@@ -120,20 +111,6 @@ static long barrier_last_num_threads = 0;
 
 void alaska_remove_from_local_lock_list(void* ptr) {
   return;
-#ifdef ALASKA_LOCK_TRACKING
-  alaska::LockFrame* cur;
-
-  cur = alaska_lock_root_chain;
-  while (cur != NULL) {
-    for (uint64_t i = 0; i < cur->count; i++) {
-      if (cur->locked[i] == ptr) {
-        cur->locked[i] = NULL;
-        return;
-      }
-    }
-    cur = cur->prev;
-  }
-#endif
 }
 
 
@@ -147,22 +124,6 @@ void alaska_dump_thread_states(void) {
 }
 
 
-int alaska_verify_is_locally_locked(void* ptr) {
-  if (!IS_ENABLED(ALASKA_LOCK_TRACKING)) return 1;
-  alaska::LockFrame* cur;
-
-  cur = alaska_lock_root_chain;
-  while (cur != NULL) {
-    for (uint64_t i = 0; i < cur->count; i++) {
-      if (cur->locked[i] == ptr) return 1;
-    }
-    cur = cur->prev;
-  }
-
-  return 0;
-}
-
-
 
 
 static void record_handle(void* possible_handle, bool marked) {
@@ -171,7 +132,7 @@ static void record_handle(void* possible_handle, bool marked) {
   // It wasn't a handle, don't consider it.
   if (m == NULL) return;
 
-  // Was it well formed (allocated?)
+  // Was it well formed? Is it in the table?
   if (m < alaska::table::begin() || m >= alaska::table::end()) {
     return;
   }
@@ -200,41 +161,10 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
     if (res == 0) {
       break;
     }
-    // if (res == 0) {
-    //   break;
-    // } else if (res < 0) {
-    //   switch (-res) {
-    //     case UNW_EUNSPEC:
-    //       printf("Unspec\n");
-    //       break;
-    //     case UNW_ENOINFO:
-    //       printf(
-    //           "Libunwind was unable to locate the unwind-info needed to complete the
-    //           operation.\n");
-    //       break;
-    //     case UNW_EBADVERSION:
-    //       printf(
-    //           "The unwind-info needed to complete the operation has a version or a format that is
-    //           " "not understood by libunwind.\n");
-    //       break;
-    //     case UNW_EINVALIDIP:
-    //       printf(
-    //           "The instruction-pointer of the next stack frame is invalid (e.g., not properly "
-    //           "aligned).\n");
-    //       break;
-    //     case UNW_EBADFRAME:
-    //       printf("The next stack frame is invalid.\n");
-    //       break;
-    //     case UNW_ESTOPUNWIND:
-    //       printf("Returned if a call to find_proc_info() returned -UNW_ESTOPUNWIND.\n");
-    //       break;
-    //     default:
-    //       printf("Unknown error %d\n", -res);
-    //   }
-    //   break;
-    // } else {
-    //   printf("%d   ", res);
-    // }
+    if (res < 0) {
+      printf("unknown libunwind error! %d\n", res);
+      abort();
+    }
     unw_get_reg(&cursor, UNW_REG_IP, &pc);
     unw_get_reg(&cursor, UNW_REG_SP, &sp);
     // printf("pc:%016lx sp:%016lx ", pc, sp);
@@ -245,7 +175,6 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
 
 
       void** localSet = (void**)(reg + psi.offset);
-
 
       // printf("%p %d (%p) |", pc, psi.count, localSet);
       for (uint32_t i = 0; i < psi.count; i++) {
@@ -285,8 +214,6 @@ static void alaska_barrier_leave(bool leader, const ck::set<void*>& ps) {
 }
 
 
-
-
 void alaska::barrier::begin(void) {
   // As the leader, signal everyone to begin the barrier
   pthread_mutex_lock(&barrier_lock);
@@ -302,11 +229,10 @@ void alaska::barrier::begin(void) {
 
   alaska_dump_thread_states();
 
-  alaska::barrier::block_access_to_safepoint_page();
-  patchCall();
+  patchSignal();
 
   ck::set<void*> locked;
-  // alaska::barrier::get_locked(locked);  // TODO: slow!
+  alaska::barrier::get_locked(locked);  // TODO: slow!
   alaska_barrier_join(true, locked);
 }
 
@@ -315,10 +241,8 @@ void alaska::barrier::begin(void) {
 
 void alaska::barrier::end(void) {
   patchNop();
-  // patch(INSTRUCTION_NOP);
-  alaska::barrier::allow_access_to_safepoint_page();
   ck::set<void*> locked;
-  // alaska::barrier::get_locked(locked);  // TODO: slow!
+  alaska::barrier::get_locked(locked);  // TODO: slow!
   // Join the barrier to signal everyone we are done.
   alaska_barrier_leave(true, locked);
   // Unlock all the locks we took.
@@ -409,22 +333,6 @@ void alaska::barrier::remove_self_thread(void) {
   list_del(&pos->list_head);
   pthread_mutex_unlock(&all_threads_lock);
 }
-
-
-void alaska::barrier::initialize_safepoint_page(void) {
-  auto res =
-      mmap(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  assert(res == ALASKA_SAFEPOINT_PAGE && "Failed to allocate safepoint page");
-}
-
-void alaska::barrier::block_access_to_safepoint_page() {
-  mprotect(ALASKA_SAFEPOINT_PAGE, 4096, PROT_NONE);
-}
-
-void alaska::barrier::allow_access_to_safepoint_page() {
-  mprotect(ALASKA_SAFEPOINT_PAGE, 4096, PROT_WRITE | PROT_READ);
-}
-
 
 
 

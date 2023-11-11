@@ -7,8 +7,7 @@
 #include <deque>
 
 
-struct NodeConstructionVisitor
-    : public llvm::InstVisitor<NodeConstructionVisitor> {
+struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
   alaska::FlowNode &node;
   NodeConstructionVisitor(alaska::FlowNode &node)
       : node(node) {
@@ -18,6 +17,7 @@ struct NodeConstructionVisitor
     auto &use = I.getOperandUse(0);
     node.add_in_edge(&use);
     node.type = alaska::Transient;
+    // node.type = alaska::Source;
   }
 
   void visitCastInst(llvm::CastInst &I) {
@@ -27,7 +27,6 @@ struct NodeConstructionVisitor
       node.type = alaska::Source;
       node.colors.insert(node.id);
     }
-    //
   }
 
   // void visitPHINode(llvm::PHINode &I) {

@@ -129,19 +129,28 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   // Lower alaska.translate
   if (auto func = M.getFunction("alaska.translate")) {
     auto translateFunc = M.getOrInsertFunction("alaska_translate", func->getFunctionType());
+    auto translateEscapeFunc =
+        M.getOrInsertFunction("alaska_translate_escape", func->getFunctionType());
     // auto translateFuncUnCond =
     //     M.getOrInsertFunction("alaska_translate_uncond", func->getFunctionType());
 
-    for (auto call : collectCalls(M, "alaska.translate")) {
+    for (auto *call : collectCalls(M, "alaska.translate")) {
       IRBuilder<> b(call);  // insert after the call
-      // auto f = call->getParent()->getParent();
-      // if (f->getName() == "cost_compare") {
-      //   alaska::println(*call);
-      //   call->setCalledFunction(translateFuncUnCond);
-      // } else {
-      call->setCalledFunction(translateFunc);
-      // }
-      // b.CreateLifetimeStart(call->getArgOperand(0));
+
+      // If the return value is only used in calls, run the more expensive "escape" variant
+      bool onlyCalls = true;
+      for (auto *user : call->users()) {
+        if (auto c = dyn_cast<CallInst>(user)) {
+          // Good!
+        } else {
+          onlyCalls = false;
+        }
+      }
+      if (onlyCalls) {
+        call->setCalledFunction(translateEscapeFunc);
+      } else {
+        call->setCalledFunction(translateFunc);
+      }
     }
   }
 

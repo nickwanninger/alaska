@@ -114,8 +114,6 @@ extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
-  alaska::barrier::initialize_safepoint_page();
-
   // Add the main thread to the list of active threads
   // Note: the main thread never removes itself from the barrier thread list
   alaska::barrier::add_self_thread();

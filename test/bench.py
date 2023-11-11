@@ -135,26 +135,35 @@ all_spec = [
 ]
 
 spec_enable = [
-    605, # mcf
-    623,
-    625,
-    631,
-    641,
-    657,
-    619,
-    638,
-    644,
+    # 605, # mcf
+    # 623,
+    # 625,
+    # 631,
+    # 641,
+    # 657,
+    # 619,
+    # 638,
+    # 644,
+
+    600, 602,
 ]
 
-# space.add_suite(wl.suites.Embench)
-space.add_suite(wl.suites.PolyBench, size="LARGE")
-# space.add_suite(wl.suites.Stockfish)
-space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=15)
-space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="A")
+# space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
                 disabled=[t for t in all_spec if t not in spec_enable],
-                config="ref")
+                config="test")
+
+
+
+# FULL EVALUATION:
+# space.add_suite(wl.suites.PolyBench, size="LARGE")
+# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=15)
+# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
+# space.add_suite(wl.suites.SPEC2017,
+#                 tar="/home/nick/SPEC2017.tar.gz",
+#                 disabled=[t for t in all_spec if t not in spec_enable],
+#                 config="ref")
 
 space.clear_pipelines()
 

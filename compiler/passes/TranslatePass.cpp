@@ -45,7 +45,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     }
 
 
-		// alaska::println("Translating in ", F.getName());
+    // alaska::println("Translating in ", F.getName());
     // if (F.getName() != "find_call_stack_args") {
     //   continue;
     // }
@@ -54,6 +54,8 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
 #ifdef ALASKA_UNOPT_TRANSLATIONS
     hoist = false;
 #endif
+
+    hoist = false;
 
     auto start = alaska::timestamp();
     if (hoist) {

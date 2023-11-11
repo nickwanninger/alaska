@@ -34,8 +34,6 @@
  * or duplciated needlessly. (Which can lead to linker errors)
  */
 
-extern int alaska_verify_is_locally_locked(void *ptr);
-
 static ALASKA_INLINE void alaska_track_hit(void) {
 #ifdef ALASKA_TRACK_TRANSLATION_HITRATE
   alaska::record_translation_info(true);
@@ -76,6 +74,16 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
   return ptr;
 }
 
+// A special case for escapes in perlbench :)
+void *alaska_translate_escape(void *ptr) {
+  if (ptr == (void *)-1UL) {
+    return ptr;
+  }
+  return alaska_translate(ptr);
+}
+
+
+
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
 
@@ -86,6 +94,8 @@ void *alaska_translate(void *ptr) {
     alaska_track_miss();
     return ptr;
   }
+
+  // printf("tr %p\n", ptr);
 
   alaska_track_hit();
 

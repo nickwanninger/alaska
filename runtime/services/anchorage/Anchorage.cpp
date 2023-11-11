@@ -355,36 +355,6 @@ static void barrier_control_overhead_target(void) {
   } while (1);
 }
 
-
-static int mark_swaps(bool swap) {
-  int count = 0;
-  for (auto *m = alaska::table::begin(); m != alaska::table::end(); m++) {
-    void *addr = (void *)m->alt.misc;  // grab the bits
-
-    // printf("m = %p\n", m);
-    if (anchorage::Chunk::to_space->contains(addr) ||
-        anchorage::Chunk::from_space->contains(addr)) {
-      auto copy = *m;
-
-      auto oldP = copy.ptr;
-      copy.alt.swap = swap;
-      auto newP = copy.ptr;
-
-      if (__sync_bool_compare_and_swap(&m->ptr, oldP, newP)) {
-        count++;
-      }
-
-      // printf("     %p\n", m->ptr);
-      m->alt.swap = swap;
-      // printf("  -> %p\n", m->ptr);
-    }
-  }
-
-  return count;
-}
-
-
-
 extern void alaska_dump_thread_states(void);
 static void barrier_simple_time(void) {
   usleep(40 * 1000);
@@ -394,15 +364,16 @@ static void barrier_simple_time(void) {
     // Get everyone prepped for a barrier
     auto start = alaska_timestamp();
     alaska::barrier::begin();
-    auto end = alaska_timestamp();
-    anchorage::CompactionConfig config;
-    printf("barrier in %luns\n", end - start);
+    // anchorage::CompactionConfig config;
     // Before swapping spaces, do some defragmentation
-    anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    long moved = 0;
+    // anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    auto end = alaska_timestamp();
+    printf("moved %lu in %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
 
     alaska::barrier::end();
     // Swap the spaces and switch to waiting.
-    anchorage::Chunk::swap_spaces();
+    // anchorage::Chunk::swap_spaces();
   }
 }
 
@@ -412,36 +383,10 @@ static void *barrier_thread_fn(void *) {
   alaska_thread_state.escaped = 1;
   // pad_barrier_control_overhead_target();
   // barrier_control_overhead_target();
-  // barrier_simple_time();
+  barrier_simple_time();
   return NULL;
 }
 
-
-
-// static void *logger_thread_fn(void *vlog) {
-//   const char *log_filename = (const char *)vlog;
-//   printf("================= log_filename = %s =================\n", log_filename);
-//   FILE *out = fopen(log_filename, "w+");
-//   fprintf(out, "time,rss,frag\n");
-//
-//   long start = alaska_timestamp() / 1000 / 1000;
-//   long last = start;
-//
-// 	usleep(1000 * 20);
-//   while (1) {
-//     long now = alaska_timestamp() / 1000 / 1000;
-//     if (last != now) {
-//       last = now;
-//       auto rss_kb = alaska_translate_rss_kb();
-//       auto frag = get_overall_frag();
-//       fprintf(out, "%lu,%lu,%f\n", now - start, rss_kb * 1024, frag);
-//       fflush(out);
-//     }
-//     usleep(25 * 1000);
-//   }
-//
-//   fclose(out);
-// }
 
 void alaska::service::init(void) {
   anch_lock.init();
@@ -450,14 +395,9 @@ void alaska::service::init(void) {
   if (getenv("ANCH_NO_DEFRAG") == NULL) {
     pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
   }
-
-  // const char *log_filename = getenv("ALASKA_LOG");
-  // if (log_filename != NULL) {
-  //   pthread_create(&anchorage_logger_thread, NULL, logger_thread_fn, (void*)log_filename);
-  // }
 }
 
-// TODO:
+
 void alaska::service::deinit(void) {
   anchorage::allocator_deinit();
 }
