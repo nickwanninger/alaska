@@ -377,8 +377,8 @@ static void barrier_simple_time(void) {
   }
 }
 
-pthread_t anchorage_barrier_thread;
-pthread_t anchorage_logger_thread;
+static pthread_t anchorage_barrier_thread;
+static pthread_t anchorage_logger_thread;
 static void *barrier_thread_fn(void *) {
   alaska_thread_state.escaped = 1;
   // pad_barrier_control_overhead_target();

@@ -13,10 +13,12 @@
 // This file represents a service that doesn't do anything. It can be used
 // As a stepping stone for implementing new services.
 #include <alaska/alaska.hpp>
-#include <stdint.h>
+#include <alaska/barrier.hpp>
 #include <alaska/service.hpp>
-#include <malloc.h>
 
+#include <stdint.h>
+#include <malloc.h>
+#include <unistd.h>
 
 size_t alaska::service::usable_size(void *ptr) {
   return malloc_usable_size(ptr);
@@ -27,8 +29,28 @@ void alaska::service::swap_in(alaska::Mapping *m) {
   return;
 }
 
+pthread_t anchorage_barrier_thread;
+pthread_t anchorage_logger_thread;
+static void *barrier_thread_fn(void *) {
+  alaska_thread_state.escaped = 1;
+  while (1) {
+    usleep(100 * 1000);
+    auto start = alaska_timestamp();
+    alaska::barrier::begin();
+    auto end = alaska_timestamp();
+    printf("barrier in %lf ms\n", (end - start) / 1000.0 / 1000.0);
+    alaska::barrier::end();
+    // Swap the spaces and switch to waiting.
+    // anchorage::Chunk::swap_spaces();
+  }
+  return NULL;
+}
+
+
+static pthread_t barrier_thread;
 
 void alaska::service::init(void) {
+  pthread_create(&barrier_thread, NULL, barrier_thread_fn, NULL);
   // None...
 }
 
