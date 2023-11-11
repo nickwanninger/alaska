@@ -231,7 +231,7 @@ char *strncat(char *restrict d, const char *restrict s, size_t n) {
 extern void alaska_barrier_signal_join(void);
 // This function is the "signal" function to the runtime that gets patched
 // into the code whenever a barrier needs to occur.
-__attribute__((preserve_all))
+__attribute__((preserve_most))
 void __alaska_signal(void) {
   alaska_barrier_signal_join();
 }

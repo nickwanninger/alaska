@@ -53,34 +53,33 @@ struct StackMapping {
 };
 
 
-#define PATCH_SIZE 5
 static void* alaska_signal_function = NULL;
 static ck::map<uintptr_t, ck::vec<StackMapping>> stack_maps;
 
 
-// TODO: ARM
+#ifdef __amd64__
 using inst_t = uint64_t;
+#endif
+#ifdef __aarch64__
+using inst_t = uint32_t;
+#endif
 
 struct PatchPoint {
   inst_t* pc;
   inst_t inst_nop;
-  inst_t inst_call;
+  inst_t inst_sig;
 };
 static ck::vec<PatchPoint> patchPoints;
 
 
 static void patchSignal() {
-  // TODO: ARM
-  // X86:
   for (auto& p : patchPoints) {
-    __atomic_store_n(p.pc, p.inst_call, __ATOMIC_RELEASE);
+    __atomic_store_n(p.pc, p.inst_sig, __ATOMIC_RELEASE);
   }
 }
 
 
 static void patchNop(void) {
-  // TODO: ARM
-  // X86:
   for (auto& p : patchPoints) {
     __atomic_store_n(p.pc, p.inst_nop, __ATOMIC_RELEASE);
   }
@@ -445,7 +444,7 @@ void readStackMap(uint8_t* t, void* signalFunc) {
 
     if (record.getID() == 'PATC') {
       // Apply the instruction patch
-      auto* rip = (void*)(addr - PATCH_SIZE);
+      auto* rip = (void*)(addr - ALASKA_PATCH_SIZE);
       auto patch_page = (void*)((uintptr_t)rip & ~0xFFF);
       mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
 
@@ -458,13 +457,14 @@ void readStackMap(uint8_t* t, void* signalFunc) {
       p.pc = (inst_t*)rip;
       // TODO: ARM
 
+#ifdef __amd64__
       {
         // uint8_t inst[8] = {0xe8, 0, 0, 0, 0, 1, 1, 1};
         // uint8_t inst[8] = {0xcc, 0, 0, 0, 0, 1, 1, 1};
         uint8_t inst[8] = {0x0F, 0xFF, 0, 0, 0, 1, 1, 1};
 
         // Compute the address after the call inst.
-        // uint64_t after = (uint64_t)rip + PATCH_SIZE;
+        // uint64_t after = (uint64_t)rip + ALASKA_PATCH_SIZE;
         // uint32_t dstRel = (uint64_t)signalFunc - after;
         // *(uint32_t*)(inst + 1) = dstRel;
 
@@ -484,12 +484,16 @@ void readStackMap(uint8_t* t, void* signalFunc) {
 
         p.inst_nop = *(uint64_t*)inst;
       }
-
+#endif
+#ifdef __aarch64__
+      p.inst_nop = 0xd503201f; // nop
+      p.inst_sig = 0x00000000; // udf #0
+#endif
 
       patchPoints.push(p);
     }
     if (record.getID() == 'PATC') {
-      addr -= PATCH_SIZE;
+      addr -= ALASKA_PATCH_SIZE;
     }
 
     PinSetInfo psi;

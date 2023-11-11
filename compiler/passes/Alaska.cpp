@@ -357,10 +357,10 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(ProgressPass("Link runtime"));
 
 #ifdef ALASKA_LOCK_TRACKING
-    // MPM.addPass(adapt(PlaceSafepointsPass()));
-    // MPM.addPass(ProgressPass("Safepoint Placement"));
-    // MPM.addPass(PinTrackingPass());
-    // MPM.addPass(ProgressPass("Lock Insertion"));
+    MPM.addPass(adapt(PlaceSafepointsPass()));
+    MPM.addPass(ProgressPass("Safepoint Placement"));
+    MPM.addPass(PinTrackingPass());
+    MPM.addPass(ProgressPass("Lock Insertion"));
 #endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
@@ -379,8 +379,8 @@ void populateMPM(ModulePassManager &MPM) {
 #endif
 
     // Force inlines of alaska runtime functions
-    // MPM.addPass(TranslationInlinePass());
-    // MPM.addPass(ProgressPass("Inline runtime"));
+    MPM.addPass(TranslationInlinePass());
+    MPM.addPass(ProgressPass("Inline runtime"));
   }
 
 
