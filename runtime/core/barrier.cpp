@@ -279,7 +279,6 @@ static void barrier_signal_handler(int sig) {
   // will deal with all the synchronization that needs done.
   alaska_barrier_join(false, ps);
   alaska_barrier_leave(false, ps);
-  printf("\n\n");
 }
 
 

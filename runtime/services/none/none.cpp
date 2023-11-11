@@ -34,7 +34,7 @@ pthread_t anchorage_logger_thread;
 static void *barrier_thread_fn(void *) {
   alaska_thread_state.escaped = 1;
   while (1) {
-    usleep(100 * 1000);
+    usleep(10 * 1000);
     auto start = alaska_timestamp();
     alaska::barrier::begin();
     auto end = alaska_timestamp();
@@ -50,8 +50,7 @@ static void *barrier_thread_fn(void *) {
 static pthread_t barrier_thread;
 
 void alaska::service::init(void) {
-  pthread_create(&barrier_thread, NULL, barrier_thread_fn, NULL);
-  // None...
+  // pthread_create(&barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 void alaska::service::deinit(void) {

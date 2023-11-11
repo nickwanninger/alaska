@@ -47,11 +47,7 @@ void includeflags(void) {
 }
 
 void cflags(void) {
-#if defined(__aarch64__)
-  printf("-march=armv8.5-a\n");
-#elif defined(__x86_64__)
-  // printf("-march=native\n");
-#endif
+  printf("-march=native\n");
   includeflags();
 }
 
