@@ -347,10 +347,8 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(ProgressPass("Translate"));
 
 
-#ifdef ALASKA_ESCAPE_PASS
     MPM.addPass(AlaskaEscapePass());
     MPM.addPass(ProgressPass("Escape"));
-#endif
 
 
     MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
