@@ -86,11 +86,7 @@ void *alaska_translate_escape(void *ptr) {
 
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
-
-  // If the pointer is "greater than zero", then it is not a handle. This is because we rely on the
-  // fact that most architectures have a "branch if less than 0" instruction to detect this. Most
-  // arch just check the top bit to implement that, which is all we need!
-  if (unlikely(bits >= 0)) {
+  if (unlikely(bits >= 0 || bits == -1)) {
     alaska_track_miss();
     return ptr;
   }
