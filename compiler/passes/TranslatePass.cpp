@@ -55,7 +55,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     hoist = false;
 #endif
 
-    hoist = false;
+    // hoist = false;
 
     auto start = alaska::timestamp();
     if (hoist) {

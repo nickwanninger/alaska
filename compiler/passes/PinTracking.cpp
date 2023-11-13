@@ -7,6 +7,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/ADT/SparseBitVector.h"
 
+
+
 using namespace llvm;
 
 
@@ -182,7 +184,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       if (auto func = call->getCalledFunction()) {
         if (func->getName() == "alaska_barrier_poll") {
           id = 'PATC';
-          patch_size = 5;  // TODO: handle ARM
+          patch_size = ALASKA_PATCH_SIZE;  // TODO: handle ARM
         }
       }
 

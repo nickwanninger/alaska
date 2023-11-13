@@ -4,6 +4,18 @@
 #include "./autoconf.h"
 
 
+#ifdef __amd64__
+// a call instruction (TODO: make it smaller)
+#define ALASKA_PATCH_SIZE 5
+#endif
+
+
+#ifdef __aarch64__
+// All arm64 instructions are 4 bytes
+#define ALASKA_PATCH_SIZE 4
+#endif
+
+
 // Now do other configuration!
 #define ALASKA_LOCK_TRACKING // By default, enable lock tracking as some services *require* it
 

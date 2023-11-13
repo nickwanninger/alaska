@@ -80,13 +80,3 @@ endmenu
 config SIZE_BITS
   int "How many bits to use for handle sizes. Smaller = more handles. Larger = less handles"
   default 32
-
-
-config ESCAPE_PASS
-	bool "Translate before argument escapes"
-	default y
-
-config INLINE_TRANSLATION
-	bool "Inline translations (recommended)"
-	default y
-
