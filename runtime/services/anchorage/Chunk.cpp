@@ -69,8 +69,8 @@ anchorage::Chunk::Chunk(size_t pages)
   dump(NULL, "Setup!");
 
   // madvise(tos, size, MADV_HUGEPAGE);
-  printf(
-      "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos + size);
+  // printf(
+  //     "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos + size);
   tos->set_next(nullptr);
 }
 

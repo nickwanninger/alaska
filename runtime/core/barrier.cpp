@@ -21,11 +21,13 @@
 #include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
 
+
+#include <ck/lock.h>
 #include <ck/map.h>
 #include <ck/set.h>
 #include <ck/vec.h>
 
-
+#include <ucontext.h>
 #include <execinfo.h>
 #include <pthread.h>
 #include <alaska/list_head.h>
@@ -36,14 +38,21 @@
 #include <assert.h>
 
 
+enum class ReturnClassification {
+  // Return addresses which alaska classifies as "internal". These are for calls which the compiler
+  // has instrumented.
+  Internal,
+  // MightBlock: for calls which the compiler considers might take enough time that
+  // it must be signalled to join a barrier.
+  MightBlock,
+};
+
 
 struct PinSetInfo {
   uint32_t count;   // How many entries?
   uint32_t regNum;  // Which libunwind register?
   int32_t offset;   // offset from that register?
 };
-static ck::map<uintptr_t, PinSetInfo> pin_map;
-
 
 struct StackMapping {
   bool direct;
@@ -53,8 +62,9 @@ struct StackMapping {
 };
 
 
-static void* alaska_signal_function = NULL;
-static ck::map<uintptr_t, ck::vec<StackMapping>> stack_maps;
+static ck::map<uintptr_t, PinSetInfo> pin_map;
+// the return addresses from calls to potentially blocking functions
+static ck::set<uintptr_t> block_rets;
 
 
 #ifdef __amd64__
@@ -90,6 +100,10 @@ __thread alaska_thread_state_t alaska_thread_state;
 
 extern uint64_t alaska_next_usage_timestamp;
 
+
+enum class JoinReason { Signal, Safepoint };
+
+
 // We track all threads w/ a simple linked list
 struct alaska_thread_info {
   pthread_t thread;
@@ -114,12 +128,22 @@ void alaska_remove_from_local_lock_list(void* ptr) {
 
 
 
-void alaska_dump_thread_states(void) {
+static void alaska_dump_thread_states_r(void) {
   struct alaska_thread_info* pos;
   list_for_each_entry(pos, &all_threads, list_head) {
-    printf("%d ", pos->state->escaped);
+    if (pos->state->escaped == 0) {
+      printf("\e[0m. ");  // a thread will join a barrier (not out to lunch)
+    } else {
+      printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
+    }
   }
-  printf("\n");
+  printf("\e[0m\n");
+}
+
+void alaska_dump_thread_states(void) {
+  pthread_mutex_lock(&all_threads_lock);
+  alaska_dump_thread_states_r();
+  pthread_mutex_unlock(&all_threads_lock);
 }
 
 
@@ -147,6 +171,40 @@ static bool might_be_handle(void* possible_handle) {
 }
 
 
+static ck::mutex dump_lock;
+
+static bool in_might_block_function(uintptr_t start_addr) {
+  void* buffer[512];
+
+  int depth = backtrace(buffer, 512);
+  dump_lock.lock();
+
+
+  bool found_start = false;
+  for (int i = 0; i < depth; i++) {
+    if ((uintptr_t)buffer[i] == start_addr) {
+      found_start = true;
+    }
+    if (!found_start) continue;
+
+    const char* msg = "";
+    if (pin_map.contains((uintptr_t)buffer[i])) msg = "managed";
+    if (block_rets.contains((uintptr_t)buffer[i])) msg = "unmanaged";
+
+    printf("%016lx %s\n", buffer[i], msg);
+  }
+  printf("\n");
+
+  dump_lock.unlock();
+
+  for (int i = 0; i < depth; i++) {
+    if (block_rets.contains((uintptr_t)buffer[i])) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 void alaska::barrier::get_locked(ck::set<void*>& out) {
   unw_cursor_t cursor;
@@ -226,13 +284,30 @@ void alaska::barrier::begin(void) {
     barrier_last_num_threads = num_threads;
   }
 
-  alaska_dump_thread_states();
+  // alaska_dump_thread_states_r();
+
+  struct alaska_thread_info* pos;
+  list_for_each_entry(pos, &all_threads, list_head) {
+    if (pos->thread == pthread_self()) continue;
+    pthread_kill(pos->thread, SIGUSR2);
+  }
+
+
 
   patchSignal();
 
   ck::set<void*> locked;
   alaska::barrier::get_locked(locked);  // TODO: slow!
   alaska_barrier_join(true, locked);
+
+  list_for_each_entry(pos, &all_threads, list_head) {
+    if (pos->state->join_reason == ALASKA_JOIN_REASON_SAFEPOINT) {
+      printf("\e[42m. ");  // a thread will join a barrier (not out to lunch)
+    } else {
+      printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
+    }
+  }
+  printf("\e[0m\n");
 }
 
 
@@ -271,7 +346,42 @@ extern "C" void alaska_barrier_signal_join(void) {
 }
 
 
-static void barrier_signal_handler(int sig) {
+static void barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
+  ucontext_t* ucontext = (ucontext_t*)ptr;
+  uintptr_t return_address = 0;
+
+#ifdef __amd64__
+  return_address = ucontext->uc_mcontext.gregs[REG_RIP];
+#endif
+
+#ifdef __aarch64__
+  return_address = ucontext->uc_mcontext.pc;
+#endif
+
+
+  if (sig == SIGUSR2) {
+    // If ths signal is SIGUSR2, we should validate that
+    // this thread is still 'out to lunch'
+    // ie: the return address from a call to a 'mightblock'
+    // function is in the backtrace somewhere
+    //
+    // If there is not a mightblock return address, we need to
+    // return from this signal handler and we will eventually join
+    // the barrier later on.
+    if (!in_might_block_function(return_address)) {
+      // #ifdef __aarch64__
+      //       // invalidate icache on arm. This ensures the patched
+      //       // barrier instructions work as expected
+      //       asm ("ic ialluis");
+      // #endif
+      return;
+    }
+
+    alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
+  } else if (sig == SIGILL) {
+    alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
+  }
+
   ck::set<void*> ps;
   alaska::barrier::get_locked(ps);  // TODO: slow!
 
@@ -282,16 +392,23 @@ static void barrier_signal_handler(int sig) {
 }
 
 
+
+
 void alaska::barrier::add_self_thread(void) {
   auto self = pthread_self();
   pthread_mutex_lock(&all_threads_lock);
   num_threads++;
 
 
-  struct sigaction act;
-  memset(&act, 0, sizeof(act));
-  act.sa_handler = barrier_signal_handler;
-  if (sigaction(SIGILL, &act, NULL) != 0) {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  sa.sa_sigaction = barrier_signal_handler;
+  if (sigaction(SIGILL, &sa, NULL) != 0) {
+    perror("Failed to add sigaction to new thread.\n");
+    exit(EXIT_FAILURE);
+  }
+  if (sigaction(SIGUSR2, &sa, NULL) != 0) {
     perror("Failed to add sigaction to new thread.\n");
     exit(EXIT_FAILURE);
   }
@@ -422,13 +539,8 @@ const char* regname(int r) {
  * This function parses a stackmap emitted from LLVM and pushes all
  * the patch points to
  */
-void readStackMap(uint8_t* t, void* signalFunc) {
-  // return;
+void parse_stack_map(uint8_t* t, void* signalFunc) {
   alaska::StackMapParser p(t);
-
-  printf("Version:     %d\n", p.getVersion());
-  printf("Constants:   %d\n", p.getNumConstants());
-  printf("Functions:   %d\n", p.getNumFunctions());
 
   auto currFunc = p.functions_begin();
   size_t recordCount = 0;
@@ -441,22 +553,24 @@ void readStackMap(uint8_t* t, void* signalFunc) {
       recordCount = 0;
     }
 
+    if (record.getID() == 'BLOK') {
+      block_rets.add(addr);
+    }
+
     if (record.getID() == 'PATC') {
       // Apply the instruction patch
       auto* rip = (void*)(addr - ALASKA_PATCH_SIZE);
       auto patch_page = (void*)((uintptr_t)rip & ~0xFFF);
       mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
 
-
-      // Byte pointer to the instruction.
-      uint8_t* ripB = (uint8_t*)rip;
-
       PatchPoint p;
 
       p.pc = (inst_t*)rip;
-      // TODO: ARM
 
+      // TODO: ARM
 #ifdef __amd64__
+      // Byte pointer to the instruction.
+      uint8_t* ripB = (uint8_t*)rip;
       {
         // uint8_t inst[8] = {0xe8, 0, 0, 0, 0, 1, 1, 1};
         // uint8_t inst[8] = {0xcc, 0, 0, 0, 0, 1, 1, 1};
@@ -472,7 +586,6 @@ void readStackMap(uint8_t* t, void* signalFunc) {
         // inst[7] = ripB[7];
         p.inst_call = *(uint64_t*)inst;
       }
-
       {
         uint8_t inst[8] = {0x0f, 0x1f, 0x44, 0x00, 0x08, 1, 1, 1};
         uint8_t* ripB = (uint8_t*)rip;
@@ -484,9 +597,11 @@ void readStackMap(uint8_t* t, void* signalFunc) {
         p.inst_nop = *(uint64_t*)inst;
       }
 #endif
+
+// Arm is way easier than x86...
 #ifdef __aarch64__
-      p.inst_nop = 0xd503201f; // nop
-      p.inst_sig = 0x00000000; // udf #0
+      p.inst_nop = 0xd503201f;  // nop
+      p.inst_sig = 0x00000000;  // udf #0
 #endif
 
       patchPoints.push(p);
@@ -497,62 +612,36 @@ void readStackMap(uint8_t* t, void* signalFunc) {
 
     PinSetInfo psi;
 
-    ck::vec<StackMapping> mappings;
     for (std::uint16_t i = 3; i < record.getNumLocations(); i++) {
       auto l = record.getLocation(i);
-      // printf("a:%p id:%p ", addr, record.getID());
 
-      void* array[1];
-      array[0] = (void*)addr;
-      char** names = backtrace_symbols(array, 1);
-      // printf("(%s) + %-5d ", names[0], record.getInstructionOffset());
-      free(names);
       switch (l.getKind()) {
-        case alaska::StackMapParser::LocationKind::Indirect:
-          mappings.push({false, l.getDwarfRegNum(), l.getOffset(), record.getID()});
-          // printf("Indirect %s + %d %d\n", regname(l.getDwarfRegNum()), l.getOffset(),
-          //     l.getSizeInBytes());
-          break;
-
-        case alaska::StackMapParser::LocationKind::Register:
-          // printf("Register %d\n", l.getDwarfRegNum());
-          break;
         case alaska::StackMapParser::LocationKind::Direct:
-          mappings.push({true, l.getDwarfRegNum(), l.getOffset(), record.getID()});
           psi.regNum = l.getDwarfRegNum();
           psi.offset = l.getOffset();
-          // printf("Direct %s + %d\n", regname(l.getDwarfRegNum()), l.getOffset());
           break;
 
         case alaska::StackMapParser::LocationKind::Constant:
           psi.count = l.getSmallConstant();
-          // printf("Constant %d\n", l.getSmallConstant());
           break;
-        case alaska::StackMapParser::LocationKind::ConstantIndex:
-          // printf("<Constant Index>\n");
+
+        default:
           break;
       }
     }
 
     pin_map[addr] = psi;
-
-    stack_maps[addr] = move(mappings);
-
-    // printf("\n");
   }
 
+
   patchNop();
-
-
-
-  alaska_signal_function = signalFunc;
 }
 
 
 extern "C" void alaska_register_stack_map(void* map, void* signalFunc) {
   if (map) {
-    printf("Register stack map %p\n", map);
-    readStackMap((uint8_t*)map, signalFunc);
+    // printf("Register stack map %p\n", map);
+    parse_stack_map((uint8_t*)map, signalFunc);
   }
 }
 
@@ -560,7 +649,6 @@ extern "C" void alaska_register_stack_map(void* map, void* signalFunc) {
 
 // This function doesn't really need to exist,
 extern "C" void alaska_barrier_poll(void) {
-  printf("yee\n");
   abort();
   return;
 }

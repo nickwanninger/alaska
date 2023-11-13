@@ -244,7 +244,6 @@ extern int __LLVM_StackMaps __attribute__((weak));
 
 static void __attribute__((constructor)) alaska_init(void) {
   int *stackmaps = &__LLVM_StackMaps;
-  printf("stackmaps: %p\n", stackmaps);
   if (stackmaps) {
     alaska_register_stack_map(stackmaps, (void *)__alaska_signal);
   }

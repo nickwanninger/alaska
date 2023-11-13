@@ -148,7 +148,7 @@ spec_enable = [
     600, 602,
 ]
 
-# space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
+space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
 space.add_suite(wl.suites.SPEC2017,
                 tar="/home/nick/SPEC2017.tar.gz",
                 disabled=[t for t in all_spec if t not in spec_enable],

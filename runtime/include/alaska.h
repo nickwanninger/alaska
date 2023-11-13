@@ -12,7 +12,10 @@ typedef struct {
   // Track the depth of escape of a given thread. If this number is zero,
   // the thread is in 'managed' code and will eventually poll the barrier
   uint64_t escaped;
-
+  // Why did this thread join?
+  int join_reason;
+#define ALASKA_JOIN_REASON_SIGNAL 0
+#define ALASKA_JOIN_REASON_SAFEPOINT 1
   // ...
 } alaska_thread_state_t;
 

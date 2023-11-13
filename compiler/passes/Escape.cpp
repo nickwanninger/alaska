@@ -255,6 +255,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
     if (functions_to_ignore.find(std::string(F.getName())) == functions_to_ignore.end()) {
       info.isEscape = true;
+
       // Handle vararg functions a bit specially.
       if (F.isVarArg()) {
         // If the function is empty, we must escape varargs
@@ -283,6 +284,10 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           info.args.insert(no);
           continue;
         }
+      }
+
+      if (F.empty()) {
+        F.addFnAttr("alaska_escape");
       }
     }
 
@@ -328,6 +333,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   for (auto &F : M) {
     if (F.empty()) {
       if (mightBlock(F)) {
+        F.addFnAttr("alaska_mightblock");
         // alaska::println("\e[31m\"", F.getName(), "\",\e[0m");
         blockingFunctions.insert(&F);
       } else {

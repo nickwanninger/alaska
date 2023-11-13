@@ -185,6 +185,9 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         if (func->getName() == "alaska_barrier_poll") {
           id = 'PATC';
           patch_size = ALASKA_PATCH_SIZE;  // TODO: handle ARM
+        } else if (func->hasFnAttribute("alaska_mightblock")) {
+          id = 'BLOK'; // This function might block! Record it in the stackmap
+          patch_size = 0;
         }
       }
 
