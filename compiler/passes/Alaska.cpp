@@ -25,6 +25,7 @@
 
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
+#include <noelle/core/CallGraph.hpp>
 #include <noelle/core/MetadataManager.hpp>
 
 // C++ includes
@@ -32,24 +33,9 @@
 #include <set>
 #include <optional>
 
-// #include "../../runtime/include/alaska/utils.h"
-
 
 #include <noelle/core/DGBase.hpp>
 
-// // SVF
-// // #include "WPA/WPAPass.h"
-// #include "SVF-LLVM/LLVMModule.h"
-// #include "WPA/Andersen.h"
-// #include "MemoryModel/PointerAnalysis.h"
-// #include "MSSA/MemSSA.h"
-// #include "SVF-LLVM/SVFIRBuilder.h"
-
-// #include "Util/SVFModule.h"
-// #include "Util/PTACallGraph.h"
-// #include "WPA/Andersen.h"
-// #include "MemoryModel/PointerAnalysis.h"
-// #include "MSSA/MemSSA.h"
 
 
 class PrintPassThing : public llvm::PassInfoMixin<PrintPassThing> {
@@ -85,6 +71,8 @@ class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
     return PreservedAnalyses::all();
   }
 };
+
+
 double ProgressPass::progress_start = 0.0;
 
 
@@ -138,10 +126,6 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
 std::vector<llvm::Value *> getAllValues(llvm::Module &M) {
   std::vector<llvm::Value *> vals;
 
-  // for (auto &G : M.globals()) {
-  //   vals.push_back(&G);
-  // }
-
   for (auto &F : M) {
     // vals.push_back(&F);
     if (F.empty()) continue;
@@ -166,7 +150,6 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
     for (auto &F : M) {
       if (F.empty()) continue;
 
-
       llvm::DominatorTree DT(F);
       llvm::PostDominatorTree PDT(F);
       llvm::LoopInfo loops(DT);
@@ -188,109 +171,10 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
       if (loops.getLoopsInPreorder().size() == 0 && hasProblematicCalls == false) {
         F.addFnAttr("alaska_is_simple");
       }
-
-      // alaska::println(
-      //     loops.getLoopsInPreorder().size(), "\t", hasProblematicCalls, "\t", F.getName());
     }
     return PreservedAnalyses::all();
   }
 };
-
-// class SVFTestPass : public llvm::PassInfoMixin<SVFTestPass> {
-//  public:
-//   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-//     // auto &aa = AM.getResult<AAManager>(M);
-//     //
-//     // auto values = getAllValues(M);
-//     // printf("%zd vals\n", values.size());
-//     //
-//     // for (auto *v1 : values) {
-//     //   alaska::println(*v1);
-//     //   for (auto *v2 : values) {
-//     //     if (v1 == v2) continue;
-//     //     auto res = aa.alias(v1, v2);
-//     //     alaska::println("   ", res, *v2);
-//     //   }
-//     // }
-//     using namespace SVF;
-//     auto mod = SVF::LLVMModuleSet::buildSVFModule(M);
-//     /// Build SVFIR
-//     SVF::SVFIRBuilder builder(mod);
-//     auto pag = builder.build();
-//     // SVF::WPAPass wpa;
-//
-//     auto *pta = SVF::AndersenWaveDiff::createAndersenWaveDiff(pag);
-//     // pta->analyze();
-//     // pag->print();
-//     // return PreservedAnalyses::none();
-//
-//     //
-//     // // SVFIR *pag = pta->getPAG();
-//     for (SVFIR::iterator lit = pag->begin(), elit = pag->end(); lit != elit; ++lit) {
-//       PAGNode *node1 = lit->second;
-//       PAGNode *node2 = node1;
-//       for (SVFIR::iterator rit = lit, erit = pag->end(); rit != erit; ++rit) {
-//         node2 = rit->second;
-//         if (node1 == node2) continue;
-//         const SVFFunction *fun1 = node1->getFunction();
-//         const SVFFunction *fun2 = node2->getFunction();
-//         auto result = pta->alias(node1->getId(), node2->getId());
-//
-//         // auto result = wpa.alias(node1->getValue(), node2->getValue());
-//         if (result == SVF::AliasResult::NoAlias) continue;
-//
-//         const char *str = "\e[32mMayAlias\e[0m";
-//         if (result == SVF::AliasResult::NoAlias) str = "NoAlias";
-//         if (result == SVF::AliasResult::MustAlias) str = "\e[31mMustAlias\e[0m";
-//         if (result == SVF::AliasResult::PartialAlias) str = "PartialAlias";
-//         SVFUtil::outs() << str << " var" << node1->getId() << "[" << node1->getValueName() << "@"
-//                         << (fun1 == nullptr ? "" : fun1->getName()) << "] --"
-//                         << " var" << node2->getId() << "[" << node2->getValueName() << "@"
-//                         << (fun2 == nullptr ? "" : fun2->getName()) << "]\n";
-//       }
-//     }
-//     // errs() << M << "\n";
-//
-//     return PreservedAnalyses::none();
-//   }
-// };
-
-
-
-
-// class SpecializationPass : public llvm::PassInfoMixin<SpecializationPass> {
-//  public:
-//   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
-//     const DataLayout &DL = M.getDataLayout();
-//     auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
-//     auto GetTLI = [&FAM](Function &F) -> TargetLibraryInfo & {
-//       return FAM.getResult<TargetLibraryAnalysis>(F);
-//     };
-//     auto GetTTI = [&FAM](Function &F) -> TargetTransformInfo & {
-//       return FAM.getResult<TargetIRAnalysis>(F);
-//     };
-//     auto GetAC = [&FAM](Function &F) -> AssumptionCache & {
-//       return FAM.getResult<AssumptionAnalysis>(F);
-//     };
-//     auto GetAnalysis = [&FAM](Function &F) -> AnalysisResultsForFn {
-//       DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
-//       return {std::make_unique<PredicateInfo>(F, DT, FAM.getResult<AssumptionAnalysis>(F)), &DT,
-//           FAM.getCachedResult<PostDominatorTreeAnalysis>(F)};
-//     };
-//
-//     if (!runFunctionSpecialization(M, DL, GetTLI, GetTTI, GetAC, GetAnalysis)) {
-//       printf("failed!\n");
-//       return PreservedAnalyses::all();
-//     }
-//
-//     PreservedAnalyses PA;
-//     PA.preserve<DominatorTreeAnalysis>();
-//     PA.preserve<PostDominatorTreeAnalysis>();
-//     PA.preserve<FunctionAnalysisManagerModuleProxy>();
-//     return PA;
-//   }
-// };
-
 
 
 
@@ -306,10 +190,6 @@ void populateMPM(ModulePassManager &MPM) {
 
   if (baseline) print_progress = false;
 
-  // MPM.addPass(SVFTestPass());
-  // return;
-
-
   // Only link the stub in non-baseline
   if (!baseline) {
     MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
@@ -317,13 +197,10 @@ void populateMPM(ModulePassManager &MPM) {
   }
 
 
-
   MPM.addPass(adapt(DCEPass()));
   MPM.addPass(adapt(DCEPass()));
   MPM.addPass(adapt(ADCEPass()));
   MPM.addPass(ProgressPass("DCE"));
-
-
   MPM.addPass(WholeProgramDevirtPass());
 
   // Label 'simple' functions.
@@ -336,8 +213,8 @@ void populateMPM(ModulePassManager &MPM) {
   MPM.addPass(AlaskaNormalizePass());
   MPM.addPass(ProgressPass("Normalize"));
 
-  // Simplify the cfg
-  MPM.addPass(adapt(SimplifyCFGPass()));
+  // // Simplify the cfg
+  // MPM.addPass(adapt(SimplifyCFGPass()));
 
   if (!baseline) {
     MPM.addPass(AlaskaReplacementPass());
@@ -354,12 +231,10 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
     MPM.addPass(ProgressPass("Link runtime"));
 
-#ifdef ALASKA_LOCK_TRACKING
     MPM.addPass(adapt(PlaceSafepointsPass()));
     MPM.addPass(ProgressPass("Safepoint Placement"));
     MPM.addPass(PinTrackingPass());
     MPM.addPass(ProgressPass("Lock Insertion"));
-#endif
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
     MPM.addPass(TranslationPrinterPass());
@@ -386,6 +261,7 @@ void populateMPM(ModulePassManager &MPM) {
   MPM.addPass(adapt(DCEPass()));
   MPM.addPass(adapt(ADCEPass()));
   MPM.addPass(ProgressPass("DCE"));
+  MPM.addPass(WholeProgramDevirtPass());
 }
 
 

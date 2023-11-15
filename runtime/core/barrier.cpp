@@ -38,13 +38,9 @@
 #include <assert.h>
 
 
-enum class ReturnClassification {
-  // Return addresses which alaska classifies as "internal". These are for calls which the compiler
-  // has instrumented.
-  Internal,
-  // MightBlock: for calls which the compiler considers might take enough time that
-  // it must be signalled to join a barrier.
-  MightBlock,
+enum class Transition {
+  Managed,    // The most recent transition made was from unmanaged -> managed
+  Unmanaged,  // The most recent transition made was from managed -> unmanaged
 };
 
 
@@ -173,13 +169,46 @@ static bool might_be_handle(void* possible_handle) {
 
 static ck::mutex dump_lock;
 
+
+volatile int foo;
+// TODO: delete me!
+extern "C" void callback_test(void (*cb)(void)) {
+  foo++;
+  cb();
+  foo++;
+}
+
+static Transition most_recent_transition(void) {
+  unw_cursor_t cursor;
+  unw_context_t uc;
+  unw_word_t pc;
+
+  unw_getcontext(&uc);
+  unw_init_local(&cursor, &uc);
+  while (1) {
+    int res = unw_step(&cursor);
+    if (res == 0) {
+      break;
+    }
+    if (res < 0) {
+      printf("unknown libunwind error! %d\n", res);
+      abort();
+    }
+    unw_get_reg(&cursor, UNW_REG_IP, &pc);
+
+    if (pin_map.contains(pc)) return Transition::Managed;
+    if (block_rets.contains(pc)) return Transition::Unmanaged;
+  }
+
+  return Transition::Managed;
+}
+
+
 static bool in_might_block_function(uintptr_t start_addr) {
   void* buffer[512];
 
   int depth = backtrace(buffer, 512);
   dump_lock.lock();
-
-
   bool found_start = false;
   for (int i = 0; i < depth; i++) {
     if ((uintptr_t)buffer[i] == start_addr) {
@@ -196,6 +225,7 @@ static bool in_might_block_function(uintptr_t start_addr) {
   printf("\n");
 
   dump_lock.unlock();
+
 
   for (int i = 0; i < depth; i++) {
     if (block_rets.contains((uintptr_t)buffer[i])) {
@@ -328,11 +358,7 @@ void alaska::barrier::end(void) {
 
 
 void alaska_barrier(void) {
-  // auto start = alaska_timestamp();
-  // Simply defer to the service. It will begin/end the barrier
   alaska::service::barrier();
-  // auto end = alaska_timestamp();
-  // printf("%f\n", (end - start) / 1000.0);
 }
 
 
@@ -350,14 +376,11 @@ static void barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
   uintptr_t return_address = 0;
 
-#ifdef __amd64__
+#if defined(__amd64__)
   return_address = ucontext->uc_mcontext.gregs[REG_RIP];
-#endif
-
-#ifdef __aarch64__
+#elif defined(__aarch64__)
   return_address = ucontext->uc_mcontext.pc;
 #endif
-
 
   if (sig == SIGUSR2) {
     // If ths signal is SIGUSR2, we should validate that

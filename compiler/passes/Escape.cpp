@@ -165,11 +165,19 @@ static bool mightBlock(llvm::Function &F) {
       "dcgettext",
   };
 
+  if (not F.empty()) return false;
 
   auto name = F.getName();
-  if (blocking_whitelist.find(name) != blocking_whitelist.end()) return true;
+  if (blocking_whitelist.find(name) != blocking_whitelist.end()) {
+    return false;
+  }
 
-  return false;
+  if (name.startswith("alaska.")) return false;
+  if (name.startswith("__alaska")) return false;
+  if (name.startswith("llvm.")) return false;
+  alaska::println("might block: ", name);
+
+  return true;
 }
 
 llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
