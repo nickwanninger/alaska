@@ -593,7 +593,6 @@ void parse_stack_map(uint8_t* t, void* signalFunc) {
       // TODO: ARM
 #ifdef __amd64__
       // Byte pointer to the instruction.
-      uint8_t* ripB = (uint8_t*)rip;
       {
         // uint8_t inst[8] = {0xe8, 0, 0, 0, 0, 1, 1, 1};
         // uint8_t inst[8] = {0xcc, 0, 0, 0, 0, 1, 1, 1};
@@ -607,7 +606,7 @@ void parse_stack_map(uint8_t* t, void* signalFunc) {
         // inst[5] = ripB[5];
         // inst[6] = ripB[6];
         // inst[7] = ripB[7];
-        p.inst_call = *(uint64_t*)inst;
+        p.inst_sig = *(uint64_t*)inst;
       }
       {
         uint8_t inst[8] = {0x0f, 0x1f, 0x44, 0x00, 0x08, 1, 1, 1};
