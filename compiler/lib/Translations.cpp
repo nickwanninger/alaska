@@ -191,8 +191,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
 
 bool alaska::shouldTranslate(llvm::Value *val) {
   if (!val->getType()->isPointerTy()) return false;
-  return true;
-
   if (dyn_cast<PoisonValue>(val)) return false;
   if (dyn_cast<GlobalValue>(val)) return false;
   if (dyn_cast<AllocaInst>(val)) return false;
@@ -303,6 +301,14 @@ void alaska::printTranslationDot(llvm::Function &F,
           }
         }
       }
+
+      if (auto call = dyn_cast<CallInst>(&I)) {
+        if (auto f = call->getCalledFunction()) {
+          if (f->getName() == "alaska_barrier_poll") {
+            color = "#ff00ff";
+          }
+        }
+      }
       alaska::fprint(out, "      <tr><td align=\"left\" port=\"n", &I, "\" border=\"0\" bgcolor=\"",
           color, "\">  ", escape(I), "</td>");
 
@@ -331,61 +337,6 @@ void alaska::printTranslationDot(llvm::Function &F,
   }
   alaska::fprintln(out, "}");
 }
-
-
-
-
-// static llvm::Loop *get_outermost_loop_for_translation(
-//     llvm::Loop *loopToCheck, llvm::Instruction *pointer, llvm::Instruction *user) {
-//   // return nullptr;
-//   if (loopToCheck->contains(user) && !loopToCheck->contains(pointer)) {
-//     return loopToCheck;
-//   }
-//
-//   for (auto *subLoop : loopToCheck->getSubLoops()) {
-//     if (auto *loop = get_outermost_loop_for_translation(subLoop, pointer, user)) {
-//       return loop;
-//     }
-//   }
-//   return nullptr;
-// }
-//
-//
-// static llvm::Instruction *compute_translation_insertion_location(
-//     llvm::Value *pointerToTranslate, llvm::Instruction *user, llvm::LoopInfo &loops) {
-//   // the instruction to consider as the "location of the pointer". This is done for things like
-//   // arguments.
-//   llvm::Instruction *effectivePointerInstruction = NULL;
-//   if (auto pointerToTranslateInst = dyn_cast<llvm::Instruction>(pointerToTranslate)) {
-//     effectivePointerInstruction = pointerToTranslateInst;
-//   } else {
-//     // get the first instruction in the function the argument is a part of;
-//     effectivePointerInstruction = user->getParent()->getParent()->front().getFirstNonPHI();
-//   }
-//   ALASKA_SANITY(
-//       effectivePointerInstruction != NULL, "No effective instruction for pointerToTranslate");
-//
-//   llvm::Loop *targetLoop = NULL;
-//   for (auto loop : loops) {
-//     targetLoop = get_outermost_loop_for_translation(loop, effectivePointerInstruction, user);
-//     if (targetLoop != NULL) break;
-//   }
-//
-//   // If no loop was found, translate at the user.
-//   if (targetLoop == NULL) return user;
-//
-//   llvm::BasicBlock *incoming, *back;
-//   targetLoop->getIncomingAndBackEdge(incoming, back);
-//
-//
-//   // errs() << "Found loop for " << *pointerToTranslate << ": " << *targetLoop;
-//   if (incoming && incoming->getTerminator()) {
-//     return incoming->getTerminator();
-//   }
-//
-//   return user;
-// }
-
 
 
 struct TranslationPDGConstructionVisitor
