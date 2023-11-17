@@ -51,6 +51,13 @@ extern long alaska_translate_rss_kb(void);
 extern unsigned long alaska_timestamp(void);
 
 
+struct alaska_blob_config {
+  uintptr_t code_start, code_end;
+  void *stackmap;
+};
+// In barrier.cpp
+void alaska_blob_init(struct alaska_blob_config *cfg);
+
 
 // #define TABLE_START 0x80000000LU
 //

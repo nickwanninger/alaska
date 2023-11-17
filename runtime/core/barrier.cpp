@@ -38,9 +38,10 @@
 #include <assert.h>
 
 
-enum class Transition {
-  Managed,    // The most recent transition made was from unmanaged -> managed
-  Unmanaged,  // The most recent transition made was from managed -> unmanaged
+enum class StackState {
+  ManagedTracked,    // The thread is in managed code, at a poll. (safe to join barrier)
+  ManagedUntracked,  // The thread is in managed code, but not at a poll
+  Unmanaged,         // The thread is in unmanaged code. (save to join barrier)
 };
 
 
@@ -57,7 +58,12 @@ struct StackMapping {
   uint64_t id;
 };
 
+struct ManagedBlobRegion {
+  uintptr_t start, end;
+};
 
+
+static ck::vec<ManagedBlobRegion> managed_blob_text_regions;
 static ck::map<uintptr_t, PinSetInfo> pin_map;
 // the return addresses from calls to potentially blocking functions
 static ck::set<uintptr_t> block_rets;
@@ -118,6 +124,8 @@ static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
 
+
+
 void alaska_remove_from_local_lock_list(void* ptr) {
   return;
 }
@@ -142,6 +150,20 @@ void alaska_dump_thread_states(void) {
   pthread_mutex_unlock(&all_threads_lock);
 }
 
+
+static StackState get_stack_state(uintptr_t return_address) {
+  if (pin_map.contains(return_address)) {
+    return StackState::ManagedTracked;
+  }
+
+  for (auto [start, end] : managed_blob_text_regions) {
+    if (return_address >= start && return_address < end) {
+      return StackState::ManagedUntracked;
+    }
+  }
+
+  return StackState::Unmanaged;
+}
 
 
 
@@ -178,30 +200,30 @@ extern "C" void callback_test(void (*cb)(void)) {
   foo++;
 }
 
-static Transition most_recent_transition(void) {
-  unw_cursor_t cursor;
-  unw_context_t uc;
-  unw_word_t pc;
-
-  unw_getcontext(&uc);
-  unw_init_local(&cursor, &uc);
-  while (1) {
-    int res = unw_step(&cursor);
-    if (res == 0) {
-      break;
-    }
-    if (res < 0) {
-      printf("unknown libunwind error! %d\n", res);
-      abort();
-    }
-    unw_get_reg(&cursor, UNW_REG_IP, &pc);
-
-    if (pin_map.contains(pc)) return Transition::Managed;
-    if (block_rets.contains(pc)) return Transition::Unmanaged;
-  }
-
-  return Transition::Managed;
-}
+// static Transition most_recent_transition(void) {
+//   unw_cursor_t cursor;
+//   unw_context_t uc;
+//   unw_word_t pc;
+//
+//   unw_getcontext(&uc);
+//   unw_init_local(&cursor, &uc);
+//   while (1) {
+//     int res = unw_step(&cursor);
+//     if (res == 0) {
+//       break;
+//     }
+//     if (res < 0) {
+//       printf("unknown libunwind error! %d\n", res);
+//       abort();
+//     }
+//     unw_get_reg(&cursor, UNW_REG_IP, &pc);
+//
+//     if (pin_map.contains(pc)) return Transition::Managed;
+//     if (block_rets.contains(pc)) return Transition::Unmanaged;
+//   }
+//
+//   return Transition::Managed;
+// }
 
 
 static bool in_might_block_function(uintptr_t start_addr) {
@@ -211,14 +233,25 @@ static bool in_might_block_function(uintptr_t start_addr) {
   dump_lock.lock();
   bool found_start = false;
   for (int i = 0; i < depth; i++) {
-    if ((uintptr_t)buffer[i] == start_addr) {
+    auto addr = (uintptr_t)buffer[i];
+    if (addr == start_addr) {
       found_start = true;
     }
     if (!found_start) continue;
 
-    const char* msg = "";
-    if (pin_map.contains((uintptr_t)buffer[i])) msg = "managed";
-    if (block_rets.contains((uintptr_t)buffer[i])) msg = "unmanaged";
+    const char* msg = "\e[33m(unmanaged)\e[0m";
+
+    for (auto [start, end] : managed_blob_text_regions) {
+      if (addr >= start && addr < end) {
+        // red
+        msg = "\e[31m(managed)\e[0m";
+        break;
+      }
+    }
+    if (pin_map.contains(addr)) {
+      // green
+      msg = "\e[32m(managed)\e[0m";
+    }
 
     printf("%016lx %s\n", buffer[i], msg);
   }
@@ -382,28 +415,45 @@ static void barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   return_address = ucontext->uc_mcontext.pc;
 #endif
 
-  if (sig == SIGUSR2) {
-    // If ths signal is SIGUSR2, we should validate that
-    // this thread is still 'out to lunch'
-    // ie: the return address from a call to a 'mightblock'
-    // function is in the backtrace somewhere
-    //
-    // If there is not a mightblock return address, we need to
-    // return from this signal handler and we will eventually join
-    // the barrier later on.
-    if (!in_might_block_function(return_address)) {
-      // #ifdef __aarch64__
-      //       // invalidate icache on arm. This ensures the patched
-      //       // barrier instructions work as expected
-      //       asm ("ic ialluis");
-      // #endif
-      return;
-    }
+  auto state = get_stack_state(return_address);
 
-    alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
-  } else if (sig == SIGILL) {
-    alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
+
+  switch (state) {
+    case StackState::ManagedUntracked:
+      // If we interrupted in managed code, but it wasn't at a poll point,
+      // we need to return back to the thread so it can hit a poll.
+      assert(sig == SIGUSR2 && "Untracked managed code got into the barrier handler w/ the wrong signal");
+      return;
+      
+    case StackState::ManagedTracked:
+      // it's possible to be at a managed poll point *and* get interrupted
+      // through SIGUSR2
+      alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
+      break;
+
+    case StackState::Unmanaged:
+      assert(sig == SIGUSR2 && "Unmanaged code got into the barrier handler w/ the wrong signal");
+      alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
+      break;
   }
+
+  // if (sig == SIGUSR2) {
+  //   // If ths signal is SIGUSR2, we should validate that
+  //   // this thread is still 'out to lunch'
+  //   // ie: the return address from a call to a 'mightblock'
+  //   // function is in the backtrace somewhere
+  //   //
+  //   // If there is not a mightblock return address, we need to
+  //   // return from this signal handler and we will eventually join
+  //   // the barrier later on.
+  //   if (!in_might_block_function(return_address)) {
+  //     return;
+  //   }
+  //
+  //   alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
+  // } else if (sig == SIGILL) {
+  //   alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
+  // }
 
   ck::set<void*> ps;
   alaska::barrier::get_locked(ps);  // TODO: slow!
@@ -419,27 +469,31 @@ static void barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
 void alaska::barrier::add_self_thread(void) {
   auto self = pthread_self();
-  pthread_mutex_lock(&all_threads_lock);
   num_threads++;
 
 
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
-  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
-  sa.sa_sigaction = barrier_signal_handler;
-  if (sigaction(SIGILL, &sa, NULL) != 0) {
-    perror("Failed to add sigaction to new thread.\n");
-    exit(EXIT_FAILURE);
-  }
-  if (sigaction(SIGUSR2, &sa, NULL) != 0) {
-    perror("Failed to add sigaction to new thread.\n");
-    exit(EXIT_FAILURE);
-  }
 
+  // Block signals while we are in these signal handlers.
+  sigemptyset(&sa.sa_mask);
+  sigaddset(&sa.sa_mask, SIGINT);
+  sigaddset(&sa.sa_mask, SIGUSR2);
+  // Store siginfo (ucontext) on the stack of the signal
+  // handlers (so we can grab the return address)
+  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  // Go to the `barrier_signal_handler`
+  sa.sa_sigaction = barrier_signal_handler;
+  // Attach this action on two signals:
+  assert(sigaction(SIGILL, &sa, NULL) == 0);
+  assert(sigaction(SIGUSR2, &sa, NULL) == 0);
+
+
+  pthread_mutex_lock(&all_threads_lock);
+  // Alocate and add a thread
   auto* tinfo = (alaska_thread_info*)calloc(1, sizeof(alaska_thread_info));
   tinfo->thread = self;
   tinfo->state = &alaska_thread_state;
-
 
   alaska_thread_state.escaped = 0;
   list_add(&tinfo->list_head, &all_threads);
@@ -469,6 +523,7 @@ void alaska::barrier::remove_self_thread(void) {
   }
 
   list_del(&pos->list_head);
+  free(pos);
   pthread_mutex_unlock(&all_threads_lock);
 }
 
@@ -562,7 +617,7 @@ const char* regname(int r) {
  * This function parses a stackmap emitted from LLVM and pushes all
  * the patch points to
  */
-void parse_stack_map(uint8_t* t, void* signalFunc) {
+void parse_stack_map(uint8_t* t) {
   alaska::StackMapParser p(t);
 
   auto currFunc = p.functions_begin();
@@ -594,18 +649,7 @@ void parse_stack_map(uint8_t* t, void* signalFunc) {
 #ifdef __amd64__
       // Byte pointer to the instruction.
       {
-        // uint8_t inst[8] = {0xe8, 0, 0, 0, 0, 1, 1, 1};
-        // uint8_t inst[8] = {0xcc, 0, 0, 0, 0, 1, 1, 1};
         uint8_t inst[8] = {0x0F, 0xFF, 0, 0, 0, 1, 1, 1};
-
-        // Compute the address after the call inst.
-        // uint64_t after = (uint64_t)rip + ALASKA_PATCH_SIZE;
-        // uint32_t dstRel = (uint64_t)signalFunc - after;
-        // *(uint32_t*)(inst + 1) = dstRel;
-
-        // inst[5] = ripB[5];
-        // inst[6] = ripB[6];
-        // inst[7] = ripB[7];
         p.inst_sig = *(uint64_t*)inst;
       }
       {
@@ -660,14 +704,11 @@ void parse_stack_map(uint8_t* t, void* signalFunc) {
 }
 
 
-extern "C" void alaska_register_stack_map(void* map, void* signalFunc) {
-  if (map) {
-    // printf("Register stack map %p\n", map);
-    parse_stack_map((uint8_t*)map, signalFunc);
-  }
+
+void alaska_blob_init(struct alaska_blob_config* cfg) {
+  if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
+  managed_blob_text_regions.push({cfg->code_start, cfg->code_end});
 }
-
-
 
 // This function doesn't really need to exist,
 extern "C" void alaska_barrier_poll(void) {

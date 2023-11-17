@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <alaska.h>
 
 #define SS (sizeof(size_t))
 #define ALIGN (sizeof(size_t))
@@ -12,7 +13,6 @@
 #define HASZERO(x) ((x)-ONES & ~(x)&HIGHS)
 
 // Most of these functions are straight up stolen from musl libc
-
 void setbuf(FILE *stream, char *buf) {
   // NOP
 }
@@ -231,20 +231,21 @@ char *strncat(char *restrict d, const char *restrict s, size_t n) {
 extern void alaska_barrier_signal_join(void);
 // This function is the "signal" function to the runtime that gets patched
 // into the code whenever a barrier needs to occur.
-__attribute__((preserve_most))
-void __alaska_signal(void) {
+__attribute__((preserve_most)) void __alaska_signal(void) {
   alaska_barrier_signal_join();
 }
 
-// in barrier.cpp
-extern void alaska_register_stack_map(void *map, void *signalFunc);
 
 
 extern int __LLVM_StackMaps __attribute__((weak));
+extern char __alaska_text_start[];
+extern char __alaska_text_end[];
 
 static void __attribute__((constructor)) alaska_init(void) {
-  int *stackmaps = &__LLVM_StackMaps;
-  if (stackmaps) {
-    alaska_register_stack_map(stackmaps, (void *)__alaska_signal);
-  }
+  struct alaska_blob_config cfg;
+  cfg.code_start = (uintptr_t)__alaska_text_start;
+  cfg.code_end = (uintptr_t)__alaska_text_end;
+  cfg.stackmap = &__LLVM_StackMaps;
+  alaska_blob_init(&cfg);
+
 }

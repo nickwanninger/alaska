@@ -1,3 +1,4 @@
-handle SIGSEGV nostop pass noprint
+handle SIGUSR2 nostop pass noprint
+handle SIGILL nostop pass noprint
 
 b exit

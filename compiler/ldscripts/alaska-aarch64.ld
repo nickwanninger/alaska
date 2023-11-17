@@ -47,15 +47,22 @@ SECTIONS
   .plt            : ALIGN(16) { *(.plt) *(.iplt) }
   .text           :
   {
+
     *(.text.unlikely .text.*_unlikely .text.unlikely.*)
     *(.text.exit .text.exit.*)
     *(.text.startup .text.startup.*)
     *(.text.hot .text.hot.*)
     *(SORT(.text.sorted.*))
+
+    PROVIDE_HIDDEN (__alaska_text_start = .);
+    *(.text.alaska)
+    PROVIDE_HIDDEN (__alaska_text_end = .);
+
     *(.text .stub .text.* .gnu.linkonce.t.*)
     /* .gnu.warning sections are handled specially by elf.em.  */
     *(.gnu.warning)
   } =0x1f2003d5
+
   .fini           :
   {
     KEEP (*(SORT_NONE(.fini)))

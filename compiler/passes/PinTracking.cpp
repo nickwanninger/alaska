@@ -47,6 +47,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     }
 
     F.setGC("coreclr");
+    F.setSection(".text.alaska");
 
     // Extract all the translations from the function
     auto translations = alaska::extractTranslations(F);

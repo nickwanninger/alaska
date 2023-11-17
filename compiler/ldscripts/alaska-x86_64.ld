@@ -57,10 +57,16 @@ SECTIONS
     *(.text.startup .text.startup.*)
     *(.text.hot .text.hot.*)
     *(SORT(.text.sorted.*))
+    PROVIDE (__alaska_text_start = .);
+    *(.text.alaska)
+    PROVIDE (__alaska_text_end = .);
+
+
     *(.text .stub .text.* .gnu.linkonce.t.*)
     /* .gnu.warning sections are handled specially by elf.em.  */
     *(.gnu.warning)
   }
+
   .fini           :
   {
     KEEP (*(SORT_NONE(.fini)))

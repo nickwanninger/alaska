@@ -233,13 +233,14 @@ void populateMPM(ModulePassManager &MPM) {
 
     MPM.addPass(adapt(PlaceSafepointsPass()));
     MPM.addPass(ProgressPass("Safepoint Placement"));
-    MPM.addPass(PinTrackingPass());
-    MPM.addPass(ProgressPass("Lock Insertion"));
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
     MPM.addPass(TranslationPrinterPass());
     MPM.addPass(ProgressPass("Lock Printing"));
 #endif
+    // Insert low-level on-stack tracking
+    MPM.addPass(PinTrackingPass());
+    MPM.addPass(ProgressPass("Lock Insertion"));
 
     // After this point, translations can no longer be parsed.
     // Any pass which needs that information must have run by now.

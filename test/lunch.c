@@ -30,8 +30,8 @@ void *lunch(void *arg) {
   struct thingy *x = arg;
   while (1) {
     x->value = 4;
-    // usleep(1000);  // sleep for some time.
-    // x->value = fib(25);
+    usleep(1000);  // sleep for some time.
+    x->value = fib(25);
 
     // callback_test(fib_cb);
   }
@@ -40,10 +40,10 @@ void *lunch(void *arg) {
 
 int main() {
   // printf("Hello!\n");
-  // void *arg = malloc(sizeof(struct thingy));
-  // lunch(arg);
-  //
-  // return 0;
+  void *arg = malloc(sizeof(struct thingy));
+  lunch(arg);
+
+  return 0;
   int num = 1;
   pthread_t threads[num];
 

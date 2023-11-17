@@ -175,7 +175,7 @@ static bool mightBlock(llvm::Function &F) {
   if (name.startswith("alaska.")) return false;
   if (name.startswith("__alaska")) return false;
   if (name.startswith("llvm.")) return false;
-  alaska::println("might block: ", name);
+  // alaska::println("might block: ", name);
 
   return true;
 }
