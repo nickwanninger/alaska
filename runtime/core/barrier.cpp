@@ -191,15 +191,6 @@ static bool might_be_handle(void* possible_handle) {
 
 static ck::mutex dump_lock;
 
-
-volatile int foo;
-// TODO: delete me!
-extern "C" void callback_test(void (*cb)(void)) {
-  foo++;
-  cb();
-  foo++;
-}
-
 // static Transition most_recent_transition(void) {
 //   unw_cursor_t cursor;
 //   unw_context_t uc;
