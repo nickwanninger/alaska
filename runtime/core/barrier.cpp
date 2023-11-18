@@ -396,7 +396,7 @@ extern "C" void alaska_barrier_signal_join(void) {
 }
 
 
-static void barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
+static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
   uintptr_t return_address = 0;
 
@@ -474,7 +474,7 @@ void alaska::barrier::add_self_thread(void) {
   // handlers (so we can grab the return address)
   sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
   // Go to the `barrier_signal_handler`
-  sa.sa_sigaction = barrier_signal_handler;
+  sa.sa_sigaction = alaska_barrier_signal_handler;
   // Attach this action on two signals:
   assert(sigaction(SIGILL, &sa, NULL) == 0);
   assert(sigaction(SIGUSR2, &sa, NULL) == 0);
