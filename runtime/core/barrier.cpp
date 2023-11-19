@@ -645,7 +645,7 @@ void parse_stack_map(uint8_t* t) {
       }
       {
         // A 2 byte nop
-        p.inst_nop = 0x90'66
+        p.inst_nop = 0x90'66;
       }
 #endif
 
