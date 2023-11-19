@@ -70,7 +70,7 @@ static ck::set<uintptr_t> block_rets;
 
 
 #ifdef __amd64__
-using inst_t = uint64_t;
+using inst_t = uint16_t;
 #endif
 #ifdef __aarch64__
 using inst_t = uint32_t;
@@ -413,9 +413,10 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
     case StackState::ManagedUntracked:
       // If we interrupted in managed code, but it wasn't at a poll point,
       // we need to return back to the thread so it can hit a poll.
-      assert(sig == SIGUSR2 && "Untracked managed code got into the barrier handler w/ the wrong signal");
+      assert(sig == SIGUSR2 &&
+             "Untracked managed code got into the barrier handler w/ the wrong signal");
       return;
-      
+
     case StackState::ManagedTracked:
       // it's possible to be at a managed poll point *and* get interrupted
       // through SIGUSR2
@@ -636,22 +637,15 @@ void parse_stack_map(uint8_t* t) {
 
       p.pc = (inst_t*)rip;
 
-      // TODO: ARM
+      // X86:
 #ifdef __amd64__
       // Byte pointer to the instruction.
       {
-        uint8_t inst[8] = {0x0F, 0xFF, 0, 0, 0, 1, 1, 1};
-        p.inst_sig = *(uint64_t*)inst;
+        p.inst_sig = 0xFF'F0;
       }
       {
-        uint8_t inst[8] = {0x0f, 0x1f, 0x44, 0x00, 0x08, 1, 1, 1};
-        uint8_t* ripB = (uint8_t*)rip;
-
-        inst[5] = ripB[5];
-        inst[6] = ripB[6];
-        inst[7] = ripB[7];
-
-        p.inst_nop = *(uint64_t*)inst;
+        // A 2 byte nop
+        p.inst_nop = 0x90'66
       }
 #endif
 

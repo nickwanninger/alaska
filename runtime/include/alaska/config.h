@@ -5,8 +5,8 @@
 
 
 #ifdef __amd64__
-// a call instruction (TODO: make it smaller)
-#define ALASKA_PATCH_SIZE 5
+// On x86, we simply use `ud2` to trigger a SIGILL
+#define ALASKA_PATCH_SIZE 2
 #endif
 
 
