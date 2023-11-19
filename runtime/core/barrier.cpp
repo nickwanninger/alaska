@@ -632,6 +632,7 @@ void parse_stack_map(uint8_t* t) {
       auto* rip = (void*)(addr - ALASKA_PATCH_SIZE);
       auto patch_page = (void*)((uintptr_t)rip & ~0xFFF);
       mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
+      printf("%p\n", rip);
 
       PatchPoint p;
 
@@ -640,13 +641,9 @@ void parse_stack_map(uint8_t* t) {
       // X86:
 #ifdef __amd64__
       // Byte pointer to the instruction.
-      {
-        p.inst_sig = 0xFF'F0;
-      }
-      {
-        // A 2 byte nop
-        p.inst_nop = 0x90'66;
-      }
+      p.inst_sig = 0xFF'F0;
+      // A 2 byte nop
+      p.inst_nop = 0x90'66;
 #endif
 
 // Arm is way easier than x86...
