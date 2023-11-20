@@ -78,20 +78,11 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
           }
           if (auto func = call->getCalledFunction(); func != nullptr) {
             if (func->getName().startswith("alaska.")) continue;
-            // if (func->getName().startswith("__alaska")) continue;
           }
           statepointCalls.insert(call);
-          // for (auto &tr : translations) {
-          //   mustTrack.insert(tr.get());
-          //   if (tr->isLive(call)) {
-          //     mustTrack.insert(tr.get());
-          //   }
-          // }
         }
       }
     }
-
-
 
     // Given a translation, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> pin_cell_ids;
@@ -181,7 +172,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
 
       auto called = call->getCalledOperand();
       int patch_size = 0;
-      int id = 0xABCDEF00;
+      int id = 0;
       if (auto func = call->getCalledFunction()) {
         if (func->getName() == "alaska_barrier_poll") {
           id = 'PATC';
@@ -192,7 +183,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
 
-      // Value * > GCArgs, const Twine &Name="")
       auto token = b.CreateGCStatepointCall(id, patch_size,
           llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {}, "");
       auto result = b.CreateGCResult(token, call->getType());
