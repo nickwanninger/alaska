@@ -35,7 +35,6 @@ set(SRC_FILES
 	core/runtime.cpp
 	core/table.cpp
   # core/translate.cpp
-	core/prefetch.cpp
 	core/halloc.cpp
 	core/barrier.cpp
 	core/glue.cpp # Stuff to support a nostdlibc++ environment
@@ -182,7 +181,6 @@ add_library(lifetimemalloc SHARED ${SRC_FILES})
 target_link_libraries(lifetimemalloc dl)
 
 add_bitcode(alaska_translate SOURCES core/translate.cpp)
-add_bitcode(alaska_prefetch SOURCES core/prefetch.cpp)
 add_bitcode(alaska_compat SOURCES core/compat.c)
 
 
