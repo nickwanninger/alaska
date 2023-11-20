@@ -7,7 +7,6 @@ with pkgs.lib;
 
 pkgs.stdenv.mkDerivation {
   name = "alaska";
-  # dontUnpack = true;
 
   nativeBuildInputs = with pkgs; [ cmake ];
 
@@ -42,8 +41,6 @@ pkgs.stdenv.mkDerivation {
 
     bashInteractive
   ];
-
-
 
   hardeningDisable = [ "all" ];
 
