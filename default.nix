@@ -2,7 +2,24 @@
 
 with pkgs.lib;
 
-pkgs.mkShell {
+
+
+
+pkgs.stdenv.mkDerivation {
+  name = "alaska";
+  # dontUnpack = true;
+
+  nativeBuildInputs = with pkgs; [ cmake ];
+
+  src = pkgs.nix-gitignore.gitignoreSource [] ./.;
+
+
+  # build a default configuration
+  preConfigure = ''
+    make defconfig
+  '';
+
+
   buildInputs = with pkgs; [
     autoconf automake cmake
     coreutils moreutils binutils
@@ -14,13 +31,24 @@ pkgs.mkShell {
 
     gdb ps which
 
+
+    # Compiler dependencies
+    llvmPackages_15.libllvm
+    llvmPackages_15.clang
+    llvmPackages_15.stdenv
+    llvmPackages_15.libunwind
+
+    gllvm
+
     bashInteractive
   ];
+
+
 
   hardeningDisable = [ "all" ];
 
   shellHook = ''
-    export PATH=$PWD/local/bin:$PATH
-    export LD_LIBRARY_PATH=$PWD/local/lib:$LD_LIBRARY_PATH
+    # export PATH=$PWD/local/bin:$PATH
+    # export LD_LIBRARY_PATH=$PWD/local/lib:$LD_LIBRARY_PATH
   '';
 }
