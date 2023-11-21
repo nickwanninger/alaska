@@ -357,23 +357,24 @@ static void barrier_control_overhead_target(void) {
 
 extern void alaska_dump_thread_states(void);
 static void barrier_simple_time(void) {
-
   // while(1) {
   //   alaska_dump_thread_states();
   //   usleep(1000);
   // }
   while (1) {
-    usleep(100 * 1000);
-    // ck::scoped_lock l(anch_lock);
+    usleep(10 * 1000);
+    ck::scoped_lock l(anch_lock);
     // Get everyone prepped for a barrier
     auto start = alaska_timestamp();
     alaska::barrier::begin();
-    // anchorage::CompactionConfig config;
+    anchorage::CompactionConfig config;
     // Before swapping spaces, do some defragmentation
-    // long moved = 0;
-    // anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    long moved = 0;
+    // long moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    // anchorage::Chunk::swap_spaces();
     auto end = alaska_timestamp();
-    printf("NOP barrier took %lf ms\n", (end - start) / 1000.0 / 1000.0);
+    printf("%lu moved barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
+    (void)(end - start);
 
     alaska::barrier::end();
     // Swap the spaces and switch to waiting.

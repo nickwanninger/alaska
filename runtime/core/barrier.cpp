@@ -83,6 +83,8 @@ struct PatchPoint {
 };
 static ck::vec<PatchPoint> patchPoints;
 
+static volatile bool patches_done = false;
+
 
 static void patchSignal() {
   for (auto& p : patchPoints) {
@@ -328,6 +330,12 @@ void alaska::barrier::begin(void) {
   // also lock the thread list! Nobody is allowed to create a thread right now.
   pthread_mutex_lock(&all_threads_lock);
 
+
+  alaska_thread_state.join_reason = ALASKA_JOIN_REASON_ORCHESTRATOR;
+
+
+  patches_done = false;
+
   if (barrier_last_num_threads != num_threads) {
     if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
     // Initialize the barrier so we know when everyone is ready!
@@ -346,16 +354,25 @@ void alaska::barrier::begin(void) {
 
 
   patchSignal();
+  patches_done = true;
 
   ck::set<void*> locked;
   alaska::barrier::get_locked(locked);  // TODO: slow!
   alaska_barrier_join(true, locked);
 
   list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->state->join_reason == ALASKA_JOIN_REASON_SAFEPOINT) {
-      printf("\e[42m. ");  // a thread will join a barrier (not out to lunch)
-    } else {
-      printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
+    switch (pos->state->join_reason) {
+      case ALASKA_JOIN_REASON_SIGNAL:
+        printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
+        break;
+
+      case ALASKA_JOIN_REASON_SAFEPOINT:
+        printf("\e[42m. ");  // a thread will join a barrier (not out to lunch)
+        break;
+
+      case ALASKA_JOIN_REASON_ORCHESTRATOR:
+        printf("\e[44m. ");  // a thread will join a barrier (not out to lunch)
+        break;
     }
   }
   printf("\e[0m\n");
@@ -405,13 +422,19 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
   auto state = get_stack_state(return_address);
 
-
   switch (state) {
     case StackState::ManagedUntracked:
       // If we interrupted in managed code, but it wasn't at a poll point,
       // we need to return back to the thread so it can hit a poll.
-      assert(sig == SIGUSR2 &&
-             "Untracked managed code got into the barrier handler w/ the wrong signal");
+      
+
+      // First, though, we need to wait for the patches to be done.
+      while (!patches_done) {
+      }
+
+      for (auto [start, end] : managed_blob_text_regions) {
+        __builtin___clear_cache((char*)start, (char*)end);
+      }
       return;
 
     case StackState::ManagedTracked:
@@ -426,24 +449,6 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       break;
   }
 
-  // if (sig == SIGUSR2) {
-  //   // If ths signal is SIGUSR2, we should validate that
-  //   // this thread is still 'out to lunch'
-  //   // ie: the return address from a call to a 'mightblock'
-  //   // function is in the backtrace somewhere
-  //   //
-  //   // If there is not a mightblock return address, we need to
-  //   // return from this signal handler and we will eventually join
-  //   // the barrier later on.
-  //   if (!in_might_block_function(return_address)) {
-  //     return;
-  //   }
-  //
-  //   alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
-  // } else if (sig == SIGILL) {
-  //   alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
-  // }
-
   ck::set<void*> ps;
   alaska::barrier::get_locked(ps);  // TODO: slow!
 
@@ -451,6 +456,11 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   // will deal with all the synchronization that needs done.
   alaska_barrier_join(false, ps);
   alaska_barrier_leave(false, ps);
+
+
+  for (auto [start, end] : managed_blob_text_regions) {
+    __builtin___clear_cache((char*)start, (char*)end);
+  }
 }
 
 
@@ -466,11 +476,11 @@ void alaska::barrier::add_self_thread(void) {
 
   // Block signals while we are in these signal handlers.
   sigemptyset(&sa.sa_mask);
-  sigaddset(&sa.sa_mask, SIGINT);
+  sigaddset(&sa.sa_mask, SIGILL);
   sigaddset(&sa.sa_mask, SIGUSR2);
   // Store siginfo (ucontext) on the stack of the signal
   // handlers (so we can grab the return address)
-  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  sa.sa_flags = SA_SIGINFO;
   // Go to the `barrier_signal_handler`
   sa.sa_sigaction = alaska_barrier_signal_handler;
   // Attach this action on two signals:
@@ -536,6 +546,22 @@ void parse_stack_map(uint8_t* t) {
 
     if (record.getID() == 'BLOK') {
       block_rets.add(addr);
+      PatchPoint p;
+
+
+      // X86:
+#ifdef __amd64__
+      // Byte pointer to the instruction.
+      p.pc = (inst_t*)(addr - 5);  // TODO: are all calls 5 bytes?
+      p.inst_nop = *p.pc;
+      p.inst_sig = 0xFF'F0;
+#endif
+#ifdef __aarch64__
+      p.pc = (inst_t*)(addr - 4);
+      p.inst_nop = *p.pc;       // nop
+      p.inst_sig = 0x00000000;  // udf #0
+#endif
+      patchPoints.push(p);
     }
 
     if (record.getID() == 'PATC') {
@@ -588,7 +614,13 @@ void parse_stack_map(uint8_t* t) {
       }
     }
 
+    printf("Add pin_map %p\n", addr);
+
     pin_map[addr] = psi;
+
+    if (record.getID() == 'BLOK') {
+      pin_map[addr - 4] = psi;
+    }
   }
 
 

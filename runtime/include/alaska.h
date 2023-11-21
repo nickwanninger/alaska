@@ -14,8 +14,9 @@ typedef struct {
   uint64_t escaped;
   // Why did this thread join?
   int join_reason;
-#define ALASKA_JOIN_REASON_SIGNAL 0
-#define ALASKA_JOIN_REASON_SAFEPOINT 1
+#define ALASKA_JOIN_REASON_SIGNAL 0        // This thread was signalled.
+#define ALASKA_JOIN_REASON_SAFEPOINT 1     // This thread was at a safepoint
+#define ALASKA_JOIN_REASON_ORCHESTRATOR 2  // THis thread was the orchestrator
   // ...
 } alaska_thread_state_t;
 
@@ -69,7 +70,7 @@ void alaska_blob_init(struct alaska_blob_config *cfg);
 
 // The alaska safepoint page lives immediately before the table start
 // #define ALASKA_SAFEPOINT_PAGE ((void*)(TABLE_START - 0x1000))
-#define ALASKA_SAFEPOINT_PAGE (void*)(0x7ffff000UL)
+#define ALASKA_SAFEPOINT_PAGE (void *)(0x7ffff000UL)
 // The implementation of the safepoint poll function
 extern void alaska_safepoint(void);
 

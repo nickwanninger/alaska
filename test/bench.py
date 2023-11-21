@@ -118,7 +118,6 @@ class PerfRunner(Runner):
         return out
 
 
-
 all_spec = [
     600,
     602,
@@ -135,7 +134,7 @@ all_spec = [
 ]
 
 spec_enable = [
-    # 605, # mcf
+    605, # mcf
     # 623,
     # 625,
     # 631,
@@ -145,7 +144,9 @@ spec_enable = [
     # 638,
     # 644,
 
-    600, 602,
+
+
+    # 600, 602,
 ]
 
 space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
@@ -192,6 +193,7 @@ pl.add_stage(AlaskaBaselineStage(), name="Baseline")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
 
-results = space.run(runner=PerfRunner(), runs=1, compile=True)
+# results = space.run(runner=PerfRunner(), runs=1, compile=True)
+results = space.run(runs=1, compile=True)
 print(results)
 results.to_csv("bench/results.csv", index=False)
