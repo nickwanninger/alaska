@@ -287,15 +287,12 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
 
       void** localSet = (void**)(reg + psi.offset);
 
-      // printf("%p %d (%p) |", pc, psi.count, localSet);
       for (uint32_t i = 0; i < psi.count; i++) {
         if (might_be_handle(localSet[i])) {
           out.add(localSet[i]);
-          // printf(" %016llx", localSet[i]);
         }
       }
     }
-    // printf("\n");
   }
 }
 
