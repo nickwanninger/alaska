@@ -16,6 +16,7 @@
 #include <dlfcn.h>
 
 #include <alaska.h>
+#include <alaska/utils.h>
 #include <alaska/alaska.hpp>
 #include <alaska/service.hpp>
 #include <alaska/table.hpp>
@@ -324,7 +325,9 @@ static void alaska_barrier_leave(bool leader, const ck::set<void*>& ps) {
 }
 
 
+static long last_barrier = alaska_timestamp();
 void alaska::barrier::begin(void) {
+
   // As the leader, signal everyone to begin the barrier
   pthread_mutex_lock(&barrier_lock);
   // also lock the thread list! Nobody is allowed to create a thread right now.
@@ -356,9 +359,12 @@ void alaska::barrier::begin(void) {
   patchSignal();
   patches_done = true;
 
+  auto now = alaska_timestamp();
   ck::set<void*> locked;
   alaska::barrier::get_locked(locked);  // TODO: slow!
   alaska_barrier_join(true, locked);
+
+  printf("%10f ", (now - last_barrier) / 1000.0 / 1000.0 / 1000.0);
 
   list_for_each_entry(pos, &all_threads, list_head) {
     switch (pos->state->join_reason) {
@@ -455,6 +461,7 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   // Simply join the barrier, then leave immediately. This
   // will deal with all the synchronization that needs done.
   alaska_barrier_join(false, ps);
+  // TODO: clear the signal pending! (just in case)
   alaska_barrier_leave(false, ps);
 
 
@@ -554,7 +561,7 @@ void parse_stack_map(uint8_t* t) {
       // Byte pointer to the instruction.
       p.pc = (inst_t*)(addr - 5);  // TODO: are all calls 5 bytes?
       p.inst_nop = *p.pc;
-      p.inst_sig = 0xFF'F0;
+      p.inst_sig = 0x0B'0F;
 #endif
 #ifdef __aarch64__
       p.pc = (inst_t*)(addr - 4);
@@ -567,8 +574,6 @@ void parse_stack_map(uint8_t* t) {
     if (record.getID() == 'PATC') {
       // Apply the instruction patch
       auto* rip = (void*)(addr - ALASKA_PATCH_SIZE);
-      auto patch_page = (void*)((uintptr_t)rip & ~0xFFF);
-      mprotect(patch_page, 0x2000, PROT_EXEC | PROT_READ | PROT_WRITE);
 
       PatchPoint p;
       p.pc = (inst_t*)rip;
@@ -577,7 +582,7 @@ void parse_stack_map(uint8_t* t) {
       // X86:
 #ifdef __amd64__
       // Byte pointer to the instruction.
-      p.inst_sig = 0xFF'F0;
+      p.inst_sig = 0x0B'0F;
       // A 2 byte nop
       p.inst_nop = 0x90'66;
 #endif
@@ -614,12 +619,11 @@ void parse_stack_map(uint8_t* t) {
       }
     }
 
-    printf("Add pin_map %p\n", addr);
-
     pin_map[addr] = psi;
 
     if (record.getID() == 'BLOK') {
-      pin_map[addr - 4] = psi;
+      // pin_map[addr - 4] = psi;
+      pin_map[addr - 5] = psi; // TODO(HACK)
     }
   }
 
@@ -630,8 +634,14 @@ void parse_stack_map(uint8_t* t) {
 
 
 void alaska_blob_init(struct alaska_blob_config* cfg) {
-  if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
   managed_blob_text_regions.push({cfg->code_start, cfg->code_end});
+
+  // Not particularly safe, but we will ignore that for now.
+  auto patch_page = (void*)((uintptr_t)cfg->code_start & ~0xFFF);
+  size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
+  mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
+
+  if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }
 
 // This function doesn't really need to exist,

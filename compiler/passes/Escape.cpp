@@ -183,10 +183,10 @@ static bool mightBlock(llvm::Function &F) {
 llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
   LLVMContext &ctx = M.getContext();
   auto barrierBoundType = FunctionType::get(Type::getVoidTy(ctx), {}, false);
-  auto barrierEscapeStart =
-      M.getOrInsertFunction("alaska_barrier_before_escape", barrierBoundType).getCallee();
-  auto barrierEscapeEnd =
-      M.getOrInsertFunction("alaska_barrier_after_escape", barrierBoundType).getCallee();
+  // auto barrierEscapeStart =
+  //     M.getOrInsertFunction("alaska_barrier_before_escape", barrierBoundType).getCallee();
+  // auto barrierEscapeEnd =
+  //     M.getOrInsertFunction("alaska_barrier_after_escape", barrierBoundType).getCallee();
 
   std::set<std::string> functions_to_ignore = {
       "__alaska_leak",
@@ -379,20 +379,20 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   }
 
 
-  for (auto *call : blockingSites) {
-    // Now that we have the arguments all translated, let's insert
-    // logic to handle barriers - because they are poll based, we
-    // will not be able to poll while in an external function.
-    // TODO: filter out obvious external functions here.
-    // For example, memcpy should not get this treatment, as it
-    // will eventually return. fwrite should be handled as it
-    // may never return!
-    IRBuilder<> b(call);
-    // alaska::println(*call);
-    b.CreateCall(barrierBoundType, barrierEscapeStart, {});
-    b.SetInsertPoint(call->getNextNode());
-    b.CreateCall(barrierBoundType, barrierEscapeEnd, {});
-  }
+  // for (auto *call : blockingSites) {
+  //   // Now that we have the arguments all translated, let's insert
+  //   // logic to handle barriers - because they are poll based, we
+  //   // will not be able to poll while in an external function.
+  //   // TODO: filter out obvious external functions here.
+  //   // For example, memcpy should not get this treatment, as it
+  //   // will eventually return. fwrite should be handled as it
+  //   // may never return!
+  //   IRBuilder<> b(call);
+  //   // alaska::println(*call);
+  //   b.CreateCall(barrierBoundType, barrierEscapeStart, {});
+  //   b.SetInsertPoint(call->getNextNode());
+  //   b.CreateCall(barrierBoundType, barrierEscapeEnd, {});
+  // }
 
   // for (auto f : blockingFunctions) {
   //   if (f != NULL) {
