@@ -35,7 +35,6 @@ class AlaskaLinker(wl.Linker):
     args = [f"-L{local}/lib", "-lalaska"]
 
     def link(self, ws, objects, output, args=[]):
-        print("objects: ", objects);
         # it's pretty safe to link using clang++.
         ws.shell("clang++", *args, '-ldl', *linker_flags, *objects, "-o", output)
 
@@ -149,12 +148,35 @@ spec_enable = [
     # 600, 602,
 ]
 
-space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
-space.add_suite(wl.suites.SPEC2017,
-                tar="/home/nick/SPEC2017.tar.gz",
-                disabled=[t for t in all_spec if t not in spec_enable],
-                config="test")
+spec_locations = [
+    "./SPEC2017.tar.gz",
+    "~/SPEC2017.tar.gz",
+    "/SPEC2017.tar.gz",
+]
+def find_spec():
+    print('looking for SPEC in these locations:', spec_locations)
+    for loc in spec_locations:
+        loc = os.path.expanduser(loc)
+        if os.path.isfile(loc):
+            return loc
+    return None
 
+space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
+# space.add_suite(wl.suites.SPEC2017,
+#                 tar="/home/nick/SPEC2017.tar.gz",
+#                 disabled=[t for t in all_spec if t not in spec_enable],
+#                 config="test")
+
+
+spec = find_spec()
+if spec and False:
+    print('found spec:', spec)
+    space.add_suite(wl.suites.SPEC2017,
+                    tar=spec,
+                    disabled=[t for t in all_spec if t not in spec_enable],
+                    config="test")
+else:
+    print('Did not find spec in any of these lcoations:', spec_locations)
 
 
 # FULL EVALUATION:
