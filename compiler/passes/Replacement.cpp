@@ -34,7 +34,7 @@ static void replace_function(
   auto oldFunction = M.getFunction(original_name);
 
   if (oldFunction) {
-    auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getType()).getCallee();
+    auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getFunctionType()).getCallee();
 		std::vector<llvm::Use *> uses;
 
     for (auto &use : oldFunction->uses()) {
