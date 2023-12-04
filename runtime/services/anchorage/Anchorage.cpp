@@ -361,17 +361,18 @@ static void barrier_simple_time(void) {
   //   alaska_dump_thread_states();
   //   usleep(1000);
   // }
+  long moved = 0;
+  (void)moved;
   usleep(500 * 1000);
   while (1) {
-    usleep(700);
+    usleep(500 * 1000);
+    // continue;
     ck::scoped_lock l(anch_lock);
     // Get everyone prepped for a barrier
     auto start = alaska_timestamp();
     alaska::barrier::begin();
-    anchorage::CompactionConfig config;
-    // Before swapping spaces, do some defragmentation
-    long moved = 0;
-    // long moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    // anchorage::CompactionConfig config;
+    // moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
     // anchorage::Chunk::swap_spaces();
     auto end = alaska_timestamp();
     // printf("%lu moved barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
