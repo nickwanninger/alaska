@@ -553,22 +553,20 @@ void parse_stack_map(uint8_t* t) {
 
     if (record.getID() == 'BLOK') {
       block_rets.add(addr);
-      PatchPoint p;
-
-
-      // X86:
-#ifdef __amd64__
-      // Byte pointer to the instruction.
-      p.pc = (inst_t*)(addr - 5);  // TODO: are all calls 5 bytes?
-      p.inst_nop = *p.pc;
-      p.inst_sig = 0x0B'0F;
-#endif
-#ifdef __aarch64__
-      p.pc = (inst_t*)(addr - 4);
-      p.inst_nop = *p.pc;       // nop
-      p.inst_sig = 0x00000000;  // udf #0
-#endif
-      patchPoints.push(p);
+//       PatchPoint p;
+//       // X86:
+// #ifdef __amd64__
+//       // Byte pointer to the instruction.
+//       p.pc = (inst_t*)(addr - 5);  // TODO: are all calls 5 bytes?
+//       p.inst_nop = *p.pc;
+//       p.inst_sig = 0x0B'0F;
+// #endif
+// #ifdef __aarch64__
+//       p.pc = (inst_t*)(addr - 4);
+//       p.inst_nop = *p.pc;       // nop
+//       p.inst_sig = 0x00000000;  // udf #0
+// #endif
+//       patchPoints.push(p);
     }
 
     if (record.getID() == 'PATC') {
