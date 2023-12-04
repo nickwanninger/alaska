@@ -88,7 +88,7 @@ static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::in
 /// How narrow does the trip count of a loop have to be to have to be considered
 /// "counted"?  Counted loops do not get safepoints at backedges.
 static cl::opt<int> CountedLoopTripWidth(
-    "alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(32));
+    "alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(16));
 
 // If true, split the backedge of a loop when placing the safepoint, otherwise
 // split the latch block itself.  Both are useful to support for

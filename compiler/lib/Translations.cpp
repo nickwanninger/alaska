@@ -196,16 +196,12 @@ bool alaska::shouldTranslate(llvm::Value *val) {
   if (dyn_cast<AllocaInst>(val)) return false;
   if (dyn_cast<ConstantPointerNull>(val)) return false;
 
-
-  // if (auto arg = dyn_cast<Argument>(val)) {
-  //   auto *func = arg->getParent();
-  //   if (func) {
-  //     if (func->getName() == "cost_compare") {
-  //       alaska::println("COMPARE! ", *val);
-  //       return false;
-  //     }
-  //   }
-  // }
+  if (auto arg = dyn_cast<Argument>(val)) {
+    auto *func = arg->getParent();
+    if (func && func->getName().startswith(".omp_outlined")) {
+      return false;
+    }
+  }
 
   if (auto gep = dyn_cast<GetElementPtrInst>(val)) {
     return shouldTranslate(gep->getPointerOperand());
