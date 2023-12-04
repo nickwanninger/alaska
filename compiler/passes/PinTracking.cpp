@@ -3,6 +3,7 @@
 #include <alaska/Utils.h>
 #include <optional>
 
+#include "llvm/IR/CallingConv.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/ADT/SparseBitVector.h"
@@ -58,10 +59,10 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     std::set<alaska::Translation *> mustTrack;
     // A set of all
     std::set<CallInst *> statepointCalls;
+    // for (auto &tr : translations) {
+    //   mustTrack.insert(tr.get());
+    // }
 
-    for (auto &tr : translations) {
-      mustTrack.insert(tr.get());
-    }
 
     for (auto &BB : F) {
       for (auto &I : BB) {
@@ -83,6 +84,18 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
     }
+
+
+    for (auto &tr : translations) {
+      for (auto &sp : statepointCalls) {
+        if (tr->isLive(sp) || true) {
+          mustTrack.insert(tr.get());
+          break;
+        }
+      }
+    }
+
+    // alaska::println(F.getName(), " trs:", translations.size(), " mst:", mustTrack.size());
 
     // Given a translation, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> pin_cell_ids;
@@ -143,19 +156,22 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto *arrayType = ArrayType::get(pointerType, max_cell);
 
     IRBuilder<> atEntry(F.front().getFirstNonPHI());
-    trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
+
+    if (mustTrack.size() > 0) {
+      trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
+    }
 
     for (auto *tr : mustTrack) {
       long ind = pin_cell_ids[tr];
       IRBuilder<> b(tr->translation);
       auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
       auto handle = tr->getHandle();
-      b.CreateStore(handle, cell, true);
+      b.CreateStore(handle, cell, false);
 
-      for (auto rel : tr->releases) {
-        b.SetInsertPoint(rel->getNextNode());
-        b.CreateStore(Constant::getNullValue(pointerType), cell, false);
-      }
+      // for (auto rel : tr->releases) {
+      //   b.SetInsertPoint(rel->getNextNode());
+      //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
+      // }
     }
 
 
@@ -163,30 +179,46 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       IRBuilder<> b(call);
       std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
       std::vector<llvm::Value *> gcArgs;
-      if (trackSet != NULL) {
-        gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), mustTrack.size()));
-        gcArgs.push_back(trackSet);
-      }
+      // if (trackSet != NULL) {
+      //   gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64),
+      //   mustTrack.size())); gcArgs.push_back(trackSet);
+      // }
 
       Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
 
       auto called = call->getCalledOperand();
       int patch_size = 0;
       int id = 0;
+
       if (auto func = call->getCalledFunction()) {
         if (func->getName() == "alaska_barrier_poll") {
           id = 'PATC';
           patch_size = ALASKA_PATCH_SIZE;  // TODO: handle ARM
         } else if (func->hasFnAttribute("alaska_mightblock")) {
-          id = 'BLOK'; // This function might block! Record it in the stackmap
+          id = 'BLOK';  // This function might block! Record it in the stackmap
           patch_size = 0;
         }
       }
 
       auto token = b.CreateGCStatepointCall(id, patch_size,
           llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {}, "");
-      auto result = b.CreateGCResult(token, call->getType());
-      call->replaceAllUsesWith(result);
+
+      // If the safepoint is a PATCH safepoint, it won't ever be a call. It will always be a "NOP"
+      // style instruction and will never corrupt any registers. As such, to reduce the overhead of
+      // safepoints (to allow backend optimizations and whatnot) we mark the call of such locations
+      // as "preserve all", meaning the caller does not need to stash any registers on the stack. In
+      // the common case, this means patch points have basically no overhead outside of I$ lookups :)
+      //
+      // For reference, if this line is removed, NAS cg.B running on 64 cores under OpenMP sees
+      // overhead increase from 1.02x to 4x!
+      if (id == 'PATC') {
+        token->setCallingConv(CallingConv::PreserveAll);
+      }
+
+      if (!call->getType()->isVoidTy()) {
+        auto result = b.CreateGCResult(token, call->getType());
+        call->replaceAllUsesWith(result);
+      }
       call->eraseFromParent();
     }
   }
