@@ -12,9 +12,12 @@ export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
 INPUT=$1
 shift
 
-echo $@
+# echo $@
 
 OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
+
+# $OPT -O3
+# $OPT -O3
 
 # Run a load of enabler passes to make our analysis easier
 $OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
@@ -24,6 +27,5 @@ clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
 
 
 # Run some optimizations after our passes
-$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
+$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer --loop-versioning-licm --loop-versioning --loop-vectorize
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
-$OPT -O3
