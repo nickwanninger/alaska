@@ -147,14 +147,14 @@ all_spec = [
 
 spec_enable = [
     605, # mcf
-    # 623,
-    # 625,
-    # 631,
-    # 641,
-    # 657,
-    # 619,
-    # 638,
-    # 644,
+    623,
+    625,
+    631,
+    641,
+    657,
+    619,
+    638,
+    644,
 
 
 
@@ -175,13 +175,13 @@ def find_spec():
     return None
 
 # space.add_suite(wl.suites.Embench)
-# space.add_suite(wl.suites.GAP, enable_openmp=True, enable_exceptions=False, graph_size='21')
-space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
+# space.add_suite(wl.suites.GAP, enable_openmp=False, enable_exceptions=False, graph_size='19')
+# space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 
-
+do_spec = True
 spec = find_spec()
-if spec and False:
+if spec and do_spec:
     print('found spec:', spec)
     space.add_suite(wl.suites.SPEC2017,
                     tar=spec,
@@ -228,6 +228,6 @@ space.add_pipeline(pl)
 
 
 # results = space.run(runner=PerfRunner(), runs=1, compile=True)
-results = space.run(runs=10, compile=True)
+results = space.run(runs=3, compile=True)
 print(results)
 results.to_csv("bench/results.csv", index=False)
