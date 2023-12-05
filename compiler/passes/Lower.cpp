@@ -143,9 +143,10 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
         if (auto c = dyn_cast<CallInst>(user)) {
           // Good!
         } else {
-          onlyCalls = false;
+          // onlyCalls = false;
         }
       }
+      onlyCalls = false;
       if (onlyCalls) {
         call->setCalledFunction(translateEscapeFunc);
       } else {

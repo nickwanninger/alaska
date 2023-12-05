@@ -41,10 +41,10 @@ class AlaskaLinker(wl.Linker):
 
 class AlaskaStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
-        shutil.copy(input, output)
-        print(f'alaska: compiling {input}')
+        space.shell('cp', input, output)
+        print(f'alaska: compiling {output}')
         space.shell(f"{local}/bin/alaska-transform", output)
-        space.shell("llvm-dis", output)
+        # space.shell("llvm-dis", output)
 
 class AlaskaNoTrackingStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
@@ -52,7 +52,7 @@ class AlaskaNoTrackingStage(wl.pipeline.Stage):
         env = os.environ.copy()
         env['ALASKA_NO_TRACKING'] = 'true'
         space.shell(f"{local}/bin/alaska-transform", output, env=env)
-        space.shell("llvm-dis", output)
+        # space.shell("llvm-dis", output)
 
 class AlaskaNoHoistStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
@@ -60,14 +60,26 @@ class AlaskaNoHoistStage(wl.pipeline.Stage):
         env = os.environ.copy()
         env['ALASKA_NO_HOIST'] = 'true'
         space.shell(f"{local}/bin/alaska-transform", output, env=env)
-        space.shell("llvm-dis", output)
+        # space.shell("llvm-dis", output)
 
 
 class AlaskaBaselineStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
-        shutil.copy(input, output)
+        space.shell('cp', input, output)
+        print(f'alaska: basline compiling {output}')
         space.shell(f"{local}/bin/alaska-transform-baseline", output)
-        space.shell("llvm-dis", output)
+        # space.shell("llvm-dis", output)
+
+
+class OptStage(waterline.pipeline.Stage):
+    def __init__(self, passes=[]):
+        self.passes = passes
+
+    def run(self, input, output, benchmark):
+        print('opt ', input)
+        space.shell('opt', *self.passes, input, '-o', output)
+        # waterline.utils.shell(f"llvm-dis {output}")
+
 
 
 perf_stats = [
@@ -101,11 +113,12 @@ class PerfRunner(Runner):
             )
             proc.wait()
 
-
         df = pd.read_csv(f'{binary}.{run}.perf.csv', comment='#', header=None)
         out = {}
         print(df)
         for val, name in zip(df[0], df[2]):
+            if name == 'duration_time':
+                name = 'time'
             # Sanity check the results...
             print(name, val)
             if val == '<not supported>':
@@ -161,11 +174,10 @@ def find_spec():
             return loc
     return None
 
+# space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.GAP, enable_openmp=True, enable_exceptions=False, graph_size='21')
 space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
-# space.add_suite(wl.suites.SPEC2017,
-#                 tar="/home/nick/SPEC2017.tar.gz",
-#                 disabled=[t for t in all_spec if t not in spec_enable],
-#                 config="test")
+# space.add_suite(wl.suites.PolyBench, size="LARGE")
 
 
 spec = find_spec()
@@ -174,14 +186,12 @@ if spec and False:
     space.add_suite(wl.suites.SPEC2017,
                     tar=spec,
                     disabled=[t for t in all_spec if t not in spec_enable],
-                    config="test")
+                    config="train")
 else:
-    print('Did not find spec in any of these lcoations:', spec_locations)
+    print('Did not find spec in any of these locations:', spec_locations)
 
 
 # FULL EVALUATION:
-# space.add_suite(wl.suites.PolyBench, size="LARGE")
-# space.add_suite(wl.suites.GAP, enable_openmp=enable_openmp, enable_exceptions=False, graph_size=15)
 # space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
 # space.add_suite(wl.suites.SPEC2017,
 #                 tar="/home/nick/SPEC2017.tar.gz",
@@ -190,8 +200,15 @@ else:
 
 space.clear_pipelines()
 
+
+pl = waterline.pipeline.Pipeline("baseline")
+pl.add_stage(OptStage(['-O3']), name="Optimize")
+pl.add_stage(AlaskaBaselineStage(), name="Baseline")
+pl.set_linker(AlaskaLinker())
+space.add_pipeline(pl)
+
 pl = waterline.pipeline.Pipeline("alaska")
-pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
+pl.add_stage(OptStage(['-O3']), name="Optimize")
 pl.add_stage(AlaskaStage(), name="Alaska")
 pl.set_linker(AlaskaLinker())
 space.add_pipeline(pl)
@@ -209,13 +226,8 @@ space.add_pipeline(pl)
 # pl.set_linker(AlaskaLinker())
 # space.add_pipeline(pl)
 
-pl = waterline.pipeline.Pipeline("baseline")
-pl.add_stage(waterline.pipeline.OptStage(['-O3']), name="Optimize")
-pl.add_stage(AlaskaBaselineStage(), name="Baseline")
-pl.set_linker(AlaskaLinker())
-space.add_pipeline(pl)
 
 # results = space.run(runner=PerfRunner(), runs=1, compile=True)
-results = space.run(runs=1, compile=True)
+results = space.run(runs=10, compile=True)
 print(results)
 results.to_csv("bench/results.csv", index=False)
