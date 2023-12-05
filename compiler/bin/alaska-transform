@@ -27,5 +27,5 @@ clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
 
 
 # Run some optimizations after our passes
-$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer --loop-versioning-licm --loop-versioning --loop-vectorize
+$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
 $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
