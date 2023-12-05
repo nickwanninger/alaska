@@ -74,7 +74,7 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
   return ptr;
 }
 
-// A special case for escapes in perlbench :)
+// TODO: we don't use this anymore. Do we need it?
 void *alaska_translate_escape(void *ptr) {
   if (ptr == (void *)-1UL) {
     return ptr;

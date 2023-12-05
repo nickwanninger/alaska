@@ -196,6 +196,11 @@ bool alaska::shouldTranslate(llvm::Value *val) {
   if (dyn_cast<AllocaInst>(val)) return false;
   if (dyn_cast<ConstantPointerNull>(val)) return false;
 
+  if (auto call = dyn_cast<CallInst>(val)) {
+    auto *func = call->getCalledFunction();
+    if (func && func->getName() == "_Znam") return false;
+  }
+
   if (auto arg = dyn_cast<Argument>(val)) {
     auto *func = arg->getParent();
     if (func && func->getName().startswith(".omp_outlined")) {
