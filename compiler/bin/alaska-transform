@@ -51,14 +51,26 @@ exec(f'llvm-link {args.input} --internalize {tempdir}/stub.bc -o {bitcode}')
 # exec(f'opt -O3 {bitcode} -o {bitcode}')
 
 def run_passes(passes):
-  exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={",".join(passes)} {bitcode} -o {bitcode}')
+  for p in passes:
+    before = f'{tempdir}/before-{p}.bc'
+    after = f'{tempdir}/after-{p}.bc'
+    shutil.copy(bitcode, before)
+    # exec(f'llvm-dis {before}')
+    exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={p} {before} -o {after}')
+    # exec(f'llvm-dis {after}')
+    shutil.copy(after, bitcode)
+
+  # exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={",".join(passes)} {bitcode} -o {bitcode}')
   
 passes = []
 
 
+exec(f'opt {bitcode} -o {bitcode} -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
+
+
 # passes.append('alaska-prepare')
 # passes.append('alaska-norm')
-run_passes(['alaska-norm'])
+run_passes(['alaska-prepare'])
 
 
 # Now add the passes in the order they need to be (if we aren't compiling for baseline)
@@ -66,6 +78,7 @@ if not args.baseline:
     run_passes(['alaska-replace', 'alaska-translate'])
     exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
 
+    passes.append('alaska-replace')
     passes.append('alaska-escape')
     passes.append('alaska-tracking')
     passes.append('alaska-lower')
@@ -78,7 +91,7 @@ run_passes(passes)
 
 exec(f'llvm-dis {args.output}')
 
-shutil.rmtree(tempdir)
+# shutil.rmtree(tempdir)
 
 # # #!/bin/bash
 #

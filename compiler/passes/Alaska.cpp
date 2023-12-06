@@ -185,86 +185,6 @@ auto adapt(T &&fp) {
   return createModuleToFunctionPassAdaptor(std::move(FPM));
 }
 
-void populateMPM(ModulePassManager &MPM) {
-  bool baseline = getenv("ALASKA_COMPILER_BASELINE") != NULL;
-
-  if (baseline) print_progress = false;
-
-  // Only link the stub in non-baseline
-  if (!baseline) {
-    MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_stub.bc"));
-    MPM.addPass(ProgressPass("Link Stub"));
-  }
-
-
-  MPM.addPass(adapt(DCEPass()));
-  MPM.addPass(adapt(DCEPass()));
-  MPM.addPass(adapt(ADCEPass()));
-  MPM.addPass(ProgressPass("DCE"));
-  MPM.addPass(WholeProgramDevirtPass());
-
-  // Label 'simple' functions.
-  MPM.addPass(SimpleFunctionPass());
-
-  // MPM.addPass(SpecializationPass());
-  // MPM.addPass(ProgressPass("Specialize"));
-
-  // Run a normalization pass regardless of the environment configuration
-  MPM.addPass(AlaskaNormalizePass());
-  MPM.addPass(ProgressPass("Normalize"));
-
-  // // Simplify the cfg
-  // MPM.addPass(adapt(SimplifyCFGPass()));
-
-  if (!baseline) {
-    MPM.addPass(AlaskaReplacementPass());
-    MPM.addPass(ProgressPass("Replacement"));
-
-    MPM.addPass(AlaskaTranslatePass());
-    MPM.addPass(ProgressPass("Translate"));
-
-
-    MPM.addPass(AlaskaEscapePass());
-    MPM.addPass(ProgressPass("Escape"));
-
-
-    MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
-    MPM.addPass(ProgressPass("Link runtime"));
-
-    // MPM.addPass(adapt(PlaceSafepointsPass()));
-    // MPM.addPass(ProgressPass("Safepoint Placement"));
-    //
-    // MPM.addPass(PinTrackingPass());
-    // MPM.addPass(ProgressPass("Lock Insertion"));
-
-#ifdef ALASKA_DUMP_TRANSLATIONS
-    MPM.addPass(TranslationPrinterPass());
-    MPM.addPass(ProgressPass("Lock Printing"));
-#endif
-
-    // After this point, translations can no longer be parsed.
-    // Any pass which needs that information must have run by now.
-    MPM.addPass(AlaskaLowerPass());
-    MPM.addPass(ProgressPass("Lowering"));
-
-#ifdef ALASKA_ARGUMENT_TRACE
-    MPM.addPass(AlaskaArgumentTracePass());
-    MPM.addPass(ProgressPass("Argument Trace"));
-#endif
-
-    // Force inlines of alaska runtime functions
-    MPM.addPass(TranslationInlinePass());
-    MPM.addPass(ProgressPass("Inline runtime"));
-  }
-
-
-  MPM.addPass(adapt(DCEPass()));
-  MPM.addPass(adapt(DCEPass()));
-  MPM.addPass(adapt(ADCEPass()));
-  MPM.addPass(ProgressPass("DCE"));
-  MPM.addPass(WholeProgramDevirtPass());
-}
-
 
 #define REGISTER(passName, PassType) \
   if (name == passName) {            \
@@ -283,6 +203,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
         PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                ArrayRef<llvm::PassBuilder::PipelineElement>) {
           if (name == "alaska-prepare") {
+            // MPM.addPass(adapt(LowerInvokePass()));
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(ADCEPass()));
@@ -301,7 +222,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           //   return true;
           // }
 
-          REGISTER("alaska-norm", AlaskaNormalizePass);
           REGISTER("alaska-replace", AlaskaReplacementPass);
           REGISTER("alaska-translate", AlaskaTranslatePass);
           REGISTER("alaska-escape", AlaskaEscapePass);
@@ -309,7 +229,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           REGISTER("alaska-inline", TranslationInlinePass);
 
           if (name == "alaska-tracking") {
-            MPM.addPass(adapt(PlaceSafepointsPass()));
+            // MPM.addPass(adapt(PlaceSafepointsPass()));
             MPM.addPass(PinTrackingPass());
             return true;
           }

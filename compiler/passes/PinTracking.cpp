@@ -3,14 +3,61 @@
 #include <alaska/Utils.h>
 #include <optional>
 
+
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/ADT/SparseBitVector.h"
+#include "llvm/IR/Verifier.h"
 
+// #include "llvm/IR/AttributeMask.h"
+#include "llvm/IR/Attributes.h"
 
 
 using namespace llvm;
+
+
+// List of all function attributes which must be stripped when lowering from
+// abstract machine model to physical machine model.  Essentially, these are
+// all the effects a safepoint might have which we ignored in the abstract
+// machine model for purposes of optimization.  We have to strip these on
+// both function declarations and call sites.
+static constexpr Attribute::AttrKind FnAttrsToStrip[] = {Attribute::AttrKind::ArgMemOnly,
+    Attribute::AttrKind::ReadNone, Attribute::AttrKind::ReadOnly, Attribute::AttrKind::NoSync,
+    Attribute::AttrKind::NoFree};
+
+// Create new attribute set containing only attributes which can be transferred
+// from original call to the safepoint.
+static AttributeList legalizeCallAttributes(
+    LLVMContext &Ctx, AttributeList OrigAL, AttributeList StatepointAL, int argc) {
+  if (OrigAL.isEmpty()) return StatepointAL;
+
+  // Remove the readonly, readnone, and statepoint function attributes.
+  AttrBuilder FnAttrs(Ctx, OrigAL.getFnAttrs());
+  for (auto Attr : FnAttrsToStrip) {
+    FnAttrs.removeAttribute(Attr);
+  }
+
+  // for (Attribute A : OrigAL.getFnAttrs()) {
+  //   if (isStatepointDirectiveAttr(A)) FnAttrs.removeAttribute(A);
+  // }
+
+  // Just skip parameter and return attributes for now
+  StatepointAL = StatepointAL.addFnAttributes(Ctx, FnAttrs);
+
+  // for (auto Attr : FnAttrsToStrip) {
+  //   FnAttrs.removeAttribute(Attr);
+  // }
+
+  for (int ind = 0; ind < argc; ind++) {
+    AttrBuilder ParamAttrs(Ctx, OrigAL.getParamAttrs(ind));
+    StatepointAL = StatepointAL.addParamAttributes(Ctx, ind + 5, ParamAttrs);
+  }
+
+
+  return StatepointAL;
+}
 
 
 
@@ -58,7 +105,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     // The set of translations that *must* be translated.
     std::set<alaska::Translation *> mustTrack;
     // A set of all
-    std::set<CallInst *> statepointCalls;
+    std::set<CallBase *> statepointCalls;
     // for (auto &tr : translations) {
     //   mustTrack.insert(tr.get());
     // }
@@ -81,6 +128,20 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
             if (func->getName().startswith("alaska.")) continue;
           }
           statepointCalls.insert(call);
+        }
+
+        if (auto *invoke = dyn_cast<InvokeInst>(&I)) {
+          if (invoke->isInlineAsm()) continue;
+          auto targetFuncType = invoke->getFunctionType();
+          if (targetFuncType->isVarArg()) {
+            // TODO: Remove this limitation
+            //       This is a restriction of the backend, I think.
+            if (not targetFuncType->getReturnType()->isVoidTy()) continue;
+          }
+          if (auto func = invoke->getCalledFunction(); func != nullptr) {
+            if (func->getName().startswith("alaska.")) continue;
+          }
+          statepointCalls.insert(invoke);
         }
       }
     }
@@ -155,34 +216,32 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto pointerType = llvm::PointerType::get(M.getContext(), 0);
     auto *arrayType = ArrayType::get(pointerType, max_cell);
 
-    IRBuilder<> atEntry(F.front().getFirstNonPHI());
+    // IRBuilder<> atEntry(F.front().getFirstNonPHI());
+    // if (mustTrack.size() > 0) {
+    //   trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
+    // }
+    // for (auto *tr : mustTrack) {
+    //   long ind = pin_cell_ids[tr];
+    //   IRBuilder<> b(tr->translation);
+    //   auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
+    //   auto handle = tr->getHandle();
+    //   b.CreateStore(handle, cell, false);
 
-    if (mustTrack.size() > 0) {
-      trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
-    }
-
-    for (auto *tr : mustTrack) {
-      long ind = pin_cell_ids[tr];
-      IRBuilder<> b(tr->translation);
-      auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
-      auto handle = tr->getHandle();
-      b.CreateStore(handle, cell, false);
-
-      // for (auto rel : tr->releases) {
-      //   b.SetInsertPoint(rel->getNextNode());
-      //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
-      // }
-    }
+    //   // for (auto rel : tr->releases) {
+    //   //   b.SetInsertPoint(rel->getNextNode());
+    //   //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
+    //   // }
+    // }
 
 
     for (auto &call : statepointCalls) {
       IRBuilder<> b(call);
       std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
       std::vector<llvm::Value *> gcArgs;
-      // if (trackSet != NULL) {
-      //   gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64),
-      //   mustTrack.size())); gcArgs.push_back(trackSet);
-      // }
+      if (trackSet != NULL) {
+        gcArgs.push_back(ConstantInt::get(IntegerType::get(M.getContext(), 64), mustTrack.size()));
+        gcArgs.push_back(trackSet);
+      }
 
       Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
 
@@ -200,26 +259,104 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
 
-      auto token = b.CreateGCStatepointCall(id, patch_size,
-          llvm::FunctionCallee(call->getFunctionType(), called), callArgs, deoptArgs, {}, "");
+      // continue;
+
+
+      llvm::CallBase *token;
+      auto callTarget = llvm::FunctionCallee(call->getFunctionType(), called);
+
+      if (auto invoke = dyn_cast<InvokeInst>(call)) {
+        // alaska::println("invoke:", *invoke);
+        auto *statepointInvoke = b.CreateGCStatepointInvoke(id, patch_size, callTarget,
+            invoke->getNormalDest(), invoke->getUnwindDest(), callArgs, deoptArgs, {}, "");
+        // alaska::println("new:", *statepointInvoke);
+
+        statepointInvoke->setCallingConv(invoke->getCallingConv());
+
+        // Currently we will fail on parameter attributes and on certain
+        // function attributes.  In case if we can handle this set of attributes -
+        // set up function attrs directly on statepoint and return attrs later for
+        // gc_result intrinsic.
+        statepointInvoke->setAttributes(legalizeCallAttributes(invoke->getContext(),
+            invoke->getAttributes(), statepointInvoke->getAttributes(), invoke->arg_size()));
+
+
+        BasicBlock *normalDest = statepointInvoke->getNormalDest();
+
+        auto trampoline = llvm::SplitEdge(statepointInvoke->getParent(), normalDest);
+        statepointInvoke->setNormalDest(trampoline);
+
+        token = statepointInvoke;
+
+        trampoline->setName("invoke_statepoint_tramp");
+
+        b.SetInsertPoint(&*trampoline->getFirstInsertionPt());
+        b.SetCurrentDebugLocation(invoke->getDebugLoc());
+
+        // BasicBlock *unwindBlock = invoke->getUnwindDest();
+        // b.SetInsertPoint(&*unwindBlock->getFirstInsertionPt());
+        // b.SetCurrentDebugLocation(invoke->getDebugLoc());
+        // Instruction *exceptionalToken = unwindBlock->getLandingPadInst();
+        // result.
+        if (!call->getType()->isVoidTy()) {
+          auto result = b.CreateGCResult(token, call->getType());
+          result->setAttributes(AttributeList::get(result->getContext(), AttributeList::ReturnIndex,
+              invoke->getAttributes().getRetAttrs()));
+
+          call->replaceAllUsesWith(result);
+        }
+      } else if (auto *CI = dyn_cast<CallInst>(call)) {
+        auto SPCall =
+            b.CreateGCStatepointCall(id, patch_size, callTarget, callArgs, deoptArgs, {}, "");
+
+        SPCall->setTailCallKind(CI->getTailCallKind());
+        SPCall->setCallingConv(CI->getCallingConv());
+        SPCall->setAttributes(legalizeCallAttributes(
+            CI->getContext(), CI->getAttributes(), SPCall->getAttributes(), CI->arg_size()));
+
+
+
+        token = SPCall;
+        if (!call->getType()->isVoidTy()) {
+          auto result = b.CreateGCResult(token, call->getType());
+
+          result->setAttributes(AttributeList::get(result->getContext(), AttributeList::ReturnIndex,
+              call->getAttributes().getRetAttrs()));
+          call->replaceAllUsesWith(result);
+        }
+      } else {
+        abort();
+      }
+
+
+
 
       // If the safepoint is a PATCH safepoint, it won't ever be a call. It will always be a "NOP"
       // style instruction and will never corrupt any registers. As such, to reduce the overhead of
       // safepoints (to allow backend optimizations and whatnot) we mark the call of such locations
       // as "preserve all", meaning the caller does not need to stash any registers on the stack. In
-      // the common case, this means patch points have basically no overhead outside of I$ lookups :)
+      // the common case, this means patch points have basically no overhead outside of I$ lookups
+      // :)
       //
       // For reference, if this line is removed, NAS cg.B running on 64 cores under OpenMP sees
       // overhead increase from 1.02x to 4x!
       if (id == 'PATC') {
-        token->setCallingConv(CallingConv::PreserveAll);
+        // token->setCallingConv(CallingConv::PreserveAll);
       }
 
-      if (!call->getType()->isVoidTy()) {
-        auto result = b.CreateGCResult(token, call->getType());
-        call->replaceAllUsesWith(result);
-      }
+
       call->eraseFromParent();
+    }
+
+    if (verifyFunction(F, &errs())) {
+      errs() << "Function verification failed!\n";
+      errs() << F.getName() << "\n";
+      // auto l = alaska::extractTranslations(F);
+      // if (l.size() > 0) {
+      //   alaska::printTranslationDot(F, l);
+      // }
+      errs() << F << "\n";
+      exit(EXIT_FAILURE);
     }
   }
 
