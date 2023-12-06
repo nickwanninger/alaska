@@ -52,6 +52,7 @@ static AttributeList legalizeCallAttributes(
 
   for (int ind = 0; ind < argc; ind++) {
     AttrBuilder ParamAttrs(Ctx, OrigAL.getParamAttrs(ind));
+    ParamAttrs.removeAttribute(Attribute::AttrKind::StructRet);
     StatepointAL = StatepointAL.addParamAttributes(Ctx, ind + 5, ParamAttrs);
   }
 
