@@ -108,11 +108,11 @@ else
 
 		mv $OUTFILE $OUTFILE.base_input
 		cp ${OUTFILE}.bc ${OUTFILE}.base.bc
-		TMPFILE=${OUTFILE}.base.bc
-		ALASKA_COMPILER_BASELINE=true $PFX/bin/alaska-transform ${TMPFILE} ${OPT_ARGS[@]}
+		BASETMPFILE=${OUTFILE}.base.bc
+		$PFX/bin/alaska-transform --baseline ${BASETMPFILE} ${OPT_ARGS[@]}
 
-    llc -O3 ${TMPFILE} --relocation-model=pic --filetype=obj -o ${TMPFILE}.o
-    $CLANG -gdwarf-4 ${TMPFILE}.o -o $OUTFILE.base ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
+    llc -O3 ${BASETMPFILE} --relocation-model=pic --filetype=obj -o ${BASETMPFILE}.o
+    $CLANG -gdwarf-4 ${BASETMPFILE}.o -o $OUTFILE.base ${LINK_FLAGS[@]} -ldl `alaska-config --ldflags --cflags`
 	fi
 
 	[ "$KEEP" == "true" ] && llvm-dis ${TMPFILE} -o ${OUTFILE}.in.ll

@@ -34,7 +34,7 @@ if args.output is None:
 bitcode = args.output
 
 def exec(cmd):
-    print(cmd)
+    print('\003[31m' + cmd + '\e[0m')
     os.system(cmd)
 
 tempdir = tempfile.mkdtemp(prefix='alaska_')
@@ -63,11 +63,9 @@ run_passes(['alaska-norm'])
 
 # Now add the passes in the order they need to be (if we aren't compiling for baseline)
 if not args.baseline:
-    run_passes(['alaska-translate'])
+    run_passes(['alaska-replace', 'alaska-translate'])
     exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
 
-    passes.append('alaska-replace')
-    # passes.append('alaska-translate')
     passes.append('alaska-escape')
     passes.append('alaska-tracking')
     passes.append('alaska-lower')
