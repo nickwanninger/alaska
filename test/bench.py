@@ -41,9 +41,8 @@ class AlaskaLinker(wl.Linker):
 
 class AlaskaStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
-        space.shell('cp', input, output)
         print(f'alaska: compiling {output}')
-        space.shell(f"{local}/bin/alaska-transform", output)
+        space.shell(f"{local}/bin/alaska-transform", input, '-o', output)
         # space.shell("llvm-dis", output)
 
 class AlaskaNoTrackingStage(wl.pipeline.Stage):
@@ -65,9 +64,8 @@ class AlaskaNoHoistStage(wl.pipeline.Stage):
 
 class AlaskaBaselineStage(wl.pipeline.Stage):
     def run(self, input, output, benchmark):
-        space.shell('cp', input, output)
-        print(f'alaska: basline compiling {output}')
-        space.shell(f"{local}/bin/alaska-transform-baseline", output)
+        print(f'alaska: baseline compiling {output}')
+        space.shell(f"{local}/bin/alaska-transform", "--baseline", input, '-o', output)
         # space.shell("llvm-dis", output)
 
 
@@ -174,9 +172,10 @@ def find_spec():
             return loc
     return None
 
-# space.add_suite(wl.suites.Embench)
-# space.add_suite(wl.suites.GAP, enable_openmp=False, enable_exceptions=False, graph_size='19')
-# space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
+
+space.add_suite(wl.suites.Embench)
+space.add_suite(wl.suites.GAP, enable_openmp=False, enable_exceptions=False, graph_size='21')
+space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 
 do_spec = True
@@ -186,7 +185,7 @@ if spec and do_spec:
     space.add_suite(wl.suites.SPEC2017,
                     tar=spec,
                     disabled=[t for t in all_spec if t not in spec_enable],
-                    config="train")
+                    config="ref")
 else:
     print('Did not find spec in any of these locations:', spec_locations)
 
@@ -228,6 +227,6 @@ space.add_pipeline(pl)
 
 
 # results = space.run(runner=PerfRunner(), runs=1, compile=True)
-results = space.run(runs=3, compile=True)
+results = space.run(runs=5, compile=True, run_name="current")
 print(results)
 results.to_csv("bench/results.csv", index=False)

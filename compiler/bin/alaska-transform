@@ -1,31 +1,115 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-set -e
+import os
+import sys
+import argparse
+import tempfile
+import shutil
+from pathlib import Path
 
-HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
-PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
+local = Path(os.path.realpath(os.path.dirname(__file__))).parent
+os.environ["PATH"] = f"{local}/bin:{os.environ['PATH']}"
+os.environ["LD_LIBRARY_PATH"] = f"{local}/lib:{os.environ['LD_LIBRARY_PATH']}"
 
-
-export PATH=$PFX/bin:$PATH
-export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
-
-INPUT=$1
-shift
-
-# echo $@
-
-OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
-
-# $OPT -O3
-# $OPT -O3
-
-# Run a load of enabler passes to make our analysis easier
-$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-
-# Run the Alaska passes w/ clang (the passes are internally scheduled)
-clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
+print(local)
 
 
-# Run some optimizations after our passes
-$OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-$OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
+parser = argparse.ArgumentParser(
+          prog='alaska-transform',
+          description='Applies alaska transformations to an input bitcode')
+
+
+parser.add_argument('-o', dest='output', help='The destination file. Defaults to in-place.')
+parser.add_argument('-b', '--baseline', action='store_true', help='Apply baseline transformations, do not insert translations')
+parser.add_argument('input', help='The input .bc file to apply alaska transformations to.')
+
+args = parser.parse_args()
+print(sys.argv)
+print(args)
+
+if args.output is None:
+  args.output = args.input
+
+
+bitcode = args.output
+
+def exec(cmd):
+    print(cmd)
+    os.system(cmd)
+
+tempdir = tempfile.mkdtemp(prefix='alaska_')
+
+print(tempdir)
+
+
+# exec(f'llvm-link {local}/lib/alaska_stub.bc {local}/lib/alaska_translate.bc -o {tempdir}/lib.bc')
+exec(f'opt --strip-debug {local}/lib/alaska_stub.bc -o {tempdir}/stub.bc')
+exec(f'opt --strip-debug {local}/lib/alaska_translate.bc -o {tempdir}/translate.bc')
+# exec(f'opt --strip-debug {tempdir}/lib.bc -o {tempdir}/lib.bc')
+
+exec(f'llvm-link {args.input} --internalize {tempdir}/stub.bc -o {bitcode}')
+# exec(f'opt -O3 {bitcode} -o {bitcode}')
+
+def run_passes(passes):
+  exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={",".join(passes)} {bitcode} -o {bitcode}')
+  
+passes = []
+
+
+# passes.append('alaska-prepare')
+# passes.append('alaska-norm')
+run_passes(['alaska-norm'])
+
+
+# Now add the passes in the order they need to be (if we aren't compiling for baseline)
+if not args.baseline:
+    run_passes(['alaska-translate'])
+    exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
+
+    passes.append('alaska-replace')
+    # passes.append('alaska-translate')
+    passes.append('alaska-escape')
+    passes.append('alaska-tracking')
+    passes.append('alaska-lower')
+    passes.append('alaska-inline')
+
+print(passes)
+
+run_passes(passes)
+
+
+exec(f'llvm-dis {args.output}')
+
+shutil.rmtree(tempdir)
+
+# # #!/bin/bash
+#
+# set -x
+#
+# HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
+# PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
+#
+#
+# export PATH=$PFX/bin:$PATH
+# export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
+#
+# INPUT=$1
+# shift
+#
+# # OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
+#
+# # llvm-link ${INPUT} $PFX/lib/alaska_stub.bc -o ${INPUT}
+# llvm-link ${INPUT} --internalize $PFX/lib/alaska_stub.bc $PFX/lib/alaska_translate.bc -o ${INPUT}
+# # $OPT -O3
+# # $OPT -O3
+#
+# # Run a load of enabler passes to make our analysis easier
+# # $OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
+#
+# # # Run the Alaska passes w/ clang (the passes are internally scheduled)
+# # clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
+#
+#
+# # Run some optimizations after our passes
+# # $OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
+# # $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce

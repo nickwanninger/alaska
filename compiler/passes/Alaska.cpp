@@ -231,12 +231,11 @@ void populateMPM(ModulePassManager &MPM) {
     MPM.addPass(AlaskaLinkLibraryPass(ALASKA_INSTALL_PREFIX "/lib/alaska_translate.bc"));
     MPM.addPass(ProgressPass("Link runtime"));
 
-    MPM.addPass(adapt(PlaceSafepointsPass()));
-    MPM.addPass(ProgressPass("Safepoint Placement"));
-
-    // Insert low-level on-stack tracking
-    MPM.addPass(PinTrackingPass());
-    MPM.addPass(ProgressPass("Lock Insertion"));
+    // MPM.addPass(adapt(PlaceSafepointsPass()));
+    // MPM.addPass(ProgressPass("Safepoint Placement"));
+    //
+    // MPM.addPass(PinTrackingPass());
+    // MPM.addPass(ProgressPass("Lock Insertion"));
 
 #ifdef ALASKA_DUMP_TRANSLATIONS
     MPM.addPass(TranslationPrinterPass());
@@ -267,12 +266,55 @@ void populateMPM(ModulePassManager &MPM) {
 }
 
 
+#define REGISTER(passName, PassType) \
+  if (name == passName) {            \
+    MPM.addPass(PassType());         \
+    return true;                     \
+  }
+
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING, [](PassBuilder &PB) {
-            PB.registerOptimizerLastEPCallback(
-                [](ModulePassManager &MPM, OptimizationLevel optLevel) {
-                  populateMPM(MPM);
-                });
-          }};
+  return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING,  //
+      [](PassBuilder &PB) {
+        // PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel)
+        // {
+        //   populateMPM(MPM);
+        // });
+        PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
+                                               ArrayRef<llvm::PassBuilder::PipelineElement>) {
+          if (name == "alaska-prepare") {
+            MPM.addPass(adapt(DCEPass()));
+            MPM.addPass(adapt(DCEPass()));
+            MPM.addPass(adapt(ADCEPass()));
+            MPM.addPass(WholeProgramDevirtPass());
+            MPM.addPass(SimpleFunctionPass());
+            MPM.addPass(AlaskaNormalizePass());
+            return true;
+          }
+
+
+          // if (name == "alaska-epilogue") {
+          //   MPM.addPass(adapt(DCEPass()));
+          //   MPM.addPass(adapt(DCEPass()));
+          //   MPM.addPass(adapt(ADCEPass()));
+          //   MPM.addPass(WholeProgramDevirtPass());
+          //   return true;
+          // }
+
+          REGISTER("alaska-norm", AlaskaNormalizePass);
+          REGISTER("alaska-replace", AlaskaReplacementPass);
+          REGISTER("alaska-translate", AlaskaTranslatePass);
+          REGISTER("alaska-escape", AlaskaEscapePass);
+          REGISTER("alaska-lower", AlaskaLowerPass);
+          REGISTER("alaska-inline", TranslationInlinePass);
+
+          if (name == "alaska-tracking") {
+            MPM.addPass(adapt(PlaceSafepointsPass()));
+            MPM.addPass(PinTrackingPass());
+            return true;
+          }
+
+          return false;
+        });
+      }};
 }
