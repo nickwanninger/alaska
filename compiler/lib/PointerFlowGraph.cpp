@@ -17,7 +17,6 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     auto &use = I.getOperandUse(0);
     node.add_in_edge(&use);
     node.type = alaska::Transient;
-    // node.type = alaska::Source;
   }
 
   void visitCastInst(llvm::CastInst &I) {
@@ -28,14 +27,6 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
       node.colors.insert(node.id);
     }
   }
-
-  // void visitPHINode(llvm::PHINode &I) {
-  //   for (unsigned i = 0; i < I.getNumIncomingValues(); i++) {
-  //     auto &use = I.getOperandUse(i);
-  //     node.add_in_edge(&use);
-  //   }
-  //   node.type = alaska::Transient;
-  // }
 
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
