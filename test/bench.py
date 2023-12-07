@@ -145,16 +145,14 @@ all_spec = [
 
 spec_enable = [
     605, # mcf
-    623,
-    625,
+    623, # xalancbmk
+    625, # x264
     631,
     641,
     657,
     619,
     638,
     644,
-
-
 
     # 600, 602,
 ]
@@ -188,6 +186,7 @@ if spec and do_spec:
                     config="ref")
 else:
     print('Did not find spec in any of these locations:', spec_locations)
+
 
 
 # FULL EVALUATION:
@@ -227,6 +226,6 @@ space.add_pipeline(pl)
 
 
 # results = space.run(runner=PerfRunner(), runs=1, compile=True)
-results = space.run(runs=5, compile=True, run_name="current")
+results = space.run(runs=6, compile=True, run_name="current")
 print(results)
 results.to_csv("bench/results.csv", index=False)
