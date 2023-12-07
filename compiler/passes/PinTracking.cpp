@@ -25,7 +25,7 @@ using namespace llvm;
 // both function declarations and call sites.
 static constexpr Attribute::AttrKind FnAttrsToStrip[] = {Attribute::AttrKind::ArgMemOnly,
     Attribute::AttrKind::ReadNone, Attribute::AttrKind::ReadOnly, Attribute::AttrKind::NoSync,
-    Attribute::AttrKind::NoFree};
+    Attribute::AttrKind::NoFree, Attribute::AllocSize};
 
 // Create new attribute set containing only attributes which can be transferred
 // from original call to the safepoint.
@@ -53,6 +53,7 @@ static AttributeList legalizeCallAttributes(
   for (int ind = 0; ind < argc; ind++) {
     AttrBuilder ParamAttrs(Ctx, OrigAL.getParamAttrs(ind));
     ParamAttrs.removeAttribute(Attribute::AttrKind::StructRet);
+    ParamAttrs.removeAttribute(Attribute::AttrKind::AllocSize);
     StatepointAL = StatepointAL.addParamAttributes(Ctx, ind + 5, ParamAttrs);
   }
 
@@ -217,22 +218,22 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto pointerType = llvm::PointerType::get(M.getContext(), 0);
     auto *arrayType = ArrayType::get(pointerType, max_cell);
 
-    // IRBuilder<> atEntry(F.front().getFirstNonPHI());
-    // if (mustTrack.size() > 0) {
-    //   trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
-    // }
-    // for (auto *tr : mustTrack) {
-    //   long ind = pin_cell_ids[tr];
-    //   IRBuilder<> b(tr->translation);
-    //   auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
-    //   auto handle = tr->getHandle();
-    //   b.CreateStore(handle, cell, false);
+    IRBuilder<> atEntry(F.front().getFirstNonPHI());
+    if (mustTrack.size() > 0) {
+      trackSet = atEntry.CreateAlloca(arrayType, nullptr, "localPinSet");
+    }
+    for (auto *tr : mustTrack) {
+      long ind = pin_cell_ids[tr];
+      IRBuilder<> b(tr->translation);
+      auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
+      auto handle = tr->getHandle();
+      b.CreateStore(handle, cell, false);
 
-    //   // for (auto rel : tr->releases) {
-    //   //   b.SetInsertPoint(rel->getNextNode());
-    //   //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
-    //   // }
-    // }
+      // for (auto rel : tr->releases) {
+      //   b.SetInsertPoint(rel->getNextNode());
+      //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
+      // }
+    }
 
 
     for (auto &call : statepointCalls) {
