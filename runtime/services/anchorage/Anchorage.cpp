@@ -371,11 +371,11 @@ static void barrier_simple_time(void) {
     // Get everyone prepped for a barrier
     auto start = alaska_timestamp();
     alaska::barrier::begin();
-    // anchorage::CompactionConfig config;
-    // moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
-    // anchorage::Chunk::swap_spaces();
+    anchorage::CompactionConfig config;
+    moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    anchorage::Chunk::swap_spaces();
     auto end = alaska_timestamp();
-    // printf("%lu moved barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
+    printf("%lu moved barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
     (void)(end - start);
 
     alaska::barrier::end();
@@ -389,8 +389,8 @@ static void *barrier_thread_fn(void *) {
   pthread_setname_np(pthread_self(), "anchorage");
   alaska_thread_state.escaped = 1;
   // pad_barrier_control_overhead_target();
-  // barrier_control_overhead_target();
-  barrier_simple_time();
+  barrier_control_overhead_target();
+  // barrier_simple_time();
   return NULL;
 }
 

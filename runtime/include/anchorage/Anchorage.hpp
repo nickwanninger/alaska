@@ -32,7 +32,7 @@ namespace anchorage {
   constexpr size_t page_size = 4096;
   // Maximum object size that anchorage will handle (internally)
   static constexpr size_t maxHandleSize = 16384;
-  static constexpr size_t defaultArenaSize = 64 * GB;
+  static constexpr size_t defaultArenaSize = 512 * GB;
   static constexpr unsigned extentClassCount = 256;
   static constexpr size_t classSizesMax = 25;
 

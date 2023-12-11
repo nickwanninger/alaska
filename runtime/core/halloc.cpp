@@ -55,7 +55,7 @@ static void *_halloc(size_t sz, int zero) {
 
   // fprintf(stderr, "%zu\n", sz);
 
-	// printf("halloc %zu -> %p\n", sz, out);
+	// printf("halloc %4zu -> %p\n", sz, out);
   return out;
 }
 
