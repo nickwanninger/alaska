@@ -3,6 +3,8 @@
 #include <alaska/Utils.h>
 #include <alaska/WrappedFunctions.h>
 
+#include "llvm/IR/Verifier.h"
+
 using namespace llvm;
 
 // Some functions should be blacklisted from having allocation
@@ -33,11 +35,12 @@ static void replace_function(
   }
   auto oldFunction = M.getFunction(original_name);
 
+  alaska::println("replace ", original_name, " with ", new_name);
+
   if (oldFunction) {
     auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getFunctionType()).getCallee();
-		std::vector<llvm::Use *> uses;
-
-    for (auto &use : oldFunction->uses()) {
+    // oldFunction->replaceAllUsesWith(newFunction);
+    oldFunction->replaceUsesWithIf(newFunction, [&](llvm::Use &use) -> bool {
       if (is_allocator) {
         auto user = use.getUser();
         if (auto inst = dyn_cast<Instruction>(user)) {
@@ -46,20 +49,13 @@ static void replace_function(
           if (is_allocation_blacklisted(callingFunc->getName())) {
             alaska::println("Not replacing ", original_name, " in ", callingFunc->getName(),
                 " because it is blackisted");
-            continue;
+            return false;
           }
         }
       }
-
-			uses.push_back(&use);
-    }
-
-
-		for (auto *use : uses) {
-      use->set(newFunction);
-		}
+      return true;
+    });
   }
-  // delete oldFunction;
 }
 
 
@@ -76,12 +72,6 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
   }
 #endif
 
-  // replace_function(M, "_Znwm", "alaska_Znwm", true);
-  // replace_function(M, "_Znam", "alaska_Znam", true);
-  // replace_function(M, "_ZdaPv", "alaska_ZdaPv");
-  // replace_function(M, "_ZdlPv", "alaska_ZdlPv");
-  // replace_function(M, "_ZdlPvm", "alaksa_ZdlPvm");
-
   // even if calls to malloc are not replaced, we still ought to replace these functions for
   // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
   // for alaska_usable_size().
@@ -91,6 +81,19 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
 
   for (auto *name : alaska::wrapped_functions) {
     replace_function(M, name);
+  }
+
+  for (auto &F : M) {
+    if (llvm::verifyFunction(F, &errs())) {
+      errs() << "Function verification failed!\n";
+      errs() << F.getName() << "\n";
+      auto l = alaska::extractTranslations(F);
+      if (l.size() > 0) {
+        alaska::printTranslationDot(F, l);
+      }
+      // errs() << F << "\n";
+      exit(EXIT_FAILURE);
+    }
   }
   // exit(0);
   return PreservedAnalyses::none();
