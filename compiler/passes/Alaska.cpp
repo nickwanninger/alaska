@@ -13,6 +13,7 @@
 #include <llvm/Transforms/Utils/Mem2Reg.h>
 #include <llvm/Transforms/Utils/LowerInvoke.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
+#include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
@@ -196,14 +197,9 @@ auto adapt(T &&fp) {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING,  //
       [](PassBuilder &PB) {
-        // PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel optLevel)
-        // {
-        //   populateMPM(MPM);
-        // });
         PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                ArrayRef<llvm::PassBuilder::PipelineElement>) {
           if (name == "alaska-prepare") {
-            // MPM.addPass(adapt(LowerInvokePass()));
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(ADCEPass()));
@@ -213,15 +209,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             return true;
           }
 
-
-          // if (name == "alaska-epilogue") {
-          //   MPM.addPass(adapt(DCEPass()));
-          //   MPM.addPass(adapt(DCEPass()));
-          //   MPM.addPass(adapt(ADCEPass()));
-          //   MPM.addPass(WholeProgramDevirtPass());
-          //   return true;
-          // }
-
           REGISTER("alaska-replace", AlaskaReplacementPass);
           REGISTER("alaska-translate", AlaskaTranslatePass);
           REGISTER("alaska-escape", AlaskaEscapePass);
@@ -229,7 +216,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           REGISTER("alaska-inline", TranslationInlinePass);
 
           if (name == "alaska-tracking") {
-            // MPM.addPass(adapt(PlaceSafepointsPass()));
             MPM.addPass(PinTrackingPass());
             return true;
           }
