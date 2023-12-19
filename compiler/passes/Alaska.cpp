@@ -151,6 +151,9 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
     for (auto &F : M) {
       if (F.empty()) continue;
 
+      if (F.getName().startswith(".omp_outlined")) continue;
+      if (F.getName().startswith("omp_outlined")) continue;
+
       llvm::DominatorTree DT(F);
       llvm::PostDominatorTree PDT(F);
       llvm::LoopInfo loops(DT);
@@ -216,6 +219,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           REGISTER("alaska-inline", TranslationInlinePass);
 
           if (name == "alaska-tracking") {
+            MPM.addPass(adapt(PlaceSafepointsPass()));
             MPM.addPass(PinTrackingPass());
             return true;
           }
