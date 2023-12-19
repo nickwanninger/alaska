@@ -171,12 +171,12 @@ def find_spec():
     return None
 
 
-space.add_suite(wl.suites.Embench)
-space.add_suite(wl.suites.GAP, enable_openmp=False, enable_exceptions=False, graph_size='21')
+# space.add_suite(wl.suites.Embench)
+# space.add_suite(wl.suites.GAP, enable_openmp=False, enable_exceptions=False, graph_size='21')
 space.add_suite(wl.suites.NAS, enable_openmp=True, suite_class="B")
 # space.add_suite(wl.suites.PolyBench, size="LARGE")
 
-do_spec = True
+do_spec = False
 spec = find_spec()
 if spec and do_spec:
     print('found spec:', spec)
@@ -188,13 +188,6 @@ else:
     print('Did not find spec in any of these locations:', spec_locations)
 
 
-
-# FULL EVALUATION:
-# space.add_suite(wl.suites.NAS, enable_openmp=enable_openmp, suite_class="B")
-# space.add_suite(wl.suites.SPEC2017,
-#                 tar="/home/nick/SPEC2017.tar.gz",
-#                 disabled=[t for t in all_spec if t not in spec_enable],
-#                 config="ref")
 
 space.clear_pipelines()
 
