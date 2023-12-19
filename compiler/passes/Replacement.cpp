@@ -35,7 +35,6 @@ static void replace_function(
   }
   auto oldFunction = M.getFunction(original_name);
 
-  alaska::println("replace ", original_name, " with ", new_name);
 
   if (oldFunction) {
     auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getFunctionType()).getCallee();
