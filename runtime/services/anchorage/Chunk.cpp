@@ -407,9 +407,7 @@ long anchorage::Chunk::perform_compaction(
       continue;
     }
 
-    //   alldump(cur, "move");
     migrate_blk(cur);
-
     if (out_of_tokens()) break;
   }
 
@@ -417,29 +415,29 @@ long anchorage::Chunk::perform_compaction(
   struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
   free_list.collect_freelists(lists);
 
-  // if (not out_of_tokens()) {
-  //   bool hit_end = false;
-  //   for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
-  //     if (hit_end) break;
-  //     struct list_head *cur = nullptr;
-  //     list_for_each(cur, lists[i]) {
-  //       auto blk = anchorage::Block::get((void *)cur);
-  //       // cur->dump(false);
-  //       off_t start = (off_t)blk->data();
-  //       off_t end = start + blk->size();
-  //
-  //
-  //       start = round_up(start, 4096);
-  //       end = round_down(end, 4096);
-  //       if (end - start < 10 * 4096) {
-  //         hit_end = true;
-  //         continue;
-  //       }
-  //
-  //       madvise((void *)start, end - start, MADV_DONTNEED);
-  //     }
-  //   }
-  // }
+  if (not out_of_tokens()) {
+    bool hit_end = false;
+    for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
+      if (hit_end) break;
+      struct list_head *cur = nullptr;
+      list_for_each(cur, lists[i]) {
+        auto blk = anchorage::Block::get((void *)cur);
+        // cur->dump(false);
+        off_t start = (off_t)blk->data();
+        off_t end = start + blk->size();
+
+
+        start = round_up(start, 4096);
+        end = round_down(end, 4096);
+        if (end - start < 10 * 4096) {
+          hit_end = true;
+          continue;
+        }
+
+        madvise((void *)start, end - start, MADV_DONTNEED);
+      }
+    }
+  }
 
 
   long end_saved = high_watermark - span();
