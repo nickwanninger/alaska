@@ -4,8 +4,12 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
-#include <deque>
 
+
+static bool no_strict_alias(void) {
+  static bool set = getenv("ALASKA_NO_STRICT_ALIAS") != NULL;
+  return set;
+}
 
 struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisitor> {
   alaska::FlowNode &node;
@@ -14,9 +18,14 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
   }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    auto &use = I.getOperandUse(0);
-    node.add_in_edge(&use);
-    node.type = alaska::Transient;
+    if (no_strict_alias()) {
+      node.type = alaska::Source;
+      node.colors.insert(node.id);
+    } else {
+      auto &use = I.getOperandUse(0);
+      node.add_in_edge(&use);
+      node.type = alaska::Transient;
+    }
   }
 
   void visitCastInst(llvm::CastInst &I) {
