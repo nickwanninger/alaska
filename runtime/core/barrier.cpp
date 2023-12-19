@@ -399,7 +399,7 @@ void alaska::barrier::begin(void) {
       }
     }
     if (!sent_signal) break;
-    usleep(100);  // Crappy optimization
+    usleep(100);  // lazy optimization
   }
 
 
