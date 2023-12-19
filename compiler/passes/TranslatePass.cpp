@@ -25,6 +25,12 @@
 #include <utility>
 using namespace llvm;
 
+
+static bool no_strict_alias(void) {
+  static bool set = getenv("ALASKA_NO_STRICT_ALIAS") != NULL;
+  return set;
+}
+
 PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM) {
   llvm::noelle::MetadataManager mdm(M);
   if (mdm.doesHaveMetadata("alaska")) {
@@ -35,6 +41,13 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
   mdm.addMetadata("alaska", "did run");
 
 
+  bool hoist = true;
+  if (no_strict_alias()) {
+    errs() << "WARNING: No strict alias is on. Disabling hoisting!\n";
+    hoist = false;
+  }
+
+
   for (auto &F : M) {
     if (F.empty()) continue;
     auto section = F.getSection();
@@ -43,19 +56,6 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       F.setSection("");
       continue;
     }
-
-
-    // alaska::println("Translating in ", F.getName());
-    // if (F.getName() != "find_call_stack_args") {
-    //   continue;
-    // }
-
-    bool hoist = true;
-#ifdef ALASKA_UNOPT_TRANSLATIONS
-    hoist = false;
-#endif
-
-    // hoist = false;
 
     auto start = alaska::timestamp();
     if (hoist) {
@@ -85,7 +85,6 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
     // printf("%s,%f\n", F.getName().data(), (end - start) / 1000.0 / 100.0);
     // exit(-1);
   }
-
 
   return PreservedAnalyses::none();
 }
