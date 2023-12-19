@@ -287,7 +287,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
         int no = arg.getArgNo();
         if (F.empty()) {
           info.args.insert(no);
-          continue;
+        } else if (arg.getType()->isPointerTy() && arg.hasAttribute(Attribute::ByVal)) {
+          info.args.insert(no);
         }
       }
 
@@ -311,7 +312,17 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   //   alaska::println();
   // }
 
-  auto shouldLockArgument = [&](llvm::Value *callee, size_t ind) {
+  auto shouldLockArgument = [&](llvm::CallBase *call, size_t ind) {
+    auto callee = call->getCalledOperand();
+
+    // // If the argument has a byval, you must lock
+    // if (auto arg = dyn_cast<Argument>(call->getArgOperand(ind))) {
+    //   if (arg->hasAttribute(Attribute::ByVal)) {
+    //     alaska::println(ind, "\t", *call, "\t", *arg);
+    //     return true;
+    //   }
+    // }
+
     if (auto func = dyn_cast<llvm::Function>(callee)) {
       auto &info = escapeInfo[func];
       // If the argument is explicitly marked as escaping, escape
@@ -350,6 +361,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
 
     for (auto &I : llvm::instructions(F)) {
+      // TODO: INVOKE!
       if (auto *call = dyn_cast<CallInst>(&I)) {
         if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
           if (mightBlock(*func)) {
@@ -361,14 +373,13 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           i++;
           if (!alaska::shouldTranslate(arg)) continue;
 
-          if (!shouldLockArgument(call->getCalledOperand(), i)) {
+          if (!shouldLockArgument(call, i)) {
             continue;
           }
 
 
           IRBuilder<> b(call);
 
-          // auto val = b.CreateGEP(arg->getType(), arg, {});
           auto val = alaska::insertRootBefore(call, arg);
           auto translated = alaska::insertTranslationBefore(call, val);
           alaska::insertReleaseBefore(call->getNextNode(), arg);
@@ -378,35 +389,6 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     }
   }
 
-
-  // for (auto *call : blockingSites) {
-  //   // Now that we have the arguments all translated, let's insert
-  //   // logic to handle barriers - because they are poll based, we
-  //   // will not be able to poll while in an external function.
-  //   // TODO: filter out obvious external functions here.
-  //   // For example, memcpy should not get this treatment, as it
-  //   // will eventually return. fwrite should be handled as it
-  //   // may never return!
-  //   IRBuilder<> b(call);
-  //   // alaska::println(*call);
-  //   b.CreateCall(barrierBoundType, barrierEscapeStart, {});
-  //   b.SetInsertPoint(call->getNextNode());
-  //   b.CreateCall(barrierBoundType, barrierEscapeEnd, {});
-  // }
-
-  // for (auto f : blockingFunctions) {
-  //   if (f != NULL) {
-  //     if (auto *func = dyn_cast<llvm::Function>(f)) {
-  //       alaska::println("\e[33mWARNING\e[0m: escape handle to function ", func->getName());
-  //     }
-  //   }
-  // }
-
-  // for (auto &F : M) {
-  //   if (F.getName() == "main") {
-  //     alaska::println(F);
-  //   }
-  // }
 
   return PreservedAnalyses::none();
 }
