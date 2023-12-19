@@ -14,9 +14,7 @@ os.environ["LD_LIBRARY_PATH"] = f"{local}/lib:{os.environ['LD_LIBRARY_PATH']}"
 print(local)
 
 
-parser = argparse.ArgumentParser(
-          prog='alaska-transform',
-          description='Applies alaska transformations to an input bitcode')
+parser = argparse.ArgumentParser(prog='alaska-transform', description='Applies alaska transformations to an input bitcode')
 
 
 parser.add_argument('-o', dest='output', help='The destination file. Defaults to in-place.')
@@ -34,10 +32,10 @@ if args.output is None:
 bitcode = args.output
 
 def exec(cmd):
-    print('\003[31m' + cmd + '\e[0m')
-    res = os.system(cmd)
-    if res != 0:
-       exit()
+  print(cmd)
+  res = os.system(cmd)
+  if res != 0:
+    exit()
 
 tempdir = tempfile.mkdtemp(prefix='alaska_')
 
@@ -49,79 +47,38 @@ exec(f'opt --strip-debug {local}/lib/alaska_stub.bc -o {tempdir}/stub.bc')
 exec(f'opt --strip-debug {local}/lib/alaska_translate.bc -o {tempdir}/translate.bc')
 # exec(f'opt --strip-debug {tempdir}/lib.bc -o {tempdir}/lib.bc')
 
-exec(f'llvm-link {args.input} --internalize {tempdir}/stub.bc -o {bitcode}')
-# exec(f'opt -O3 {bitcode} -o {bitcode}')
+if not args.baseline:
+  exec(f'llvm-link {args.input} --internalize {tempdir}/stub.bc -o {bitcode}')
+else:
+  shutil.copy(args.input, bitcode)
 
 def run_passes(passes):
   for p in passes:
     before = f'{tempdir}/before-{p}.bc'
     after = f'{tempdir}/after-{p}.bc'
     shutil.copy(bitcode, before)
-    # exec(f'llvm-dis {before}')
     exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={p} {before} -o {after}')
-    # exec(f'llvm-dis {after}')
     shutil.copy(after, bitcode)
 
-  # exec(f'opt --load-pass-plugin={local}/lib/Alaska.so --passes={",".join(passes)} {bitcode} -o {bitcode}')
-  
+
 passes = []
 
 
 exec(f'opt {bitcode} -o {bitcode} -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
 
 
-# passes.append('alaska-prepare')
-# passes.append('alaska-norm')
 run_passes(['alaska-prepare'])
-
 
 # Now add the passes in the order they need to be (if we aren't compiling for baseline)
 if not args.baseline:
-    run_passes(['alaska-replace', 'alaska-translate'])
-    exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
+  run_passes(['alaska-replace', 'alaska-translate'])
+  # run_passes(['alaska-translate'])
+  exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
+  passes.append('alaska-escape')
 
-    passes.append('alaska-escape')
-    passes.append('alaska-tracking')
-    passes.append('alaska-lower')
-    passes.append('alaska-inline')
-
-print(passes)
+  passes.append('alaska-tracking')
+  passes.append('alaska-lower')
+  passes.append('alaska-inline')
 
 run_passes(passes)
-
-
 exec(f'llvm-dis {args.output}')
-
-# shutil.rmtree(tempdir)
-
-# # #!/bin/bash
-#
-# set -x
-#
-# HERE=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")
-# PFX=$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../")
-#
-#
-# export PATH=$PFX/bin:$PATH
-# export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
-#
-# INPUT=$1
-# shift
-#
-# # OPT="opt -enable-new-pm=0 "${INPUT}" -o "${INPUT}""
-#
-# # llvm-link ${INPUT} $PFX/lib/alaska_stub.bc -o ${INPUT}
-# llvm-link ${INPUT} --internalize $PFX/lib/alaska_stub.bc $PFX/lib/alaska_translate.bc -o ${INPUT}
-# # $OPT -O3
-# # $OPT -O3
-#
-# # Run a load of enabler passes to make our analysis easier
-# # $OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-#
-# # # Run the Alaska passes w/ clang (the passes are internally scheduled)
-# # clang -Xclang -fpass-plugin=${PFX}/lib/Alaska.so -c -emit-llvm $INPUT -o $INPUT
-#
-#
-# # Run some optimizations after our passes
-# # $OPT -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer
-# # $OPT --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce
