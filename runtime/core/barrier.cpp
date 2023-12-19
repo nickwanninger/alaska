@@ -47,9 +47,9 @@ enum class StackState {
 
 
 struct PinSetInfo {
-  uint32_t count;   // How many entries?
-  uint32_t regNum;  // Which libunwind register?
-  int32_t offset;   // offset from that register?
+  uint32_t count = 0;   // How many entries?
+  uint32_t regNum = 0;  // Which libunwind register?
+  int32_t offset = 0;   // offset from that register?
 };
 
 struct StackMapping {
@@ -84,7 +84,6 @@ struct PatchPoint {
 };
 static ck::vec<PatchPoint> patchPoints;
 
-static volatile bool patches_done = false;
 
 
 static void patchSignal() {
@@ -100,14 +99,10 @@ static void patchNop(void) {
   }
 }
 
-// The definition for thread-local root chains
-__thread alaska_thread_state_t alaska_thread_state;
 
-extern uint64_t alaska_next_usage_timestamp;
 
 
 enum class JoinReason { Signal, Safepoint };
-
 
 // We track all threads w/ a simple linked list
 struct alaska_thread_info {
@@ -116,7 +111,7 @@ struct alaska_thread_info {
   struct list_head list_head;
 };
 
-
+__thread alaska_thread_state_t alaska_thread_state;
 static pthread_mutex_t all_threads_lock = PTHREAD_MUTEX_INITIALIZER;
 static long num_threads = 0;
 static struct list_head all_threads = LIST_HEAD_INIT(all_threads);
@@ -126,15 +121,14 @@ static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_barrier_t the_barrier;
 static long barrier_last_num_threads = 0;
 
+static void setup_signal_handlers(void);
+static void clear_pending_signals(void);
 
 
 
 void alaska_remove_from_local_lock_list(void* ptr) {
   return;
 }
-
-
-
 static void alaska_dump_thread_states_r(void) {
   struct alaska_thread_info* pos;
   list_for_each_entry(pos, &all_threads, list_head) {
@@ -285,6 +279,7 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
     auto it = pin_map.find(pc);
     if (it != pin_map.end()) {
       auto& psi = it->value;
+      if (psi.count == 0) continue;  // should not happen!
       unw_get_reg(&cursor, psi.regNum, &reg);
 
 
@@ -299,7 +294,9 @@ void alaska::barrier::get_locked(ck::set<void*>& out) {
   }
 }
 
-static void alaska_barrier_join(bool leader, const ck::set<void*>& ps) {
+
+
+static void participant_join(bool leader, const ck::set<void*>& ps) {
   for (auto* p : ps) {
     record_handle(p, true);
   }
@@ -312,7 +309,7 @@ static void alaska_barrier_join(bool leader, const ck::set<void*>& ps) {
 
 
 
-static void alaska_barrier_leave(bool leader, const ck::set<void*>& ps) {
+static void participant_leave(bool leader, const ck::set<void*>& ps) {
   // wait for the the leader (and everyone else to catch up)
   if (num_threads > 1) {
     pthread_barrier_wait(&the_barrier);
@@ -325,49 +322,14 @@ static void alaska_barrier_leave(bool leader, const ck::set<void*>& ps) {
 }
 
 
-static long last_barrier = alaska_timestamp();
-void alaska::barrier::begin(void) {
-
-  // As the leader, signal everyone to begin the barrier
-  pthread_mutex_lock(&barrier_lock);
-  // also lock the thread list! Nobody is allowed to create a thread right now.
-  pthread_mutex_lock(&all_threads_lock);
-
-
-  alaska_thread_state.join_reason = ALASKA_JOIN_REASON_ORCHESTRATOR;
-
-
-  patches_done = false;
-
-  if (barrier_last_num_threads != num_threads) {
-    if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
-    // Initialize the barrier so we know when everyone is ready!
-    pthread_barrier_init(&the_barrier, NULL, num_threads);
-    barrier_last_num_threads = num_threads;
-  }
-
-  // alaska_dump_thread_states_r();
-
+void dump_thread_states(void) {
   struct alaska_thread_info* pos;
   list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->thread == pthread_self()) continue;
-    pthread_kill(pos->thread, SIGUSR2);
-  }
+    switch (pos->state->join_status) {
+      case ALASKA_JOIN_REASON_NOT_JOINED:
+        printf("\e[41m! ");  // a thread will need to be interrupted (out to lunch)
+        break;
 
-
-
-  patchSignal();
-  patches_done = true;
-
-  auto now = alaska_timestamp();
-  ck::set<void*> locked;
-  alaska::barrier::get_locked(locked);  // TODO: slow!
-  alaska_barrier_join(true, locked);
-
-  printf("%10f ", (now - last_barrier) / 1000.0 / 1000.0 / 1000.0);
-
-  list_for_each_entry(pos, &all_threads, list_head) {
-    switch (pos->state->join_reason) {
       case ALASKA_JOIN_REASON_SIGNAL:
         printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
         break;
@@ -381,7 +343,74 @@ void alaska::barrier::begin(void) {
         break;
     }
   }
-  printf("\e[0m\n");
+  printf("\e[0m");
+}
+
+
+
+void alaska::barrier::begin(void) {
+  // Pseudocode:
+  //
+  // function begin():
+  //   patch();
+  //   while not everyone_joined():
+  //      usleep(n);
+  //      for thread in threads:
+  //        if not thread->joined:
+  //          signal(thread);
+  //   synch();
+
+
+  // Take locks so nobody else tries to signal a barrier.
+  pthread_mutex_lock(&barrier_lock);
+  pthread_mutex_lock(&all_threads_lock);
+  auto start = alaska_timestamp();
+
+
+  // First, mark everyone as *not* in the barrier.
+  struct alaska_thread_info* pos;
+  list_for_each_entry(pos, &all_threads, list_head) {
+    pos->state->join_status = ALASKA_JOIN_REASON_NOT_JOINED;
+  }
+  // Mark the orch thread (us) as joined (
+  alaska_thread_state.join_status = ALASKA_JOIN_REASON_ORCHESTRATOR;
+
+
+  // If the barrier needs resizing, do so.
+  if (barrier_last_num_threads != num_threads) {
+    if (barrier_last_num_threads != 0) pthread_barrier_destroy(&the_barrier);
+    // Initialize the barrier so we know when everyone is ready!
+    pthread_barrier_init(&the_barrier, NULL, num_threads);
+    barrier_last_num_threads = num_threads;
+  }
+
+
+  // now, patch the threads!
+  patchSignal();
+
+  // printf("\n");
+  // Make sure the threads that are in unmanaged (library) code get signalled.
+  while (true) {
+    bool sent_signal = false;
+    list_for_each_entry(pos, &all_threads, list_head) {
+      if (pos->state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
+        pthread_kill(pos->thread, SIGUSR2);
+        sent_signal = true;
+      }
+    }
+    if (!sent_signal) break;
+    usleep(100);  // Crappy optimization
+  }
+
+
+  ck::set<void*> locked;
+  alaska::barrier::get_locked(locked);  // TODO: slow!
+  participant_join(true, locked);
+
+  auto end = alaska_timestamp();
+  printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
+  dump_thread_states();
+  printf("\n");
 }
 
 
@@ -392,7 +421,7 @@ void alaska::barrier::end(void) {
   ck::set<void*> locked;
   alaska::barrier::get_locked(locked);  // TODO: slow!
   // Join the barrier to signal everyone we are done.
-  alaska_barrier_leave(true, locked);
+  participant_leave(true, locked);
   // Unlock all the locks we took.
   pthread_mutex_unlock(&all_threads_lock);
   pthread_mutex_unlock(&barrier_lock);
@@ -404,17 +433,6 @@ void alaska::barrier::end(void) {
 void alaska_barrier(void) {
   alaska::service::barrier();
 }
-
-
-
-extern "C" void alaska_barrier_signal_join(void) {
-  ck::set<void*> ps;
-  alaska_dump_backtrace();
-  alaska::barrier::get_locked(ps);  // TODO: slow!
-  alaska_barrier_join(false, ps);
-  alaska_barrier_leave(false, ps);
-}
-
 
 static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
@@ -432,26 +450,28 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
     case StackState::ManagedUntracked:
       // If we interrupted in managed code, but it wasn't at a poll point,
       // we need to return back to the thread so it can hit a poll.
-      
 
-      // First, though, we need to wait for the patches to be done.
-      while (!patches_done) {
-      }
 
-      for (auto [start, end] : managed_blob_text_regions) {
-        __builtin___clear_cache((char*)start, (char*)end);
-      }
+      // // First, though, we need to wait for the patches to be done.
+      // while (!patches_done) {
+      // }
+      //
+      // for (auto [start, end] : managed_blob_text_regions) {
+      //   __builtin___clear_cache((char*)start, (char*)end);
+      // }
+      // printf("ManagedUntracked!\n");
+      // printf("EEP %p %d!\n", return_address, sig);
       return;
 
     case StackState::ManagedTracked:
       // it's possible to be at a managed poll point *and* get interrupted
       // through SIGUSR2
-      alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SAFEPOINT;
+      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SAFEPOINT;
       break;
 
     case StackState::Unmanaged:
       assert(sig == SIGUSR2 && "Unmanaged code got into the barrier handler w/ the wrong signal");
-      alaska_thread_state.join_reason = ALASKA_JOIN_REASON_SIGNAL;
+      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
       break;
   }
 
@@ -460,10 +480,11 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
   // Simply join the barrier, then leave immediately. This
   // will deal with all the synchronization that needs done.
-  alaska_barrier_join(false, ps);
-  // TODO: clear the signal pending! (just in case)
-  alaska_barrier_leave(false, ps);
+  participant_join(false, ps);
 
+  participant_leave(false, ps);
+
+  clear_pending_signals();
 
   for (auto [start, end] : managed_blob_text_regions) {
     __builtin___clear_cache((char*)start, (char*)end);
@@ -472,12 +493,7 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
 
 
-
-void alaska::barrier::add_self_thread(void) {
-  auto self = pthread_self();
-  num_threads++;
-
-
+static void setup_signal_handlers(void) {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
 
@@ -485,6 +501,7 @@ void alaska::barrier::add_self_thread(void) {
   sigemptyset(&sa.sa_mask);
   sigaddset(&sa.sa_mask, SIGILL);
   sigaddset(&sa.sa_mask, SIGUSR2);
+
   // Store siginfo (ucontext) on the stack of the signal
   // handlers (so we can grab the return address)
   sa.sa_flags = SA_SIGINFO;
@@ -493,6 +510,31 @@ void alaska::barrier::add_self_thread(void) {
   // Attach this action on two signals:
   assert(sigaction(SIGILL, &sa, NULL) == 0);
   assert(sigaction(SIGUSR2, &sa, NULL) == 0);
+}
+
+
+static void clear_pending_signals(void) {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+
+  // Ignoring a signal while it is pending will clear it's pending status
+  sa.sa_handler = SIG_IGN;
+  // Attach this action on two signals:
+  assert(sigaction(SIGILL, &sa, NULL) == 0);
+  assert(sigaction(SIGUSR2, &sa, NULL) == 0);
+  // Now, set them up again
+  setup_signal_handlers();
+}
+
+
+
+void alaska::barrier::add_self_thread(void) {
+  auto self = pthread_self();
+  num_threads++;
+
+
+  setup_signal_handlers();
+
 
 
   pthread_mutex_lock(&all_threads_lock);
@@ -553,20 +595,6 @@ void parse_stack_map(uint8_t* t) {
 
     if (record.getID() == 'BLOK') {
       block_rets.add(addr);
-//       PatchPoint p;
-//       // X86:
-// #ifdef __amd64__
-//       // Byte pointer to the instruction.
-//       p.pc = (inst_t*)(addr - 5);  // TODO: are all calls 5 bytes?
-//       p.inst_nop = *p.pc;
-//       p.inst_sig = 0x0B'0F;
-// #endif
-// #ifdef __aarch64__
-//       p.pc = (inst_t*)(addr - 4);
-//       p.inst_nop = *p.pc;       // nop
-//       p.inst_sig = 0x00000000;  // udf #0
-// #endif
-//       patchPoints.push(p);
     }
 
     if (record.getID() == 'PATC') {
@@ -595,9 +623,11 @@ void parse_stack_map(uint8_t* t) {
     }
     if (record.getID() == 'PATC') {
       addr -= ALASKA_PATCH_SIZE;
+      printf("PATCH @ %p\n", addr);
     }
 
     PinSetInfo psi;
+    psi.count = 0;
 
     for (std::uint16_t i = 3; i < record.getNumLocations(); i++) {
       auto l = record.getLocation(i);
@@ -617,11 +647,16 @@ void parse_stack_map(uint8_t* t) {
       }
     }
 
-    pin_map[addr] = psi;
-
-    if (record.getID() == 'BLOK') {
-      // pin_map[addr - 4] = psi;
-      pin_map[addr - 5] = psi; // TODO(HACK)
+    if (true || psi.count != 0) {
+      pin_map[addr] = psi;
+//       if (record.getID() == 'BLOK') {
+// #ifdef __amd64__
+//         pin_map[addr - 5] = psi;  // TODO(HACK)
+// #endif
+// #ifdef __aarch64__
+//         pin_map[addr - 4] = psi;
+// #endif
+//       }
     }
   }
 
@@ -638,6 +673,8 @@ void alaska_blob_init(struct alaska_blob_config* cfg) {
   auto patch_page = (void*)((uintptr_t)cfg->code_start & ~0xFFF);
   size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
   mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
+
+  // printf("%p %p\n", cfg->code_start, cfg->code_end);
 
   if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }
