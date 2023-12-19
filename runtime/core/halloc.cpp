@@ -34,7 +34,7 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 static void *_halloc(size_t sz, int zero) {
 	// return malloc(sz);
 	// Just some big number.
-	if (sz > (1LLU << (uint64_t)ALASKA_SIZE_BITS) - 1) {
+	if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS)) - 1) {
     printf("[alaska] Cannot allocate a handle of size %zu with %d bits of size. Falling back to malloc (it's probably gonna crash!)\n", sz, ALASKA_SIZE_BITS);
 		return ::malloc(sz);
 	}
@@ -53,9 +53,8 @@ static void *_halloc(size_t sz, int zero) {
   void *out = ent->to_handle(0);
   num_alive++;
 
-  // fprintf(stderr, "%zu\n", sz);
+  if (out == NULL) abort();
 
-	// printf("halloc %4zu -> %p\n", sz, out);
   return out;
 }
 
@@ -71,7 +70,6 @@ void *hcalloc(size_t nmemb, size_t size) {
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
-	// printf("hrealloc %p\n", handle);
   // return realloc(handle, new_size);
 
   // If the handle is null, then this call is equivalent to malloc(size)
@@ -79,6 +77,7 @@ void *hrealloc(void *handle, size_t new_size) {
     // printf("realloc edge case: NULL pointer (sz=%zu)\n", new_size);
     return halloc(new_size);
   }
+	// printf("hrealloc %p\n", handle);
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     // printf("realloc edge case: not a handle %p!\n", handle);

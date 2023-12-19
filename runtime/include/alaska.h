@@ -63,7 +63,7 @@ void alaska_blob_init(struct alaska_blob_config *cfg);
 // #define TABLE_START 0x80000000LU
 //
 #if ALASKA_SIZE_BITS >= 17
-#define TABLE_START (0x8000000000000000LLU >> ALASKA_SIZE_BITS)
+#define TABLE_START (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS))
 #else
 #error "Cannot handle size bits less than 17"
 #endif

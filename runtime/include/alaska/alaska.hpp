@@ -22,14 +22,9 @@
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
 
-namespace alaska {
+// #define ALASKA_HANDLE_SQUEEZING
 
-#ifdef ALASKA_HANDLE_SQUEEZING
-  // Must be log2(sizeof(alaska::Mapping))
-  constexpr int handle_squeeze = 3;
-#else
-  constexpr int handle_squeeze = 0;
-#endif
+namespace alaska {
 
   extern long translation_hits;
   extern long translation_misses;
@@ -50,7 +45,7 @@ namespace alaska {
     // Encode a handle into the representation used in the
     // top-half of a handle encoding
     ALASKA_INLINE uint64_t encode(void) const {
-      auto out = (uint64_t)((uint64_t)this >> handle_squeeze);
+      auto out = (uint64_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS);
       return out;
     }
 
@@ -68,7 +63,7 @@ namespace alaska {
     // perform any checking, and will blindly translate any pointer regardless of if it really
     // contains a handle internally.
     static ALASKA_INLINE alaska::Mapping *from_handle(void *handle) {
-      return (alaska::Mapping *)((uint64_t)handle >> (ALASKA_SIZE_BITS - handle_squeeze));
+      return (alaska::Mapping *)((uint64_t)handle >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS));
     }
 
     // Extract an encoded mapping out of the bits of a handle. This variant of the function

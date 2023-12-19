@@ -13,15 +13,15 @@
 #include <malloc.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/cdefs.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #include <alaska.h>
-#include <dlfcn.h>
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
 #include <alaska/utils.h>
-
+#include <dlfcn.h>
 
 /**
  * Note: This file is inlined by the compiler to make locks faster.
@@ -43,11 +43,9 @@ static ALASKA_INLINE void alaska_track_miss(void) {
 #endif
 }
 
-
 extern "C" {
 extern int __LLVM_StackMaps __attribute__((weak));
 }
-
 
 extern "C" void *alaska_translate_uncond(void *ptr) {
   int64_t bits = (int64_t)ptr;
@@ -63,8 +61,8 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
     mapped = alaska_ensure_present(m);
   }
 #endif
-  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
-  // Apply the offset to the mapping and return it.
+  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n",
+  // ptr); Apply the offset to the mapping and return it.
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
 }
@@ -78,6 +76,9 @@ void *alaska_translate_escape(void *ptr) {
 }
 
 
+static __attribute_noinline__ void track(uintptr_t handle) {
+  fprintf(stderr, "tr %p\n", handle);
+}
 
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
@@ -86,8 +87,7 @@ void *alaska_translate(void *ptr) {
     return ptr;
   }
 
-  // printf("tr %p\n", ptr);
-
+  // track((uintptr_t)ptr);
   alaska_track_hit();
 
   // Grab the mapping from the runtime
@@ -102,14 +102,11 @@ void *alaska_translate(void *ptr) {
     mapped = alaska_ensure_present(m);
   }
 #endif
-  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n", ptr);
-  // Apply the offset to the mapping and return it.
+  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n",
+  // ptr); Apply the offset to the mapping and return it.
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
 }
-
-
-
 
 void alaska_release(void *ptr) {
   // This function is just a marker that `ptr` is now dead (no longer used)
@@ -133,12 +130,9 @@ void print_backtrace() {
 extern bool alaska_should_safepoint;
 extern "C" uint64_t alaska_barrier_poll();
 
-
 extern "C" void alaska_safepoint(void) {
   alaska_barrier_poll();
 }
-
-
 
 extern "C" void alaska_barrier_before_escape(void) {
   atomic_inc(alaska_thread_state.escaped, 1);
