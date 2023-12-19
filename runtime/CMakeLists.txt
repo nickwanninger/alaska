@@ -188,9 +188,11 @@ add_bitcode(alaska_compat SOURCES core/compat.c)
 
 add_bitcode(alaska_stub SOURCES
 	stub/net.c
+	stub/dtoa.c
 	stub/obstack.c
 	stub/stub.c
-	stub/memcpy.c)
+	stub/memcpy.c
+)
 
 
 target_link_libraries(alaska alaska_translate_native)
@@ -200,6 +202,10 @@ add_library(rsstracker SHARED extra/rsstracker.c)
 target_link_libraries(rsstracker dl pthread)
 install(TARGETS rsstracker)
 
+
+add_executable(htlb extra/htlb.c)
+target_link_libraries(htlb dl pthread)
+install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
 install(FILES include/alaska/config.h DESTINATION include/alaska)
