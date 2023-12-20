@@ -387,6 +387,8 @@ void alaska::barrier::begin(void) {
 
   // now, patch the threads!
   patchSignal();
+  int retries = 0;
+  int signals_sent = 0;
 
   // printf("\n");
   // Make sure the threads that are in unmanaged (library) code get signalled.
@@ -396,10 +398,12 @@ void alaska::barrier::begin(void) {
       if (pos->state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
         pthread_kill(pos->thread, SIGUSR2);
         sent_signal = true;
+        signals_sent++;
       }
     }
     if (!sent_signal) break;
     usleep(100);  // lazy optimization
+    retries++;
   }
 
 
@@ -410,7 +414,7 @@ void alaska::barrier::begin(void) {
   auto end = alaska_timestamp();
   printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
   dump_thread_states();
-  printf("\n");
+  printf(" retries = %d, signals = %d\n", retries, signals_sent);
 }
 
 
@@ -486,9 +490,9 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
   clear_pending_signals();
 
-  for (auto [start, end] : managed_blob_text_regions) {
-    __builtin___clear_cache((char*)start, (char*)end);
-  }
+  // for (auto [start, end] : managed_blob_text_regions) {
+  //   __builtin___clear_cache((char*)start, (char*)end);
+  // }
 }
 
 
