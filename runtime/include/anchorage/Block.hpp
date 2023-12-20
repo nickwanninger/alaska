@@ -123,13 +123,12 @@ inline bool anchorage::Block::is_locked(void) {
 }
 
 inline auto anchorage::Block::handle(void) const -> alaska::Mapping * {
-  // if (m_handle == UINT_MAX) return NULL;  // cast the 32bit "pointer" into the real pointer
-  return (alaska::Mapping *)(uint64_t)m_handle;
+  return alaska::Mapping::from_compact(m_handle);
 }
 
 
 inline void anchorage::Block::set_handle(alaska::Mapping *handle) {
-  m_handle = (uint32_t)(uint64_t)handle;
+  m_handle = handle->to_compact();
 }
 
 inline void anchorage::Block::mark_as_free(anchorage::Chunk &chunk) {

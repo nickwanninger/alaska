@@ -63,14 +63,11 @@ anchorage::Chunk::Chunk(size_t pages)
       NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
   front->mark_locked(true);
-  front->set_handle((alaska::Mapping *)-1);
+  front->set_handle((alaska::Mapping *)-1);  // Intentionally set an invalid handle
   tos = front + 2;
   front->set_next(tos);
   dump(NULL, "Setup!");
 
-  // madvise(tos, size, MADV_HUGEPAGE);
-  // printf(
-  //     "allocated %f Mb for a chunk (%p-%p)\n", (size) / 1024.0 / 1024.0, tos, (uint64_t)tos + size);
   tos->set_next(nullptr);
 }
 
@@ -337,10 +334,17 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
   }
 
 
+  dump(NULL, "Heap");
+
+
   for (auto &b : *this) {
     dump(&b, "checking");
-    if (b.is_free())
+    if (b.is_free()) {
+      if (!free_blocks.contains(&b)) {
+        dump(&b, "SHOULD BE IN FREE LIST");
+      }
       ALASKA_ASSERT(free_blocks.contains(&b), "A free block must be in the free list");
+    }
     if (b.prev() == NULL)
       ALASKA_ASSERT(&b == front, "if prev() is null, the block must be the bottom of the stack");
     if (b.next() == NULL)
@@ -354,13 +358,9 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
 // In this function, Dianoga does his work.
 long anchorage::Chunk::perform_compaction(
     anchorage::Chunk &dst_space, anchorage::CompactionConfig &config) {
-
-	// How much free space is there in the heap at the start?
-	long used_start = memory_used_including_overheads();
-
-
-	// double frag_before = frag();
- //  auto begin = alaska_timestamp();
+  // How much free space is there in the heap at the start?
+  long used_start = memory_used_including_overheads();
+  // How many tokens have been spent so far?
   unsigned long tokens_spent = 0;
 
   // Returns true if you are out of tokens.
@@ -383,7 +383,7 @@ long anchorage::Chunk::perform_compaction(
     // Move the data
     memcpy(new_blk->data(), blk->data(), blk->size());
     memset(blk->data(), 0, blk->size());
-		// Spend tokens to track we moved this object
+    // Spend tokens to track we moved this object
     spend_tokens(blk->size());
     // Patch the handle
     new_blk->set_handle(blk->handle());
@@ -393,11 +393,7 @@ long anchorage::Chunk::perform_compaction(
     this->free(blk);
   };
 
-  // long old_span = span();
-  alldump(nullptr, "Before");
 
-
-  // for (auto *cur = front; cur != tos; cur = cur->next()) {
   for (auto *cur = tos->prev(); cur != NULL; cur = cur->prev()) {
     if (cur->is_free()) {
       continue;
@@ -412,10 +408,10 @@ long anchorage::Chunk::perform_compaction(
   }
 
 
-  struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
-  free_list.collect_freelists(lists);
 
   if (not out_of_tokens()) {
+    struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
+    free_list.collect_freelists(lists);
     bool hit_end = false;
     for (int i = anchorage::FirstFitSegFreeList::num_free_lists - 1; i >= 0; i--) {
       if (hit_end) break;
@@ -443,21 +439,14 @@ long anchorage::Chunk::perform_compaction(
   long end_saved = high_watermark - span();
   size_t saved_pages = end_saved / 4096;
   if (saved_pages > 2) {
-    // printf("Saved pages %zu\n", saved_pages);
     uint64_t dont_need_start = (uint64_t)tos;
     madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
 
-		high_watermark = span();
+    high_watermark = span();
   }
 
 
 
-	long used_end = memory_used_including_overheads();
-
- //  auto end = alaska_timestamp();
-	// auto frag_after = frag();
-
- //  printf("%fms  %10f %10f\n", (end - begin) / 1000.0 / 1000.0, frag_before, frag_after);
-	// printf("spn:%zu use:%zu\n", span(), memory_used_including_overheads());
+  long used_end = memory_used_including_overheads();
   return used_start - used_end;
 }

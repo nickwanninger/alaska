@@ -59,6 +59,16 @@ namespace alaska {
       return (void *)out;
     }
 
+
+    uint32_t to_compact(void) {
+      return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS);
+    }
+
+
+    static alaska::Mapping *from_compact(uint32_t c) {
+      return (alaska::Mapping *)((uint64_t)c << ALASKA_SQUEEZE_BITS);
+    }
+
     // Extract an encoded mapping out of the bits of a handle. WARNING: this function does not
     // perform any checking, and will blindly translate any pointer regardless of if it really
     // contains a handle internally.
