@@ -370,14 +370,11 @@ static void barrier_simple_time(void) {
     //
     anch_lock.lock();
     // Get everyone prepped for a barrier
-    auto start = alaska_timestamp();
     alaska::barrier::begin();
     // anchorage::CompactionConfig config;
-    // moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
-    // anchorage::Chunk::swap_spaces();
-    // auto end = alaska_timestamp();
-    // printf("%lu moved barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0);
-    // (void)(end - start);
+    // moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space,
+    // config); anchorage::Chunk::swap_spaces(); auto end = alaska_timestamp(); printf("%lu moved
+    // barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0); (void)(end - start);
 
     alaska::barrier::end();
     anch_lock.unlock();
@@ -386,18 +383,64 @@ static void barrier_simple_time(void) {
   }
 }
 
+
+
+static void stress_workload(void) {
+  // The interval that the stress test should work in.
+  // Defaults to once a second.
+  long interval = get_knob("STRESS_INTERVAL", 1000);
+  // How much of the heap should be moved each time?
+  // Defaults to 1mb
+  long tokens = get_knob("STRESS_TOKENS", 1024 * 1024);
+
+  usleep(500 * 1000);
+
+  while (true) {
+    usleep(interval * 1000);
+
+    anch_lock.lock();
+    alaska::barrier::begin();
+    anchorage::CompactionConfig config;
+    config.available_tokens = tokens;
+
+
+    printf("before: %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
+    long moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+    
+    printf("Moved %lu\n", moved);
+    printf("after:  %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
+    // Swap spaces if the next compaction wouldn't do anything
+    if (anchorage::Chunk::to_space->memory_used_including_overheads() < tokens) {
+      printf("Swap\n");
+      anchorage::Chunk::swap_spaces();
+    }
+    alaska::barrier::end();
+    anch_lock.unlock();
+  }
+}
+
+
+
 static pthread_t anchorage_barrier_thread;
 static void *barrier_thread_fn(void *) {
-  pthread_setname_np(pthread_self(), "anchorage");
+  // Mark this thread as escaped. (TODO: is this even needed anymore?)
   alaska_thread_state.escaped = 1;
-  // pad_barrier_control_overhead_target();
-  // barrier_control_overhead_target();
-  barrier_simple_time();
+  pthread_setname_np(pthread_self(), "anchorage");
+  char *mode = getenv("ANCH_MODE");
+
+  if (mode == NULL) {
+    // pad_barrier_control_overhead_target();
+    // barrier_control_overhead_target();
+    barrier_simple_time();
+  } else if (strcmp(mode, "stress") == 0) {
+    stress_workload();
+  }
   return NULL;
 }
 
 void alaska::service::init(void) {
   anch_lock.init();
+
   anchorage::allocator_init();
 
   if (getenv("ANCH_NO_DEFRAG") == NULL) {
