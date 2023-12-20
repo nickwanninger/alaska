@@ -142,6 +142,7 @@ inline auto anchorage::Block::next(void) const -> anchorage::Block * {
   return const_cast<anchorage::Block *>(this + m_next_off);
 }
 inline void anchorage::Block::set_next(anchorage::Block *new_next, bool backlink) {
+  ALASKA_ASSERT(new_next != this, "Invalid next node");
   if (new_next == nullptr) {
     m_next_off = 0;
   } else {
@@ -157,7 +158,9 @@ inline auto anchorage::Block::prev(void) const -> anchorage::Block * {
 
 
 inline void anchorage::Block::set_prev(anchorage::Block *new_prev, bool backlink) {
+  ALASKA_ASSERT(new_prev != this, "Invalid previous node");
   if (new_prev == nullptr) {
+    printf("NEW PREV IS NULL!\n");
     m_prev_off = 0;
   } else {
     m_prev_off = this - new_prev;
