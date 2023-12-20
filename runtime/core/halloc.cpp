@@ -35,7 +35,7 @@ static void *_halloc(size_t sz, int zero) {
 	// return malloc(sz);
 	// Just some big number.
 	if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS)) - 1) {
-    printf("[alaska] Cannot allocate a handle of size %zu with %d bits of size. Falling back to malloc (it's probably gonna crash!)\n", sz, ALASKA_SIZE_BITS);
+    printf("[alaska] Cannot allocate a handle of size %zu with %d bits of size. Falling back to malloc\n", sz, ALASKA_SIZE_BITS);
 		return ::malloc(sz);
 	}
 
