@@ -52,7 +52,7 @@ static void table_dump(void) {
 static void alaska_table_grow() {
   size_t oldbytes = table_size * MAP_ENTRY_SIZE;
   size_t newbytes = oldbytes * 2;
-  printf("Map table to %p (%zu -> %zu)\n", TABLE_START, oldbytes, newbytes);
+  // printf("Map table to %p (%zu -> %zu)\n", TABLE_START, oldbytes, newbytes);
   // size_t newbytes = oldbytes + MAP_GRANULARITY;
   if (table_memory == NULL) {
     newbytes = MAP_GRANULARITY;

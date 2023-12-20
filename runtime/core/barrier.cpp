@@ -490,9 +490,9 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
 
   clear_pending_signals();
 
-  // for (auto [start, end] : managed_blob_text_regions) {
-  //   __builtin___clear_cache((char*)start, (char*)end);
-  // }
+  for (auto [start, end] : managed_blob_text_regions) {
+    __builtin___clear_cache((char*)start, (char*)end);
+  }
 }
 
 
