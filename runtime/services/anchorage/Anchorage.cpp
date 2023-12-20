@@ -160,12 +160,13 @@ void pad_barrier_control_overhead_target(void) {
   float last_pass_start = 0;
 
   // control variable
-  double ms_to_sleep = 1000;  // 1s out of the gate.
+  double ms_to_sleep = 100;  // 1s out of the gate.
 
   printf("target overhead: [%f,%f]\n", target_oh_lb, target_oh_ub);
   printf("target frag:     [%f,%f]\n", target_frag_lb, target_frag_ub);
 
   do {
+    printf("sleeping for %f ms\n", ms_to_sleep);
     usleep(ms_to_sleep * 1000);
     auto start = alaska_timestamp();
     this_frag_start = anchorage::get_heap_frag();
@@ -335,8 +336,8 @@ static void barrier_control_overhead_target(void) {
       ms_to_sleep = 10;
     }
 
-    fprintf(stderr, "[ctrl frag=%2.4f %ld %ld] ", frag_before, to_use / 1024 / 1024,
-        from_use / 1024 / 1024);
+    fprintf(stderr, "[ctrl frag=%2.4f %ld %ld (rss=%lu)] ", frag_before, to_use / 1024 / 1024,
+        from_use / 1024 / 1024, alaska_translate_rss_kb() / 1024);
     switch (state) {
       case WAITING:
         fprintf(stderr, "Waiting...\n", frag_before);
@@ -426,10 +427,10 @@ static void *barrier_thread_fn(void *) {
   pthread_setname_np(pthread_self(), "anchorage");
   char *mode = getenv("ANCH_MODE");
 
-  if (mode == NULL) {
+  if (mode == NULL || strcmp(mode, "defrag") == 0) {
     // pad_barrier_control_overhead_target();
-    // barrier_control_overhead_target();
-    barrier_simple_time();
+    barrier_control_overhead_target();
+    // barrier_simple_time();
   } else if (strcmp(mode, "stress") == 0) {
     stress_workload();
   }
