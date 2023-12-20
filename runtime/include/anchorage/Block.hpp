@@ -12,7 +12,6 @@
 
 #include <alaska/lib.hpp>
 #include <anchorage/Anchorage.hpp>
-#include <limits.h>
 
 
 namespace anchorage {
