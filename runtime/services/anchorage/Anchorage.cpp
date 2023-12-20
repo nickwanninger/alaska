@@ -404,14 +404,12 @@ static void stress_workload(void) {
     config.available_tokens = tokens;
 
 
-    printf("before: %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
     long moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
-    
-    printf("Moved %lu\n", moved);
-    printf("after:  %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
+    // printf("Moved %lu\n", moved);
+    // printf("after:  %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
     // Swap spaces if the next compaction wouldn't do anything
     if (anchorage::Chunk::to_space->memory_used_including_overheads() < tokens) {
-      printf("Swap\n");
+      // printf("Swap\n");
       anchorage::Chunk::swap_spaces();
     }
     alaska::barrier::end();

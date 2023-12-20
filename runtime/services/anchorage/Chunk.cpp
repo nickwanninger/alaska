@@ -18,7 +18,6 @@
 
 #include <string.h>
 #include <sys/mman.h>
-#include <assert.h>
 #include <unistd.h>
 
 
@@ -94,6 +93,8 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
   new_blk->set_next(to_split->next());
   to_split->set_next(new_blk);
 
+  validate_block(new_blk, "Split free");
+  validate_block(to_split, "Split free");
 
   fl_add(new_blk);
 
@@ -132,6 +133,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
       // printf("alloc return %p from free list!\n", blk);
       // No need to remove `blk` from the list, as free_list::search does that for us.
       blk->set_handle((alaska::Mapping *)-1);
+      validate_block(blk, "Allocated from free list");
       return blk;
     }
   }
@@ -146,7 +148,11 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   }
 
   validate_heap("alloc - before bump");
+
+  // Grab the top-of-stack. We are bump allocating
   Block *blk = tos;
+  validate_block(blk, "Allocated from tos");
+  // Shift the top-of-stack.
   tos = (Block *)((uint8_t *)this->tos + anchorage::size_with_overhead(size));
   tos->clear();
   blk->clear();
@@ -155,6 +161,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
   tos->set_prev(blk);
   blk->set_next(tos);
   blk->set_handle((alaska::Mapping *)-1);
+  validate_block(tos, "update tos after alloc");
   validate_heap("alloc - after bump");
 
   if (span() > high_watermark) high_watermark = span();
@@ -193,6 +200,7 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
   // if the previous is free, ask it to coalesce instead, as we only handle
   // left-to-right coalescing.
   while (true) {
+    validate_block(blk, "walk backwards in coal");
     if (blk == this->front) break;
     ALASKA_ASSERT(blk->prev() != NULL, "Previous block must not be null");
     // If the previous block isn't free, break. we are at the start of a run of free blocks
@@ -207,19 +215,29 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
     ALASKA_ASSERT(succ < tos, "successor must be before top of stack");
     // If the successor is free, remove it from the free list
     // and take over it's space.
+    validate_block(succ, "before succ fl_del");
     fl_del(succ);
+    validate_block(succ, "after succ fl_del");
     // printf("succ next: %p\n", succ->next());
     blk->set_next(succ->next());
+    validate_block(blk, "update blk's next");
     succ = succ->next();
     changes += 1;
   }
 
   fl_del(blk);
+  validate_block(blk, "remove blk from the free list");
   if (blk->next() == tos) {
+    validate_block(tos, "before update tos");
+    validate_block(blk, "before update tos");
     this->tos = blk;
     blk->set_next(NULL);  // tos has null as next
+    validate_block(tos, "after update tos");
+    validate_block(blk, "after update tos");
   } else {
+    validate_block(blk, "before fl_add");
     fl_add(blk);
+    validate_block(blk, "after fl_add");
   }
 
   // if (changes > 0) printf("changes %d\n", changes);
@@ -259,6 +277,19 @@ void anchorage::allocator_deinit(void) {
 }
 
 
+
+void anchorage::Chunk::validate_block(anchorage::Block *blk, const char *context_name) {
+  if (blk->prev() == NULL)
+    ALASKA_ASSERT(blk == front, "if prev() is null, the block must be the bottom of the stack");
+  if (blk->next() == NULL)
+    ALASKA_ASSERT(blk == tos, "if next() is null, the block must be top of stack");
+
+  if (blk->next() != NULL)
+    ALASKA_ASSERT(blk->next()->prev() == blk, "The next's previous must be this block");
+  if (blk->prev() != NULL)
+    ALASKA_ASSERT(blk->prev()->next() == blk, "The prev's next must be this block");
+}
+
 void anchorage::Chunk::validate_heap(const char *context_name) {
   return;
   // printf("Validating in context '%s'\n", context_name);
@@ -275,16 +306,12 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
 
 
   for (auto &b : *this) {
-    // dump(&b, "checking");
+    validate_block(&b, context_name);
+
     if (b.is_free()) {
       ALASKA_ASSERT(free_blocks.contains(&b), "A free block must be in the free list");
     }
-    if (b.prev() == NULL)
-      ALASKA_ASSERT(&b == front, "if prev() is null, the block must be the bottom of the stack");
-    if (b.next() == NULL)
-      ALASKA_ASSERT(&b == tos, "if next() is null, the block must be top of stack");
-    if (b.next() != NULL)
-      ALASKA_ASSERT(b.next()->prev() == &b, "The next's previous must be this block");
+    // dump(&b, "checking");
   }
 }
 
@@ -314,15 +341,23 @@ long anchorage::Chunk::perform_compaction(
     // printf("migrate %p %zu\n", blk, blk->size());
     auto new_blk = dst_space.alloc(blk->size());
     ALASKA_ASSERT(new_blk != NULL, "Could not allocate a block in the to space");
+
+    dst_space.validate_block(new_blk, "Newly allocated block");
     // Move the data
     memcpy(new_blk->data(), blk->data(), blk->size());
+    dst_space.validate_block(new_blk, "Memcpy data over");
     memset(blk->data(), 0, blk->size());
+    this->validate_block(blk, "Zero old data");
     // Spend tokens to track we moved this object
     spend_tokens(blk->size());
     // Patch the handle
     new_blk->set_handle(blk->handle());
     auto *handle = blk->handle();
     handle->ptr = new_blk->data();
+
+
+    dst_space.validate_block(new_blk, "Transfer");
+    this->validate_block(blk, "Transfer");
 
     this->free(blk);
   };
@@ -373,7 +408,10 @@ long anchorage::Chunk::perform_compaction(
   long end_saved = high_watermark - span();
   size_t saved_pages = end_saved / 4096;
   if (saved_pages > 2) {
-    uint64_t dont_need_start = (uint64_t)tos;
+    // start clearing data *after* the top of stack. This avoid the case when the tos
+    // just happens to be at offset zero on a page, and keesp it from being "corrupted"
+    // (set to zero) by a MADV_DONTNEED call.
+    uint64_t dont_need_start = (uint64_t)(tos->data());
     madvise((void *)round_up(dont_need_start, 4096), 1 + saved_pages * 4096, MADV_DONTNEED);
 
     high_watermark = span();

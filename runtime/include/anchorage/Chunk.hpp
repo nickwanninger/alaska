@@ -14,6 +14,7 @@
 #include <anchorage/Block.hpp>
 #include <anchorage/FreeList.hpp>
 #include <alaska/list_head.h>
+#include <limits.h>
 #include <ck/set.h>
 
 
@@ -73,6 +74,7 @@ namespace anchorage {
     bool split_free_block(anchorage::Block *to_split, size_t required_size);
     long perform_compaction(anchorage::Chunk &to_space, anchorage::CompactionConfig &config);
 		void validate_heap(const char *context_name);
+    void validate_block(anchorage::Block *block, const char *context_name);
 
 
     // add and remove blocks from the free list
