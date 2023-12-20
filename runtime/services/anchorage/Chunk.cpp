@@ -23,7 +23,7 @@
 
 
 
-static constexpr bool do_dumps = false;
+static constexpr bool do_dumps = true;
 
 anchorage::Chunk *anchorage::Chunk::to_space = NULL;
 anchorage::Chunk *anchorage::Chunk::from_space = NULL;
@@ -66,7 +66,6 @@ anchorage::Chunk::Chunk(size_t pages)
   front->set_handle((alaska::Mapping *)-1);  // Intentionally set an invalid handle
   tos = front + 2;
   front->set_next(tos);
-  dump(NULL, "Setup!");
 
   tos->set_next(nullptr);
 }
@@ -85,11 +84,9 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
 
   // If there isn't enough space in the leftover block for data, don't split the block.
   // TODO: this is a gross kind of fragmentation that I dont quite know how to deal with yet.
-  if (remaining_size < anchorage::block_size * 2) {
+  if (remaining_size < anchorage::block_size * 3) {
     return true;
   }
-
-  // printf("%lu %lu\n", to_split - this->front, this->tos - to_split);
 
   auto *new_blk = (anchorage::Block *)((char *)to_split->data() + required_size);
   new_blk->clear();
@@ -162,8 +159,6 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
   if (span() > high_watermark) high_watermark = span();
 
-  // dump(blk, "Alloc");
-
   active_bytes += blk->size();
   active_blocks++;
   // printf("alloc return %p\n", blk);
@@ -186,22 +181,6 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
   validate_heap("free - before coalesce_free, after fl_add");
   coalesce_free(blk);
   validate_heap("free - after coalesce_free");
-
-  // auto frag_before = this->frag();
-  //
-  // if (not doing_shit) {
-  //   doing_shit = true;
-  //   alaska::barrier::begin();
-  //   anchorage::CompactionConfig config;
-  //   auto target = to_space;
-  //   if (this == target) target = from_space;
-  //   this->perform_compaction(*target, config);
-  //   alaska::barrier::end();
-  //   doing_shit = false;
-  // }
-
-  // printf("frag: %-10.6f\n", span() / (double)active_bytes);
-  // dump(blk, "Free");
 }
 
 size_t anchorage::Chunk::span(void) const {
@@ -247,30 +226,9 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
   return changes;
 }
 
-static char *readable_fs(double size /*in bytes*/, char *buf) {
-  int i = 0;
-  const char *units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
-  while (size > 1024) {
-    size /= 1024;
-    i++;
-  }
-  sprintf(buf, "%.*f %s", i * 2, size, units[i]);
-  return buf;
-}
-
 void anchorage::Chunk::dump(Block *focus, const char *message) {
   if constexpr (do_dumps) {
-    // return;
     printf("%-10s ", message);
-
-
-    // char buf[32];
-    // printf("active: %-10s ", readable_fs(active_bytes, buf));
-    // printf("span: %-10s ", readable_fs(span(), buf));
-    // printf("frag: %-10.6f", span() / (double)active_bytes);
-    // printf("\n");
-    // return;
-
     for (auto &block : *this) {
       block.dump(false, &block == focus);
     }
@@ -287,29 +245,8 @@ void anchorage::Chunk::dump_free_list(void) {
 
   for (auto *blk : blocks) {
     blk->dump_content();
-    // dump(blk, "FL");
   }
   printf("\n");
-}
-
-
-
-
-static long last_accessed = 0;
-extern "C" void anchorage_chunk_dump_usage(alaska::Mapping *m) {
-  alaska::barrier::begin();
-
-  long just_accessed = (long)m->ptr;
-  if (last_accessed == 0) last_accessed = just_accessed;
-  long stride = just_accessed - last_accessed;
-  last_accessed = just_accessed;
-
-  auto *c = anchorage::Chunk::get(m->ptr);
-  if (c != NULL && stride != 0) {
-    auto b = anchorage::Block::get(m->ptr);
-    c->dump(b, "access");
-  }
-  alaska::barrier::end();
 }
 
 
@@ -324,8 +261,8 @@ void anchorage::allocator_deinit(void) {
 
 void anchorage::Chunk::validate_heap(const char *context_name) {
   return;
-  printf("Validating in context '%s'\n", context_name);
-  dump(nullptr, "Validate");
+  // printf("Validating in context '%s'\n", context_name);
+  // dump(nullptr, "Validate");
   ck::vec<anchorage::Block *> v_all_free_blocks;
   free_list.collect(v_all_free_blocks);
   ck::set<anchorage::Block *> free_blocks;
@@ -334,15 +271,12 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
   }
 
 
-  dump(NULL, "Heap");
+  // dump(NULL, "Heap");
 
 
   for (auto &b : *this) {
-    dump(&b, "checking");
+    // dump(&b, "checking");
     if (b.is_free()) {
-      if (!free_blocks.contains(&b)) {
-        dump(&b, "SHOULD BE IN FREE LIST");
-      }
       ALASKA_ASSERT(free_blocks.contains(&b), "A free block must be in the free list");
     }
     if (b.prev() == NULL)
