@@ -47,10 +47,8 @@ static void *barrier_thread_fn(void *) {
 }
 
 
-static pthread_t barrier_thread;
 
 void alaska::service::init(void) {
-  // pthread_create(&barrier_thread, NULL, barrier_thread_fn, NULL);
 }
 
 void alaska::service::deinit(void) {
