@@ -333,8 +333,6 @@ long anchorage::Chunk::perform_compaction(
     auto *handle = blk->handle();
     handle->set_pointer(new_blk->data());
 
-
-
     this->free(blk);
   };
 
@@ -358,7 +356,7 @@ long anchorage::Chunk::perform_compaction(
 
 
 
-  if (true || not out_of_tokens()) {
+  if (not out_of_tokens()) {
     struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
     free_list.collect_freelists(lists);
     bool hit_end = false;
@@ -367,13 +365,13 @@ long anchorage::Chunk::perform_compaction(
       struct list_head *cur = nullptr;
       list_for_each(cur, lists[i]) {
         auto blk = anchorage::Block::get((void *)cur);
-        // cur->dump(false);
-        off_t start = (off_t)blk->data();
-        off_t end = start + blk->size();
 
+        off_t start = (off_t)(cur + 1);
+        off_t end = (off_t)blk->data() + blk->size();
 
-        start = round_up(start, 4096);
-        end = round_down(end, 4096);
+        start = round_up(start, 0x1000);
+        end = round_down(end, 0x1000);
+
         if (end - start < 10 * 4096) {
           hit_end = true;
           continue;
