@@ -250,6 +250,7 @@ static void barrier_control_overhead_target(void) {
 
   // This adjusts according to the control system.
   long tokens_to_spend = 10'000'000;
+  long max_tokens = 100'000'000;
 
   // "target overhead" is the maximum overhead we will permit the defragmenter
   // to impart on the program. This is currently done using a simple control
@@ -290,8 +291,16 @@ static void barrier_control_overhead_target(void) {
         total_moved_this_cycle = 0;
         ms_spent_in_this_cycle = 0;
         tokens_to_spend = aggressiveness * to_use;
+        // if (tokens_to_spend > max_tokens) {
+        //   tokens_to_spend = max_tokens;
+        // }
         movement_start = start;
         printf("Starting movement! Tokens=%lu\n", tokens_to_spend);
+
+        // When entering the COMPACTING state, swap the spaces.
+        // This ensures that allocations are made to the *to space* while, and
+        // objects are moved from the *from_space*
+        anchorage::Chunk::swap_spaces();
       }
     }
 
@@ -301,18 +310,17 @@ static void barrier_control_overhead_target(void) {
       alaska::barrier::begin();
       anchorage::CompactionConfig config;
       config.available_tokens = tokens_to_spend;  // how many bytes can you defrag?
-      // Before swapping spaces, do some defragmentation
+      // Perform compaction. Transfer objects from the `from_space` to the `to_space`
+      printf("Compacting! Tokens = %5.2fMB\n", tokens_to_spend / 1024.0 / 1024.0);
       auto moved =
-          anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
+          anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
       total_moved_this_cycle += moved;
       ms_spent_in_this_cycle += (alaska_timestamp() - start) / 1000.0 / 1000.0;
 
       float frag_after = anchorage::get_heap_frag_locked();
 
       alaska::barrier::end();
-      if (moved == 0 or frag_after < frag_lb) {
-        // Swap the spaces and switch to waiting.
-        anchorage::Chunk::swap_spaces();
+      if (moved == 0 or frag_after < frag_lb or moved < tokens_to_spend) {
         state = WAITING;
         printf("Stopping. Ran out of things to move. Swapping.\n");
       } else if (frag_after < frag_lb) {
@@ -347,7 +355,7 @@ static void barrier_control_overhead_target(void) {
         float ach =
             (ms_spent_in_this_cycle * 1000.0 * 1000.0) / (alaska_timestamp() - movement_start);
         float ms_this_cycle = (alaska_timestamp() - start) / 1000.0 / 1000.0;
-        fprintf(stderr, "Compacting! (%5.2fMB in %fms total, %fms this run (ach:%.1f%%))\n",
+        fprintf(stderr, "Done (%5.2fMB in %fms total, %fms this run (ach:%.1f%%))\n",
             total_moved_this_cycle / 1024.0 / 1024.0, ms_spent_in_this_cycle, ms_this_cycle,
             ach * 100.0);
         break;
@@ -403,17 +411,18 @@ static void stress_workload(void) {
     anch_lock.lock();
     alaska::barrier::begin();
     anchorage::CompactionConfig config;
-    config.available_tokens = tokens;
 
 
-    long moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space, config);
-    // printf("Moved %lu\n", moved);
-    // printf("after:  %lu %lu\n", anchorage::Chunk::to_space->memory_used_including_overheads(), anchorage::Chunk::from_space->memory_used_including_overheads());
-    // Swap spaces if the next compaction wouldn't do anything
-    if (anchorage::Chunk::to_space->memory_used_including_overheads() < tokens) {
-      // printf("Swap\n");
+    if (anchorage::Chunk::from_space->memory_used_including_overheads() < tokens) {
       anchorage::Chunk::swap_spaces();
     }
+
+    anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+
+    if (moved == 0) {
+      anchorage::Chunk::swap_spaces();
+    }
+
     alaska::barrier::end();
     anch_lock.unlock();
   }
@@ -453,31 +462,17 @@ void alaska::service::deinit(void) {
 }
 
 void alaska::service::barrier(void) {
-  ck::scoped_lock l(anch_lock);
-
-  // Get everyone prepped for a barrier
-  alaska::barrier::begin();
-  // Swap the spaces.
-  anchorage::Chunk::swap_spaces();
-
-  anchorage::CompactionConfig config;
-  config.available_tokens = 30'000'000;  // defragment 30mb
-
-  // Before swapping spaces, do some defragmentation
-  anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
-
-  alaska::barrier::end();
+  // Don't do anything. Anchorage fires it's own barriers.
 }
 
 void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
   // HACK
-  if (ent->ptr == nullptr) return;
-  // if (locked) printf("lock %p\n", ent->ptr);
-  auto *block = anchorage::Block::get(ent->ptr);
+  if (ent->get_pointer() == nullptr) return;
+
+  auto *block = anchorage::Block::get(ent->get_pointer());
 
   if (anchorage::Chunk::to_space->contains(block) ||
       anchorage::Chunk::from_space->contains(block)) {
-    // printf("commit %p as %d from %p\n", ent, locked, pthread_self());
     block->mark_locked(locked);
   }
 }

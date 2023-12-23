@@ -289,7 +289,6 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
 
 
   for (auto &b : *this) {
-
     if (b.is_free()) {
       ALASKA_ASSERT(free_blocks.contains(&b), "A free block must be in the free list");
     }
@@ -332,7 +331,7 @@ long anchorage::Chunk::perform_compaction(
     // Patch the handle
     new_blk->set_handle(blk->handle());
     auto *handle = blk->handle();
-    handle->ptr = new_blk->data();
+    handle->set_pointer(new_blk->data());
 
 
 
@@ -349,13 +348,17 @@ long anchorage::Chunk::perform_compaction(
       continue;
     }
 
+    // if (cur->size() > config.available_tokens - tokens_spent) {
+    //   continue;
+    // }
+
     migrate_blk(cur);
     if (out_of_tokens()) break;
   }
 
 
 
-  if (not out_of_tokens()) {
+  if (true || not out_of_tokens()) {
     struct list_head *lists[anchorage::FirstFitSegFreeList::num_free_lists];
     free_list.collect_freelists(lists);
     bool hit_end = false;
