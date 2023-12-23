@@ -60,13 +60,13 @@ void alaska::service::deinit(void) {
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t new_size) {
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
-  ent->ptr = realloc(ent->ptr, new_size);
+  ent->set_pointer(realloc(ent->get_pointer(), new_size));
 }
 
 // free `ent->ptr` which was previously allocated by the service.
 void alaska::service::free(alaska::Mapping *ent) {
-  ::free(ent->ptr);
-  ent->ptr = NULL;
+  ::free(ent->get_pointer());
+  ent->reset();
 }
 
 void alaska::service::barrier(void) {

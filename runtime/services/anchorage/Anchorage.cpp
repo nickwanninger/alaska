@@ -31,6 +31,7 @@
 static ck::mutex anch_lock;
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
+  void *ptr = ent->get_pointer();
   // Grab a lock
   anch_lock.lock();
 
@@ -55,19 +56,19 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
     return;
   }
 
-  if (m.ptr != NULL) {
-    Block *old_block = anchorage::Block::get(m.ptr);
-    auto *old_chunk = anchorage::Chunk::get(m.ptr);
+  if (ptr != NULL) {
+    Block *old_block = anchorage::Block::get(ptr);
+    auto *old_chunk = anchorage::Chunk::get(ptr);
     size_t copy_size = old_block->size();
     if (new_block->size() < copy_size) copy_size = new_block->size();
     memcpy(new_block->data(), old_block->data(), copy_size);
 
     new_block->set_handle(&m);
-    ent->ptr = new_block->data();
+    ent->set_pointer(new_block->data());
     old_chunk->free(old_block);
   } else {
     new_block->set_handle(&m);
-    ent->ptr = new_block->data();
+    ent->set_pointer(new_block->data());
   }
 
   anch_lock.unlock();
@@ -77,15 +78,15 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
 void alaska::service::free(alaska::Mapping *ent) {
   anch_lock.lock();
 
-  auto *chunk = anchorage::Chunk::get(ent->ptr);
+  auto *chunk = anchorage::Chunk::get(ent->get_pointer());
 
   if (chunk) {
-    auto *blk = anchorage::Block::get(ent->ptr);
+    auto *blk = anchorage::Block::get(ent->get_pointer());
     chunk->free(blk);
-    ent->ptr = nullptr;
+    ent->set_pointer(nullptr);
   } else {
-    fprintf(
-        stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n", ent->ptr);
+    fprintf(stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n",
+        ent->get_pointer());
   }
 
 

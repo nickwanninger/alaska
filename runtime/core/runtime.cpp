@@ -224,16 +224,8 @@ uint64_t alaska_timestamp() {
 
 
 void* alaska_ensure_present(alaska::Mapping* m) {
-  // // If the pointer is not null, we shouldn't do anything.
-  // if (m->ptr != NULL) {
-  //   return m->ptr;
-  // }
-
-  // Instead, if the pointer is null, we need to ask the service to swap it in!
   alaska::service::swap_in(m);
-
-  ALASKA_SANITY(m->ptr != NULL, "Service did not swap in a handle");
-  return m->ptr;
+  return m->get_pointer();
 }
 
 

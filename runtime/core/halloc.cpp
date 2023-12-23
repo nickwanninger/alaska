@@ -45,11 +45,11 @@ static void *_halloc(size_t sz, int zero) {
     exit(-1);
   }
 
-  ent->ptr = NULL;  // Set to NULL as a sanity check
+  ent->set_pointer(NULL);  // Set to NULL as a sanity check
   // Defer to the service to alloc
   alaska::service::alloc(ent, sz);
   ALASKA_SANITY(ent->ptr != NULL, "Service did not allocate anything");
-  if (zero) memset(ent->ptr, 0, sz);
+  if (zero) memset(ent->get_pointer(), 0, sz);
   void *out = ent->to_handle(0);
   num_alive++;
 
@@ -107,8 +107,6 @@ void *hrealloc(void *handle, size_t new_size) {
 extern void alaska_remove_from_local_lock_list(void *ptr);
 
 void hfree(void *ptr) {
-  // printf("hfree %p\n", ptr);
-  // return ::free(ptr);
 
   // no-op if NULL is passed
   if (ptr == NULL) {

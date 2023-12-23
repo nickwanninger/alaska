@@ -14,33 +14,76 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "./config.h"
-
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
 
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
 
-// #define ALASKA_HANDLE_SQUEEZING
-
 namespace alaska {
 
   extern long translation_hits;
   extern long translation_misses;
 
-  // A mapping is *just* a pointer. If that pointer has the high bit set, it is swapped out.
-  struct Mapping {
+  class Mapping {
+   private:
     // Represent the fact that a handle is just a pointer w/ "important bit patterns"
     // as a simple union.
     union {
       void *ptr;  // Raw pointer memory
       struct {
         uint64_t misc : 62;  // Some kind of extra info (usually just a pointer)
-        unsigned invl : 1;   // This is not a handle
+        unsigned invl : 1;   // This handle is not mapped. ptr is a free list
         unsigned swap : 1;   // This handle is swapped
       } alt __attribute__((packed));
     };
+
+   public:
+    // Return the pointer. If it is free, return NULL
+    ALASKA_INLINE void *get_pointer(void) {
+#ifdef ALASKA_SWAP_SUPPORT
+      // If swapping is enabled, the top bit will be set, so we need to check that
+      if (unlikely(alt.swap)) {
+        // Ask the runtime to "swap" the object back in. We blindly assume that
+        // this will succeed for performance reasons.
+        return alaska_ensure_present(m);
+      }
+#endif
+      return ptr;
+    }
+
+    void set_pointer(void *ptr) {
+      reset();
+      this->ptr = ptr;
+      alt.invl = 0;
+    }
+
+
+    // Get the next mapping in the free list. Returns NULL
+    // if this isn't a free handle
+    alaska::Mapping *get_next(void) {
+      if (is_free()) return NULL;
+      return (alaska::Mapping *)alt.misc;
+    }
+
+    void set_next(alaska::Mapping *next) {
+      reset();
+      alt.misc = (uint64_t)next;
+      alt.invl = 1;
+    }
+
+
+    bool is_free(void) const {
+      return alt.invl;
+    }
+
+
+    void reset(void) {
+      ptr = NULL;
+      alt.invl = 0;
+      alt.swap = 0;
+    }
+
 
     // Encode a handle into the representation used in the
     // top-half of a handle encoding
@@ -58,7 +101,6 @@ namespace alaska {
       // printf("encode %p %zu -> %p\n", this, offset, out);
       return (void *)out;
     }
-
 
     uint32_t to_compact(void) {
       return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS);
@@ -113,6 +155,3 @@ void alaska_release(void *ptr);
 void *alaska_ensure_present(alaska::Mapping *m);
 }
 
-
-
-extern void alaska_dump_backtrace(void);

@@ -52,17 +52,7 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
 
   auto m = alaska::Mapping::from_handle(ptr);
   // Pull the address from the mapping
-  void *mapped = m->ptr;
-#ifdef ALASKA_SWAP_SUPPORT
-  // If swapping is enabled, the top bit will be set, so we need to check that
-  if (unlikely(m->alt.swap)) {
-    // Ask the runtime to "swap" the object back in. We blindly assume that
-    // this will succeed for performance reasons.
-    mapped = alaska_ensure_present(m);
-  }
-#endif
-  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n",
-  // ptr); Apply the offset to the mapping and return it.
+  void *mapped = m->get_pointer();
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
 }
@@ -92,18 +82,8 @@ void *alaska_translate(void *ptr) {
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
-  // Pull the address from the mapping
-  void *mapped = m->ptr;
-#ifdef ALASKA_SWAP_SUPPORT
-  // If swapping is enabled, the top bit will be set, so we need to check that
-  if (unlikely(m->alt.swap)) {
-    // Ask the runtime to "swap" the object back in. We blindly assume that
-    // this will succeed for performance reasons.
-    mapped = alaska_ensure_present(m);
-  }
-#endif
-  // ALASKA_SANITY(mapped != NULL, "Mapped pointer is null for handle %p\n",
-  // ptr); Apply the offset to the mapping and return it.
+
+  void *mapped = m->get_pointer();
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
 }

@@ -17,43 +17,34 @@
 
 // This file contains the implementation of the creation and management of the
 // handle translation  It abstracts the management of the table's backing
-// memory, as well as the get/put interface to allocate a new handle
-
-static pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
-// How many handles are in the table
-static size_t table_size;
-static size_t table_nfree;  // how many entries are free?
-// A contiguous block of memory containing all the mappings
-static alaska::Mapping *table_memory;
-static alaska::Mapping *next_free = NULL;
-static alaska::Mapping *bump_next = NULL;
-
+// memory through a get/put interface to allocate and free handle mappings.
 
 #define MAP_ENTRY_SIZE sizeof(alaska::Mapping)
 #define MAP_GRANULARITY 0x1000LU * MAP_ENTRY_SIZE
 
+// A lock on the table itself.
+// TODO: how do we make this atomic? Can we even?
+static pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
+
+// How many handles are in the table
+static size_t table_size;
+static size_t table_nfree;  // how many entries are free?
 
 
-static void table_dump(void) {
-  unsigned long count = 0;
-  for (alaska::Mapping *ent = next_free; ent != nullptr; ent = (alaska::Mapping *)ent->ptr) {
-    count++;
-  }
-  printf("table: %zu free, %zu slots, freelist: %lu ", table_nfree, table_size, count);
-  unsigned long z = count;
-  if (z > 16) z = 16;
-  for (unsigned long i = 0; i < z; i++)
-    printf("#");
-  if (count > 16) printf("...");
-  printf("\n");
-}
+// A contiguous block of memory containing all the mappings
+static alaska::Mapping *table_memory;
+// When allocating from the free list, pull from here.
+static alaska::Mapping *next_free = NULL;
+// When bump allocating, grab from here and increment it.
+static alaska::Mapping *bump_next = NULL;
+
+
 
 // grow the table by a factor of 2
 static void alaska_table_grow() {
   size_t oldbytes = table_size * MAP_ENTRY_SIZE;
   size_t newbytes = oldbytes * 2;
-  // printf("Map table to %p (%zu -> %zu)\n", TABLE_START, oldbytes, newbytes);
-  // size_t newbytes = oldbytes + MAP_GRANULARITY;
+
   if (table_memory == NULL) {
     newbytes = MAP_GRANULARITY;
     // TODO: use hugetlbfs or something similar
@@ -62,7 +53,6 @@ static void alaska_table_grow() {
   } else {
     table_memory = (alaska::Mapping *)mremap(table_memory, oldbytes, newbytes, 0, table_memory);
   }
-  // printf("memory: %p\n", table_memory);
 
   if (table_memory == MAP_FAILED) {
     fprintf(stderr, "could not resize table!\n");
@@ -70,7 +60,7 @@ static void alaska_table_grow() {
   }
   // newsize is now the number of entries
   size_t newsize = newbytes / MAP_ENTRY_SIZE;
-  // printf("grow %zu -> %zu\n", table_size, newsize);
+
   // Update the bump allocator to point to the new data.
   bump_next = &table_memory[table_size];
   table_nfree += (newsize - table_size);
@@ -87,14 +77,18 @@ alaska::Mapping *alaska::table::get(void) {
   if (table_nfree == 0) alaska_table_grow();
 
   if (next_free == NULL) {
+    // Bump allocate
     ent = bump_next;
     bump_next++;
   } else {
+    // Pop from the free list
     ent = next_free;
-    next_free = (alaska::Mapping *)ent->ptr;
-    __builtin_prefetch(next_free, 0, 0);
+    next_free = ent->get_next();
   }
   table_nfree--;
+
+  // Clear the entry.
+  ent->reset();
 
   pthread_mutex_unlock(&table_lock);
   return ent;
@@ -103,9 +97,10 @@ alaska::Mapping *alaska::table::get(void) {
 
 void alaska::table::put(alaska::Mapping *ent) {
   pthread_mutex_lock(&table_lock);
-  ent->ptr = next_free;
-  // ent->alt.invl = 1;
+  // Increment the number of free handles
   table_nfree++;
+  // Update the free list
+  ent->set_next(next_free);
   next_free = ent;
   pthread_mutex_unlock(&table_lock);
 }
@@ -120,8 +115,6 @@ void alaska::table::init() {
 }
 
 void alaska::table::deinit() {
-  // TODO: this is only ever called at program teardown. Should we even bother with this?
-  // munmap(table_memory, table_size * MAP_ENTRY_SIZE);
 }
 
 alaska::Mapping *alaska::table::begin(void) {

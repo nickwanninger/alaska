@@ -57,6 +57,7 @@
 
 
 
+extern void alaska_dump_backtrace(void);
 
 // stolen from redis, it's just a nicer interface :)
 #define atomic_inc(var, count) __atomic_add_fetch(&var, (count), __ATOMIC_SEQ_CST)
