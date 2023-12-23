@@ -11,8 +11,6 @@ local = Path(os.path.realpath(os.path.dirname(__file__))).parent
 os.environ["PATH"] = f"{local}/bin:{os.environ['PATH']}"
 os.environ["LD_LIBRARY_PATH"] = f"{local}/lib:{os.environ['LD_LIBRARY_PATH']}"
 
-print(local)
-
 
 parser = argparse.ArgumentParser(prog='alaska-transform', description='Applies alaska transformations to an input bitcode')
 
@@ -22,8 +20,6 @@ parser.add_argument('-b', '--baseline', action='store_true', help='Apply baselin
 parser.add_argument('input', help='The input .bc file to apply alaska transformations to.')
 
 args = parser.parse_args()
-print(sys.argv)
-print(args)
 
 if args.output is None:
   args.output = args.input
@@ -32,25 +28,21 @@ if args.output is None:
 bitcode = args.output
 
 def exec(cmd):
-  print(cmd)
   res = os.system(cmd)
   if res != 0:
     exit()
 
 tempdir = tempfile.mkdtemp(prefix='alaska_')
 
-print(tempdir)
 
-
-# exec(f'llvm-link {local}/lib/alaska_stub.bc {local}/lib/alaska_translate.bc -o {tempdir}/lib.bc')
 exec(f'opt --strip-debug {local}/lib/alaska_stub.bc -o {tempdir}/stub.bc')
 exec(f'opt --strip-debug {local}/lib/alaska_translate.bc -o {tempdir}/translate.bc')
-# exec(f'opt --strip-debug {tempdir}/lib.bc -o {tempdir}/lib.bc')
 
 if not args.baseline:
   exec(f'llvm-link {args.input} --internalize {tempdir}/stub.bc -o {bitcode}')
 else:
-  shutil.copy(args.input, bitcode)
+  if args.input != bitcode:
+    shutil.copy(args.input, bitcode)
 
 def run_passes(passes):
   for p in passes:
