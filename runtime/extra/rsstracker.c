@@ -53,7 +53,7 @@ static long current_rss() {
 }
 
 static pthread_t rsstrack_thread;
-static uint64_t interval_ms = 10;
+static uint64_t interval_ms = 150;
 
 static void *rsstrack_thread_func(void *arg) {
 
