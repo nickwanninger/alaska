@@ -417,7 +417,7 @@ static void stress_workload(void) {
       anchorage::Chunk::swap_spaces();
     }
 
-    anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+    auto moved = anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
 
     if (moved == 0) {
       anchorage::Chunk::swap_spaces();
