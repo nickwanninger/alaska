@@ -627,7 +627,6 @@ void parse_stack_map(uint8_t* t) {
     }
     if (record.getID() == 'PATC') {
       addr -= ALASKA_PATCH_SIZE;
-      printf("PATCH @ %p\n", addr);
     }
 
     PinSetInfo psi;
