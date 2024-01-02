@@ -219,6 +219,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           REGISTER("alaska-inline", TranslationInlinePass);
 
           if (name == "alaska-tracking") {
+            MPM.addPass(TranslationPrinterPass());
             MPM.addPass(adapt(PlaceSafepointsPass()));
             MPM.addPass(PinTrackingPass());
             return true;
