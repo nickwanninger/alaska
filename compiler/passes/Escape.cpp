@@ -14,6 +14,11 @@ struct FunctionEscapeInfo {
 };
 
 
+static bool relax_vararg_escape(void) {
+  return getenv("ALASKA_RELAX_VARARG") != NULL;
+}
+
+
 
 static bool mightBlock(llvm::Function &F) {
   // This is a big list of library functions that may end up blocking in the kernel or
@@ -181,13 +186,6 @@ static bool mightBlock(llvm::Function &F) {
 }
 
 llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-  LLVMContext &ctx = M.getContext();
-  auto barrierBoundType = FunctionType::get(Type::getVoidTy(ctx), {}, false);
-  // auto barrierEscapeStart =
-  //     M.getOrInsertFunction("alaska_barrier_before_escape", barrierBoundType).getCallee();
-  // auto barrierEscapeEnd =
-  //     M.getOrInsertFunction("alaska_barrier_after_escape", barrierBoundType).getCallee();
-
   std::set<std::string> functions_to_ignore = {
       "__alaska_leak",
 
@@ -214,6 +212,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
       // Redis hacks
       "bioCreateLazyFreeJob",
+
+      "pthread_setspecific",
 
 
       // stub/net.c hacks
@@ -262,7 +262,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       info.isEscape = true;
 
       // Handle vararg functions a bit specially.
-      if (F.isVarArg()) {
+      if (F.isVarArg() && !relax_vararg_escape()) {
         // If the function is empty, we must escape varargs
         if (F.empty()) {
           info.escape_varargs = true;
@@ -300,28 +300,9 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     escapeInfo[&F] = std::move(info);
   }
 
-  // for (auto &[func, info] : escapeInfo) {
-  //   alaska::println("escape info for ", func->getName());
-  //   if (func->isVarArg()) alaska::println("   is vararg");
-  //   if (info.escape_varargs) alaska::println("   escape va_args");
-  //
-  //   alaska::print("   args:");
-  //   for (auto arg : info.args) {
-  //     alaska::print(" ", arg);
-  //   }
-  //   alaska::println();
-  // }
-
   auto shouldLockArgument = [&](llvm::CallBase *call, size_t ind) {
     auto callee = call->getCalledOperand();
 
-    // // If the argument has a byval, you must lock
-    // if (auto arg = dyn_cast<Argument>(call->getArgOperand(ind))) {
-    //   if (arg->hasAttribute(Attribute::ByVal)) {
-    //     alaska::println(ind, "\t", *call, "\t", *arg);
-    //     return true;
-    //   }
-    // }
 
     if (auto func = dyn_cast<llvm::Function>(callee)) {
       auto &info = escapeInfo[func];
@@ -330,7 +311,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
         return true;
       }
       // If the function is vararg and is marked as "escape_vararg", escape those arguments
-      if (func->isVarArg()) {
+      if (func->isVarArg() && !relax_vararg_escape()) {
         if (ind >= func->arg_size()) {
           return info.escape_varargs;
         }
@@ -345,6 +326,8 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
   std::set<llvm::Function *> blockingFunctions;
   std::set<llvm::CallInst *> blockingSites;
+
+  std::set<llvm::Function *> escapedFunctions;
 
   for (auto &F : M) {
     if (F.empty()) {
@@ -378,6 +361,10 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           }
 
 
+          if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
+            escapedFunctions.insert(func);
+          }
+
           IRBuilder<> b(call);
 
           auto val = alaska::insertRootBefore(call, arg);
@@ -387,6 +374,11 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
         }
       }
     }
+  }
+
+
+  for (auto *f : escapedFunctions) {
+    alaska::println("escape to \e[31m\"", f->getName(), "\",\e[0m");
   }
 
 
