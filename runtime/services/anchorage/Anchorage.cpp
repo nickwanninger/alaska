@@ -418,14 +418,16 @@ static void stress_workload(void) {
     alaska::barrier::begin();
     anchorage::CompactionConfig config;
 
+    config.available_tokens = tokens;
 
     if (anchorage::Chunk::from_space->memory_used_including_overheads() < tokens) {
       anchorage::Chunk::swap_spaces();
     }
 
-    auto moved = anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+    auto moved =
+        anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
     printf("Moved %d\n", moved);
-    
+
     if (moved == 0) {
       anchorage::Chunk::swap_spaces();
     }
@@ -450,6 +452,11 @@ static void *barrier_thread_fn(void *) {
     // barrier_simple_time();
   } else if (strcmp(mode, "stress") == 0) {
     stress_workload();
+  } else if (strcmp(mode, "disable") == 0) {
+    // Nothing!
+  } else {
+    fprintf(stderr, "[anchorage] unknown mode, '%s'\n", mode);
+    abort();
   }
   return NULL;
 }
