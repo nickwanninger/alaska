@@ -74,7 +74,9 @@ alaska::Mapping *alaska::table::get(void) {
   pthread_mutex_lock(&table_lock);
   alaska::Mapping *ent = NULL;
 
-  if (table_nfree == 0) alaska_table_grow();
+  if (table_nfree == 0 || bump_next >= table_memory + table_size) {
+    alaska_table_grow();
+  }
 
   if (next_free == NULL) {
     // Bump allocate
@@ -97,6 +99,7 @@ alaska::Mapping *alaska::table::get(void) {
 
 void alaska::table::put(alaska::Mapping *ent) {
   pthread_mutex_lock(&table_lock);
+  ent->reset();
   // Increment the number of free handles
   table_nfree++;
   // Update the free list
