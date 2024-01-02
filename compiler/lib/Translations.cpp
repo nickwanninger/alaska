@@ -3,12 +3,14 @@
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
 
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <noelle/core/DataFlow.hpp>
 #include <noelle/core/DGBase.hpp>
 #include <noelle/core/PDGPrinter.hpp>
+#include "llvm/ADT/SparseBitVector.h"
 
 llvm::Value *alaska::Translation::getHandle(void) {
   // the pointer for this translation is simply the first argument of the call to `translate`
@@ -25,27 +27,28 @@ llvm::Function *alaska::Translation::getFunction(void) {
   return translation->getFunction();
 }
 
-void alaska::Translation::computeLiveness(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT) {
-  liveBlocks.insert(translation->getParent());
-  for (auto &rel : releases) {
-    liveBlocks.insert(rel->getParent());
-  }
-
-  for (auto &BB : *translation->getFunction()) {
-    bool valid = true;
-    if (!DT.dominates(translation, &BB)) continue;
-
-    for (auto &rel : releases) {
-      if (!PDT.dominates(rel, &BB.front())) {
-        valid = false;
-        break;
-      }
-    }
-
-    if (!valid) continue;
-    liveBlocks.insert(&BB);
-  }
-}
+// void alaska::Translation::computeLiveness(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT)
+// {
+//   liveBlocks.insert(translation->getParent());
+//   for (auto &rel : releases) {
+//     liveBlocks.insert(rel->getParent());
+//   }
+//
+//   for (auto &BB : *translation->getFunction()) {
+//     bool valid = true;
+//     if (!DT.dominates(translation, &BB)) continue;
+//
+//     for (auto &rel : releases) {
+//       if (!PDT.dominates(rel, &BB.front())) {
+//         valid = false;
+//         break;
+//       }
+//     }
+//
+//     if (!valid) continue;
+//     liveBlocks.insert(&BB);
+//   }
+// }
 
 
 void alaska::Translation::remove(void) {
@@ -150,7 +153,9 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
     return {};
   }
 
+  int next_id = 0;
   std::vector<std::unique_ptr<alaska::Translation>> trs;
+  std::unordered_map<int, alaska::Translation*> id_map;
 
 
 
@@ -159,6 +164,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
       if (inst->getFunction() == &F && inst->getCalledFunction() == translateFunction) {
         auto tr = std::make_unique<alaska::Translation>();
         tr->translation = inst;
+        tr->id = next_id++;
         trs.push_back(std::move(tr));
       }
     }
@@ -178,9 +184,76 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
       }
     }
   }
+
   for (auto &tr : trs) {
+    id_map[tr->id] = tr.get();
     extract_users(tr->translation, tr->users);
-    tr->computeLiveness(DT, PDT);
+  }
+
+  // Now, we run a simple basic-block level liveness analysis to populate the
+  // `liveBlocks` field in each translation.
+
+
+  std::unordered_map<BasicBlock *, llvm::SparseBitVector<128>> GEN;
+  std::unordered_map<BasicBlock *, llvm::SparseBitVector<128>> KILL;
+  std::unordered_map<BasicBlock *, llvm::SparseBitVector<128>> IN;
+  std::unordered_map<BasicBlock *, llvm::SparseBitVector<128>> OUT;
+
+  // Populate the GEN/KILL sets for each translation
+  for (auto &tr : trs) {
+    BasicBlock* bb;
+    // KILL = "translations that are created here"
+    //      ... Little confusing cause it's a backwards analysis.
+    bb = tr->translation->getParent();
+    KILL[bb].set(tr->id);
+    tr->liveBlocks.insert(bb);
+
+    // GEN = "Translations that are released here"
+    for (auto *rel : tr->releases) {
+      bb = rel->getParent();
+      GEN[bb].set(tr->id);
+      tr->liveBlocks.insert(bb);
+    }
+  }
+
+  // TODO: this should be a unique queue of some kind, really.
+  std::unordered_set<BasicBlock *> worklist;
+
+  // populate worklist
+  for (auto &BB : F) {
+    worklist.insert(&BB);
+  }
+
+  while (not worklist.empty()) {
+    // grab an entry off the worklist
+    auto *bb = *worklist.begin();
+    worklist.erase(bb);
+
+    auto old_out = OUT[bb];
+    auto old_in = IN[bb];
+
+    IN[bb] = GEN[bb] | (OUT[bb] - KILL[bb]);
+
+    OUT[bb].clear();
+
+    for (auto *s : successors(bb)) {
+      OUT[bb] |= IN[s];
+    }
+
+
+    if (old_out != OUT[bb] || old_in != IN[bb]) {
+      worklist.insert(bb);
+      for (auto *p : predecessors(bb)) {
+        worklist.insert(p);
+      }
+    }
+  }
+
+  // Copy the results into each translation.
+  for (auto &[bb, live] : IN) {
+    for (auto id : live) {
+      id_map[id]->liveBlocks.insert(bb);
+    }
   }
 
   return trs;

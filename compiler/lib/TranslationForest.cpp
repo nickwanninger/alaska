@@ -322,8 +322,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
   std::set<Instruction *> todo;
 
-  // here, we do something horrible. we insert translation instructions
-  // just so we can do analysis. Later we will delete them. :^)
+  // Here, we do something horrible. we insert translation instructions just so we can do analysis.
   for (auto &[lid, tr] : translations) {
     tr->translated = insertTranslationBefore(tr->translateBefore, tr->pointer);
     // KILL[tr->translated].insert(lid);
@@ -399,9 +398,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
       }
     }
   }
-
-  // printf("liveness %lf\n", alaska::time_ms() - start);
-  // start = alaska::time_ms();
 
 
   std::map<std::pair<llvm::BasicBlock *, llvm::BasicBlock *>, std::set<alaska::TranslationBounds *>>

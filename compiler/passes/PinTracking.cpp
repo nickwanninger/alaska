@@ -151,7 +151,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     for (auto &tr : translations) {
       for (auto &sp : statepointCalls) {
-        if (tr->isLive(sp) || true) {
+        if (tr->isLive(sp)) {
           mustTrack.insert(tr.get());
           break;
         }

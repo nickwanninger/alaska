@@ -12,6 +12,8 @@ namespace alaska {
   // alaska::Translation: an internal representation of an invocation of alaska_translate,
   // all calls to alaska_release, and all users of said translation.
   struct Translation {
+
+    int id; // Unique ID for this function. Basically meaningless.
     // The beginning of this translation.
     llvm::CallInst *translation;
     // Where does this translation's lifetime end?
@@ -30,8 +32,6 @@ namespace alaska {
     bool isUser(llvm::Instruction *inst);
     bool isLive(llvm::Instruction *inst);
     bool isLive(llvm::BasicBlock *inst);
-    // Compute the liveness for this translation (populate liveInstructions)
-    void computeLiveness(llvm::DominatorTree &DT, llvm::PostDominatorTree &PDT);
     // *Fully* remove the translation from the function. This will delete
     // all calls to `translate` and `release`, as well as reverse the usages
     void remove();
@@ -48,7 +48,7 @@ namespace alaska {
 						}
 					}
 				}
-			}
+      }
   };
 
   // Return if a certain value should be translated before use. This, simply, checks if the `val` is
