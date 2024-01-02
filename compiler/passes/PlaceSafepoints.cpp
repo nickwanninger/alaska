@@ -643,6 +643,9 @@ static bool shouldRewriteFunction(Function &F) {
 // TODO: These should become properties of the GCStrategy, possibly with
 // command line overrides.
 static bool enableEntrySafepoints(Function &F) {
+
+  if (F.getName().startswith(".omp_outlined")) return true;
+  if (F.getName().startswith("omp_outlined")) return true;
   return !NoEntry;
 }
 static bool enableBackedgeSafepoints(Function &F) {
