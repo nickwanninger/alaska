@@ -61,6 +61,8 @@ anchorage::Chunk::Chunk(size_t pages)
   front = (Block *)mmap(
       NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
+  printf("heap @ %p\n", front);
+
   front->mark_locked(true);
   front->set_handle((alaska::Mapping *)-1);  // Intentionally set an invalid handle
   tos = front + 2;
@@ -325,7 +327,7 @@ long anchorage::Chunk::perform_compaction(
 
     // Move the data
     memcpy(new_blk->data(), blk->data(), blk->size());
-    memset(blk->data(), 0, blk->size());
+    memset(blk->data(), 0xFF, blk->size());
     // Spend tokens to track we moved this object
     spend_tokens(blk->size());
     // Patch the handle

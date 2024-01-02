@@ -402,7 +402,7 @@ void alaska::barrier::begin(void) {
       }
     }
     if (!sent_signal) break;
-    usleep(100);  // lazy optimization
+    usleep(1000);  // lazy optimization
     retries++;
   }
 
@@ -412,9 +412,9 @@ void alaska::barrier::begin(void) {
   participant_join(true, locked);
 
   auto end = alaska_timestamp();
-  printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
-  dump_thread_states();
-  printf(" retries = %d, signals = %d\n", retries, signals_sent);
+  // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
+  // dump_thread_states();
+  // printf(" retries = %d, signals = %d\n", retries, signals_sent);
 }
 
 
@@ -531,6 +531,23 @@ static void clear_pending_signals(void) {
 }
 
 
+static void segfault_handler(int signal_number) {
+    printf("Segmentation fault caught. Dumping backtrace:\n");
+
+    void *backtrace_array[10];
+    size_t size = backtrace(backtrace_array, 10);
+    char **symbols = backtrace_symbols(backtrace_array, size);
+
+    for (size_t i = 0; i < size; ++i) {
+        printf("\e[31m%s\e[0m\n", symbols[i]);
+    }
+
+    free(symbols);
+
+    // You can add additional handling or exit the program here if necessary
+    exit(EXIT_FAILURE);
+}
+
 
 void alaska::barrier::add_self_thread(void) {
   auto self = pthread_self();
@@ -538,6 +555,18 @@ void alaska::barrier::add_self_thread(void) {
 
 
   setup_signal_handlers();
+
+
+  // Set up the signal handler for SIGSEGV (Segmentation Fault)
+  struct sigaction sa;
+  sa.sa_handler = segfault_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART | SA_SIGINFO;
+
+  if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+    perror("sigaction");
+    exit(EXIT_FAILURE);
+  }
 
 
 
@@ -652,14 +681,14 @@ void parse_stack_map(uint8_t* t) {
 
     if (true || psi.count != 0) {
       pin_map[addr] = psi;
-//       if (record.getID() == 'BLOK') {
-// #ifdef __amd64__
-//         pin_map[addr - 5] = psi;  // TODO(HACK)
-// #endif
-// #ifdef __aarch64__
-//         pin_map[addr - 4] = psi;
-// #endif
-//       }
+      //       if (record.getID() == 'BLOK') {
+      // #ifdef __amd64__
+      //         pin_map[addr - 5] = psi;  // TODO(HACK)
+      // #endif
+      // #ifdef __aarch64__
+      //         pin_map[addr - 4] = psi;
+      // #endif
+      //       }
     }
   }
 

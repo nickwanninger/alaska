@@ -403,8 +403,14 @@ static void stress_workload(void) {
   // Defaults to 1mb
   long tokens = get_knob("STRESS_TOKENS", 1024 * 1024);
 
-  usleep(500 * 1000);
+  if (interval < 10) {
+    interval = 10;
+    fprintf(stderr, "[anchorage] Cannot stress lower than 10ms\n");
+  }
 
+
+
+  usleep(500 * 1000);
   while (true) {
     usleep(interval * 1000);
 
@@ -418,7 +424,8 @@ static void stress_workload(void) {
     }
 
     auto moved = anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
-
+    printf("Moved %d\n", moved);
+    
     if (moved == 0) {
       anchorage::Chunk::swap_spaces();
     }
