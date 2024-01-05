@@ -161,6 +161,7 @@ spec_locations = [
     "./SPEC2017.tar.gz",
     "~/SPEC2017.tar.gz",
     "/SPEC2017.tar.gz",
+    "/pool/SPEC2017.tar.gz",
 ]
 def find_spec():
     print('looking for SPEC in these locations:', spec_locations)
