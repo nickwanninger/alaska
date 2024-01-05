@@ -73,17 +73,18 @@ static __attribute_noinline__ void track(uintptr_t handle) {
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
   if (unlikely(bits >= 0 || bits == -1)) {
-    alaska_track_miss();
     return ptr;
   }
-
-  // track((uintptr_t)ptr);
-  alaska_track_hit();
+  // if (unlikely(bits >= 0)) {
+  //   return ptr;
+  // }
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
 
+  // Grab the pointer
   void *mapped = m->get_pointer();
+  // Apply the offset from the pointer
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
 }
@@ -112,15 +113,4 @@ extern "C" uint64_t alaska_barrier_poll();
 
 extern "C" void alaska_safepoint(void) {
   alaska_barrier_poll();
-}
-
-extern "C" void alaska_barrier_before_escape(void) {
-  atomic_inc(alaska_thread_state.escaped, 1);
-  // alaska_thread_state.escaped = 1;
-  // printf("before!\n");
-}
-
-extern "C" void alaska_barrier_after_escape(void) {
-  atomic_dec(alaska_thread_state.escaped, 1);
-  // printf("after!\n");
 }

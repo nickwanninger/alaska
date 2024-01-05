@@ -19,6 +19,9 @@
  */
 class AlaskaTranslatePass : public llvm::PassInfoMixin<AlaskaTranslatePass> {
  public:
+   bool hoist = true;
+   AlaskaTranslatePass(bool hoist) : hoist(hoist) {}
+
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 

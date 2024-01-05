@@ -52,6 +52,7 @@ namespace alaska {
 
     FlowNode(PointerFlowGraph &graph, llvm::Value *value);
     void add_in_edge(llvm::Use *);
+    void remove_in_edge(llvm::Use *);
 
     std::set<FlowNode *> get_in_nodes(void) const;
     std::set<FlowNode *> get_out_nodes(void) const;

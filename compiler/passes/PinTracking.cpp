@@ -101,6 +101,8 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     // Extract all the translations from the function
     auto translations = alaska::extractTranslations(F);
+
+    alaska::println(F.getName(), "\t", translations.size());
     // If the function had no translations, don't do anything
     // if (translations.empty()) continue;
 
@@ -108,9 +110,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     std::set<alaska::Translation *> mustTrack;
     // A set of all
     std::set<CallBase *> statepointCalls;
-    // for (auto &tr : translations) {
-    //   mustTrack.insert(tr.get());
-    // }
 
 
     for (auto &BB : F) {
@@ -158,58 +157,71 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       }
     }
 
-    // alaska::println(F.getName(), " trs:", translations.size(), " mst:", mustTrack.size());
+    // auto tsz = translations.size();
+    // auto msz = mustTrack.size();
+    // if (tsz > 0) {
+    //   printf("%30s %4zu %4zu ", F.getName().data(), tsz, msz);
+    //
+    //   for (size_t i = 0; i < tsz; i++) {
+    //     if (i >= msz) {
+    //       printf(".");
+    //     } else {
+    //       printf("#");
+    //     }
+    //   }
+    //   printf("\n");
+    // }
 
     // Given a translation, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> pin_cell_ids;
-    // // Interference - a mapping from translations to the translations it is alive along side of.
-    // std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
-    //
-    // // Loop over each translation, then over it's live instructions. For each live instruction see
-    // // which other translations are live in those instructions. This is horrible and slow. (but
-    // // works)
-    // for (auto &first : mustTrack) {
-    //   pin_cell_ids[first] = -1;
-    //   // A translation interferes with itself
-    //   interference[first].insert(first);
-    //   for (auto b1 : first->liveBlocks) {
-    //     for (auto &second : mustTrack) {
-    //       if (second != first && second->isLive(b1)) {
-    //         // interference!
-    //         interference[first].insert(second);
-    //         interference[second].insert(first);
-    //       }
-    //     }
-    //   }
-    // }
-    //
-    // // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
-    // // coloring allocation here, as we don't need to worry about register spilling
-    // // (we can just make more "registers" instead of spilling). All cells are equal as well,
-    // // so there aren't any restrictions on which translation can get which pin cell.
-    // for (auto &[tr, intr] : interference) {
-    //   long available_cell = -1;
-    //   llvm::SparseBitVector<128> unavail;
-    //   for (auto other : intr) {
-    //     long cell = pin_cell_ids[other];
-    //     if (cell != -1) {
-    //       unavail.set(cell);
-    //     }
-    //   }
-    //   // find a cell that hasn't been used by any of the interfering translations.
-    //   for (long current_cell = 0;; current_cell++) {
-    //     if (!unavail.test(current_cell)) {
-    //       available_cell = current_cell;
-    //       break;
-    //     }
-    //   }
-    //   pin_cell_ids[tr] = available_cell;
-    // }
+    // Interference - a mapping from translations to the translations it is alive along side of.
+    std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
 
-    long ind = 0;
-    for (auto tr : mustTrack) {
-      pin_cell_ids[tr] = ind++;
+    // Loop over each translation, then over it's live instructions. For each live instruction see
+    // which other translations are live in those instructions. This is horrible and slow. (but
+    // works)
+    for (auto &first : mustTrack) {
+      pin_cell_ids[first] = -1;
+      // A translation interferes with itself
+      interference[first].insert(first);
+      for (auto b1 : first->liveBlocks) {
+        for (auto &second : mustTrack) {
+          if (second != first && second->isLive(b1)) {
+            // interference!
+            interference[first].insert(second);
+            interference[second].insert(first);
+          }
+        }
+      }
     }
+
+    // The algorithm we use is a simple greedy algo. We don't need to do a fancy graph
+    // coloring allocation here, as we don't need to worry about register spilling
+    // (we can just make more "registers" instead of spilling). All cells are equal as well,
+    // so there aren't any restrictions on which translation can get which pin cell.
+    for (auto &[tr, intr] : interference) {
+      long available_cell = -1;
+      llvm::SparseBitVector<128> unavail;
+      for (auto other : intr) {
+        long cell = pin_cell_ids[other];
+        if (cell != -1) {
+          unavail.set(cell);
+        }
+      }
+      // find a cell that hasn't been used by any of the interfering translations.
+      for (long current_cell = 0;; current_cell++) {
+        if (!unavail.test(current_cell)) {
+          available_cell = current_cell;
+          break;
+        }
+      }
+      pin_cell_ids[tr] = available_cell;
+    }
+
+    // long ind = 0;
+    // for (auto tr : mustTrack) {
+    //   pin_cell_ids[tr] = ind++;
+    // }
 
     llvm::AllocaInst *trackSet = NULL;
 
@@ -343,7 +355,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       // For reference, if this line is removed, NAS cg.B running on 64 cores under OpenMP sees
       // overhead increase from 1.02x to 4x!
       if (id == 'PATC') {
-        // token->setCallingConv(CallingConv::PreserveAll);
+        token->setCallingConv(CallingConv::PreserveAll);
       }
 
 

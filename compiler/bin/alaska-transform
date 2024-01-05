@@ -19,7 +19,13 @@ parser.add_argument('-o', dest='output', help='The destination file. Defaults to
 parser.add_argument('-b', '--baseline', action='store_true', help='Apply baseline transformations, do not insert translations')
 parser.add_argument('input', help='The input .bc file to apply alaska transformations to.')
 
+parser.add_argument('--disable-tracking', action='store_true')
+parser.add_argument('--disable-hoisting', action='store_true')
+parser.add_argument('--disable-inlining', action='store_true')
+
 args = parser.parse_args()
+
+print(args)
 
 if args.output is None:
   args.output = args.input
@@ -28,6 +34,7 @@ if args.output is None:
 bitcode = args.output
 
 def exec(cmd):
+  print('exec |', cmd)
   res = os.system(cmd)
   if res != 0:
     exit()
@@ -56,21 +63,34 @@ def run_passes(passes):
 passes = []
 
 
-exec(f'opt {bitcode} -o {bitcode} -lowerswitch -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
+exec(f'opt {bitcode} -o {bitcode} -O3')
+exec(f'opt {bitcode} -o {bitcode} -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
 
 
 run_passes(['alaska-prepare'])
 
 # Now add the passes in the order they need to be (if we aren't compiling for baseline)
 if not args.baseline:
-  run_passes(['alaska-replace', 'alaska-translate'])
+  if not args.disable_hoisting:
+    run_passes(['alaska-replace', 'alaska-translate'])
+  else:
+    run_passes(['alaska-replace', 'alaska-translate-nohoist'])
+
+
   # run_passes(['alaska-translate'])
   exec(f'llvm-link {bitcode} --internalize {tempdir}/translate.bc -o {bitcode}')
   passes.append('alaska-escape')
 
-  passes.append('alaska-tracking')
+  if not args.disable_tracking:
+    passes.append('alaska-tracking')
+
   passes.append('alaska-lower')
-  passes.append('alaska-inline')
+  if not args.disable_inlining:
+    passes.append('alaska-inline')
+
 
 run_passes(passes)
+exec(f'opt {bitcode} -o {bitcode} --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce')
 exec(f'llvm-dis {args.output}')
+
+

@@ -37,6 +37,17 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     }
   }
 
+  // void visitPHINode(llvm::PHINode &I) {
+  //   node.type = alaska::Source;
+  //   node.colors.insert(node.id);
+  //   return;
+  //
+  //   node.type = alaska::Transient;
+  //   for (auto &incoming : I.incoming_values()) {
+  //     node.add_in_edge(&incoming);
+  //   }
+  // }
+
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
     // alloca has no color. it is not an allocation we care about.
@@ -139,6 +150,14 @@ void alaska::FlowNode::add_in_edge(llvm::Use *use) {
   in.insert(use);
 }
 
+
+void alaska::FlowNode::remove_in_edge(llvm::Use *use) {
+  auto val = use->get();
+  auto &other = graph.get_node(val);
+  other.out.erase(use);
+  in.erase(use);
+}
+
 alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func)
     : m_func(func) {
   //
@@ -173,22 +192,54 @@ alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func)
   // gather the nodes into a single set
   auto nodes = get_all_nodes();
 
-  // Compute the colors of each node by flowing them down from the sources
-  while (true) {
-    bool changed = false;
-    for (auto node : nodes) {
-      if (node->type == alaska::Source) continue;
-      auto old = node->colors;
-      node->colors.clear();
-      for (auto in : node->get_in_nodes()) {
-        for (auto color : in->colors) {
-          node->colors.insert(color);
+
+  bool phi_patched;
+  do {
+    phi_patched = false;
+    // Clear the colors
+    // for (auto node : nodes) {
+    //   if (node->type == alaska::Source) {
+    //     continue;
+    //   }
+    //   node->colors.clear();
+    // }
+
+    // Compute the colors of each node by flowing them down from the sources
+    while (true) {
+      bool changed = false;
+      for (auto node : nodes) {
+        if (node->type == alaska::Source) {
+          continue;
         }
+        auto old = node->colors;
+        node->colors.clear();
+        for (auto in : node->get_in_nodes()) {
+          for (auto color : in->colors) {
+            node->colors.insert(color);
+          }
+        }
+        if (node->colors != old) changed |= true;
       }
-      if (node->colors != old) changed |= true;
+      if (!changed) break;
     }
-    if (!changed) break;
-  }
+
+    // for (auto node : nodes) {
+    //   if (node->type != alaska::Transient) {
+    //     continue;
+    //   }
+    //   if (auto *phi = dyn_cast<PHINode>(node->value)) {
+    //     if (node->colors.size() > 1) {
+    //       phi_patched = true;
+    //       node->type = alaska::Source;
+    //       node->colors.clear();
+    //       node->colors.insert(node->id);
+    //       for (auto edge : node->in) {
+    //         node->remove_in_edge(edge);
+    //       }
+    //     }
+    //   }
+    // }
+  } while (phi_patched);
 
 #ifdef ALASKA_DUMP_FLOW_GRAPH
   alaska::println("--------------------------------------");

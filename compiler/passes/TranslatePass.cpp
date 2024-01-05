@@ -41,7 +41,7 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
   mdm.addMetadata("alaska", "did run");
 
 
-  bool hoist = true;
+  bool hoist = this->hoist;
   if (no_strict_alias()) {
     errs() << "WARNING: No strict alias is on. Disabling hoisting!\n";
     hoist = false;
@@ -57,10 +57,12 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
+
     auto start = alaska::timestamp();
     if (hoist) {
       alaska::insertHoistedTranslations(F);
     } else {
+      alaska::println("Not hoisting in ", F.getName());
       alaska::insertConservativeTranslations(F);
     }
     auto end = alaska::timestamp();
