@@ -228,9 +228,11 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
           REGISTER("alaska-inline", TranslationInlinePass);
 
           if (name == "alaska-tracking") {
+#ifdef ALASKA_DUMP_TRANSLATIONS
+            MPM.addPass(TranslationPrinterPass());
+#endif
             MPM.addPass(adapt(PlaceSafepointsPass()));
             MPM.addPass(PinTrackingPass());
-            // MPM.addPass(TranslationPrinterPass());
             return true;
           }
 
