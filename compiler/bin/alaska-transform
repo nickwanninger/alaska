@@ -63,7 +63,7 @@ def run_passes(passes):
 passes = []
 
 
-exec(f'opt {bitcode} -o {bitcode} -O3')
+# exec(f'opt {bitcode} -o {bitcode} -O3')
 exec(f'opt {bitcode} -o {bitcode} -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
 
 
