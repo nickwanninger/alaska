@@ -232,7 +232,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
     auto old_out = OUT[bb];
     auto old_in = IN[bb];
 
-    IN[bb] = GEN[bb] | (OUT[bb] - KILL[bb]);
+    IN[bb] = (GEN[bb] | OUT[bb]) - KILL[bb];
 
     OUT[bb].clear();
 
@@ -627,6 +627,7 @@ void alaska::insertConservativeTranslations(llvm::Function &F) {
     for (auto &I : BB) {
       if (auto *load = dyn_cast<LoadInst>(&I)) {
         auto ptr = load->getPointerOperand();
+        if (!shouldTranslate(ptr)) continue;
         auto t = insertTranslationBefore(&I, ptr);
         load->setOperand(0, t);
         alaska::insertReleaseBefore(I.getNextNode(), ptr);
@@ -635,6 +636,7 @@ void alaska::insertConservativeTranslations(llvm::Function &F) {
 
       if (auto *store = dyn_cast<StoreInst>(&I)) {
         auto ptr = store->getPointerOperand();
+        if (!shouldTranslate(ptr)) continue;
         auto t = insertTranslationBefore(&I, ptr);
         store->setOperand(1, t);
         insertReleaseBefore(I.getNextNode(), ptr);
