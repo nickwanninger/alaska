@@ -23,6 +23,15 @@ static bool is_allocation_blacklisted(const llvm::StringRef &name) {
       "_ZNSt15__new_allocatorIN5boost6tuples5tupleIiiP7UCTNodeNS1_9null_typeES5_S5_S5_S5_S5_S5_"
       "EEE8allocateEmPKv")
     return true;
+
+
+  if (getenv("ALASKA_SPECIAL_CASE_GCC")) {
+    alaska::println("SPECIAL CASE? ", name);
+    if (name == "alloc_page") {
+      alaska::println("XXX SPECIAL CASE GCC page_alloc XXX\n");
+      return true;
+    }
+  }
   return false;
 }
 
@@ -61,6 +70,19 @@ static void replace_function(
 PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &AM) {
 #ifdef ALASKA_REPLACE_MALLOC
   if (getenv("ALASKA_NO_REPLACE_MALLOC") == NULL) {
+    if (getenv("ALASKA_SPECIAL_CASE_GCC") != NULL) {
+      // I hate GCC. I hate this (FIXME)
+      replace_function(M, "xmalloc", "malloc", false);
+      replace_function(M, "xcalloc", "calloc", false);
+      replace_function(M, "xrealloc", "realloc", false);
+
+
+      alaska::println("XXX SPECIAL CASE GCC XXX\n");
+      replace_function(M, "xmalloc", "halloc", true);
+      replace_function(M, "xcalloc", "hcalloc", true);
+      replace_function(M, "xrealloc", "hrealloc", true);
+    }
+
     replace_function(M, "malloc", "halloc", true);
     replace_function(M, "calloc", "hcalloc", true);
     replace_function(M, "realloc", "hrealloc", true);

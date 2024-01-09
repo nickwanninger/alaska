@@ -414,6 +414,7 @@ static void stress_workload(void) {
   while (true) {
     usleep(interval * 1000);
 
+    auto start =alaska_timestamp();
     anch_lock.lock();
     alaska::barrier::begin();
     anchorage::CompactionConfig config;
@@ -426,7 +427,6 @@ static void stress_workload(void) {
 
     auto moved =
         anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
-    printf("Moved %d\n", moved);
 
     if (moved == 0) {
       anchorage::Chunk::swap_spaces();
@@ -434,6 +434,9 @@ static void stress_workload(void) {
 
     alaska::barrier::end();
     anch_lock.unlock();
+
+    auto end = alaska_timestamp();
+    // printf("Moved %d in %lf\n", moved, (end - start) / (1000.0 * 1000.0));
   }
 }
 

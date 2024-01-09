@@ -12,7 +12,6 @@
 #include <alaska/service.hpp>
 #include <alaska/alaska.hpp>
 #include <alaska/table.hpp>
-#include <assert.h>
 #include <malloc.h>
 #include <string.h>
 #include <sys/mman.h>
