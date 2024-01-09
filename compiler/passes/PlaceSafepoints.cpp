@@ -88,7 +88,7 @@ static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::in
 /// How narrow does the trip count of a loop have to be to have to be considered
 /// "counted"?  Counted loops do not get safepoints at backedges.
 static cl::opt<int> CountedLoopTripWidth(
-    "alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(16));
+    "alaska-spp-counted-loop-trip-width", cl::Hidden, cl::init(64));
 
 // If true, split the backedge of a loop when placing the safepoint, otherwise
 // split the latch block itself.  Both are useful to support for
@@ -643,7 +643,6 @@ static bool shouldRewriteFunction(Function &F) {
 // TODO: These should become properties of the GCStrategy, possibly with
 // command line overrides.
 static bool enableEntrySafepoints(Function &F) {
-
   if (F.getName().startswith(".omp_outlined")) return true;
   if (F.getName().startswith("omp_outlined")) return true;
   return !NoEntry;
