@@ -67,78 +67,7 @@ if (ALASKA_SERVICE_NONE)
 endif(ALASKA_SERVICE_NONE)
 
 
-if (ALASKA_SERVICE_CORDOVA)
-	set(SRC_FILES ${SRC_FILES} services/cordova/service.cpp)
-endif(ALASKA_SERVICE_CORDOVA)
 
-
-if (ALASKA_SERVICE_JEMALLOC)
-	set(SRC_FILES ${SRC_FILES}
-		services/jemalloc/service.cpp
-		services/jemalloc/src/jemalloc.c
-		services/jemalloc/src/arena.c
-		services/jemalloc/src/background_thread.c
-		services/jemalloc/src/base.c
-		services/jemalloc/src/bin.c
-		services/jemalloc/src/bin_info.c
-		services/jemalloc/src/bitmap.c
-		services/jemalloc/src/buf_writer.c
-		services/jemalloc/src/cache_bin.c
-		services/jemalloc/src/ckh.c
-		services/jemalloc/src/counter.c
-		services/jemalloc/src/ctl.c
-		services/jemalloc/src/decay.c
-		services/jemalloc/src/div.c
-		services/jemalloc/src/ecache.c
-		services/jemalloc/src/edata.c
-		services/jemalloc/src/edata_cache.c
-		services/jemalloc/src/ehooks.c
-		services/jemalloc/src/emap.c
-		services/jemalloc/src/eset.c
-		services/jemalloc/src/exp_grow.c
-		services/jemalloc/src/extent.c
-		services/jemalloc/src/extent_dss.c
-		services/jemalloc/src/extent_mmap.c
-		services/jemalloc/src/fxp.c
-		services/jemalloc/src/san.c
-		services/jemalloc/src/san_bump.c
-		services/jemalloc/src/hook.c
-		services/jemalloc/src/hpa.c
-		services/jemalloc/src/hpa_hooks.c
-		services/jemalloc/src/hpdata.c
-		services/jemalloc/src/inspect.c
-		services/jemalloc/src/large.c
-		services/jemalloc/src/log.c
-		services/jemalloc/src/malloc_io.c
-		services/jemalloc/src/mutex.c
-		services/jemalloc/src/nstime.c
-		services/jemalloc/src/pa.c
-		services/jemalloc/src/pa_extra.c
-		services/jemalloc/src/pai.c
-		services/jemalloc/src/pac.c
-		services/jemalloc/src/pages.c
-		services/jemalloc/src/peak_event.c
-		services/jemalloc/src/prof.c
-		services/jemalloc/src/prof_data.c
-		services/jemalloc/src/prof_log.c
-		services/jemalloc/src/prof_recent.c
-		services/jemalloc/src/prof_stats.c
-		services/jemalloc/src/prof_sys.c
-		services/jemalloc/src/psset.c
-		services/jemalloc/src/rtree.c
-		services/jemalloc/src/safety_check.c
-		services/jemalloc/src/sc.c
-		services/jemalloc/src/sec.c
-		services/jemalloc/src/stats.c
-		services/jemalloc/src/sz.c
-		services/jemalloc/src/tcache.c
-		services/jemalloc/src/test_hooks.c
-		services/jemalloc/src/thread_event.c
-		services/jemalloc/src/ticker.c
-		services/jemalloc/src/tsd.c
-		services/jemalloc/src/witness.c
-)
-endif(ALASKA_SERVICE_JEMALLOC)
 
 add_library(alaska SHARED ${SRC_FILES})
 # add_library(alaska STATIC ${SRC_FILES})
