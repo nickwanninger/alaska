@@ -13,6 +13,7 @@
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
+#include <alaska/service.hpp>
 
 #define KB 1024UL
 #define MB KB * 1024UL
@@ -46,6 +47,25 @@ namespace anchorage {
   }
 
 
-	double get_heap_frag(void);
-	double get_heap_frag_locked(void);
+  double get_heap_frag(void);
+  double get_heap_frag_locked(void);
+
+
+
+
+  class AnchorageService final : public alaska::Service {
+   public:
+    AnchorageService()
+        : alaska::Service("anchorage") {
+    }
+
+    ~AnchorageService() override {}
+
+    void alloc(alaska::Mapping *ent, size_t new_size) override;
+    void free(alaska::Mapping *ent) override;
+
+    ssize_t usable_size(alaska::Mapping *ent) override;
+    void swap_in(alaska::Mapping *ent) override;
+  };
+
 }  // namespace anchorage

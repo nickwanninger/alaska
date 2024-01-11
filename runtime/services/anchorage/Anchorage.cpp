@@ -414,7 +414,7 @@ static void stress_workload(void) {
   while (true) {
     usleep(interval * 1000);
 
-    auto start =alaska_timestamp();
+    auto start = alaska_timestamp();
     anch_lock.lock();
     alaska::barrier::begin();
     anchorage::CompactionConfig config;
@@ -465,6 +465,7 @@ static void *barrier_thread_fn(void *) {
 }
 
 void alaska::service::init(void) {
+  AnchorageService x;
   anch_lock.init();
 
   anchorage::allocator_init();
@@ -526,3 +527,19 @@ const int32_t anchorage::SizeMap::class_to_size_[anchorage::classSizesMax] = {
     8192,
     16384,
 };
+
+
+
+
+void anchorage::AnchorageService::alloc(alaska::Mapping *ent, size_t new_size) {
+  // TODO:
+}
+void anchorage::AnchorageService::free(alaska::Mapping *ent) {
+  // TODO:
+}
+ssize_t anchorage::AnchorageService::usable_size(alaska::Mapping *ent) {
+  // TODO:
+}
+void anchorage::AnchorageService::swap_in(alaska::Mapping *ent) {
+  // TODO:
+}
