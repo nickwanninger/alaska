@@ -14,21 +14,64 @@
 #include <alaska/alaska.hpp>
 
 namespace alaska {
+
+
+  class Service {
+   public:
+    Service(const char *name)
+        : m_name(name) {
+    }
+
+    virtual ~Service() = default;
+
+
+    // `alloc` in this context acts as both a malloc and a realloc call. If `ent->ptr` is
+    // non-null, it is a realloc request. If it is null, it is a malloc request.
+    // Whatever the implementation does, ent->ptr must be valid (and at least `new_size` bytes long)
+    // when this function returns. `ent->size` must also be updated.
+    virtual void alloc(alaska::Mapping *ent, size_t new_size) = 0;
+
+    // free `ent->ptr` which was previously allocated by the service.
+    virtual void free(alaska::Mapping *ent) = 0;
+
+
+    // Ask the service how big a handle is. This is to save space
+    // in the handle table, as most allocators will know this anyways.
+    // Returns -1 if this handle is not managed by this service. This shouldn't happen though.
+    virtual ssize_t usable_size(alaska::Mapping *ent) = 0;
+
+    // If a handle was marked as swapped out, swap it in.
+    virtual void swap_in(alaska::Mapping *ent) = 0;
+
+    inline auto name(void) {
+      return m_name;
+    }
+
+   private:
+    const char *m_name;
+  };
+
+
+
   // This file contains the interface that a service must implement to be a
   // complete service under Alaska. All of these functions are not implemented in the lib/ folder of
   // the runtime, and must be implemented by some bit of code in the relevant `services/$service`
   // folder in order to successfully compile.
   namespace service {
+
+
+
+
     // Initialize whatever state the service needs.
     extern void init(void);
     // Deinitialize whatever state the service needs.
     extern void deinit(void);
-    // Allocation API for the personalities to implement.
     // `alloc` in this context acts as both a malloc and a realloc call. If `ent->ptr` is
     // non-null, it is a realloc request. If it is null, it is a malloc request.
     // Whatever the implementation does, ent->ptr must be valid (and at least `new_size` bytes long)
     // when this function returns. `ent->size` must also be updated.
     extern void alloc(alaska::Mapping *ent, size_t new_size);
+
     // free `ent->ptr` which was previously allocated by the service.
     extern void free(alaska::Mapping *ent);
     // Tell the service that the runtime state is ready to perform whatever

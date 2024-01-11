@@ -432,12 +432,6 @@ void alaska::barrier::end(void) {
 }
 
 
-
-
-void alaska_barrier(void) {
-  alaska::service::barrier();
-}
-
 static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
   uintptr_t return_address = 0;
