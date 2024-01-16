@@ -24,6 +24,7 @@ tools/.ipynb_checkpoints
 # where stuff gets installed to
 /local
 /opt
+/deps
 
 /musl
 
