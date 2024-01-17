@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <alaska.h>
+#include <stdint.h>
 
-#define managed __attribute__((address_space(1)))
-#define COUNT 10000000
 
 __attribute__((noinline)) static volatile int *inc(volatile int *x) {
   *x += 1;
@@ -11,10 +9,10 @@ __attribute__((noinline)) static volatile int *inc(volatile int *x) {
 }
 
 int main(int argc, char **argv) {
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 10; i++) {
     int *p = malloc(sizeof(*p));
     *p = 4;
-    printf("%p\n", (uintptr_t)p);
+    printf("0x%lx\n", (uintptr_t)p);
     inc(p);
   }
   return 0;

@@ -15,6 +15,7 @@
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
@@ -24,10 +25,12 @@
 #include "llvm/Transforms/Utils/SCCPSolver.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
 
+#include "llvm/Bitcode/BitcodeWriter.h"
 // Noelle Includes
 #include <noelle/core/DataFlow.hpp>
 #include <noelle/core/CallGraph.hpp>
 #include <noelle/core/MetadataManager.hpp>
+#include <alaska/Linker.h>
 
 // C++ includes
 #include <cassert>
@@ -182,6 +185,50 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 
 
 
+class LTOTestPass : public llvm::PassInfoMixin<LTOTestPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    // First, write the module to disk as a bitcode file
+    std::error_code EC;
+    llvm::raw_fd_stream f("module.bc", EC);
+    llvm::WriteBitcodeToFile(M, f);
+    f.flush();  // Make sure to flush it.
+    system("llvm-dis module.bc");
+
+
+    system("alaska-transform module.bc -o module.bc");
+
+    M.getFunctionList().clear();
+    M.getGlobalList().clear();
+
+
+    auto buf = llvm::MemoryBuffer::getFile("module.bc");
+    auto other = llvm::parseBitcodeFile(*buf.get(), M.getContext());
+    if (!other) {
+      alaska::println("Error parsing module: ", other.takeError());
+      exit(EXIT_FAILURE);
+    }
+    auto other_module = std::move(other.get());
+
+    if (other_module->materializeMetadata()) {
+      fprintf(stderr, "Could not materialize metadata\n");
+      exit(EXIT_FAILURE);
+    }
+
+
+
+    unsigned ApplicableFlags = Linker::Flags::OverrideFromSrc;
+    alaska::Linker L(M);
+    L.linkInModule(std::move(other_module), ApplicableFlags, nullptr);
+
+    alaska::println("================= After ================");
+    alaska::println(M);
+
+    return PreservedAnalyses::all();
+  }
+};
+
+
 template <typename T>
 auto adapt(T &&fp) {
   FunctionPassManager FPM;
@@ -196,47 +243,71 @@ auto adapt(T &&fp) {
     return true;                     \
   }
 
+
+static bool add_pass(StringRef name, ModulePassManager &MPM) {
+  if (name == "alaska-prepare") {
+    MPM.addPass(adapt(DCEPass()));
+    MPM.addPass(adapt(DCEPass()));
+    MPM.addPass(adapt(ADCEPass()));
+    MPM.addPass(WholeProgramDevirtPass());
+    MPM.addPass(SimpleFunctionPass());
+    MPM.addPass(AlaskaNormalizePass());
+    return true;
+  }
+
+  REGISTER("alaska-replace", AlaskaReplacementPass);
+  if (name == "alaska-translate") {
+    MPM.addPass(AlaskaTranslatePass(true));
+    return true;
+  }
+
+  if (name == "alaska-translate-nohoist") {
+    MPM.addPass(AlaskaTranslatePass(false));
+    return true;
+  }
+
+  REGISTER("alaska-escape", AlaskaEscapePass);
+  REGISTER("alaska-lower", AlaskaLowerPass);
+  REGISTER("alaska-inline", TranslationInlinePass);
+
+  if (name == "alaska-tracking") {
+#ifdef ALASKA_DUMP_TRANSLATIONS
+    MPM.addPass(TranslationPrinterPass());
+#endif
+    MPM.addPass(adapt(PlaceSafepointsPass()));
+    MPM.addPass(PinTrackingPass());
+    return true;
+  }
+  return false;
+}
+
+
+
 // Register the alaska passes with the new pass manager
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Alaska", LLVM_VERSION_STRING,  //
       [](PassBuilder &PB) {
+        PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel) {
+          printf("OPT Last!\n");
+          // MPM.addPass(LTOTestPass());
+          // add_pass("alaska-prepare", MPM);
+          // add_pass("alaska-replace", MPM);
+          // add_pass("alaska-translate", MPM);
+        });
+
+        PB.registerFullLinkTimeOptimizationLastEPCallback(
+            [](ModulePassManager &MPM, OptimizationLevel) {
+              printf("LTO Last!\n");
+              MPM.addPass(LTOTestPass());
+              // add_pass("alaska-escape", MPM);
+              // add_pass("alaska-lower", MPM);
+              // add_pass("alaska-inline", MPM);
+            });
+
+
         PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                ArrayRef<llvm::PassBuilder::PipelineElement>) {
-          if (name == "alaska-prepare") {
-            MPM.addPass(adapt(DCEPass()));
-            MPM.addPass(adapt(DCEPass()));
-            MPM.addPass(adapt(ADCEPass()));
-            MPM.addPass(WholeProgramDevirtPass());
-            MPM.addPass(SimpleFunctionPass());
-            MPM.addPass(AlaskaNormalizePass());
-            return true;
-          }
-
-          REGISTER("alaska-replace", AlaskaReplacementPass);
-          if (name == "alaska-translate") {
-            MPM.addPass(AlaskaTranslatePass(true));
-            return true;
-          }
-
-          if (name == "alaska-translate-nohoist") {
-            MPM.addPass(AlaskaTranslatePass(false));
-            return true;
-          }
-
-          REGISTER("alaska-escape", AlaskaEscapePass);
-          REGISTER("alaska-lower", AlaskaLowerPass);
-          REGISTER("alaska-inline", TranslationInlinePass);
-
-          if (name == "alaska-tracking") {
-#ifdef ALASKA_DUMP_TRANSLATIONS
-            MPM.addPass(TranslationPrinterPass());
-#endif
-            MPM.addPass(adapt(PlaceSafepointsPass()));
-            MPM.addPass(PinTrackingPass());
-            return true;
-          }
-
-          return false;
+          return add_pass(name, MPM);
         });
       }};
 }

@@ -706,7 +706,7 @@ void alaska_blob_init(struct alaska_blob_config* cfg) {
   size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
   mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
 
-  // printf("%p %p\n", cfg->code_start, cfg->code_end);
+  printf("%p %p\n", cfg->code_start, cfg->code_end);
 
   if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }

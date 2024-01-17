@@ -20,6 +20,8 @@ add_llvm_library(Alaska MODULE
 	lib/TranslationForest.cpp
 	lib/Translations.cpp
 
+	lib/compat/Linker.cpp
+
 	
 	# ======= Hacky Noelle Embedding ======= 
 	lib/noelle/MetadataEntry.cpp
@@ -78,12 +80,9 @@ add_llvm_library(Alaska MODULE
 	PLUGIN_TOOL
 	opt
 )
-
-# llvm_map_components_to_libnames(llvm_libs core)
-#
+# llvm_map_components_to_libnames(llvm_libs linker)
 # # Link against LLVM libraries
-# target_link_libraries(Alaska PRIVATE ${llvm_libs})
-#
+# target_link_libraries(Alaska ${llvm_libs})
 
 add_subdirectory(bin)
 

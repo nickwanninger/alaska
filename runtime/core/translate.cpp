@@ -47,15 +47,6 @@ extern "C" {
 extern int __LLVM_StackMaps __attribute__((weak));
 }
 
-extern "C" void *alaska_translate_uncond(void *ptr) {
-  int64_t bits = (int64_t)ptr;
-
-  auto m = alaska::Mapping::from_handle(ptr);
-  // Pull the address from the mapping
-  void *mapped = m->get_pointer();
-  ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
-  return ptr;
-}
 
 // TODO: we don't use this anymore. Do we need it?
 void *alaska_translate_escape(void *ptr) {
@@ -87,25 +78,6 @@ void *alaska_translate(void *ptr) {
   // Apply the offset from the pointer
   ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
   return ptr;
-}
-
-void alaska_release(void *ptr) {
-  // This function is just a marker that `ptr` is now dead (no longer used)
-  // and should not have any real meaning in the runtime
-}
-
-uint64_t base_start = 0;
-
-void print_backtrace() {
-  void *rbp = (void *)__builtin_frame_address(0);
-  uint64_t start, end;
-  start = (uint64_t)rbp;
-  while ((uint64_t)rbp > 0x1000) {
-    end = (uint64_t)rbp;
-    if (end > base_start) base_start = end;
-    rbp = *(void **)rbp;  // Follow the chain of rbp values
-  }
-  printf(" (%zd)\n", end - start);
 }
 
 extern bool alaska_should_safepoint;

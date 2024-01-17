@@ -19,14 +19,10 @@ $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config local/bin/clang $(BUILD_REQ)
-	@cd $(BUILD) && cmake --build . --target install --config Debug
+alaska: .config deps $(BUILD_REQ)
+	@#cd $(BUILD) && cmake --build . --target install --config Debug
+	@cd $(BUILD) && $(MAKE) install
 	@cp build/compile_commands.json .
-
-# local/bin/clang:
-# 	tools/build_deps.sh
-#
-# deps: local/bin/clang
 
 sanity: alaska
 	@local/bin/alaska -O3 test/sanity.c -o build/sanity
@@ -91,7 +87,7 @@ docker:
 #  - local/bin/clang (From LLVM)
 # The reason we must build `ar' from binutils is so that we can use LLVM's LTO infrastructure,
 # and unfortunately this requires that we build both binutils and LLVM from source...
-lto_deps: local/bin/ar local/bin/clang
+deps: local/bin/ar local/bin/clang
 
 
 # bin/ar is produced by binutils.
@@ -124,7 +120,7 @@ deps/llvm-build/Makefile: deps/llvm
 		-DCMAKE_BUILD_TYPE=Release                     \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/local           \
 		-DLLVM_BINUTILS_INCDIR="$(ROOT)/local/include" \
-		-DLLVM_ENABLE_PROJECTS="clang"
+		-DLLVM_ENABLE_PROJECTS="clang;lld"
 
 LLVM_VERSION=15.0.2
 deps/llvm:

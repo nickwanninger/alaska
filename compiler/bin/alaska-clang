@@ -8,36 +8,43 @@ export PATH=$PFX/bin:$PATH
 export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH
 
 
-libc="$PFX"
-libc_inc="$PFX/include"
-libc_lib="$PFX/lib"
-thisdir="`cd "$(dirname "$0")"; pwd`"
+linking=yes
+relocatable=no
 
+# The arguments that will go to clang at the end.
+all_args=("$@")
+argno=0
 
-export ALASKA_BOOTSTRAP=1
-
-LINKER_ARGS=$($PFX/bin/alaska-config --ldflags)
-LINKER_ARGS=
-# prevent clang from running the linker (and erroring) on no input.
-sflags=
-eflags=
 
 for arg in $@; do
-	case "$arg" in
-		-l*) input=1 ;;
-		*) input= ;;
-	esac
-	if test "$input" ; then
-		sflags="-l-user-start"
-		eflags="-l-user-end"
-		break
-	fi
+  # Set addarg to no if this arg should be ignored by the C compiler
+  addarg=yes
+  case "${arg}" in
+    -g)
+      debug_symbols=yes
+    ;;
+    -c|-M|-MM)
+      # The compiler links by default
+      linking=no
+    ;;
+    -E)
+      # When running the preprocessor only add the sysroot flag
+      linking=no
+    ;;
+    -S|--assemble)
+      # Assembler file is needed. Optimization seems to interfere
+      linking=no
+    ;;
+    -r|--relocatable)
+        relocatable=yes
+    ;;
+  esac
 
-	# parse args and adjust things as needed
-	case $arg in
-		-c) LINKER_ARGS="" ;;
-		*) ;;
-	esac
+  if [ ${addarg} = no ]; then
+    unset all_args[${argno}]
+  fi
+
+  argno=`expr ${argno} + 1`
 done
 
 
@@ -49,10 +56,19 @@ ARGS+="-Xclang -fpass-plugin=$PFX/lib/Alaska.so "
 ARGS+="-fplugin=$PFX/lib/Alaska.so "
 ARGS+="-Wno-ignored-optimization-argument "
 ARGS+="-Wno-unused-command-line-argument "
-# ARGS+="-L-user-start $sflags $@ $eflags $LINKER_ARGS "
-# ARGS+="-L\"$libc_lib\" "
-# ARGS+="-L-user-end "
-# ARGS+="-Wno-unused-command-line-argument "
+ARGS+="-fuse-ld=lld -flto=full -Wl,--load-pass-plugin=$PFX/lib/Alaska.so "
+# ARGS+="$(alaska-config --ldflags --cflags) "
 
-# echo local/bin/clang $ARGS
-exec $PFX/bin/clang $ARGS $@
+if [ "$linking" = yes ] ; then
+  echo "LINKING!"
+
+  # RUNTIME=$(mktemp --suffix=.bc)
+  # llvm-link ${PFX}/lib/alaska_stub.bc ${PFX}/lib/alaska_translate.bc -o ${RUNTIME}
+  # opt -O3 --strip-debug ${RUNTIME} -o ${RUNTIME}
+  exec clang $ARGS "${all_args[@]}" -ldl # $(alaska-config --ldflags)
+else
+  echo "NOT LINKING!"
+
+  exec clang $ARGS "${all_args[@]}" # $(alaska-config --cflags)
+fi
+
