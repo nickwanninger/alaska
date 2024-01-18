@@ -78,7 +78,8 @@ docker:
 
 
 
-LLVM_VERSION=17.0.6
+# LLVM_VERSION=17.0.6
+# LLVM_VERSION=16.0.4
 deps: local/bin/gclang local/bin/clang
 
 
@@ -86,14 +87,16 @@ local/bin/gclang: .config
 	tools/build_gclang.sh
 
 
+LLVM=llvm-${ALASKA_LLVM_VERSION}
+
 # Compile clang into local/bin/clang. This *requires* local/bin/ar
 local/bin/clang: .config deps/llvm-build/Makefile
-	$(MAKE) -C deps/llvm-build
-	$(MAKE) -C deps/llvm-build install
+	$(MAKE) -C deps/${LLVM}-build
+	$(MAKE) -C deps/${LLVM}-build install
 
 deps/llvm-build/Makefile: deps/llvm
-	mkdir -p deps/llvm-build
-	cd deps/llvm-build && cmake ../llvm/llvm                              \
+	mkdir -p deps/${LLVM}-build
+	cd deps/${LLVM}-build && cmake ../${LLVM}/llvm                              \
 		-DCMAKE_BUILD_TYPE=Release                                          \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/local                                \
 		-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
@@ -102,9 +105,9 @@ deps/llvm-build/Makefile: deps/llvm
 
 deps/llvm:
 	mkdir -p deps
-	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(LLVM_VERSION)/llvm-project-$(LLVM_VERSION).src.tar.xz
+	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(ALASKA_LLVM_VERSION)/llvm-project-$(ALASKA_LLVM_VERSION).src.tar.xz
 	tar xvf deps/llvm.tar.xz -C deps/
-	mv deps/llvm-project-$(LLVM_VERSION).src deps/llvm
+	mv deps/llvm-project-$(ALASKA_LLVM_VERSION).src deps/${LLVM}
 
 
 

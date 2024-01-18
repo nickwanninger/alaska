@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
 
-find_program(CLANG_PATH clang-17)
-find_program(CLANGXX_PATH clang++-17)
+find_program(CLANG_PATH clang)
+find_program(CLANGXX_PATH clang++)
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
