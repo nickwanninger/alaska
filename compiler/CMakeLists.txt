@@ -56,12 +56,6 @@ add_llvm_library(Alaska MODULE
 	# lib/noelle/MemorySite.cpp
 	# ======= Hacky Noelle Embedding ======= 
 
-	lib/ct/Configurations.cpp
-	lib/ct/LatencyDFA.cpp
-	lib/ct/LoopTransform.cpp
-	lib/ct/Utils.cpp
-
-	passes/CompilerTiming.cpp
 	passes/PinTracking.cpp
 	passes/TranslationPrinter.cpp
 	passes/ArgPinElision.cpp
@@ -72,7 +66,6 @@ add_llvm_library(Alaska MODULE
 	passes/LinkLibrary.cpp
 	passes/Lower.cpp
 	passes/PlaceSafepoints.cpp
-  passes/RewriteStatepointsForGC.cpp
   passes/ArgumentTrace.cpp
 
 	PLUGIN_TOOL

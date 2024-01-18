@@ -48,6 +48,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <alaska/PlaceSafepoints.h>
+#include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 
@@ -83,7 +84,7 @@ STATISTIC(FiniteExecution, "Number of loops without safepoints finite execution"
 
 // Ignore opportunities to avoid placing safepoints on backedges, useful for
 // validation
-static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::init(false));
+static cl::opt<bool> AllBackedges("alaska-spp-all-backedges", cl::Hidden, cl::init(true));
 
 /// How narrow does the trip count of a loop have to be to have to be considered
 /// "counted"?  Counted loops do not get safepoints at backedges.
@@ -236,57 +237,6 @@ bool PlaceBackedgeSafepointsLegacyPass::runOnLoop(Loop *L) {
   return false;
 }
 
-namespace {
-  class PlaceSafepointsLegacyPass : public FunctionPass {
-   public:
-    static char ID;  // Pass identification, replacement for typeid
-
-    PlaceSafepointsLegacyPass()
-        : FunctionPass(ID) {
-    }
-
-    bool runOnFunction(Function &F) override;
-
-    StringRef getPassName() const override {
-      return "Safepoint Placement";
-    }
-
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      // We modify the graph wholesale (inlining, block insertion, etc).  We
-      // preserve nothing at the moment.  We could potentially preserve dom tree
-      // if that was worth doing
-      AU.addRequired<TargetLibraryInfoWrapperPass>();
-    }
-
-   private:
-    PlaceSafepointsPass Impl;
-  };
-}  // end anonymous namespace
-
-char PlaceSafepointsLegacyPass::ID = 0;
-
-
-FunctionPass *llvm::createPlaceSafepointsPass() {
-  return new PlaceSafepointsLegacyPass();
-}
-
-bool PlaceSafepointsLegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F)) return false;
-
-  LLVM_DEBUG(dbgs() << "********** Begin Safepoint Placement **********\n");
-  LLVM_DEBUG(dbgs() << "********** Function: " << F.getName() << '\n');
-
-  bool MadeChange = Impl.runImpl(F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F));
-
-  if (MadeChange) {
-    LLVM_DEBUG(dbgs() << "********** Function after Safepoint Placement: " << F.getName() << '\n');
-    LLVM_DEBUG(dbgs() << F);
-  }
-  LLVM_DEBUG(dbgs() << "********** End Safepoint Placement **********\n");
-
-  return MadeChange;
-}
-
 bool PlaceSafepointsPass::runImpl(Function &F, const TargetLibraryInfo &TLI) {
   if (F.isDeclaration() || F.empty()) {
     // This is a declaration, nothing to do.  Must exit early to avoid crash in
@@ -415,10 +365,13 @@ bool PlaceSafepointsPass::runImpl(Function &F, const TargetLibraryInfo &TLI) {
   return Modified;
 }
 
-PreservedAnalyses PlaceSafepointsPass::run(Function &F, FunctionAnalysisManager &AM) {
-  auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
+PreservedAnalyses PlaceSafepointsPass::run(Module &M, ModuleAnalysisManager &AM) {
+  auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
 
-  if (!runImpl(F, TLI)) return PreservedAnalyses::all();
+  for (auto &F : M) {
+    auto &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
+    runImpl(F, TLI);
+  }
 
   // TODO: can we preserve more?
   return PreservedAnalyses::none();

@@ -19,14 +19,9 @@ $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config local/bin/clang $(BUILD_REQ)
+alaska: .config deps $(BUILD_REQ)
 	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
-
-local/bin/clang:
-	tools/build_deps.sh
-
-deps: local/bin/clang
 
 sanity: alaska
 	@local/bin/alaska -O3 test/sanity.c -o build/sanity
@@ -80,6 +75,40 @@ build/lua: alaska
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
+
+
+
+LLVM_VERSION=17.0.6
+deps: local/bin/gclang local/bin/clang
+
+
+local/bin/gclang: .config
+	tools/build_gclang.sh
+
+
+# Compile clang into local/bin/clang. This *requires* local/bin/ar
+local/bin/clang: .config deps/llvm-build/Makefile
+	$(MAKE) -C deps/llvm-build
+	$(MAKE) -C deps/llvm-build install
+
+deps/llvm-build/Makefile: deps/llvm
+	mkdir -p deps/llvm-build
+	cd deps/llvm-build && cmake ../llvm/llvm                              \
+		-DCMAKE_BUILD_TYPE=Release                                          \
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/local                                \
+		-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
+		-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"
+		# -DLLVM_BINUTILS_INCDIR="$(ROOT)/local/include"
+
+deps/llvm:
+	mkdir -p deps
+	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(LLVM_VERSION)/llvm-project-$(LLVM_VERSION).src.tar.xz
+	tar xvf deps/llvm.tar.xz -C deps/
+	mv deps/llvm-project-$(LLVM_VERSION).src deps/llvm
+
+
+
+
 
 
 FORCE: # anything you want to force, depend on this

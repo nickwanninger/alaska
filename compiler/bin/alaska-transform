@@ -34,7 +34,7 @@ if args.output is None:
 bitcode = args.output
 
 def exec(cmd):
-  print('exec |', cmd)
+  # print('exec |', cmd)
   res = os.system(cmd)
   if res != 0:
     exit()
@@ -64,7 +64,8 @@ passes = []
 
 
 # exec(f'opt {bitcode} -o {bitcode} -O3')
-exec(f'opt {bitcode} -o {bitcode} -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
+# exec(f'opt {bitcode} -o {bitcode} -basic-aa -mergereturn --break-crit-edges -loop-simplify -lcssa -indvars -mem2reg -simplifycfg-sink-common=false -licm -instnamer')
+exec(f'opt {bitcode} -o {bitcode} -passes=mergereturn,break-crit-edges,loop-simplify,lcssa,indvars,mem2reg,instnamer')
 
 
 run_passes(['alaska-prepare'])
@@ -90,7 +91,7 @@ if not args.baseline:
 
 
 run_passes(passes)
-exec(f'opt {bitcode} -o {bitcode} --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce')
+# exec(f'opt {bitcode} -o {bitcode} --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce')
 exec(f'llvm-dis {args.output}')
 
 

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <alaska.h>
+#include <stdint.h>
 
 #define managed __attribute__((address_space(1)))
 #define COUNT 10000000
