@@ -20,35 +20,51 @@
 #include <malloc.h>
 #include <unistd.h>
 
+
+
+class NoneService : public alaska::Service {
+ public:
+  NoneService(void)
+      : alaska::Service("none") {
+  }
+
+  ~NoneService(void) override = default;
+
+  bool alloc(alaska::Mapping *ent, size_t new_size) override {
+    ent->set_pointer(::realloc(ent->get_pointer(), new_size));
+    return true;
+  }
+
+
+  bool free(alaska::Mapping *ent) override {
+    ::free(ent->get_pointer());
+    ent->reset();
+    return true;
+  }
+
+
+  ssize_t usable_size(alaska::Mapping *ent) override {
+    return malloc_usable_size(ent->get_pointer());
+  }
+};
+
+
+static NoneService the_service;
+
 size_t alaska::service::usable_size(void *ptr) {
+  abort();
   return malloc_usable_size(ptr);
 }
 
 
 void alaska::service::swap_in(alaska::Mapping *m) {
+  abort();
   return;
 }
 
-pthread_t anchorage_barrier_thread;
-pthread_t anchorage_logger_thread;
-static void *barrier_thread_fn(void *) {
-  alaska_thread_state.escaped = 1;
-  while (1) {
-    usleep(10 * 1000);
-    auto start = alaska_timestamp();
-    alaska::barrier::begin();
-    auto end = alaska_timestamp();
-    printf("barrier in %lf ms\n", (end - start) / 1000.0 / 1000.0);
-    alaska::barrier::end();
-    // Swap the spaces and switch to waiting.
-    // anchorage::Chunk::swap_spaces();
-  }
-  return NULL;
-}
-
-
 
 void alaska::service::init(void) {
+  alaska::register_service(the_service);
 }
 
 void alaska::service::deinit(void) {
@@ -57,21 +73,25 @@ void alaska::service::deinit(void) {
 
 
 void alaska::service::alloc(alaska::Mapping *ent, size_t new_size) {
+  abort();
   // Realloc handles the logic for us. (If the first arg is NULL, it just allocates)
   ent->set_pointer(realloc(ent->get_pointer(), new_size));
 }
 
 // free `ent->ptr` which was previously allocated by the service.
 void alaska::service::free(alaska::Mapping *ent) {
+  abort();
   ::free(ent->get_pointer());
   ent->reset();
 }
 
 void alaska::service::barrier(void) {
+  abort();
   // Do nothing.
 }
 
 
 extern void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
+  abort();
   // do nothing
 }

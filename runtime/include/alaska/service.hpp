@@ -24,15 +24,18 @@ namespace alaska {
 
     virtual ~Service() = default;
 
+    ///////////////////////
 
     // `alloc` in this context acts as both a malloc and a realloc call. If `ent->ptr` is
     // non-null, it is a realloc request. If it is null, it is a malloc request.
     // Whatever the implementation does, ent->ptr must be valid (and at least `new_size` bytes long)
     // when this function returns. `ent->size` must also be updated.
-    virtual void alloc(alaska::Mapping *ent, size_t new_size) = 0;
+    // Returns false if it could not allocate.
+    virtual bool alloc(alaska::Mapping *ent, size_t new_size) = 0;
 
     // free `ent->ptr` which was previously allocated by the service.
-    virtual void free(alaska::Mapping *ent) = 0;
+    // Should always return true.
+    virtual bool free(alaska::Mapping *ent) = 0;
 
 
     // Ask the service how big a handle is. This is to save space
@@ -41,15 +44,42 @@ namespace alaska {
     virtual ssize_t usable_size(alaska::Mapping *ent) = 0;
 
     // If a handle was marked as swapped out, swap it in.
-    virtual void swap_in(alaska::Mapping *ent) = 0;
+    virtual bool swap_in(alaska::Mapping *ent) {
+      return false;
+    }
+
+    ///////////////////////
 
     inline auto name(void) {
       return m_name;
     }
 
+    inline void set_id(int id) {
+      m_id = id;
+    }
+
+    inline int id(void) {
+      return m_id;
+    }
+
    private:
+    int m_id;  // Initialized when the service is allocated
     const char *m_name;
   };
+
+
+  // Register a service with the runtime. The `default` parameter is only used if another service
+  // has already been allocated. If yes, it will override the current default.
+  // Note: we require that the service lives for the entire lifetime of the application.
+  //       Or, it that it will not be freed.
+  void register_service(Service &, bool isDefault = false);
+
+  // Lookup a service
+  Service &get_service(const char *name);
+  Service &get_service(alaska::Mapping *handle);
+
+  // Request the default service. This should never fail.
+  Service &get_default_service(void);
 
 
 
@@ -58,9 +88,6 @@ namespace alaska {
   // the runtime, and must be implemented by some bit of code in the relevant `services/$service`
   // folder in order to successfully compile.
   namespace service {
-
-
-
 
     // Initialize whatever state the service needs.
     extern void init(void);

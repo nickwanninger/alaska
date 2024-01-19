@@ -40,6 +40,9 @@ set(SRC_FILES
 	core/barrier.cpp
 	core/glue.cpp # Stuff to support a nostdlibc++ environment
 
+
+  core/service.cpp
+
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
 	core/compat.c
