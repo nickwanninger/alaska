@@ -63,7 +63,6 @@ add_llvm_library(Alaska MODULE
 	passes/Escape.cpp
 	passes/TranslatePass.cpp
 	passes/Replacement.cpp
-	passes/LinkLibrary.cpp
 	passes/Lower.cpp
 	passes/PlaceSafepoints.cpp
   passes/ArgumentTrace.cpp

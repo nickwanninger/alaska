@@ -77,16 +77,6 @@ class AlaskaReplacementPass : public llvm::PassInfoMixin<AlaskaReplacementPass> 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
-class AlaskaLinkLibraryPass : public llvm::PassInfoMixin<AlaskaLinkLibraryPass> {
- public:
-  const char *lib_path = NULL;
-  llvm::GlobalValue::LinkageTypes linkage;
-  AlaskaLinkLibraryPass(const char *lib_path,
-      llvm::GlobalValue::LinkageTypes linkage = llvm::GlobalValue::WeakAnyLinkage);
-  void prepareLibrary(llvm::Module &M);
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
-};
-
 
 class AlaskaLowerPass : public llvm::PassInfoMixin<AlaskaLowerPass> {
  public:
