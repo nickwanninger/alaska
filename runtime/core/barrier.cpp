@@ -188,74 +188,6 @@ static bool might_be_handle(void* possible_handle) {
 
 static ck::mutex dump_lock;
 
-// static Transition most_recent_transition(void) {
-//   unw_cursor_t cursor;
-//   unw_context_t uc;
-//   unw_word_t pc;
-//
-//   unw_getcontext(&uc);
-//   unw_init_local(&cursor, &uc);
-//   while (1) {
-//     int res = unw_step(&cursor);
-//     if (res == 0) {
-//       break;
-//     }
-//     if (res < 0) {
-//       printf("unknown libunwind error! %d\n", res);
-//       abort();
-//     }
-//     unw_get_reg(&cursor, UNW_REG_IP, &pc);
-//
-//     if (pin_map.contains(pc)) return Transition::Managed;
-//     if (block_rets.contains(pc)) return Transition::Unmanaged;
-//   }
-//
-//   return Transition::Managed;
-// }
-
-
-static bool in_might_block_function(uintptr_t start_addr) {
-  void* buffer[512];
-
-  int depth = backtrace(buffer, 512);
-  dump_lock.lock();
-  bool found_start = false;
-  for (int i = 0; i < depth; i++) {
-    auto addr = (uintptr_t)buffer[i];
-    if (addr == start_addr) {
-      found_start = true;
-    }
-    if (!found_start) continue;
-
-    const char* msg = "\e[33m(unmanaged)\e[0m";
-
-    for (auto [start, end] : managed_blob_text_regions) {
-      if (addr >= start && addr < end) {
-        // red
-        msg = "\e[31m(managed)\e[0m";
-        break;
-      }
-    }
-    if (pin_map.contains(addr)) {
-      // green
-      msg = "\e[32m(managed)\e[0m";
-    }
-
-    printf("%016lx %s\n", buffer[i], msg);
-  }
-  printf("\n");
-
-  dump_lock.unlock();
-
-
-  for (int i = 0; i < depth; i++) {
-    if (block_rets.contains((uintptr_t)buffer[i])) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 void alaska::barrier::get_locked(ck::set<void*>& out) {
   unw_cursor_t cursor;
@@ -349,18 +281,6 @@ void dump_thread_states(void) {
 
 
 void alaska::barrier::begin(void) {
-  // Pseudocode:
-  //
-  // function begin():
-  //   patch();
-  //   while not everyone_joined():
-  //      usleep(n);
-  //      for thread in threads:
-  //        if not thread->joined:
-  //          signal(thread);
-  //   synch();
-
-
   // Take locks so nobody else tries to signal a barrier.
   pthread_mutex_lock(&barrier_lock);
   pthread_mutex_lock(&all_threads_lock);
@@ -390,7 +310,6 @@ void alaska::barrier::begin(void) {
   int retries = 0;
   int signals_sent = 0;
 
-  // printf("\n");
   // Make sure the threads that are in unmanaged (library) code get signalled.
   while (true) {
     bool sent_signal = false;
@@ -451,15 +370,13 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       // we need to return back to the thread so it can hit a poll.
 
 
-      // // First, though, we need to wait for the patches to be done.
+      // First, though, we need to wait for the patches to be done.
       // while (!patches_done) {
       // }
       //
       // for (auto [start, end] : managed_blob_text_regions) {
       //   __builtin___clear_cache((char*)start, (char*)end);
       // }
-      // printf("ManagedUntracked!\n");
-      // printf("EEP %p %d!\n", return_address, sig);
       return;
 
     case StackState::ManagedTracked:
@@ -527,20 +444,20 @@ static void clear_pending_signals(void) {
 
 
 static void segfault_handler(int signal_number) {
-    printf("Segmentation fault caught. Dumping backtrace:\n");
+  printf("Segmentation fault caught. Dumping backtrace:\n");
 
-    void *backtrace_array[10];
-    size_t size = backtrace(backtrace_array, 10);
-    char **symbols = backtrace_symbols(backtrace_array, size);
+  void* backtrace_array[10];
+  size_t size = backtrace(backtrace_array, 10);
+  char** symbols = backtrace_symbols(backtrace_array, size);
 
-    for (size_t i = 0; i < size; ++i) {
-        printf("\e[31m%s\e[0m\n", symbols[i]);
-    }
+  for (size_t i = 0; i < size; ++i) {
+    printf("\e[31m%s\e[0m\n", symbols[i]);
+  }
 
-    free(symbols);
+  free(symbols);
 
-    // You can add additional handling or exit the program here if necessary
-    exit(EXIT_FAILURE);
+  // You can add additional handling or exit the program here if necessary
+  exit(EXIT_FAILURE);
 }
 
 
@@ -700,8 +617,6 @@ void alaska_blob_init(struct alaska_blob_config* cfg) {
   auto patch_page = (void*)((uintptr_t)cfg->code_start & ~0xFFF);
   size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
   mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
-
-  // printf("%p %p\n", cfg->code_start, cfg->code_end);
 
   if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }
