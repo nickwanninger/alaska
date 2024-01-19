@@ -36,8 +36,6 @@ std::vector<llvm::CallBase *> collectCalls(llvm::Module &M, const char *name) {
 
 bool collectOffsets(GetElementPtrInst *gep, const DataLayout &DL, unsigned BitWidth,
     std::unordered_map<Value *, APInt> &VariableOffsets, APInt &ConstantOffset) {
-  // assert(BitWidth == dl.getindexsizeinbits(gp.getpointeraddressspace()) &&
-  //      "The offset bit width does not match DL specification.");
 
   auto CollectConstantOffset = [&](APInt Index, uint64_t Size) {
     Index = Index.sextOrTrunc(BitWidth);
@@ -74,13 +72,13 @@ bool collectOffsets(GetElementPtrInst *gep, const DataLayout &DL, unsigned BitWi
     }
 
     if (STy) {
-      // errs()<<"Found gep value which is  struct type and not a constant\n";
       return false;
     }
+
     if (ScalableType) {
-      // errs()<<"Found gep value which is  vector type and is not a constant\n";
       return false;
     }
+
     APInt IndexedSize = APInt(BitWidth, DL.getTypeAllocSize(GTI.getIndexedType()));
     // Insert an initial offset of 0 for V iff none exists already, then
     // increment the offset by IndexedSize.
@@ -99,7 +97,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   std::set<llvm::Instruction *> to_delete;
 
   llvm::DataLayout DL(&M);
-  // auto bitWidth = 8;  // I think. (64 bit)
 
   // Lower GC rooting.
   if (auto func = M.getFunction("alaska.safepoint_poll")) {
@@ -112,9 +109,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   // Lower alaska.root
   for (auto *call : collectCalls(M, "alaska.root")) {
     IRBuilder<> b(call);  // insert after the call
-                          //
-    // auto cast = b.CreateAddrSpaceCast(call->getArgOperand(0), PointerType::get(M.getContext(),
-    // 0)); call->replaceAllUsesWith(cast);
     call->replaceAllUsesWith(call->getArgOperand(0));
     to_delete.insert(call);
     if (auto *invoke = dyn_cast<llvm::InvokeInst>(call)) {
@@ -131,8 +125,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
     auto translateFunc = M.getOrInsertFunction("alaska_translate", func->getFunctionType());
     auto translateEscapeFunc =
         M.getOrInsertFunction("alaska_translate_escape", func->getFunctionType());
-    // auto translateFuncUnCond =
-    //     M.getOrInsertFunction("alaska_translate_uncond", func->getFunctionType());
 
     for (auto *call : collectCalls(M, "alaska.translate")) {
       IRBuilder<> b(call);  // insert after the call
@@ -160,8 +152,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   // Lower alaska.release
   for (auto call : collectCalls(M, "alaska.release")) {
     to_delete.insert(call);
-    // IRBuilder<> b(call);  // insert after the call
-    // b.CreateLifetimeEnd(call->getArgOperand(0));
   }
 
   // Lower alaska.derive
@@ -172,20 +162,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
                           //
     auto base = call->getArgOperand(0);
     auto offset = dyn_cast<llvm::GetElementPtrInst>(call->getArgOperand(1));
-
-    // std::unordered_map<Value *, APInt> varOffs;
-    // APInt constOff;
-    // if (collectOffsets(offset, DL, bitWidth, varOffs, constOff)) {
-    //   alaska::println("offsets for: ", *offset);
-    //   alaska::println("const: ", constOff);
-    //   alaska::println(" vars:");
-    //   for (auto &[k, v] : varOffs) {
-    //     alaska::println("      ", v, " bytes from ", *k);
-    //   }
-    // } else {
-    //   alaska::println("Nothing for ", *offset);
-    // }
-
 
     std::vector<llvm::Value *> inds(offset->idx_begin(), offset->idx_end());
     auto gep = b.CreateGEP(offset->getSourceElementType(), base, inds, "", offset->isInBounds());
@@ -204,7 +180,5 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
   }
 #endif
 
-
-  // errs() << M << "\n";
   return PreservedAnalyses::none();
 }
