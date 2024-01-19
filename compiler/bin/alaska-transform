@@ -25,7 +25,6 @@ parser.add_argument('--disable-inlining', action='store_true')
 
 args = parser.parse_args()
 
-print(args)
 
 if args.output is None:
   args.output = args.input
