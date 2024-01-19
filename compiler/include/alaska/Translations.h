@@ -7,6 +7,9 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Instructions.h"
 
+#include <set>
+#include <unordered_set>
+
 namespace alaska {
 
   // alaska::Translation: an internal representation of an invocation of alaska_translate,

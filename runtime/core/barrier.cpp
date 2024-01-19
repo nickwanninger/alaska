@@ -403,7 +403,6 @@ void alaska::barrier::begin(void) {
     }
     if (!sent_signal) break;
     usleep(1000);  // lazy optimization
-    retries++;
   }
 
 
@@ -411,6 +410,8 @@ void alaska::barrier::begin(void) {
   alaska::barrier::get_locked(locked);  // TODO: slow!
   participant_join(true, locked);
 
+  (void)retries;
+  (void)signals_sent;
   auto end = alaska_timestamp();
   // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
   // dump_thread_states();

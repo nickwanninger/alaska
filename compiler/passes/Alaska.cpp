@@ -2,7 +2,6 @@
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
 #include <alaska/Translations.h>
-#include <ct/Pass.hpp>
 #include <alaska/Passes.h>
 #include <alaska/PlaceSafepoints.h>  // Stolen from LLVM
 
@@ -183,10 +182,8 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 
 
 template <typename T>
-auto adapt(T &&fp) {
-  FunctionPassManager FPM;
-  FPM.addPass(std::move(fp));
-  return createModuleToFunctionPassAdaptor(std::move(FPM));
+static auto adapt(T &&fp) {
+  return llvm::createModuleToFunctionPassAdaptor(std::move(fp));
 }
 
 
@@ -231,7 +228,9 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(TranslationPrinterPass());
 #endif
-            MPM.addPass(adapt(PlaceSafepointsPass()));
+            printf("================================================\n\n\n");
+            MPM.addPass(llvm::PlaceSafepointsPass());
+            printf("================================================\n\n\n");
             MPM.addPass(PinTrackingPass());
             return true;
           }

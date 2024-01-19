@@ -58,7 +58,7 @@ namespace llvm {
 
   class PlaceSafepointsPass : public PassInfoMixin<PlaceSafepointsPass> {
    public:
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
     bool runImpl(Function &F, const TargetLibraryInfo &TLI);
 

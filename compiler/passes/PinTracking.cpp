@@ -23,9 +23,8 @@ using namespace llvm;
 // all the effects a safepoint might have which we ignored in the abstract
 // machine model for purposes of optimization.  We have to strip these on
 // both function declarations and call sites.
-static constexpr Attribute::AttrKind FnAttrsToStrip[] = {Attribute::AttrKind::ArgMemOnly,
-    Attribute::AttrKind::ReadNone, Attribute::AttrKind::ReadOnly, Attribute::AttrKind::NoSync,
-    Attribute::AttrKind::NoFree, Attribute::AllocSize};
+static constexpr Attribute::AttrKind FnAttrsToStrip[] = {
+    Attribute::Memory, Attribute::NoSync, Attribute::NoFree};
 
 // Create new attribute set containing only attributes which can be transferred
 // from original call to the safepoint.
@@ -257,7 +256,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         gcArgs.push_back(trackSet);
       }
 
-      Optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+      std::optional<ArrayRef<Value *>> deoptArgs(gcArgs);
 
       auto called = call->getCalledOperand();
       int patch_size = 0;
