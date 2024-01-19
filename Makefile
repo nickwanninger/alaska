@@ -4,11 +4,17 @@
 MAKEFLAGS += --no-print-directory
 
 
+
 ROOT=$(shell pwd)
 export PATH:=$(ROOT)/local/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
 
 -include .config
+
+
+
+LLVM_VERSION=$(shell echo ${ALASKA_LLVM_VERSION})
+LLVM=llvm-${LLVM_VERSION}
 
 BUILD=build
 
@@ -78,8 +84,6 @@ docker:
 
 
 
-# LLVM_VERSION=17.0.6
-# LLVM_VERSION=16.0.4
 deps: local/bin/gclang local/bin/clang
 
 
@@ -87,14 +91,12 @@ local/bin/gclang: .config
 	tools/build_gclang.sh
 
 
-LLVM=llvm-${ALASKA_LLVM_VERSION}
 
-# Compile clang into local/bin/clang. This *requires* local/bin/ar
-local/bin/clang: .config deps/llvm-build/Makefile
+local/bin/clang: .config | deps/${LLVM}-build/Makefile
 	$(MAKE) -C deps/${LLVM}-build
 	$(MAKE) -C deps/${LLVM}-build install
 
-deps/llvm-build/Makefile: deps/llvm
+deps/${LLVM}-build/Makefile: | deps/${LLVM}
 	mkdir -p deps/${LLVM}-build
 	cd deps/${LLVM}-build && cmake ../${LLVM}/llvm                              \
 		-DCMAKE_BUILD_TYPE=Release                                          \
@@ -103,11 +105,11 @@ deps/llvm-build/Makefile: deps/llvm
 		-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"
 		# -DLLVM_BINUTILS_INCDIR="$(ROOT)/local/include"
 
-deps/llvm:
+deps/${LLVM}:
 	mkdir -p deps
-	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(ALASKA_LLVM_VERSION)/llvm-project-$(ALASKA_LLVM_VERSION).src.tar.xz
+	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(LLVM_VERSION)/llvm-project-$(LLVM_VERSION).src.tar.xz
 	tar xvf deps/llvm.tar.xz -C deps/
-	mv deps/llvm-project-$(ALASKA_LLVM_VERSION).src deps/${LLVM}
+	mv deps/llvm-project-$(LLVM_VERSION).src deps/${LLVM}
 
 
 
