@@ -45,8 +45,7 @@ PreservedAnalyses AlaskaArgumentTracePass::run(Module &M, ModuleAnalysisManager 
     }
 
 
-    atEntry.CreateCall(trackFunctionType, trackFunction,
-        args);  // {nameGlobal, ConstantInt::get(Type::getInt32Ty(ctx), 0)});
+    atEntry.CreateCall(trackFunctionType, trackFunction, args);
   }
   return PreservedAnalyses::all();
 }

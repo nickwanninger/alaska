@@ -57,17 +57,12 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       continue;
     }
 
-
-    auto start = alaska::timestamp();
     if (hoist) {
       alaska::insertHoistedTranslations(F);
     } else {
       alaska::println("Not hoisting in ", F.getName());
       alaska::insertConservativeTranslations(F);
     }
-    auto end = alaska::timestamp();
-    (void)(end - start);
-
 
 
     if (verifyFunction(F, &errs())) {
@@ -77,15 +72,8 @@ PreservedAnalyses AlaskaTranslatePass::run(Module &M, ModuleAnalysisManager &AM)
       if (l.size() > 0) {
         alaska::printTranslationDot(F, l);
       }
-      // errs() << F << "\n";
       exit(EXIT_FAILURE);
     }
-
-
-
-
-    // printf("%s,%f\n", F.getName().data(), (end - start) / 1000.0 / 100.0);
-    // exit(-1);
   }
 
   return PreservedAnalyses::none();

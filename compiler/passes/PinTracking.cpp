@@ -101,10 +101,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     // Extract all the translations from the function
     auto translations = alaska::extractTranslations(F);
 
-    alaska::println(F.getName(), "\t", translations.size());
-    // If the function had no translations, don't do anything
-    // if (translations.empty()) continue;
-
     // The set of translations that *must* be translated.
     std::set<alaska::Translation *> mustTrack;
     // A set of all
@@ -156,21 +152,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       }
     }
 
-    // auto tsz = translations.size();
-    // auto msz = mustTrack.size();
-    // if (tsz > 0) {
-    //   printf("%30s %4zu %4zu ", F.getName().data(), tsz, msz);
-    //
-    //   for (size_t i = 0; i < tsz; i++) {
-    //     if (i >= msz) {
-    //       printf(".");
-    //     } else {
-    //       printf("#");
-    //     }
-    //   }
-    //   printf("\n");
-    // }
-
     // Given a translation, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> pin_cell_ids;
     // Interference - a mapping from translations to the translations it is alive along side of.
@@ -217,10 +198,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       pin_cell_ids[tr] = available_cell;
     }
 
-    // long ind = 0;
-    // for (auto tr : mustTrack) {
-    //   pin_cell_ids[tr] = ind++;
-    // }
 
     llvm::AllocaInst *trackSet = NULL;
 
@@ -239,11 +216,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       auto cell = CreateGEP(M.getContext(), b, arrayType, trackSet, ind, "");
       auto handle = tr->getHandle();
       b.CreateStore(handle, cell, false);
-
-      // for (auto rel : tr->releases) {
-      //   b.SetInsertPoint(rel->getNextNode());
-      //   b.CreateStore(Constant::getNullValue(pointerType), cell, false);
-      // }
     }
 
 
@@ -272,7 +244,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
 
-      // continue;
 
 
       llvm::CallBase *token;
@@ -306,11 +277,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         b.SetInsertPoint(&*trampoline->getFirstInsertionPt());
         b.SetCurrentDebugLocation(invoke->getDebugLoc());
 
-        // BasicBlock *unwindBlock = invoke->getUnwindDest();
-        // b.SetInsertPoint(&*unwindBlock->getFirstInsertionPt());
-        // b.SetCurrentDebugLocation(invoke->getDebugLoc());
-        // Instruction *exceptionalToken = unwindBlock->getLandingPadInst();
-        // result.
         if (!call->getType()->isVoidTy()) {
           auto result = b.CreateGCResult(token, call->getType());
           result->setAttributes(AttributeList::get(result->getContext(), AttributeList::ReturnIndex,
@@ -364,10 +330,6 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
     if (verifyFunction(F, &errs())) {
       errs() << "Function verification failed!\n";
       errs() << F.getName() << "\n";
-      // auto l = alaska::extractTranslations(F);
-      // if (l.size() > 0) {
-      //   alaska::printTranslationDot(F, l);
-      // }
       errs() << F << "\n";
       exit(EXIT_FAILURE);
     }

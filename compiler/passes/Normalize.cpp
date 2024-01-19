@@ -8,72 +8,6 @@
 using namespace llvm;
 
 
-// static bool callsSelf(llvm::Function &F) {
-//   for (auto user : F.users()) {
-//     if (auto call = dyn_cast<CallInst>(user)) {
-//       if (call->getFunction() == &F) {
-//         return true;
-//       }
-//     }
-//   }
-//   return false;
-// }
-//
-//
-//
-// static bool callbackDevirtualize(llvm::Function &F) {
-//   std::set<llvm::Argument *> calledArguments;
-//
-//   // Are any of the arguments called as a function?
-//   for (auto &A : F.args()) {
-//     for (auto user : A.users()) {
-//       if (auto call = dyn_cast<CallInst>(user)) {
-//         if (call->getCalledOperand() == &A) {
-//           calledArguments.insert(&A);
-//         }
-//       }
-//     }
-//   }
-//
-//   if (calledArguments.size() == 0) {
-//     return false;
-//   }
-//
-//   if (calledArguments.size() != 1) {
-//     alaska::println(
-//         "don't know what to do with multiple argument devirtualization in ", F.getName());
-//     return false;
-//   }
-//
-//   alaska::println("might be interested in devirtualizing ", F.getName());
-//   if (callsSelf(F)) {
-//     alaska::println("It is self recursive");
-//   }
-//   for (auto *arg : calledArguments) {
-//     alaska::println(" - ", *arg);
-//     for (auto user : arg->users()) {
-//       if (auto call = dyn_cast<CallInst>(user)) {
-//         if (call->getCalledOperand() == arg) {
-//           alaska::println("   ", *call);
-//         }
-//       }
-//     }
-//   }
-//
-//
-//   alaska::println("Callers:");
-//   for (auto user : F.users()) {
-//     if (auto call = dyn_cast<CallInst>(user)) {
-// 			if (call->getFunction() != &F && call->getCalledOperand() == &F) {
-// 				alaska::println(*call);
-// 			}
-//     }
-//   }
-//
-//   return true;
-// }
-
-
 // Compute parent and type for instructions before inserting them into the trace.
 class NormalizeVisitor : public llvm::InstVisitor<NormalizeVisitor> {
  public:
@@ -170,9 +104,5 @@ llvm::PreservedAnalyses AlaskaNormalizePass::run(llvm::Module &M, llvm::ModuleAn
   for (auto &F : M)
     normalizeSelects(F);
 
-	// // Attempt to inline callbacks. The main drive for this is to reduce the overhead of calling
- //  for (auto &F : M) {
- //    callbackDevirtualize(F);
- //  }
   return PreservedAnalyses::none();
 }

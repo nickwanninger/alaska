@@ -17,8 +17,6 @@
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
-#include "llvm/IR/PassTimingInfo.h"
-#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/SCCPSolver.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
@@ -28,25 +26,11 @@
 #include <noelle/core/CallGraph.hpp>
 #include <noelle/core/MetadataManager.hpp>
 
-// C++ includes
-#include <cassert>
-#include <set>
-#include <optional>
-
 
 #include <noelle/core/DGBase.hpp>
 
 
 
-class PrintPassThing : public llvm::PassInfoMixin<PrintPassThing> {
- public:
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    for (auto &F : M) {
-      errs() << F << "\n";
-    }
-    return PreservedAnalyses::all();
-  }
-};
 
 
 static bool print_progress = true;
@@ -74,27 +58,6 @@ class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
 
 
 double ProgressPass::progress_start = 0.0;
-
-
-class PrintyPass : public llvm::PassInfoMixin<PrintyPass> {
- public:
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
-    for (auto &F : M) {
-      if (verifyFunction(F, &errs())) {
-        errs() << "Function verification failed!\n";
-        errs() << F.getName() << "\n";
-        auto l = alaska::extractTranslations(F);
-        if (l.size() > 0) {
-          alaska::printTranslationDot(F, l);
-        }
-        errs() << F << "\n";
-        exit(EXIT_FAILURE);
-      }
-      if (F.getName() == "inc") alaska::println(F);
-    }
-    return PreservedAnalyses::all();
-  }
-};
 
 
 class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> {
@@ -127,7 +90,6 @@ std::vector<llvm::Value *> getAllValues(llvm::Module &M) {
   std::vector<llvm::Value *> vals;
 
   for (auto &F : M) {
-    // vals.push_back(&F);
     if (F.empty()) continue;
     for (auto &arg : F.args())
       vals.push_back(&arg);
@@ -228,9 +190,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 #ifdef ALASKA_DUMP_TRANSLATIONS
             MPM.addPass(TranslationPrinterPass());
 #endif
-            printf("================================================\n\n\n");
             MPM.addPass(llvm::PlaceSafepointsPass());
-            printf("================================================\n\n\n");
             MPM.addPass(PinTrackingPass());
             return true;
           }
