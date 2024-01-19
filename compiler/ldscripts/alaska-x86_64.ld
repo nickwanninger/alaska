@@ -154,6 +154,7 @@ SECTIONS
   .got.plt        : { *(.got.plt) *(.igot.plt) }
   .data           :
   {
+    *(.llvm_stackmaps)
     *(.data .data.* .gnu.linkonce.d.*)
     SORT(CONSTRUCTORS)
   }
