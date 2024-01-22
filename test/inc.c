@@ -11,7 +11,7 @@ __attribute__((noinline)) static volatile int *inc(volatile int *x) {
 }
 
 int main(int argc, char **argv) {
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 0x2000; i++) {
     int *p = malloc(sizeof(*p));
     *p = 4;
     printf("%zx\n", (uint64_t)p);
