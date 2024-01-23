@@ -22,6 +22,8 @@
 
 
 
+#define abort()
+
 class NoneService : public alaska::Service {
  public:
   NoneService(void)

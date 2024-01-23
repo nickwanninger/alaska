@@ -14,13 +14,11 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <ck/vec.h>
 
 // This file contains the implementation of the creation and management of the
 // handle translation  It abstracts the management of the table's backing
 // memory through a get/put interface to allocate and free handle mappings.
-
-#define MAP_ENTRY_SIZE sizeof(alaska::Mapping)
-#define MAP_GRANULARITY 0x1000LU * MAP_ENTRY_SIZE
 
 // A lock on the table itself.
 // TODO: how do we make this atomic? Can we even?
@@ -38,41 +36,70 @@ static alaska::Mapping *next_free = NULL;
 // When bump allocating, grab from here and increment it.
 static alaska::Mapping *bump_next = NULL;
 
-
+static long num_extents = 0;
+static alaska::table::Extent **extents = NULL;
 
 // grow the table by a factor of 2
 static void alaska_table_grow() {
-  size_t oldbytes = table_size * MAP_ENTRY_SIZE;
+  printf("Grow!\n");
+  size_t oldbytes = table_size * sizeof(alaska::Mapping);
   size_t newbytes = oldbytes * 2;
 
   if (table_memory == NULL) {
-    newbytes = MAP_GRANULARITY;
-    // TODO: use hugetlbfs or something similar
+    newbytes = alaska::table::map_granularity;
     table_memory = (alaska::Mapping *)mmap((void *)TABLE_START, newbytes, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
   } else {
     table_memory = (alaska::Mapping *)mremap(table_memory, oldbytes, newbytes, 0, table_memory);
   }
 
+
   if (table_memory == MAP_FAILED) {
     fprintf(stderr, "could not resize table!\n");
     abort();
   }
   // newsize is now the number of entries
-  size_t newsize = newbytes / MAP_ENTRY_SIZE;
+  size_t newsize = newbytes / sizeof(alaska::Mapping);
+
 
   // Update the bump allocator to point to the new data.
   bump_next = &table_memory[table_size];
   table_nfree += (newsize - table_size);
   // update the total size
   table_size = newsize;
+  // Update the extents.
+  long new_num_extents = newsize / alaska::table::handles_per_extent;
+
+
+  extents =
+      (alaska::table::Extent **)realloc(extents, new_num_extents * sizeof(alaska::table::Extent *));
+  for (long e = num_extents; e < new_num_extents; e++) {
+    auto ext = new alaska::table::Extent(*(bump_next + (e * alaska::table::handles_per_extent)));
+    printf("create extent %ld, %p\n", e, ext);
+    extents[e] = ext;
+  }
+
+  num_extents = new_num_extents;
 }
+
+
+
+static void dump_extents(void) {
+  for (long e = 0; e < num_extents; e++) {
+    auto *ext = extents[e];
+    printf(" - %p a:%4d f:%4d\n", ext, ext->num_alloc(), ext->num_free());
+  }
+}
+
+
 
 
 // allocate a table entry
 alaska::Mapping *alaska::table::get(void) {
   pthread_mutex_lock(&table_lock);
   alaska::Mapping *ent = NULL;
+
+  printf("table_nfree = %zu\n", table_nfree);
 
   if (table_nfree == 0 || bump_next >= table_memory + table_size) {
     alaska_table_grow();
@@ -91,6 +118,9 @@ alaska::Mapping *alaska::table::get(void) {
 
   // Clear the entry.
   ent->reset();
+  auto ext = alaska::table::get_extent(ent);
+  ext->allocated(ent);
+  dump_extents();
 
   pthread_mutex_unlock(&table_lock);
   return ent;
@@ -104,6 +134,10 @@ void alaska::table::put(alaska::Mapping *ent) {
   table_nfree++;
   // Update the free list
   ent->set_next(next_free);
+  auto ext = alaska::table::get_extent(ent);
+  ext->freed(ent);
+  dump_extents();
+
   next_free = ent;
   pthread_mutex_unlock(&table_lock);
 }
@@ -126,3 +160,35 @@ alaska::Mapping *alaska::table::begin(void) {
 alaska::Mapping *alaska::table::end(void) {
   return bump_next;
 }
+
+
+
+
+bool alaska::table::Extent::contains(alaska::Mapping *ent) {
+  return ent >= start_mapping() and ent < start_mapping() + alaska::table::handles_per_extent;
+}
+
+
+void alaska::table::Extent::allocated(alaska::Mapping *ent) {
+  m_num_free--;
+}
+
+void alaska::table::Extent::freed(alaska::Mapping *ent) {
+  m_num_free++;
+}
+
+alaska::table::Extent *alaska::table::get_extent(alaska::Mapping *ent) {
+  ALASKA_ASSERT(ent != NULL, "Mapping must not be null");
+  uint64_t index = (uint64_t)ent - (uint64_t)alaska::table::begin();
+
+  printf("index = %zx\n", index);
+  index /= sizeof(alaska::Mapping);
+  printf("        %zx\n", index);
+  index /= alaska::table::handles_per_extent;
+  printf("        %zx\n", index);
+
+  auto *ext = extents[index];
+  ALASKA_ASSERT(ext->contains(ent), "Nonsense extent map");
+  return ext;
+}
+
