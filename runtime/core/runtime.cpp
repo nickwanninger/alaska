@@ -16,8 +16,6 @@
 #include "alaska/utils.h"
 #include <ck/vec.h>
 
-#include <assert.h>
-#include <errno.h>
 #include <execinfo.h>
 #include <fcntl.h>
 #include <malloc.h>
@@ -62,6 +60,11 @@ extern "C" void alaska_argtrack(char* name, uint64_t nargs, ...) {
 
 
   va_end(ap);
+}
+
+void *alaska::ensure_present(alaska::Mapping *ent) {
+  printf("Ensure present %p\n", ent);
+  return NULL;
 }
 
 long alaska::translation_hits = 0;

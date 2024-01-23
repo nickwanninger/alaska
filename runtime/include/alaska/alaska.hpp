@@ -22,8 +22,12 @@
 
 namespace alaska {
 
+  class Mapping;
+
   extern long translation_hits;
   extern long translation_misses;
+
+  void *ensure_present(alaska::Mapping *);
 
   class Mapping {
    private:
@@ -42,11 +46,12 @@ namespace alaska {
     // Return the pointer. If it is free, return NULL
     ALASKA_INLINE void *get_pointer(void) {
 #ifdef ALASKA_SWAP_SUPPORT
-      // If swapping is enabled, the top bit will be set, so we need to check that
-      if (unlikely(alt.swap)) {
+
+      int64_t bits = (int64_t)ptr;
+      if (unlikely(bits < 0)) {
         // Ask the runtime to "swap" the object back in. We blindly assume that
         // this will succeed for performance reasons.
-        return alaska_ensure_present(m);
+        return alaska::ensure_present(this);
       }
 #endif
       return ptr;
