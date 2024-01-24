@@ -8,9 +8,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/ADT/SparseBitVector.h"
 #include <noelle/core/DataFlow.hpp>
-
-
-
+#include "llvm/Analysis/MemoryLocation.h"
+#include "llvm/IR/TypedPointerType.h"  // Hack.
+#include "llvm/Support/raw_ostream.h"
 
 // Either get the `incoming` of this node or the node it shares with, or the parent's
 // translated
@@ -32,8 +32,7 @@ llvm::Instruction *get_incoming_translated_value(alaska::TranslationForest::Node
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   alaska::TranslationForest::Node &node;
   TranslationVisitor(alaska::TranslationForest::Node &node)
-      : node(node) {
-  }
+      : node(node) {}
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     // Simply insert an `alaska.derive` function right after `I`
@@ -169,9 +168,273 @@ static llvm::Instruction *compute_translation_insertion_location(
 
 
 alaska::TranslationForest::TranslationForest(llvm::Function &F)
-    : func(F) {
+    : func(F) {}
+
+
+static bool type_reduces_into(llvm::Type *t, llvm::StructType *st) {
+  if (st->getNumElements() == 0) {
+    return false;
+  }
+  auto firstType = st->getElementType(0);
+
+  if (firstType == t) {
+    return true;
+  }
+
+  if (auto ost = dyn_cast<StructType>(firstType)) {
+    return type_reduces_into(t, ost);
+  }
+
+  return false;
 }
 
+
+
+
+// namespace alaska {
+//   // A thin wrapper around LLVM's type system that
+//   // allows us to emulate having typed pointers.
+//   class Type {
+//    public:
+//     virtual ~Type() = 0;
+//     virtual void print(llvm::raw_ostream &out) = 0;
+//     virtual bool isPointer(void) { return false; }
+//     virtual bool isPrimitive(void) { return false; }
+//
+//     virtual llvm::Type *internal(void) = 0;
+//
+//    protected:
+//     virtual Type *clone(void) = 0;
+//   };
+//
+//
+//   class PointerType : public alaska::Type {
+//    public:
+//     PointerType(alaska::Type &t)
+//         : m_internal(t.clone()) {}
+//     virtual ~PointerType() = default;
+//
+//    private:
+//     std::unique_ptr<alaska::Type> m_internal;
+//   };
+//
+//
+// }  // namespace alaska
+
+
+
+
+namespace alaska {
+
+  class TypedPointer : public llvm::Type {
+    explicit TypedPointer(llvm::Type *ElType, unsigned AddrSpace = 0);
+
+    llvm::Type *PointeeTy;
+
+   public:
+    TypedPointer(const TypedPointer &) = delete;
+    TypedPointer &operator=(const TypedPointer &) = delete;
+
+    /// This constructs a pointer to an object of the specified type in a numbered
+    /// address space.
+    static TypedPointer *get(Type *ElementType);
+
+    /// Return true if the specified type is valid as a element type.
+    static bool isValidElementType(Type *ElemTy);
+
+    /// Return the address space of the Pointer type.
+    unsigned getAddressSpace() const { return getSubclassData(); }
+
+    llvm::Type *getElementType() const { return PointeeTy; }
+
+    /// Implement support type inquiry through isa, cast, and dyn_cast.
+    static bool classof(const llvm::Type *T) { return T->getTypeID() == TypedPointerTyID; }
+  };
+};  // namespace alaska
+
+
+
+alaska::TypedPointer *alaska::TypedPointer::get(Type *EltTy) {
+  static llvm::DenseMap<std::pair<LLVMContext *, llvm::Type *>, alaska::TypedPointer *>
+      cachedTypedPointers;
+
+  assert(EltTy && "Can't get a pointer to <null> type!");
+  assert(isValidElementType(EltTy) && "Invalid type for pointer element!");
+  auto *&Entry = cachedTypedPointers[std::make_pair(&EltTy->getContext(), EltTy)];
+
+  if (!Entry) Entry = new alaska::TypedPointer(EltTy);
+  return Entry;
+}
+
+alaska::TypedPointer::TypedPointer(Type *E, unsigned AddrSpace)
+    : Type(E->getContext(), TypedPointerTyID)
+    , PointeeTy(E) {
+  ContainedTys = &PointeeTy;
+  NumContainedTys = 1;
+  setSubclassData(AddrSpace);
+}
+
+bool alaska::TypedPointer::isValidElementType(Type *ElemTy) {
+  return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() && !ElemTy->isMetadataTy() &&
+         !ElemTy->isTokenTy() && !ElemTy->isX86_AMXTy();
+}
+
+
+
+
+class PointerTypeFacts : public llvm::InstVisitor<PointerTypeFacts> {
+ public:
+  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+    use(I.getPointerOperand(), I.getSourceElementType());
+  }
+
+  void visitLoadInst(llvm::LoadInst &I) {
+    // The pointer operand must be a pointer to the type of the result of the load.
+    use(I.getPointerOperand(), alaska::TypedPointer::get(I.getType()));
+  }
+
+  void visitStoreInst(llvm::StoreInst &I) {
+    // The pointer operand must be a poitner to the type of the value stored to memory
+    use(I.getPointerOperand(), alaska::TypedPointer::get(I.getValueOperand()->getType()));
+  }
+
+
+
+  void dump(void) {
+    for (auto &[val, fact] : m_facts) {
+      alaska::println("fact for ", *val);
+      if (fact.has_value()) {
+        llvm::Type *t = fact.value();
+        if (t) {
+          alaska::println("   type = ", *t);
+        } else {
+          alaska::println("   Multiple Types. Invalid");
+        }
+      } else {
+        alaska::println("   Unknown");
+      }
+    }
+  }
+
+ private:
+  // Record that an llvm value, `val` was used as type `type`
+  void use(llvm::Value *val, llvm::Type *type) {
+    alaska::println("use ", *val);
+    alaska::println(" as ", *rype);
+    auto &fact = m_facts[val];
+    if (!fact.has_value()) {
+      // if there is not yet a fact about this value, adopt the new one.
+      fact = type;
+    } else {
+      // Otherwise, unify the facts we already have. This may return NULL if it cannot be unified
+      fact = unify(fact.value_or(nullptr), type);
+    }
+  }
+
+  std::optional<llvm::Type *> unify(llvm::Type *a, llvm::Type *b) {
+    if (a == NULL || b == NULL) return b;
+
+    alaska::println("unify ", *a, " and ", *b);
+    return {};
+  }
+
+
+
+  std::map<llvm::Value *, std::optional<llvm::Type *>> m_facts;
+};
+
+void shape_test(llvm::Value *val) {
+  std::set<llvm::Type *> types;
+
+  llvm::MDNode *tbaa = NULL;
+
+  PointerTypeFacts facts;
+
+  for (auto user : val->users()) {
+    if (auto inst = dyn_cast<Instruction>(user)) {
+      facts.visit(inst);
+      auto AAMD = inst->getAAMetadata();
+
+      if (AAMD.TBAAStruct) {
+        alaska::println("AAMD.TBAAStruct = ", *AAMD.TBAAStruct);
+      }
+      if (AAMD.TBAA) {
+        alaska::println("AAMD.TBAA = ", *AAMD.TBAA);
+        if (tbaa == NULL) {
+          tbaa = AAMD.TBAA;
+        } else {
+          tbaa = llvm::MDNode::getMostGenericTBAA(tbaa, AAMD.TBAA);
+        }
+      }
+    }
+
+
+    if (auto load = dyn_cast<LoadInst>(user)) {
+      if (load->getPointerOperand() == val) {
+        types.insert(load->getType());
+      }
+    }
+
+    if (auto store = dyn_cast<StoreInst>(user)) {
+      if (store->getPointerOperand() == val) {
+        types.insert(store->getValueOperand()->getType());
+      }
+    }
+
+
+    if (auto gep = dyn_cast<GetElementPtrInst>(user)) {
+      if (gep->getPointerOperand() == val) {
+        types.insert(gep->getSourceElementType());
+      }
+    }
+  }
+
+
+  if (tbaa) {
+    alaska::println("Generic TBAA = ", *tbaa);
+  }
+
+  std::set<llvm::Type *> reduced_types;
+
+  alaska::print("   types: ");
+  for (auto type : types) {
+    alaska::print(*type, ", ");
+  }
+  alaska::println();
+
+
+  for (auto it = types.begin(); it != types.end();) {
+    auto type = *it;
+    types.erase(it++);
+    bool reduced_away = true;
+
+    // if the type is a struct type, it won't get reduced.
+    if (isa<llvm::StructType>(type)) {
+      reduced_away = false;
+    } else {
+      for (auto other : types) {
+        if (other == type) continue;
+        if (auto structType = dyn_cast<llvm::StructType>(other)) {
+          if (!type_reduces_into(type, structType)) {
+            reduced_away = false;
+          }
+        }
+      }
+    }
+
+    if (!reduced_away) {
+      reduced_types.insert(type);
+    }
+  }
+
+  alaska::print(" reduced: ");
+  for (auto type : types) {
+    alaska::println(*type, ", ");
+  }
+  alaska::println();
+
+  alaska::println();
+}
 
 
 
@@ -184,6 +447,29 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   llvm::DominatorTree DT(func);
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
+
+  if (true and func.getName() == "test") {
+    alaska::println("FUNC ", func.getName(), " ===============");
+    PointerTypeFacts facts;
+    facts.visit(func);
+    alaska::println("\e[31mBEFORE:");
+    facts.dump();
+    alaska::println("\e[0m");
+
+    // facts.reduce();
+    //
+    // alaska::println("\e[32mAFTER:");
+    // facts.dump();
+    // alaska::println("\e[0m");
+    // alaska::println("FUNC ", func.getName(), " ===============");
+    //
+    // // alaska::println(func);
+    // for (auto *node : G.get_nodes()) {
+    //   if (node->type == alaska::NodeType::Source && alaska::shouldTranslate(node->value)) {
+    //     shape_test(node->value);
+    //   }
+    // }
+  }
 
   // The nodes which have no in edges that it post dominates
   std::set<alaska::FlowNode *> temp_roots;
