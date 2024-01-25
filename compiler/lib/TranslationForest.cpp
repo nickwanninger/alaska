@@ -12,6 +12,10 @@
 #include "llvm/IR/TypedPointerType.h"  // Hack.
 #include "llvm/Support/raw_ostream.h"
 
+
+#include <alaska/OptimisticTypes.h>
+
+
 // Either get the `incoming` of this node or the node it shares with, or the parent's
 // translated
 llvm::Instruction *get_incoming_translated_value(alaska::TranslationForest::Node &node) {
@@ -171,212 +175,6 @@ alaska::TranslationForest::TranslationForest(llvm::Function &F)
     : func(F) {}
 
 
-namespace alaska {
-  class TypedPointer : public llvm::Type {
-    explicit TypedPointer(llvm::Type *ElType, unsigned AddrSpace = 0);
-
-    llvm::Type *PointeeTy;
-
-   public:
-    TypedPointer(const TypedPointer &) = delete;
-    TypedPointer &operator=(const TypedPointer &) = delete;
-
-    /// This constructs a pointer to an object of the specified type in a numbered
-    /// address space.
-    static TypedPointer *get(Type *ElementType);
-
-    /// Return true if the specified type is valid as a element type.
-    static bool isValidElementType(Type *ElemTy);
-
-    /// Return the address space of the Pointer type.
-    unsigned getAddressSpace() const { return getSubclassData(); }
-
-    llvm::Type *getElementType() const { return PointeeTy; }
-
-    /// Implement support type inquiry through isa, cast, and dyn_cast.
-    static bool classof(const llvm::Type *T) { return T->getTypeID() == TypedPointerTyID; }
-  };
-};  // namespace alaska
-
-
-
-
-static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
-  if (auto *pt = dyn_cast<llvm::PointerType>(tolift)) {
-    if (isa<llvm::PointerType>(into) || isa<alaska::TypedPointer>(into)) {
-      return true;
-    }
-    return false;
-  }
-
-  if (auto *st = dyn_cast<llvm::StructType>(into)) {
-    if (st->getNumElements() == 0) {
-      return false;
-    }
-    auto firstType = st->getElementType(0);
-
-    if (firstType == tolift) {
-      return true;
-    }
-
-    if (auto ost = dyn_cast<StructType>(firstType)) {
-      return type_lifts_into(tolift, ost);
-    }
-
-    return false;
-  }
-  return false;
-}
-
-
-
-
-alaska::TypedPointer *alaska::TypedPointer::get(Type *EltTy) {
-  static llvm::DenseMap<std::pair<LLVMContext *, llvm::Type *>, alaska::TypedPointer *>
-      cachedTypedPointers;
-
-  assert(EltTy && "Can't get a pointer to <null> type!");
-  assert(isValidElementType(EltTy) && "Invalid type for pointer element!");
-  auto *&Entry = cachedTypedPointers[std::make_pair(&EltTy->getContext(), EltTy)];
-
-  if (!Entry) Entry = new alaska::TypedPointer(EltTy);
-  return Entry;
-}
-
-alaska::TypedPointer::TypedPointer(Type *E, unsigned AddrSpace)
-    : Type(E->getContext(), TypedPointerTyID)
-    , PointeeTy(E) {
-  ContainedTys = &PointeeTy;
-  NumContainedTys = 1;
-  setSubclassData(AddrSpace);
-}
-
-bool alaska::TypedPointer::isValidElementType(Type *ElemTy) {
-  return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() && !ElemTy->isMetadataTy() &&
-         !ElemTy->isTokenTy() && !ElemTy->isX86_AMXTy();
-}
-
-
-
-
-class PointerTypeFacts : public llvm::InstVisitor<PointerTypeFacts> {
- public:
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
-    use(I.getPointerOperand(), alaska::TypedPointer::get(I.getSourceElementType()));
-  }
-
-  void visitLoadInst(llvm::LoadInst &I) {
-    // The pointer operand must be a pointer to the type of the result of the load.
-    use(I.getPointerOperand(), alaska::TypedPointer::get(I.getType()));
-  }
-
-  void visitStoreInst(llvm::StoreInst &I) {
-    auto stored = I.getValueOperand();
-
-    // If the value is a pointer...
-    if (stored->getType()->isPointerTy()) {
-      // If we know anything about the value operand (if it was a, say, T*)
-      // then the pointer operand must be of type T**
-      auto t = m_facts[stored];
-      if (t != NULL) {
-        use(I.getPointerOperand(), alaska::TypedPointer::get(t));
-      }
-    } else {
-      // Otherwise...
-      // The pointer operand must be a poitner to the type of the value stored to memory
-      use(I.getPointerOperand(), alaska::TypedPointer::get(stored->getType()));
-    }
-  }
-
-
-  void prop(void) {
-    for (auto [val, fact] : m_facts) {
-      // If we know the type of the result of a load, the address we are loading from must be a
-      // pointer to the type of the load itself.
-      if (auto load = dyn_cast<LoadInst>(val)) {
-        auto t = fact == NULL ? NULL : alaska::TypedPointer::get(fact);
-        use(load->getPointerOperand(), t);
-      }
-
-
-      if (auto phi = dyn_cast<PHINode>(val)) {
-        for (auto &u : phi->incoming_values()) {
-          use(u.get(), fact);  // use the value as the same pointer that the phi is used as.
-        }
-      }
-    }
-  }
-
-  void reduce(llvm::Function &F) {
-    do {
-      changed = false;
-      visit(F);
-      prop();
-    } while (changed);
-  }
-
-  void dump(void) {
-    for (auto &[val, fact] : m_facts) {
-      alaska::println(*val);
-      if (fact) {
-        alaska::print("\e[32m");
-        alaska::println("    ", *fact);
-        alaska::print("\e[0m");
-      } else {
-        alaska::print("\e[31m");
-        alaska::println("    NO INFORMATION");
-        alaska::print("\e[0m");
-      }
-    }
-  }
-
- private:
-  // The way this is represented is as a mapping from a value to the type we think it is.
-  // If the type is NULL, then we don't know anything about this value yet.
-  // if the type is a PointerType, then we cannot make any more decisions, and unification will
-  // usually fail. This usually occurs if a pointer is used as two types that don't make sense
-  // together.
-  std::map<llvm::Value *, llvm::Type *> m_facts;
-  bool changed;
-
-
-  // Record that an llvm value, `val` was used as type `type`
-  void use(llvm::Value *val, llvm::Type *type) {
-    auto old = m_facts[val];
-    m_facts[val] = unify(old, type);
-    if (old != m_facts[val]) changed = true;
-  }
-
-  llvm::Type *unify(llvm::Type *oldType, llvm::Type *newType) {
-    // If the oldType is null (we didn't know anything yet) return the newType as the only
-    // information.
-    if (oldType == NULL) return newType;
-    if (newType == NULL) return oldType;
-    if (oldType == newType) return newType;
-
-    // Make sure that both types are pointers. If not, return an untyped `ptr` to signify
-    // ``failure''.
-    auto tOld = dyn_cast<alaska::TypedPointer>(oldType);
-    auto tNew = dyn_cast<alaska::TypedPointer>(newType);
-    if (tOld == NULL || tNew == NULL) {
-      // Just return a `ptr` from the context.
-      return llvm::PointerType::get(oldType->getContext(), 0);
-    }
-
-    auto innerOld = tOld->getElementType();
-    auto innerNew = tNew->getElementType();
-
-
-    if (type_lifts_into(innerOld, innerNew)) return newType;
-    if (type_lifts_into(innerNew, innerOld)) return oldType;
-
-    // dunno.
-    return llvm::PointerType::get(oldType->getContext(), 0);
-  }
-};
-
-
-PointerTypeFacts facts;
 
 
 std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::apply(void) {
@@ -389,11 +187,17 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
 
+  if (func.getName() == "reverse") {
+    errs() << func << "\n";
+    alaska::OptimisticTypes ot;
+    alaska::println("=============================================");
+    ot.analyze(func);
 
-  facts.reduce(func);
+    alaska::println("=============================================");
+    ot.dump();
+  }
 
-  facts.dump();
-  alaska::println();
+
 
   // The nodes which have no in edges that it post dominates
   std::set<alaska::FlowNode *> temp_roots;
