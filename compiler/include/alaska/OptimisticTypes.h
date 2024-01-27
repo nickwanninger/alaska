@@ -13,7 +13,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/Support/raw_ostream.h"
+
+#include <alaska/LatticePoint.h>
 #include <alaska/Utils.h>
 #include <vector>
 #include <map>
@@ -24,101 +25,6 @@
  */
 
 namespace alaska {
-
-  enum class PointType { Overdefined, Defined, Underdefined };
-  // TODO: move to a new header
-  template <typename StateT>
-  class LatticePoint {
-   public:
-    LatticePoint() = default;
-    LatticePoint(PointType type, StateT state = {})
-        : type(type)
-        , m_state(state) {
-      if (state == NULL) {
-        ALASKA_SANITY(!is_defined(), "DIE");
-      } else {
-        ALASKA_SANITY(is_defined(), "DIE2");
-      }
-    }
-
-    virtual ~LatticePoint() = default;
-
-    inline bool is_defined(void) const { return type == PointType::Defined; }
-    inline bool is_overdefined(void) const { return type == PointType::Overdefined; }
-    inline bool is_underdefined(void) const { return type == PointType::Underdefined; }
-    inline auto get_type(void) const { return type; }
-
-    void set_state(StateT state) {
-      m_state = state;
-      type = PointType::Defined;
-    }
-    StateT get_state(void) const {
-      ALASKA_SANITY(is_defined(), "Must be defined to call get_state()");
-      return m_state;
-    }
-
-
-    inline void set_overdefined(void) {
-      this->m_state = {};
-      this->type = PointType::Overdefined;
-    }
-    inline void set_underdefined(void) {
-      this->m_state = {};
-      this->type = PointType::Underdefined;
-    }
-
-    // Return true if the point changed.
-    virtual bool meet(const LatticePoint<StateT> &incoming) = 0;
-    virtual bool join(const LatticePoint<StateT> &incoming) = 0;
-
-
-    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const LatticePoint<StateT> &LP) {
-      if (LP.is_underdefined()) {
-        os << "⊥";
-      } else if (LP.is_overdefined()) {
-        os << "⊤";
-      } else {
-        os << " " << *LP.get_state();
-      }
-      return os;
-    }
-
-   private:
-    PointType type = PointType::Underdefined;
-    StateT m_state = {};
-  };
-
-
-
-
-  class TypedPointer : public llvm::Type {
-    explicit TypedPointer(llvm::Type *ElType, unsigned AddrSpace = 0);
-
-    llvm::Type *PointeeTy;
-
-   public:
-    TypedPointer(const TypedPointer &) = delete;
-    TypedPointer &operator=(const TypedPointer &) = delete;
-
-    /// This constructs a pointer to an object of the specified type in a numbered
-    /// address space.
-    static TypedPointer *get(llvm::Type *ElementType);
-
-    /// Return true if the specified type is valid as a element type.
-    static bool isValidElementType(llvm::Type *ElemTy);
-
-    /// Return the address space of the Pointer type.
-    unsigned getAddressSpace() const { return getSubclassData(); }
-
-    llvm::Type *getElementType() const { return PointeeTy; }
-
-    /// Implement support type inquiry through isa, cast, and dyn_cast.
-    static bool classof(const llvm::Type *T) { return T->getTypeID() == TypedPointerTyID; }
-  };
-
-
-
-
   class OTLatticePoint : public LatticePoint<llvm::Type *> {
    public:
     using Base = LatticePoint<llvm::Type *>;

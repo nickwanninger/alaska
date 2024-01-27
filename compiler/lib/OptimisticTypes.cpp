@@ -1,7 +1,6 @@
 #include <alaska/OptimisticTypes.h>
-#include "llvm/IR/LLVMContext.h"
 #include <alaska/Utils.h>
-
+#include <alaska/TypedPointer.h>
 
 alaska::OptimisticTypes::OptimisticTypes(llvm::Function &F) { analyze(F); }
 
@@ -199,31 +198,4 @@ bool alaska::OTLatticePoint::meet(const OTLatticePoint::Base &in) {
 bool alaska::OTLatticePoint::join(const OTLatticePoint::Base &incoming) {
   // Nothing.
   return false;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-alaska::TypedPointer *alaska::TypedPointer::get(Type *EltTy) {
-  static llvm::DenseMap<std::pair<llvm::LLVMContext *, llvm::Type *>, alaska::TypedPointer *>
-      cachedTypedPointers;
-
-  assert(EltTy && "Can't get a pointer to <null> type!");
-  assert(isValidElementType(EltTy) && "Invalid type for pointer element!");
-  auto *&Entry = cachedTypedPointers[std::make_pair(&EltTy->getContext(), EltTy)];
-
-  if (!Entry) Entry = new alaska::TypedPointer(EltTy);
-  return Entry;
-}
-
-alaska::TypedPointer::TypedPointer(Type *E, unsigned AddrSpace)
-    : Type(E->getContext(), TypedPointerTyID)
-    , PointeeTy(E) {
-  ContainedTys = &PointeeTy;
-  NumContainedTys = 1;
-  setSubclassData(AddrSpace);
-}
-
-bool alaska::TypedPointer::isValidElementType(Type *ElemTy) {
-  return !ElemTy->isVoidTy() && !ElemTy->isLabelTy() && !ElemTy->isMetadataTy() &&
-         !ElemTy->isTokenTy() && !ElemTy->isX86_AMXTy();
 }
