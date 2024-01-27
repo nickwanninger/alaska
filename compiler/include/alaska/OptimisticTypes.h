@@ -16,7 +16,6 @@
 
 #include <alaska/LatticePoint.h>
 #include <alaska/Utils.h>
-#include <vector>
 #include <map>
 
 /**
