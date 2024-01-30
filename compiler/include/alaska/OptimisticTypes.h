@@ -42,16 +42,24 @@ namespace alaska {
 
 
     void analyze(llvm::Function &F);
-    // void analyze(llvm::Module &M); // TODO
+    void analyze(llvm::Module &M);
     void dump();
 
     OTLatticePoint get_lattice_point(llvm::Value *v);
 
    protected:
+
+    
+    // Take a function, and ingest all values into m_types. This will 
+    // *not* call reach_fixed_point().
+    void ingest_function(llvm::Function &F);
+
+    void reach_fixed_point(void);
     friend llvm::InstVisitor<OptimisticTypes>;
     void visitGetElementPtrInst(llvm::GetElementPtrInst &I);
     void visitLoadInst(llvm::LoadInst &I);
     void visitStoreInst(llvm::StoreInst &I);
+    void visitAllocaInst(llvm::AllocaInst &I);
 
     void use(llvm::Value *v, llvm::Type *t);
 

@@ -187,18 +187,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   llvm::PostDominatorTree PDT(func);
   llvm::LoopInfo loops(DT);
 
-  if (func.getName() == "reverse") {
-    errs() << func << "\n";
-    alaska::OptimisticTypes ot;
-    alaska::println("=============================================");
-    ot.analyze(func);
-
-    alaska::println("=============================================");
-    ot.dump();
-  }
-
-
-
   // The nodes which have no in edges that it post dominates
   std::set<alaska::FlowNode *> temp_roots;
 

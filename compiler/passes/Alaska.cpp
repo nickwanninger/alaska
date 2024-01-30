@@ -4,6 +4,7 @@
 #include <alaska/Translations.h>
 #include <alaska/Passes.h>
 #include <alaska/PlaceSafepoints.h>  // Stolen from LLVM
+#include <alaska/OptimisticTypes.h>
 
 // LLVM includes
 #include <llvm/Pass.h>
@@ -32,7 +33,6 @@
 
 
 
-
 static bool print_progress = true;
 class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
  public:
@@ -40,8 +40,7 @@ class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
 
   const char *message = NULL;
   ProgressPass(const char *message)
-      : message(message) {
-  }
+      : message(message) {}
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     double now = alaska::time_ms();
     if (progress_start == 0) {
@@ -143,6 +142,25 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 
 
 
+class OptimisticTypesPass : public llvm::PassInfoMixin<OptimisticTypesPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
+      if (F.empty()) continue;
+      errs() << F << "\n";
+
+      alaska::OptimisticTypes ot;
+      ot.analyze(F);
+      ot.dump();
+    }
+
+    // It does nothing.
+    return PreservedAnalyses::all();
+  }
+};
+
+
+
 template <typename T>
 static auto adapt(T &&fp) {
   return llvm::createModuleToFunctionPassAdaptor(std::move(fp));
@@ -173,6 +191,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
           REGISTER("alaska-replace", AlaskaReplacementPass);
           if (name == "alaska-translate") {
+            MPM.addPass(OptimisticTypesPass());
             MPM.addPass(AlaskaTranslatePass(true));
             return true;
           }

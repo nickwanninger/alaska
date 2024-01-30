@@ -6,6 +6,19 @@ alaska::OptimisticTypes::OptimisticTypes(llvm::Function &F) { analyze(F); }
 
 
 void alaska::OptimisticTypes::analyze(llvm::Function &F) {
+  ingest_function(F);
+  reach_fixed_point();
+}
+
+void alaska::OptimisticTypes::analyze(llvm::Module &M) {
+  for (auto &F : M) {
+    ingest_function(F);
+  }
+  reach_fixed_point();
+}
+
+
+void alaska::OptimisticTypes::ingest_function(llvm::Function &F) {
   // TODO: what if this function affects the types in another function? (ret type)
   this->visit(F);
 
@@ -30,8 +43,9 @@ void alaska::OptimisticTypes::analyze(llvm::Function &F) {
       setUnderDefined(&I);
     }
   }
+}
 
-  // Fixed point gizmo
+void alaska::OptimisticTypes::reach_fixed_point(void) {
   bool changed;
   do {
     changed = false;
@@ -118,6 +132,10 @@ void alaska::OptimisticTypes::visitStoreInst(llvm::StoreInst &I) {
   auto stored = I.getValueOperand();
   // The pointer operand must be a pointer to the type of the value stored to memory
   use(I.getPointerOperand(), alaska::TypedPointer::get(stored->getType()));
+}
+
+void alaska::OptimisticTypes::visitAllocaInst(llvm::AllocaInst &I) {
+  use(&I, alaska::TypedPointer::get(I.getAllocatedType()));
 }
 
 
