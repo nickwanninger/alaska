@@ -2,6 +2,80 @@
 #include <alaska/Utils.h>
 #include <alaska/TypedPointer.h>
 
+
+
+// #define DEBUGLN(...) alaska::println(__VA_ARGS__)
+#define DEBUGLN(...)
+
+static void get_deep_struct_element_types_r(llvm::Type *t, std::vector<llvm::Type *> &out) {
+  if (auto st = dyn_cast<llvm::StructType>(t)) {
+    for (auto el : st->elements()) {
+      get_deep_struct_element_types_r(el, out);
+    }
+  } else {
+    out.push_back(t);
+  }
+}
+
+static std::vector<llvm::Type *> get_deep_struct_element_types(llvm::StructType *st) {
+  std::vector<llvm::Type *> out;
+  get_deep_struct_element_types_r(st, out);
+  return out;
+}
+
+
+
+static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
+  DEBUGLN("lift check: ", *tolift, " | ", *into);
+  if (auto tlTP = dyn_cast<alaska::TypedPointer>(tolift)) {
+    if (auto intoTP = dyn_cast<alaska::TypedPointer>(into)) {
+      return type_lifts_into(tlTP->getElementType(), intoTP->getElementType());
+    }
+  }
+
+  // if `tolift` is a vector type, and `into` is a struct, we need to check if the
+  // first `n` fields of the struct are that type. If not, we cannot lift.
+  if (auto vec = dyn_cast_or_null<llvm::VectorType>(tolift)) {
+    if (auto intoStruct = dyn_cast_or_null<StructType>(into)) {
+      DEBUGLN("can ", *vec, " lift into ", *into);
+      // Extrac the deep struct types from this structure
+      auto types = get_deep_struct_element_types(intoStruct);
+      auto elcount = vec->getElementCount();
+      // If the vector could be referencing the first N elements of the struct,
+      // it can be lifted into the struct type. Otherwise strict aliasing was violated.
+      if (elcount.isVector() && elcount.getFixedValue() <= types.size()) {
+        for (unsigned int i = 0; i < elcount.getFixedValue(); i++) {
+          if (types[i] != vec->getElementType()) return false;
+        }
+        return true;
+      }
+    }
+    return false;  // No dice.
+  }
+
+
+  if (auto *pt = dyn_cast<llvm::PointerType>(tolift)) {
+    DEBUGLN("tolift is a pointer");
+    if (isa<llvm::PointerType>(into) || isa<alaska::TypedPointer>(into)) {
+      DEBUGLN("into is also a pointer");
+      return true;
+    }
+    // return false;
+  }
+
+  if (auto *st = dyn_cast<llvm::StructType>(into)) {
+    DEBUGLN("into is a struct");
+    if (st->getNumElements() == 0) {
+      return false;
+    }
+    auto firstType = st->getElementType(0);
+    return type_lifts_into(tolift, firstType);
+  }
+  return false;
+}
+
+
+
 alaska::OptimisticTypes::OptimisticTypes(llvm::Function &F) { analyze(F); }
 
 
@@ -50,6 +124,8 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
   do {
     changed = false;
 
+    DEBUGLN("==============================================================");
+
     for (auto &[p, lp] : m_types) {
       for (auto &use : p->uses()) {
         // TODO: fixme :)
@@ -58,11 +134,42 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
         auto *user = use.getUser();
 
         if (auto load = dyn_cast<llvm::LoadInst>(user)) {
+          // if the user is a load...
+          // and the pointer operand is p...
+          // and the type of the load is a pointer...
+          // then the result of the load needs to be
           if (load->getPointerOperand() == p && load->getType()->isPointerTy()) {
             auto t = get_lattice_point(load);
+            DEBUGLN("\e[31mload ", t, " lp=", lp, "\e[0m");
+            DEBUGLN("p = ", *p);
+            DEBUGLN("inst = ", *load);
             if (t.is_defined()) {
-              temp.set_state(alaska::TypedPointer::get(t.get_state()));
-              changed |= lp.meet(temp);
+              // There is a little extra work we have to do here, unfortunately.
+              // Because the clang developers are lazy people, they often omit a
+              // GEP if you are loading from the first field of a structure.
+              // Therefore, if we see that the result of this load is some T,
+              // the source pointer must be a T*. However, If lp is a typed
+              // pointer to a struct, where the first field is a T, then we
+              // should *not* meet it with a T*. This nonsense is only needed
+              // because if a load is a phi with itself and another pointer,
+              // it will always become ⊤, as there is no GEP to assign the type
+              // T* to.
+              bool do_meet = true;
+              if (type_lifts_into(lp.get_state(), t.get_state())) {
+                do_meet = false;
+              } else if (auto tp = dyn_cast<alaska::TypedPointer>(lp.get_state())) {
+                if (auto st = dyn_cast<llvm::StructType>(tp->getElementType())) {
+                  auto types = get_deep_struct_element_types(st);
+                  // if the first type can lift into t's state, don't meet.
+                  if (type_lifts_into(types[0], t.get_state())) {
+                    do_meet = false;
+                  }
+                }
+              }
+              if (do_meet) {
+                temp.set_state(alaska::TypedPointer::get(t.get_state()));
+                changed |= lp.meet(temp);
+              }
             }
           }
         }
@@ -89,6 +196,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
 
 
 void alaska::OptimisticTypes::use(llvm::Value *v, llvm::Type *t) {
+  DEBUGLN("use ", *v, " as ", *t);
   auto found = m_types.find(v);
 
   auto lp = OTLatticePoint(PointType::Defined, t);
@@ -114,8 +222,8 @@ alaska::OTLatticePoint alaska::OptimisticTypes::get_lattice_point(llvm::Value *v
 
 void alaska::OptimisticTypes::dump(void) {
   for (auto &[p, lp] : m_types) {
-    llvm::errs() << "value \e[32m" << *p << "\e[0m\n";
-    llvm::errs() << " type \e[34m" << lp << "\e[0m\n";
+    llvm::errs() << "value \e[32m" << *p << "\e[0m\n :: \e[34m" << lp << "\e[0m\n";
+    // llvm::errs() << " uses \e[34m" << p->getNumUses() << "\e[0m\n";
   }
 }
 
@@ -139,58 +247,32 @@ void alaska::OptimisticTypes::visitAllocaInst(llvm::AllocaInst &I) {
 }
 
 
-static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
-  if (auto tlTP = dyn_cast<alaska::TypedPointer>(tolift)) {
-    if (auto intoTP = dyn_cast<alaska::TypedPointer>(into)) {
-      return type_lifts_into(tlTP->getElementType(), intoTP->getElementType());
-    }
-  }
-  if (auto *pt = dyn_cast<llvm::PointerType>(tolift)) {
-    if (isa<llvm::PointerType>(into) || isa<alaska::TypedPointer>(into)) {
-      return true;
-    }
-    return false;
-  }
-
-  if (auto *st = dyn_cast<llvm::StructType>(into)) {
-    if (st->getNumElements() == 0) {
-      return false;
-    }
-    auto firstType = st->getElementType(0);
-
-    if (firstType == tolift) {
-      return true;
-    }
-
-    if (auto ost = dyn_cast<llvm::StructType>(firstType)) {
-      return type_lifts_into(tolift, ost);
-    }
-
-    return false;
-  }
-  return false;
-}
-
-
 bool alaska::OTLatticePoint::meet(const OTLatticePoint::Base &in) {
+  DEBUGLN("Meet: ", *this, " and ", in);
   // Can't do anything if this point is already overdefined
-  if (this->is_overdefined()) return false;
+  if (this->is_overdefined()) {
+    DEBUGLN("already overdefined.\n");
+    return false;
+  }
 
 
   // If the incoming value is overdefined, we are also overdefined
   if (in.is_overdefined()) {
+    DEBUGLN("in is overdefined. become overdefined\n");
     set_overdefined();
     return true;  // We changed.
   }
 
   // If the incoming is underdefined, we don't update
   if (in.is_underdefined()) {
+    DEBUGLN("in is underdefined. no change\n");
     // no change. The incoming point can provide us with no information
     return false;
   }
 
   // If we are underdefined and in is defined, then just meet that state.
   if (this->is_underdefined()) {
+    DEBUGLN("We are underdefined, become in\n");
     set_state(in.get_state());
     return true;
   }
@@ -199,18 +281,29 @@ bool alaska::OTLatticePoint::meet(const OTLatticePoint::Base &in) {
   ALASKA_SANITY(in.get_state() != NULL, "Incoming state is null");
 
   // No change if 'in' is equal to us
-  if (in.get_state() == this->get_state()) return false;
+  if (in.get_state() == this->get_state()) {
+    DEBUGLN("equal. Do nothing.\n");
+    return false;
+  }
+
 
   // If our state can be lifted into their state...
+  DEBUGLN("checking case A");
   if (type_lifts_into(this->get_state(), in.get_state())) {
     // ... become their state
     set_state(in.get_state());
-  } else {
-    set_overdefined();
     return true;
   }
 
-  return false;
+  // DEBUGLN("checking case B");
+  if (type_lifts_into(in.get_state(), this->get_state())) {
+    DEBUGLN("reverse meets. Do nothing\n");
+    // if the incoming state can lift into ours, we should not become overdefined
+    return false;
+  }
+  DEBUGLN("Become overdefined: cannot lift\n");
+  set_overdefined();
+  return true;
 }
 
 bool alaska::OTLatticePoint::join(const OTLatticePoint::Base &incoming) {

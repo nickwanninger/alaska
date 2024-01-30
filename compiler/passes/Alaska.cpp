@@ -145,8 +145,15 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 class OptimisticTypesPass : public llvm::PassInfoMixin<OptimisticTypesPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    alaska::OptimisticTypes ot;
+    ot.analyze(M);
+    ot.dump();
+    return PreservedAnalyses::all();
+
+
     for (auto &F : M) {
       if (F.empty()) continue;
+      if (F.getName() != "test") continue;
       errs() << F << "\n";
 
       alaska::OptimisticTypes ot;
