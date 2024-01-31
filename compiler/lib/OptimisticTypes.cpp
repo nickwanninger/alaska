@@ -155,14 +155,16 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
               // it will always become ⊤, as there is no GEP to assign the type
               // T* to.
               bool do_meet = true;
-              if (type_lifts_into(lp.get_state(), t.get_state())) {
-                do_meet = false;
-              } else if (auto tp = dyn_cast<alaska::TypedPointer>(lp.get_state())) {
-                if (auto st = dyn_cast<llvm::StructType>(tp->getElementType())) {
-                  auto types = get_deep_struct_element_types(st);
-                  // if the first type can lift into t's state, don't meet.
-                  if (type_lifts_into(types[0], t.get_state())) {
-                    do_meet = false;
+              if (lp.is_defined()) {
+                if (type_lifts_into(lp.get_state(), t.get_state())) {
+                  do_meet = false;
+                } else if (auto tp = dyn_cast<alaska::TypedPointer>(lp.get_state())) {
+                  if (auto st = dyn_cast<llvm::StructType>(tp->getElementType())) {
+                    auto types = get_deep_struct_element_types(st);
+                    // if the first type can lift into t's state, don't meet.
+                    if (type_lifts_into(types[0], t.get_state())) {
+                      do_meet = false;
+                    }
                   }
                 }
               }
@@ -221,14 +223,41 @@ alaska::OTLatticePoint alaska::OptimisticTypes::get_lattice_point(llvm::Value *v
 
 
 void alaska::OptimisticTypes::dump(void) {
+  int num_def = 0;
+  int num_udef = 0;
+  int num_odef = 0;
   for (auto &[p, lp] : m_types) {
-    llvm::errs() << "value \e[32m" << *p << "\e[0m\n :: \e[34m" << lp << "\e[0m\n";
-    // llvm::errs() << " uses \e[34m" << p->getNumUses() << "\e[0m\n";
+    if (lp.is_defined()) {
+      llvm::errs() << "\e[32m";
+      num_def++;
+    }
+    if (lp.is_overdefined()) {
+      llvm::errs() << "\e[90m";
+      num_odef++;
+    }
+    if (lp.is_underdefined()) {
+      llvm::errs() << "\e[91m";
+      num_udef++;
+    }
+    llvm::errs() << *p << "\e[0m :: \e[34m" << lp << "\e[0m\n";
+    //
+    // if (lp.is_underdefined())
+    //   for (auto user : p->users()) {
+    //     llvm::errs() << "    \e[90m" << *user << "\e[0m\n";
+    //   }
   }
+
+  printf("def: %d, odef: %d, udef: %d\n", num_def, num_odef, num_udef);
 }
 
 void alaska::OptimisticTypes::visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
+  // The pointer operand is used as the type listed in the instruction.
   use(I.getPointerOperand(), alaska::TypedPointer::get(I.getSourceElementType()));
+  if (I.hasAllConstantIndices()) {
+    std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
+    auto t = llvm::GetElementPtrInst::getIndexedType(I.getSourceElementType(), inds);
+    if (t) use(&I, alaska::TypedPointer::get(t));
+  }
 }
 
 void alaska::OptimisticTypes::visitLoadInst(llvm::LoadInst &I) {
