@@ -162,7 +162,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
               if (lp.is_defined()) {
                 if (type_lifts_into(lp.get_state(), t.get_state())) {
                   do_meet = false;
-                } else if (auto tp = dyn_cast<alaska::TypedPointer>(lp.get_state())) {
+                } else if (auto tp = dyn_cast_or_null<alaska::TypedPointer>(lp.get_state())) {
                   if (auto st = dyn_cast<llvm::StructType>(tp->getElementType())) {
                     auto types = get_deep_struct_element_types(st);
                     // if the first type can lift into t's state, don't meet.
