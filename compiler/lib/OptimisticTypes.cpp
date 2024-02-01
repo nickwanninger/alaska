@@ -184,6 +184,23 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
         if (auto phi = dyn_cast<llvm::PHINode>(user)) {
           changed |= lp.meet(get_lattice_point(phi));
         }
+
+        if (auto call = dyn_cast<llvm::CallInst>(user)) {
+          auto arg_index = use.getOperandNo();
+          Function *f = call->getCalledFunction();
+          if (f) {
+            DEBUGLN(*p, " used in call ", *call, " at position ", arg_index);
+            if (arg_index <= f->getNumOperands()) {
+              auto *arg = f->getArg(arg_index);
+              if (arg) {
+                auto t = get_lattice_point(arg);
+                if (t.is_defined()) {
+                  changed |= lp.meet(t);
+                }
+              }
+            }
+          }
+        }
       }
 
 
