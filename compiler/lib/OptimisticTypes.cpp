@@ -26,6 +26,10 @@ static std::vector<llvm::Type *> get_deep_struct_element_types(llvm::StructType 
 
 
 static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
+  if (tolift == into) {
+    DEBUGLN("lift equal: ", *tolift, " | ", *into);
+    return true;
+  }
   DEBUGLN("lift check: ", *tolift, " | ", *into);
   if (auto tlTP = dyn_cast<alaska::TypedPointer>(tolift)) {
     if (auto intoTP = dyn_cast<alaska::TypedPointer>(into)) {
