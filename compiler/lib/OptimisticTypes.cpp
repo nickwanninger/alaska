@@ -131,6 +131,28 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
     DEBUGLN("==============================================================");
 
     for (auto &[p, lp] : m_types) {
+      // If p is a call instruction (it must be a pointer), meet it with all the return instruction
+      // values in the function it is calling.
+
+      if (auto call = dyn_cast<llvm::CallInst>(p)) {
+        if (call->getType()->isPointerTy()) {        // If the call is a pointer...
+          if (auto f = call->getCalledFunction()) {  // And the call is direct...
+            if (not f->empty()) {                    // And the function has a body...
+              for (auto &BB : *f) {
+                if (auto retInst = dyn_cast_or_null<llvm::ReturnInst>(BB.getTerminator())) {
+                  auto t = get_lattice_point(retInst->getReturnValue());
+                  if (t.is_defined()) {
+                    errs() << "meet " << *p << " with " << *retInst << "\n";
+                    changed |= lp.meet(t);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+
       for (auto &use : p->uses()) {
         // TODO: fixme :)
         std::vector<OTLatticePoint::Base *> incoming;
@@ -185,10 +207,17 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
           changed |= lp.meet(get_lattice_point(phi));
         }
 
+
+        if (auto freeze = dyn_cast<llvm::FreezeInst>(user)) {
+          changed |= lp.meet(get_lattice_point(freeze));
+        }
+
         if (auto call = dyn_cast<llvm::CallInst>(user)) {
           auto arg_index = use.getOperandNo();
           Function *f = call->getCalledFunction();
           if (f) {
+            // First, meet all the passed-in arguments according to the lattice
+            // points for the function's arguments
             DEBUGLN(*p, " used in call ", *call, " at position ", arg_index);
             if (arg_index <= f->getNumOperands()) {
               auto *arg = f->getArg(arg_index);
