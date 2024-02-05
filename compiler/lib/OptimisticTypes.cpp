@@ -276,6 +276,69 @@ void alaska::OptimisticTypes::dump(void) {
   int num_def = 0;
   int num_udef = 0;
   int num_odef = 0;
+  std::set<llvm::Function *> funcs;
+
+  for (auto &[p, lp] : m_types) {
+    if (auto inst = dyn_cast<llvm::Instruction>(p)) funcs.insert(inst->getFunction());
+    if (auto arg = dyn_cast<llvm::Argument>(p)) funcs.insert(arg->getParent());
+  }
+
+
+  auto dump_value = [&](llvm::Value *val) {
+    if (val->getType()->isPointerTy()) {
+      auto lp = get_lattice_point(val);
+
+      if (lp.is_defined()) {
+        llvm::errs() << "\e[32m";
+        num_def++;
+      }
+      if (lp.is_overdefined()) {
+        llvm::errs() << "\e[93m";
+        num_odef++;
+      }
+      if (lp.is_underdefined()) {
+        llvm::errs() << "\e[91m";
+        num_udef++;
+      }
+      llvm::errs() << *val << "\e[0m :: \e[34m" << lp << "\e[0m";
+    } else {
+      llvm::errs() << "\e[90m";
+      errs() << *val;
+      llvm::errs() << "\e[0m";
+    }
+  };
+
+
+
+  for (auto f : funcs) {
+    if (f->empty()) continue;
+    errs() << *f->getReturnType() << " " << f->getName() << "(\n";
+    for (auto &arg : f->args()) {
+      errs() << "   ";
+      dump_value(&arg);
+      errs() << "\n";
+    }
+    if (f->isVarArg()) {
+      errs() << "   ...\n";
+    }
+
+    errs() << ") {\n";
+
+    for (auto &BB : *f) {
+      BB.printAsOperand(errs(), false);
+      errs() << ":\n";
+      for (auto &I : BB) {
+        dump_value(&I);
+        errs() << "\n";
+      }
+      errs() << "\n";
+    }
+
+    errs() << "}\n\n";
+  }
+
+  return;
+
   for (auto &[p, lp] : m_types) {
     if (lp.is_defined()) {
       llvm::errs() << "\e[32m";
