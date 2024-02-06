@@ -1,4 +1,5 @@
 // Alaska includes
+#include "alaska/AccessAutomata.h"
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
 #include <alaska/Translations.h>
@@ -148,6 +149,16 @@ class OptimisticTypesPass : public llvm::PassInfoMixin<OptimisticTypesPass> {
     alaska::OptimisticTypes ot;
     ot.analyze(M);
     ot.dump();
+
+
+    for (auto &F : M) {
+      if (F.empty()) continue;
+      if (F.getName() != "search") continue;
+
+
+      alaska::AccessAutomata aa(F.args().begin(), ot);
+      aa.dump();
+    }
     return PreservedAnalyses::all();
 
 
