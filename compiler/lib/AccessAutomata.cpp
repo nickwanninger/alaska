@@ -24,10 +24,13 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
 
   ALASKA_SANITY(func != NULL, "Invalid object to construct Automata from");
 
-  alaska::DirectedGraph<llvm::Instruction *, int> g;
+  alaska::DirectedGraph<llvm::Instruction *, llvm::Value *> g;
+
+  llvm::Instruction *intro = nullptr;
 
   for (auto &BB : *func) {
     for (auto &I : BB) {
+      if (intro == nullptr) intro = &I;
       g.add_nodes(&I);
     }
   }
@@ -35,17 +38,18 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
 
   for (auto *inst : g) {
     if (auto next = inst->getNextNode()) {
-      int prop = 0;
-      if (auto loadInst = dyn_cast<LoadInst>(inst)) prop = 1;
-      if (auto storeInst = dyn_cast<StoreInst>(inst)) prop = 1;
+      llvm::Value *prop = 0;
+      if (auto loadInst = dyn_cast<LoadInst>(inst)) prop = loadInst->getPointerOperand();
+      if (auto storeInst = dyn_cast<StoreInst>(inst)) prop = storeInst->getPointerOperand();
       g.add_edge_with_prop(inst, next, prop);
     } else {
       auto bb = inst->getParent();
       for (auto succ : successors(bb)) {
-        g.add_edge_with_prop(inst, &succ->front(), 0);
+        g.add_edge_with_prop(inst, &succ->front(), nullptr);
       }
     }
   }
+
 
 
   bool changed;
@@ -64,11 +68,9 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
       auto inp = in_edge.prop();
       auto outp = out_edge.prop();
 
-      if (outp == 0) {
+      if (outp == NULL) {
         // cut the node out of the graph.
         changed = true;
-        g.remove_edge(in_node, inst);
-        g.remove_edge(inst, out_node);
         g.add_edge_with_prop(in_node, out_node, inp);
         toRemove.push_back(inst);
       }
@@ -82,15 +84,17 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
   } while (changed);
 
 
-
-
   alaska::println("digraph {");
   alaska::println("   compound = true;");
   for (auto &node : g)
-    alaska::println("   n", node, " [label=\"", *node, "\",shape=box];");
+    alaska::println("   n", node, " [label=\"", "\",shape=box];");
   for (auto &from : g) {
     for (auto &[to, edge] : g.outgoing(from)) {
-      alaska::println("   n", from, " -> n", to, " [label=\"", edge.prop(), "\", shape=box];");
+      alaska::print("   n", from, " -> n", to, " [label=\"");
+      if (edge.prop()) {
+        edge.prop()->printAsOperand(llvm::errs(), true);
+      }
+      alaska::println("\", shape=box];");
     }
   }
   alaska::println("}\n");
