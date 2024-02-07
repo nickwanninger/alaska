@@ -68,8 +68,25 @@ namespace alaska {
 
 
    private:
-    class Edge {};
 
-    alaska::DirectedGraph<llvm::Instruction *, Edge> g;
+    // this is the properties located at each node in the graph. It's not the
+    struct NodeProp {
+      int depth = 0;
+    };
+
+
+    struct Edge {
+      llvm::Value *accessedValue = nullptr;
+      inline operator bool(void) { return accessedValue != nullptr; }
+    };
+
+    // This graph provides an embedding of an access automata in the control
+    // flow graph of LLVM instructions. This graph is initially way too large,
+    // but is quickly reduced down to only the edges and instructions that are
+    // actually important for analysis.
+    alaska::DirectedGraph<llvm::Instruction *, Edge, NodeProp> graph;
+
+    // Helper function to return the start and end node in the graph
+    std::pair<llvm::Instruction *, llvm::Instruction *> get_start_end(void);
   };
 }  // namespace alaska
