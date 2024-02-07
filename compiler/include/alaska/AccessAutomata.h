@@ -12,6 +12,7 @@
 
 #include "llvm/IR/Value.h"
 
+#include <alaska/Graph.h>
 #include <alaska/OptimisticTypes.h>
 #include <alaska/LatticePoint.h>
 #include <alaska/Utils.h>
@@ -56,37 +57,8 @@ namespace alaska {
    *
    * This class constructs such an Automata from some root LLVM Value, then iterates over each of
    * it's uses and constructs nodes and edges.
-   *
    */
   class AccessAutomata {
-   protected:
-    struct Edge;
-
-    // A State is a node along the graph of this Automata. Nominally, each State
-    // is assocated with an llvm Instruction, and the in/out edges represent
-    // control flow edges which are labelled with field access information.
-    //
-    // The complexity
-    struct State {
-      llvm::Instruction *inst;
-      std::set<Edge*> in;
-      std::set<Edge*> out;
-
-      void add_in(const Edge &);
-      void add_out(const Edge &);
-    };
-
-    // An edge represents either zero or one field access of the
-    // object we are interested in. Edges without fields are removed
-    // later when the Automata is undergoing reduction.
-    struct Edge {
-      // This edge may be an access to a field.
-      std::optional<int> field_index;
-      // an edge is directed `from` one node `to` another.
-      State *from, *to;
-    };
-
-
    public:
     // Construct an Access Automata for a given object given an
     // optimistic type analysis.
@@ -96,17 +68,8 @@ namespace alaska {
 
 
    private:
-    State *get_state(llvm::Instruction &inst);
+    class Edge {};
 
-    std::unordered_map<llvm::Instruction *, std::unique_ptr<State>> states;
+    alaska::DirectedGraph<llvm::Instruction *, Edge> g;
   };
-
-
-
-  inline void AccessAutomata::State::add_in(const AccessAutomata::Edge &e) {
-    // in.insert(&e);
-    // e.from->out.insert(&e);
-  }
-
-  inline void AccessAutomata::State::add_out(const AccessAutomata::Edge &e) {}
 }  // namespace alaska

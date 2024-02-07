@@ -82,8 +82,10 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
     }
     toRemove.clear();  // empty the vector.
   } while (changed);
+}
 
 
+void alaska::AccessAutomata::dump(void) {
   alaska::println("digraph {");
   alaska::println("   compound = true;");
   for (auto &node : g)
@@ -91,30 +93,13 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
   for (auto &from : g) {
     for (auto &[to, edge] : g.outgoing(from)) {
       alaska::print("   n", from, " -> n", to, " [label=\"");
-      if (edge.prop()) {
-        edge.prop()->printAsOperand(llvm::errs(), true);
-      }
+
+      alaska::print("TODO");
+      // if (edge.prop()) {
+      //   edge.prop()->printAsOperand(llvm::errs(), true);
+      // }
       alaska::println("\", shape=box];");
     }
   }
   alaska::println("}\n");
 }
-
-
-
-alaska::AccessAutomata::State *alaska::AccessAutomata::get_state(llvm::Instruction &I) {
-  auto found = this->states.find(&I);
-
-  if (found == this->states.end()) {
-    // make one!
-    auto state = new State();
-    state->inst = &I;
-    states[&I] = std::unique_ptr<State>(state);
-    return state;
-  }
-
-  return found->second.get();
-}
-
-
-void alaska::AccessAutomata::dump(void) {}
