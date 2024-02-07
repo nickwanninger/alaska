@@ -12,6 +12,7 @@
 
 
 #include "./graph_lite.h"
+#include <stack>
 
 namespace alaska {
 
@@ -40,14 +41,49 @@ namespace alaska {
       return iter_wrapper<decltype(begin)>(begin, end);
     }
 
-
     auto incoming(const NodeType &n) {
       auto [begin, end] = this->in_neighbors(n);
       return iter_wrapper<decltype(begin)>(begin, end);
     }
-    // auto in(const NodeType &n) {
-    //   return iter_wrapper(in_neighbors(n));
-    // }
+
+
+
+
+    // Given a start node, produce a vector that is the depth first
+    // traversal starting from that node.
+    std::vector<NodeType> depth_first_order(NodeType start) {
+      // procedure DFS_iterative(G, v) is
+      // let S be a stack
+      // S.push(v)
+      // while S is not empty do
+      //     v = S.pop()
+      //     if v is not labeled as discovered then
+      //         label v as discovered
+      //         for all edges from v to w in G.adjacentEdges(v) do
+      //             S.push(w)
+
+      std::vector<NodeType> out;
+      std::set<NodeType> discovered;
+      std::stack<NodeType> s;
+      s.push(start);
+      while (not s.empty()) {
+        auto v = s.top();
+        s.pop();
+
+        // If v was not labeled as discovered
+        if (discovered.find(v) == discovered.end()) {
+          // label v as discovered
+          discovered.insert(v);
+          // add it to the list
+          out.push_back(v);
+
+          for (auto &[w, _] : this->outgoing(v)) {
+            s.push(w);
+          }
+        }
+      }
+      return out;
+    }
   };
 
 };  // namespace alaska
