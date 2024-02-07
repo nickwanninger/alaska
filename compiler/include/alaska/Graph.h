@@ -84,6 +84,30 @@ namespace alaska {
       }
       return out;
     }
+
+
+    std::vector<NodeType> breadth_first_order(NodeType start) {
+      std::vector<NodeType> out;
+      std::set<NodeType> explored;
+      std::queue<NodeType> Q;
+      Q.push(start);
+      explored.insert(start);
+
+      while (not Q.empty()) {
+        auto v = Q.front();
+        Q.pop();
+        out.push_back(v);
+
+        for (auto &[w, _] : this->outgoing(v)) {
+          if (explored.find(w) == explored.end()) {
+            explored.insert(w);
+            Q.push(w);
+          }
+        }
+      }
+
+      return out;
+    }
   };
 
 };  // namespace alaska
