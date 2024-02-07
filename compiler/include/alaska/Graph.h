@@ -19,10 +19,10 @@ namespace alaska {
 
   using namespace graph_lite;
 
-  template <typename NodeType = int, typename EdgeType = float>
-  class DirectedGraph : public graph_lite::Graph<NodeType, void, EdgeType, EdgeDirection::DIRECTED,
-                            MultiEdge::DISALLOWED, SelfLoop::ALLOWED, Map::UNORDERED_MAP,
-                            Container::UNORDERED_SET, Logging::DISALLOWED> {
+  template <typename NodeType, typename EdgeType, typename NodePropType = void>
+  class DirectedGraph : public graph_lite::Graph<NodeType, NodePropType, EdgeType,
+                            EdgeDirection::DIRECTED, MultiEdge::DISALLOWED, SelfLoop::ALLOWED,
+                            Map::UNORDERED_MAP, Container::UNORDERED_SET, Logging::DISALLOWED> {
    public:
     template <typename T>
     struct iter_wrapper {
