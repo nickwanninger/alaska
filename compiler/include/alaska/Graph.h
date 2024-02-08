@@ -22,7 +22,7 @@ namespace alaska {
   template <typename NodeType, typename EdgeType, typename NodePropType = void>
   class DirectedGraph : public graph_lite::Graph<NodeType, NodePropType, EdgeType,
                             EdgeDirection::DIRECTED, MultiEdge::DISALLOWED, SelfLoop::ALLOWED,
-                            Map::UNORDERED_MAP, Container::UNORDERED_SET, Logging::DISALLOWED> {
+                            Map::MAP, Container::UNORDERED_SET, Logging::DISALLOWED> {
    public:
     template <typename T>
     struct iter_wrapper {
@@ -44,6 +44,13 @@ namespace alaska {
     auto incoming(const NodeType &n) {
       auto [begin, end] = this->in_neighbors(n);
       return iter_wrapper<decltype(begin)>(begin, end);
+    }
+
+
+    EdgeType get_edge(const NodeType &a, const NodeType &b) {
+      for (auto &[n, e] : this->outgoing(a))
+        if (n == b) return e.prop();
+      abort();  // no edge!
     }
 
 
