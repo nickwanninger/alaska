@@ -13,6 +13,7 @@
 #include <alaska/Graph.h>
 
 alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTypes &OT) {
+  using namespace alaska::re;
   llvm::Function *func = nullptr;
   if (auto arg = dyn_cast<llvm::Argument>(object)) {
     func = arg->getParent();
@@ -26,10 +27,12 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
 
   llvm::Instruction *intro = nullptr;
 
+  int id = 0;
   for (auto &BB : *func) {
     for (auto &I : BB) {
       if (intro == nullptr) intro = &I;
       this->graph.add_node_with_prop(&I, NodeProp());
+      this->graph.node_prop(&I).id = id++;
     }
   }
 
@@ -41,50 +44,117 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
         prop.accessedValue = loadInst->getPointerOperand();
       if (auto storeInst = dyn_cast<StoreInst>(inst))
         prop.accessedValue = storeInst->getPointerOperand();
-      this->graph.add_edge_with_prop(inst, next, prop);
+      this->graph.add_edge_with_prop(inst, next, prop ? tok<Edge>(std::move(prop)) : nullptr);
     } else {
       auto bb = inst->getParent();
       for (auto succ : successors(bb)) {
-        this->graph.add_edge_with_prop(inst, &succ->front(), Edge() /* Empty edge */);
+        this->graph.add_edge_with_prop(inst, &succ->front(), nullptr /* Empty edge */);
       }
     }
   }
 
 
+  auto sequentialize = [](ExprPtr<Edge> a, ExprPtr<Edge> b) {
+    // If both are defined, create an alternative
+    if (a.get() and b.get()) return alaska::re::seq<Edge>({a, b});
+    return a ? a : b;
+  };
+
+  auto alternative = [](ExprPtr<Edge> a, ExprPtr<Edge> b) {
+    // If both are defined, create an alternative
+    if (a and b) {
+      // If the values are equal, just return one of them.
+      if (auto aT = dyn_cast<Token<Edge>>(a.get())) {
+        if (auto bT = dyn_cast<Token<Edge>>(b.get())) {
+          if (aT->val == bT->val) {
+            return a;
+          }
+        }
+      }
+      return alaska::re::alt<Edge>({a, b});
+    }
+
+    return a ? a : b;
+  };
+
+
 
   bool changed;
+  bool finished_reduction = false;
   std::vector<llvm::Instruction *> toRemove;
   do {
+    dump();
     changed = false;
     for (auto *inst : this->graph) {
       int inc = this->graph.count_in_neighbors(inst);
       int outc = this->graph.count_out_neighbors(inst);
-      if (inc != 1 || outc != 1) continue;
 
-      // Grab the first incoming and outgoing (we are sure they exist)
-      auto [in_node, in_edge] = *this->graph.incoming(inst).begin();
-      auto [out_node, out_edge] = *this->graph.outgoing(inst).begin();
+      // XXX: Safety measure for now.
+      ExprPtr<Edge> self_edge = nullptr;
+      for (auto &[in, e] : this->graph.incoming(inst)) {
+        if (in == inst) {
+          self_edge = e.prop();
+          break;
+        }
+      }
 
-      auto inp = in_edge.prop();
-      auto outp = out_edge.prop();
+      if (not finished_reduction and self_edge) continue;
 
-      if (not outp) {
-        // cut the node out of the graph.
-        changed = true;
-        this->graph.add_edge_with_prop(in_node, out_node, inp);
+      if (((self_edge and inc == 2) or (not self_edge and inc == 1)) and outc >= 1) {
+        llvm::Instruction *in_node = nullptr;
+        ExprPtr<Edge> in_edge = nullptr;
+
+        for (auto &[n, e] : this->graph.incoming(inst)) {
+          if (n != inst) {
+            in_edge = e.prop();
+            in_node = n;
+          }
+        }
+
+        if (self_edge) {
+          in_edge = sequentialize(in_edge, alaska::re::star<Edge>(std::move(self_edge)));
+        }
+
+        // Create a new sequence edge between in_node, and each outgoing node.
+        for (auto &[out_node, out_edge] : this->graph.outgoing(inst)) {
+          if (out_node == inst) continue;  // self edge handling
+          auto newEdge = sequentialize(in_edge, out_edge.prop());
+
+          // if there is already an edge between these two nodes, alternative it.
+          if (this->graph.count_edges(in_node, out_node)) {
+            auto e = this->graph.get_edge(in_node, out_node);
+            this->graph.remove_edge(in_node, out_node);
+            newEdge = alternative(newEdge, e);
+          }
+          this->graph.add_edge_with_prop(in_node, out_node, newEdge);
+        }
+
+
+        if (self_edge) {
+          this->graph.remove_edge(inst, inst);
+        }
+
         toRemove.push_back(inst);
       }
+
+      if (toRemove.size() > 0) break;
     }
 
 
     for (auto inst : toRemove) {
+      // alaska::println("Removing node ", this->graph.node_prop(inst).id);
       this->graph.remove_nodes(inst);
+      changed = true;
     }
+
+
     toRemove.clear();  // empty the vector.
+
+    if (not changed and not finished_reduction) {
+      changed = true;
+      finished_reduction = true;
+    }
   } while (changed);
-
-
-
 }
 
 
@@ -100,7 +170,7 @@ void alaska::AccessAutomata::dump(void) {
   for (auto node : L) {
     // for (auto &node : this->graph) {
     alaska::print("   n", node, " [");
-    alaska::print("label=\"", "\"");
+    alaska::print("label=\"", this->graph.node_prop(node).id, "\"");
 
     if (node == start) {
       alaska::print(",shape=box");
@@ -116,10 +186,8 @@ void alaska::AccessAutomata::dump(void) {
   for (auto &from : this->graph) {
     for (auto &[to, edge] : this->graph.outgoing(from)) {
       alaska::print("   n", from, " -> n", to, " [label=\"");
+      if (edge.prop()) llvm::errs() << *edge.prop();
 
-      if (edge.prop()) {
-        edge.prop().accessedValue->printAsOperand(llvm::errs(), true);
-      }
       alaska::println("\", shape=box];");
     }
   }
@@ -136,12 +204,12 @@ std::pair<llvm::Instruction *, llvm::Instruction *> alaska::AccessAutomata::get_
 
   for (auto &node : this->graph) {
     if (this->graph.count_in_neighbors(node) == 0) {
-      ALASKA_SANITY(start == nullptr, "Cannot be multiple start nodes in the graph");
+      // ALASKA_SANITY(start == nullptr, "Cannot be multiple start nodes in the graph");
       start = node;
     }
 
     if (this->graph.count_out_neighbors(node) == 0) {
-      ALASKA_SANITY(end == nullptr, "Cannot be multiple end nodes in the graph");
+      // ALASKA_SANITY(end == nullptr, "Cannot be multiple end nodes in the graph");
       end = node;
     }
   }
