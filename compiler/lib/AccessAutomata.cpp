@@ -12,6 +12,13 @@
 #include <alaska/AccessAutomata.h>
 #include <alaska/Graph.h>
 
+
+// TODO: use the edges of a PHI node in a pointer flow graph as a way
+//       of encoding "recurse access from" when dealing with PHI node
+//       based linked list walking
+
+
+
 alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTypes &OT) {
   using namespace alaska::re;
   llvm::Function *func = nullptr;
