@@ -70,14 +70,7 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
   auto alternative = [](ExprPtr<Edge> a, ExprPtr<Edge> b) {
     // If both are defined, create an alternative
     if (a and b) {
-      // If the values are equal, just return one of them.
-      if (auto aT = dyn_cast<Token<Edge>>(a.get())) {
-        if (auto bT = dyn_cast<Token<Edge>>(b.get())) {
-          if (aT->val == bT->val) {
-            return a;
-          }
-        }
-      }
+      if (a->equal(b.get())) return a;
       return alaska::re::alt<Edge>({a, b});
     }
 
