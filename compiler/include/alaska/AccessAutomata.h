@@ -188,6 +188,10 @@ namespace alaska {
       T val;
     };
 
+    template <typename T>
+    bool operator==(const Expr<T> &lhs, const Expr<T> &rhs) {
+      return lhs.equal(&rhs);
+    }
 
     // Construct a token from a value
     template <typename T>
