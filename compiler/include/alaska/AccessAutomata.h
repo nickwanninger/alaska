@@ -40,6 +40,7 @@ namespace alaska {
 
       virtual void print(llvm::raw_ostream &os){};
       virtual void flatten(void) {}
+      virtual bool equal(Expr *other) { return false; }
 
      private:
       const ExprTy type;
@@ -70,6 +71,7 @@ namespace alaska {
           , items(items) {}
       virtual ~Seq() {}
       static bool classof(const Expr<T> *s) { return s->getType() == ExprSeqTy; }
+
       virtual void print(llvm::raw_ostream &os) {
         // os << "(";
         for (size_t i = 0; i < items.size(); i++) {
@@ -79,6 +81,18 @@ namespace alaska {
         // os << ")";
       }
 
+      virtual bool equal(Expr<T> *other) {
+        if (auto os = dyn_cast<Seq<T>>(other)) {
+          if (this->items.size() != os->items.size()) return false;
+          for (size_t i = 0; i < this->items.size(); i++) {
+            if (not this->items[i]->equal(os->items[i].get())) {
+              return false;
+            }
+          }
+          return true;
+        }
+        return false;
+      }
 
       virtual void flatten(void) {
         std::vector<ExprPtr<T>> newItems;
@@ -118,6 +132,20 @@ namespace alaska {
         os << "}";
       }
 
+
+      virtual bool equal(Expr<T> *other) {
+        if (auto os = dyn_cast<Alt<T>>(other)) {
+          if (this->items.size() != os->items.size()) return false;
+          for (size_t i = 0; i < this->items.size(); i++) {
+            if (not this->items[i]->equal(os->items[i].get())) {
+              return false;
+            }
+          }
+          return true;
+        }
+        return false;
+      }
+
       virtual void flatten(void) {
         std::vector<ExprPtr<T>> newItems;
         for (auto &item : this->items) {
@@ -148,6 +176,14 @@ namespace alaska {
       static bool classof(const Expr<T> *s) { return s->getType() == ExprTokTy; }
 
       virtual void print(llvm::raw_ostream &os) { os << val; }
+
+
+      virtual bool equal(Expr<T> *other) {
+        if (auto ot = dyn_cast<Token<T>>(other)) {
+          return ot->val == this->val;
+        }
+        return false;
+      }
 
       T val;
     };
