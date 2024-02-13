@@ -26,8 +26,8 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
     func = arg->getParent();
   }
 
-  if (auto arg = dyn_cast<llvm::Argument>(object)) {
-    func = arg->getParent();
+  if (auto inst = dyn_cast<llvm::Instruction>(object)) {
+    func = inst->getFunction();
   }
 
   ALASKA_SANITY(func != NULL, "Invalid object to construct Automata from");
