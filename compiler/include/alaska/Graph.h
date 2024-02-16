@@ -303,18 +303,6 @@ namespace alaska {
       // Get the strongly connected components of the graph.
       auto components = this->tarjan_scc();
 
-      alaska::println("Strongly-connected Components: ");
-      for (auto const &[root, nodes] : components) {
-        alaska::println(" ├─┬─╸ ", *root);
-        for (auto *node : nodes) {
-          if (node != root) {
-            alaska::println(" │ ├─╸ ", *node);
-          }
-        }
-        alaska::println(" │ ╹ ");
-      }
-      alaska::println(" ╹");
-
       // Create the condensation of each component.
       for (auto const &[root, nodes] : components) {
         // Create the node with subgraph view containing the component nodes.
