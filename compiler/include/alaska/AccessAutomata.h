@@ -282,17 +282,13 @@ namespace alaska {
     };
 
 
+
     struct Edge {
-      llvm::Value *accessedValue = nullptr;
-      inline operator bool(void) { return accessedValue != nullptr; }
-      inline bool operator==(Edge &other) { return this->accessedValue == other.accessedValue; }
+      long offset;
+      inline bool operator==(Edge &other) { return this->offset == other.offset; }
 
       inline friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, Edge &t) {
-        if (t.accessedValue != nullptr) {
-          t.accessedValue->printAsOperand(os, false);
-        } else {
-          os << "nil";
-        }
+        os << t.offset;
         return os;
       }
     };

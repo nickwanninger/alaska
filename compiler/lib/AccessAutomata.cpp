@@ -163,6 +163,20 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
 
   ALASKA_SANITY(func != NULL, "Invalid object to construct Automata from");
 
+  alaska::println("Creating access Automata starting at ", *object);
+
+  std::set<llvm::Instruction *> sinks;
+
+
+  // Grab all the memory instructions
+  // TODO: filter this for only instructions we care about (accesses as pointers)
+  auto memory_instructions = memory_access_offsets(object);
+
+  // TODO: handle this!
+  if (memory_instructions.size() == 0) {
+    return;
+  }
+
   llvm::Instruction *intro = nullptr;
 
   int id = 0;
@@ -171,23 +185,6 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
       if (intro == nullptr) intro = &I;
       this->graph.add_node_with_prop(&I, NodeProp());
       this->graph.node_prop(&I).id = id++;
-    }
-  }
-
-
-  for (auto *inst : this->graph) {
-    if (auto next = inst->getNextNode()) {
-      Edge prop;
-      if (auto loadInst = dyn_cast<LoadInst>(inst))
-        prop.accessedValue = loadInst->getPointerOperand();
-      if (auto storeInst = dyn_cast<StoreInst>(inst))
-        prop.accessedValue = storeInst->getPointerOperand();
-      this->graph.add_edge_with_prop(inst, next, prop ? tok<Edge>(std::move(prop)) : nullptr);
-    } else {
-      auto bb = inst->getParent();
-      for (auto succ : successors(bb)) {
-        this->graph.add_edge_with_prop(inst, &succ->front(), nullptr /* Empty edge */);
-      }
     }
   }
 
@@ -209,12 +206,54 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
   };
 
 
+  for (auto *inst : this->graph) {
+    if (auto next = inst->getNextNode()) {
+      // If the edge is a memory instruction, then we should construct an alternative for each
+      // offset associated with that instruction.
+      ExprPtr<Edge> edge = nullptr;
+      if (memory_instructions.contains(inst)) {
+        bool care = false;
+
+        if (auto load = dyn_cast<LoadInst>(inst)) {
+          // Only care about loads as pointers.
+          if (load->getType()->isPointerTy()) {
+            care = true;
+          }
+        }
+
+        if (care) {
+          auto &offsets = memory_instructions[inst];
+          std::vector<ExprPtr<Edge>> edges;
+          for (auto offset : offsets) {
+            Edge e;
+            e.offset = offset;
+            edges.push_back(alaska::re::tok<Edge>(std::move(e)));
+          }
+
+          if (edges.size() > 1) {
+            edge = alaska::re::alt<Edge>(std::move(edges));
+          } else {
+            edge = edges[0];
+          }
+        }
+      }
+      this->graph.add_edge_with_prop(inst, next, edge);
+    } else {
+      auto bb = inst->getParent();
+      for (auto succ : successors(bb)) {
+        this->graph.add_edge_with_prop(inst, &succ->front(), nullptr /* Empty edge */);
+      }
+    }
+  }
+
+
+
+
 
   bool changed;
   bool finished_reduction = false;
   std::vector<llvm::Instruction *> toRemove;
   do {
-    dump();
     changed = false;
     for (auto *inst : this->graph) {
       int inc = this->graph.count_in_neighbors(inst);
