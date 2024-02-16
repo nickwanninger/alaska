@@ -32,10 +32,10 @@ pkgs.stdenv.mkDerivation {
 
 
     # Compiler dependencies
-    llvmPackages_15.libllvm
-    llvmPackages_15.clang
-    llvmPackages_15.stdenv
-    llvmPackages_15.libunwind
+    llvmPackages_16.libllvm
+    llvmPackages_16.clang
+    llvmPackages_16.stdenv
+    llvmPackages_16.libunwind
 
     gllvm
 
