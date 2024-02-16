@@ -9,6 +9,7 @@
  * and modify it as specified in the file "LICENSE".
  */
 
+#include "llvm/IR/Instructions.h"
 #include <alaska/AccessAutomata.h>
 #include <alaska/Graph.h>
 
@@ -326,6 +327,7 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
     toRemove.clear();  // empty the vector.
 
     if (not changed and not finished_reduction) {
+      dump();
       changed = true;
       finished_reduction = true;
     }
