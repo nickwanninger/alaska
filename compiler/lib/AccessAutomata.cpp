@@ -263,7 +263,12 @@ alaska::AccessAutomata::AccessAutomata(llvm::Value *object, alaska::OptimisticTy
       ExprPtr<Edge> self_edge = nullptr;
       for (auto &[in, e] : this->graph.incoming(inst)) {
         if (in == inst) {
-          self_edge = e.prop();
+          if (e.prop() == nullptr) {
+            this->graph.remove_edge(in, inst);
+            changed |= true;
+          } else {
+            self_edge = e.prop();
+          }
           break;
         }
       }
