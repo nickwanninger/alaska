@@ -394,19 +394,6 @@ llvm::MDNode *alaska::OptimisticTypes::embedType(llvm::Type *type) {
                  std::string raw;
                  llvm::raw_string_ostream raw_writer(raw);
                  t->print(raw_writer, false, true);
-
-
-                 SMDiagnostic Err;
-                 unsigned Read;
-                 auto parsed = llvm::parseTypeAtBeginning(raw, Read, Err, *this->module, nullptr);
-                 if (parsed != t) {
-                   Err.print(raw.data(), llvm::errs());
-                   alaska::println(*parsed);
-                   printf("parsed = %p\n", parsed);
-                   errs() << "Failed to print then re-parse " << *t << "\n";
-                   abort();
-                 }
-
                  return MDNode::get(ctx, {createString("other"), createString(raw)});
                });
 
