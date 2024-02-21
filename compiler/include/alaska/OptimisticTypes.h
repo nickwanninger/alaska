@@ -44,13 +44,13 @@ namespace alaska {
     void analyze(llvm::Function &F);
     void analyze(llvm::Module &M);
     void dump();
+    // Embed the type information as metadata
+    void embed();
 
     OTLatticePoint get_lattice_point(llvm::Value *v);
 
    protected:
-
-    
-    // Take a function, and ingest all values into m_types. This will 
+    // Take a function, and ingest all values into m_types. This will
     // *not* call reach_fixed_point().
     void ingest_function(llvm::Function &F);
 
@@ -65,6 +65,17 @@ namespace alaska {
 
 
    private:
+    llvm::Module *module = nullptr;
     std::map<llvm::Value *, OTLatticePoint> m_types;
+
+    // A cache mapping from type to a metadata node.
+    std::map<llvm::Type *, llvm::MDNode *> m_mdMap;
+
+
+    llvm::MDNode *embedType(llvm::Type *);
   };
+
+
+  // Get the type metadata from a value
+  llvm::Type *extractTypeMD(llvm::Value *v);
 }  // namespace alaska

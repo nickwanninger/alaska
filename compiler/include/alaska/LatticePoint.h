@@ -68,7 +68,7 @@ namespace alaska {
       } else if (LP.is_overdefined()) {
         os << "⊤";
       } else {
-        os << " " << *LP.get_state();
+        os << *LP.get_state();
       }
       return os;
     }

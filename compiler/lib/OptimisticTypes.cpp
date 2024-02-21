@@ -1,6 +1,8 @@
 #include <alaska/OptimisticTypes.h>
 #include <alaska/Utils.h>
 #include <alaska/TypedPointer.h>
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/AsmParser/Parser.h"
 
 
 
@@ -97,6 +99,11 @@ void alaska::OptimisticTypes::analyze(llvm::Module &M) {
 
 
 void alaska::OptimisticTypes::ingest_function(llvm::Function &F) {
+  auto module = F.getParent();
+  if (this->module)
+    ALASKA_SANITY(this->module == module, "Cannot mix modules in an optimistictypes analysis");
+  this->module = module;
+
   // TODO: what if this function affects the types in another function? (ret type)
   this->visit(F);
 
@@ -301,6 +308,9 @@ void alaska::OptimisticTypes::dump(void) {
         num_udef++;
       }
       llvm::errs() << *val << "\e[0m :: \e[34m" << lp << "\e[0m";
+      if (auto t = alaska::extractTypeMD(val)) {
+        llvm::errs() << "  (" << *t << ")";
+      }
     } else {
       llvm::errs() << "\e[90m";
       errs() << *val;
@@ -337,31 +347,106 @@ void alaska::OptimisticTypes::dump(void) {
     errs() << "}\n\n";
   }
 
-  return;
+  // return;
 
   for (auto &[p, lp] : m_types) {
     if (lp.is_defined()) {
-      llvm::errs() << "\e[32m";
       num_def++;
     }
     if (lp.is_overdefined()) {
-      llvm::errs() << "\e[90m";
       num_odef++;
     }
     if (lp.is_underdefined()) {
-      llvm::errs() << "\e[91m";
       num_udef++;
     }
-    llvm::errs() << *p << "\e[0m :: \e[34m" << lp << "\e[0m\n";
-    //
-    // if (lp.is_underdefined())
-    //   for (auto user : p->users()) {
-    //     llvm::errs() << "    \e[90m" << *user << "\e[0m\n";
-    //   }
   }
 
   printf("def: %d, odef: %d, udef: %d\n", num_def, num_odef, num_udef);
 }
+
+
+
+
+llvm::MDNode *alaska::OptimisticTypes::embedType(llvm::Type *type) {
+  auto it = m_mdMap.find(type);
+  if (it != m_mdMap.end()) {
+    return it->second;
+  }
+
+  auto &ctx = this->module->getContext();
+
+  auto createString = [&](StringRef str) {
+    return MDString::get(ctx, str);
+  };
+
+
+  auto m = llvm::TypeSwitch<llvm::Type *, llvm::MDNode *>(type)
+               .Case<alaska::TypedPointer>([&](auto tp) {
+                 return MDNode::get(ctx, {createString("ptr"), embedType(tp->getElementType())});
+               })
+               .Case<llvm::StructType>([&](auto st) {
+                 return MDNode::get(ctx, {createString("struct"), createString(st->getName())});
+               })
+               .Case<llvm::PointerType>([&](auto pt) {
+                 return MDNode::get(ctx, {createString("ptr")});
+               })
+               .Default([&](llvm::Type *t) {
+                 std::string raw;
+                 llvm::raw_string_ostream raw_writer(raw);
+                 t->print(raw_writer, false, true);
+
+
+                 SMDiagnostic Err;
+                 unsigned Read;
+                 auto parsed = llvm::parseTypeAtBeginning(raw, Read, Err, *this->module, nullptr);
+                 if (parsed != t) {
+                   Err.print(raw.data(), llvm::errs());
+                   alaska::println(*parsed);
+                   printf("parsed = %p\n", parsed);
+                   errs() << "Failed to print then re-parse " << *t << "\n";
+                   abort();
+                 }
+
+                 return MDNode::get(ctx, {createString("other"), createString(raw)});
+               });
+
+
+  this->m_mdMap[type] = m;
+  return m;
+}
+
+void alaska::OptimisticTypes::embed(void) {
+  // Dont do anything if we don't have a module yet.
+  if (this->module == nullptr) return;
+
+  for (auto &[p, lp] : m_types) {
+    if (not lp.is_defined()) continue;
+
+    auto type = lp.get_state();
+
+    auto m = embedType(type);
+    if (m == nullptr) continue;
+
+    if (auto arg = dyn_cast<Argument>(p)) {
+      // TODO: funciton arguments
+      // functionArgsIDMap[arg->getParent()][arg->getArgNo()] = m;
+    } else if (auto inst = dyn_cast<Instruction>(p)) {
+      inst->setMetadata("alaska.type", m);
+    }
+  }
+
+
+  auto all_types = this->module->getOrInsertNamedMetadata("alaska.alltypes");
+
+  std::set<llvm::MDNode *> nodes;
+  for (auto [_, md] : m_mdMap)
+    nodes.insert(md);
+  for (auto node : nodes)
+    all_types->addOperand(node);
+}
+
+
+
 
 void alaska::OptimisticTypes::visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
   // The pointer operand is used as the type listed in the instruction.
@@ -451,4 +536,57 @@ bool alaska::OTLatticePoint::meet(const OTLatticePoint::Base &in) {
 bool alaska::OTLatticePoint::join(const OTLatticePoint::Base &incoming) {
   // Nothing.
   return false;
+}
+
+
+
+
+static llvm::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
+  if (auto md = dyn_cast<llvm::MDNode>(m)) {
+    auto &ctx = md->getContext();
+    if (md->getNumOperands() == 1) {
+      // Handle only "ptr"
+      if (MDString *tag = dyn_cast<MDString>(md->getOperand(0))) {
+        if (tag->getString() == "ptr") {
+          return llvm::PointerType::get(ctx, 0);
+        }
+      }
+    }
+
+    if (md->getNumOperands() == 2) {
+      if (MDString *tag = dyn_cast<MDString>(md->getOperand(0))) {
+        // Pointer to a type
+        if (tag->getString() == "ptr") {
+          return alaska::TypedPointer::get(parseTypeMD(M, md->getOperand(1).get()));
+        }
+
+        // {"struct", "struct.X"}
+        if (tag->getString() == "struct") {
+          MDString *tag2 = dyn_cast<MDString>(md->getOperand(1));
+          ALASKA_SANITY(tag2 != nullptr, "The second tag in a struct metadata must be a string.");
+          return llvm::StructType::getTypeByName(ctx, tag2->getString());
+        }
+
+        // {"other", "..."} (other llvm type)
+        if (tag->getString() == "other") {
+          MDString *tag2 = dyn_cast<MDString>(md->getOperand(1));
+          ALASKA_SANITY(tag2 != nullptr, "The second tag in a struct metadata must be a string.");
+          llvm::SMDiagnostic Err;
+          return llvm::parseType(tag2->getString(), Err, M, nullptr);
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
+llvm::Type *alaska::extractTypeMD(llvm::Value *v) {
+  if (auto *inst = dyn_cast<Instruction>(v)) {
+    if (not inst->hasMetadata("alaska.type")) return nullptr;
+
+    return parseTypeMD(*inst->getFunction()->getParent(), inst->getMetadata("alaska.type"));
+  }
+
+
+  return nullptr;
 }
