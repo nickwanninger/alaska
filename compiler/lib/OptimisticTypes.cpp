@@ -385,6 +385,9 @@ llvm::MDNode *alaska::OptimisticTypes::embedType(llvm::Type *type) {
                  return MDNode::get(ctx, {createString("ptr"), embedType(tp->getElementType())});
                })
                .Case<llvm::StructType>([&](auto st) {
+                 if (not st->hasName()) {
+                   st->setName("anon");
+                 }
                  return MDNode::get(ctx, {createString("struct"), createString(st->getName())});
                })
                .Case<llvm::PointerType>([&](auto pt) {
