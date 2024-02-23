@@ -409,6 +409,8 @@ void alaska::OptimisticTypes::embed(void) {
   // Dont do anything if we don't have a module yet.
   if (this->module == nullptr) return;
 
+
+
   for (auto &[p, lp] : m_types) {
     if (not lp.is_defined()) continue;
 
@@ -417,12 +419,26 @@ void alaska::OptimisticTypes::embed(void) {
     auto m = embedType(type);
     if (m == nullptr) continue;
 
-    if (auto arg = dyn_cast<Argument>(p)) {
-      // TODO: funciton arguments
-      // functionArgsIDMap[arg->getParent()][arg->getArgNo()] = m;
-    } else if (auto inst = dyn_cast<Instruction>(p)) {
+    if (auto inst = dyn_cast<Instruction>(p)) {
       inst->setMetadata("alaska.type", m);
     }
+  }
+
+
+  for (auto &F : *this->module) {
+    if (F.empty()) continue;
+
+    std::vector<llvm::Metadata *> argsVec;
+    for (auto &arg : F.args()) {
+      llvm::Type *t = arg.getType();
+      if (auto lp = get_lattice_point(&arg); lp.is_defined()) {
+        t = lp.get_state();
+      }
+
+      argsVec.push_back(embedType(t));
+    }
+    auto m = MDTuple::get(F.getContext(), argsVec);
+    F.setMetadata("alaska.type", m);
   }
 
 
