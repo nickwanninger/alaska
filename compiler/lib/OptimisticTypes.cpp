@@ -593,6 +593,15 @@ llvm::Type *alaska::extractTypeMD(llvm::Value *v) {
     return parseTypeMD(*inst->getFunction()->getParent(), inst->getMetadata("alaska.type"));
   }
 
+  if (auto *arg = dyn_cast<llvm::Argument>(v)) {
+    auto func = arg->getParent();
+
+    if (auto *mdtup = dyn_cast_or_null<llvm::MDTuple>(func->getMetadata("alaska.type"))) {
+      if (mdtup->getNumOperands() <= arg->getArgNo()) return nullptr;
+      return parseTypeMD(*func->getParent(), mdtup->getOperand(arg->getArgNo()));
+    }
+  }
+
 
   return nullptr;
 }
