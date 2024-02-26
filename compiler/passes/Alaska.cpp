@@ -31,9 +31,6 @@
 
 #include <noelle/core/DGBase.hpp>
 
-
-
-
 static bool print_progress = true;
 class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
  public:
@@ -146,33 +143,12 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 class OptimisticTypesPass : public llvm::PassInfoMixin<OptimisticTypesPass> {
  public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    // Simply analyze the types, then embed them.
     alaska::OptimisticTypes ot;
     ot.analyze(M);
+    ot.embed();
     ot.dump();
 
-
-    for (auto &F : M) {
-      if (F.empty()) continue;
-      if (F.getName() != "search") continue;
-
-
-      alaska::AccessAutomata aa(F.args().begin(), ot);
-      aa.dump();
-    }
-    return PreservedAnalyses::all();
-
-
-    for (auto &F : M) {
-      if (F.empty()) continue;
-      if (F.getName() != "test") continue;
-      errs() << F << "\n";
-
-      alaska::OptimisticTypes ot;
-      ot.analyze(F);
-      ot.dump();
-    }
-
-    // It does nothing.
     return PreservedAnalyses::all();
   }
 };
@@ -197,6 +173,11 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
       [](PassBuilder &PB) {
         PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                ArrayRef<llvm::PassBuilder::PipelineElement>) {
+          if (name == "alaska-type-infer") {
+            MPM.addPass(OptimisticTypesPass());
+            return true;
+          }
+
           if (name == "alaska-prepare") {
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(DCEPass()));
@@ -209,7 +190,6 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
 
           REGISTER("alaska-replace", AlaskaReplacementPass);
           if (name == "alaska-translate") {
-            MPM.addPass(OptimisticTypesPass());
             MPM.addPass(AlaskaTranslatePass(true));
             return true;
           }
