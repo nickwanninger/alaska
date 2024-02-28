@@ -6,5 +6,5 @@ export PATH=$PFX/bin:$PATH
 export LD_LIBRARY_PATH=$PFX/lib:$LD_LIBRARY_PATH:/lib64:/lib
 
 
-opt --passes=mem2reg,mergereturn,loop-simplify,lcssa $1 -o $1
+opt -strip-debug --passes=mem2reg,mergereturn $1 -o $1
 opt --load-pass-plugin=${PFX}/lib/Alaska.so --passes=alaska-type-infer $1 -o $1

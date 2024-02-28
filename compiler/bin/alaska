@@ -85,7 +85,7 @@ done
 
 COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize -fno-discard-value-names")
 COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
-COLLECT_CLANG_ARGS+=("$OPT ")
+# COLLECT_CLANG_ARGS+=("$OPT ")
 
 
 GCLANG="${ALASKA_GCLANG:=gclang}"
@@ -103,9 +103,10 @@ else
 	get-bc $OUTFILE >/dev/null
 	TMPFILE=${OUTFILE}.bc
 
-  alaska-type-infer ${TMPFILE}
 
+  alaska-type-infer ${TMPFILE}
   opt $OPT ${TMPFILE} -o ${TMPFILE}
+
 	if [ "$BASELINE" == "true" ]; then
 
 		mv $OUTFILE $OUTFILE.base_input

@@ -21,6 +21,8 @@ add_llvm_library(Alaska MODULE
 	lib/Translations.cpp
 	lib/OptimisticTypes.cpp
 	lib/TypedPointer.cpp
+  lib/Types.cpp
+  lib/TypeContext.cpp
   lib/AccessAutomata.cpp
 
 	
