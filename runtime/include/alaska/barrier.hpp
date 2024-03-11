@@ -17,6 +17,24 @@
 #include <ck/func.h>
 #include <pthread.h>
 
+
+typedef struct {
+  // Track the depth of escape of a given thread. If this number is zero,
+  // the thread is in 'managed' code and will eventually poll the barrier
+  uint64_t escaped;
+  // Why did this thread join? Is it joined?
+  int join_status;
+#define ALASKA_JOIN_REASON_NOT_JOINED -1        // This thread has not joined the barrier.
+#define ALASKA_JOIN_REASON_SIGNAL 0        // This thread was signalled.
+#define ALASKA_JOIN_REASON_SAFEPOINT 1     // This thread was at a safepoint
+#define ALASKA_JOIN_REASON_ORCHESTRATOR 2  // THis thread was the orchestrator
+
+  // ...
+} alaska_thread_state_t;
+
+extern __thread alaska_thread_state_t alaska_thread_state;
+
+
 namespace alaska {
   namespace barrier {
 

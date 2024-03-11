@@ -208,8 +208,8 @@ target_link_libraries(htlb dl pthread)
 install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
-install(FILES include/alaska/config.h DESTINATION include/alaska)
-install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
+# install(FILES include/alaska/config.h DESTINATION include/alaska)
+# install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
 
 install(
   TARGETS alaska
