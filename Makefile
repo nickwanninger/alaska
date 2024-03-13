@@ -87,12 +87,12 @@ docker:
 deps: local/bin/gclang local/bin/clang
 
 
-local/bin/gclang: .config
+local/bin/gclang:
 	tools/build_gclang.sh
 
 
 
-local/bin/clang: .config | deps/${LLVM}-build/Makefile
+local/bin/clang: | deps/${LLVM}-build/Makefile
 	$(MAKE) -C deps/${LLVM}-build
 	$(MAKE) -C deps/${LLVM}-build install
 
