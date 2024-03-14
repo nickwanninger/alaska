@@ -3,6 +3,15 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 
+
+
+alaska::PointerType *alaska::PointerType::get(alaska::Type *elTy) {
+  return elTy->getContext().getPointerTo(elTy);
+}
+
+
+
+
 llvm::raw_ostream &alaska::operator<<(llvm::raw_ostream &os, alaska::Type &t) {
   llvm::TypeSwitch<alaska::Type *>(&t)
       .Case<alaska::StructType>([&](alaska::StructType *t) {
@@ -29,8 +38,6 @@ llvm::raw_ostream &alaska::operator<<(llvm::raw_ostream &os, alaska::Type &t) {
       });
   return os;
 }
-
-
 
 
 

@@ -170,7 +170,7 @@ void alaska::TypeContext::dump(llvm::Function &F) {
 alaska::PointerType *alaska::TypeContext::getPointerTo(alaska::Type *elTy) {
   alaska::PointerType *&it = _pointers[elTy];
   if (it == nullptr) {
-    it = new alaska::PointerType(elTy);
+    it = new alaska::PointerType(*this, elTy);
   }
   return it;
 }
@@ -208,7 +208,7 @@ alaska::Type *alaska::TypeContext::convert(llvm::Type *type) {
                    fields.push_back(convert(field));
                  }
                  // TODO: fields!
-                 return new alaska::StructType(t->getName(), fields);
+                 return new alaska::StructType(*this, t->getName(), fields);
                })
                .Case<alaska::TypedPointer>([&](auto *t) {
                  return getPointerTo(convert(t->getElementType()));
@@ -218,7 +218,7 @@ alaska::Type *alaska::TypeContext::convert(llvm::Type *type) {
                //   return new alaska::ArrayType(convert(t->getElementType()), t->getNumElements());
                // })
                .Default([&](llvm::Type *t) {
-                 return new alaska::PrimitiveType(t);
+                 return new alaska::PrimitiveType(*this, t);
                });
 
   this->_types[type] = std::unique_ptr<alaska::Type>(m);
@@ -227,7 +227,7 @@ alaska::Type *alaska::TypeContext::convert(llvm::Type *type) {
 
 alaska::VarType *alaska::TypeContext::freshVar(void) {
   uint64_t id = _vars.size();
-  auto t = new alaska::VarType(id);
+  auto t = new alaska::VarType(*this, id);
   _vars[id] = std::unique_ptr<alaska::VarType>(t);
   return t;
 }

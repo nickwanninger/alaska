@@ -4,7 +4,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/AsmParser/Parser.h"
 
-
+#include <alaska/Types.h>
 
 // #define DEBUGLN(...) alaska::println(__VA_ARGS__)
 #define DEBUGLN(...)
@@ -82,8 +82,6 @@ static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
 
 
 
-alaska::OptimisticTypes::OptimisticTypes(llvm::Function &F) { analyze(F); }
-
 
 void alaska::OptimisticTypes::analyze(llvm::Function &F) {
   ingest_function(F);
@@ -141,7 +139,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
       // If p is a call instruction (it must be a pointer), meet it with all the return instruction
       // values in the function it is calling.
 
-      if (auto call = dyn_cast<llvm::CallInst>(p)) {
+      if (auto call = dyn_cast<llvm::CallBase>(p)) {
         if (call->getType()->isPointerTy()) {        // If the call is a pointer...
           if (auto f = call->getCalledFunction()) {  // And the call is direct...
             if (not f->empty()) {                    // And the function has a body...
@@ -219,7 +217,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
           changed |= lp.meet(get_lattice_point(freeze));
         }
 
-        if (auto call = dyn_cast<llvm::CallInst>(user)) {
+        if (auto call = dyn_cast<llvm::CallBase>(user)) {
           auto arg_index = use.getOperandNo();
           Function *f = call->getCalledFunction();
           if (f) {
@@ -308,9 +306,15 @@ void alaska::OptimisticTypes::dump(void) {
         num_udef++;
       }
       llvm::errs() << *val << "\e[0m :: \e[34m" << lp << "\e[0m";
-      if (auto t = alaska::extractTypeMD(val)) {
-        llvm::errs() << "  (" << *t << ")";
-      }
+
+      // if (lp.is_defined()) {
+      //   if (auto t = ctx.convert(lp.get_state())) {
+      //     llvm::errs() << "  (" << *t << ")";
+      //   }
+      // }
+      // if (auto t = alaska::extractTypeMD(val)) {
+      //   llvm::errs() << "  (" << *t << ")";
+      // }
     } else {
       llvm::errs() << "\e[90m";
       errs() << *val;

@@ -19,6 +19,9 @@
 
 namespace alaska {
 
+  // Fwd decl
+  class TypeContext;
+
   class Type {
    public:
     enum TypeID {
@@ -28,26 +31,53 @@ namespace alaska {
       PointerTyID,    //< Typed Pointer
       ArrayTyID,      //< Array Type
     };
-    ALASKA_NOCOPY_NOMOVE(Type);
-    Type(TypeID tid)
-        : _typeid(tid) {}
-    virtual ~Type() = default;
-    TypeID getTypeID(void) const { return _typeid; }
 
+   protected:
+    friend class TypeContext;
+    ALASKA_NOCOPY_NOMOVE(Type);
+    Type(TypeContext &ctx, TypeID tid)
+        : _ctx(ctx)
+        , _typeid(tid) {}
+
+   public:
+    virtual ~Type() = default;
+
+    // Get the internal TypeID from this instance.
+    TypeID getTypeID(void) const { return _typeid; }
+    // Get the context from this
+    inline auto &getContext() { return _ctx; }
     friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os, alaska::Type &t);
 
+
+
+    unsigned getNumContainedTypes() const { return (unsigned)_containedTypes.size(); }
+    Type *getContainedType(unsigned i) const {
+      assert(i < getNumContainedTypes() && "Index out of range!");
+      return _containedTypes[i];
+    }
+    const auto &getContainedTypes() const { return _containedTypes; }
+
+   protected:
+    void setContainedTypes(const std::vector<alaska::Type *> &tys) { _containedTypes = tys; }
+
    private:
+    TypeContext &_ctx;
     const TypeID _typeid;
+    std::vector<alaska::Type *> _containedTypes;
   };
 
 
   // A polymorphic variable type
   class VarType final : public Type {
-   public:
+   protected:
+    friend class TypeContext;
+
     ALASKA_NOCOPY_NOMOVE(VarType);
-    VarType(uint64_t id)
-        : Type(Type::VarTyID)
+    VarType(TypeContext &ctx, uint64_t id)
+        : Type(ctx, Type::VarTyID)
         , _id(id) {}
+
+   public:
     virtual ~VarType() = default;
 
     static bool classof(const Type *s) { return s->getTypeID() == Type::VarTyID; }
@@ -55,18 +85,20 @@ namespace alaska {
 
    private:
     uint64_t _id;
-    // The types which have unified with this type variable
-    std::unordered_set<alaska::Type *> _unified;
   };
 
 
   // A PrimativeType is a simple wrapper around an LLVM primative type.
   class PrimitiveType final : public Type {
-   public:
+   protected:
+    friend class TypeContext;
+
     ALASKA_NOCOPY_NOMOVE(PrimitiveType);
-    PrimitiveType(llvm::Type *t)
-        : Type(Type::PrimitiveTyID)
+    PrimitiveType(TypeContext &ctx, llvm::Type *t)
+        : Type(ctx, Type::PrimitiveTyID)
         , _wrapped(t) {}
+
+   public:
     virtual ~PrimitiveType() = default;
 
     static bool classof(const Type *s) { return s->getTypeID() == Type::PrimitiveTyID; }
@@ -78,23 +110,27 @@ namespace alaska {
 
 
   class StructType final : public Type {
-   public:
-    ALASKA_NOCOPY_NOMOVE(StructType);
-    StructType(llvm::StringRef name, const std::vector<alaska::Type *> &fields)
-        : Type(Type::StructTyID)
-        , _name(name.bytes_begin(), name.bytes_end())
-        , _fields(fields) {}
+   protected:
+    friend class TypeContext;
 
+    ALASKA_NOCOPY_NOMOVE(StructType);
+    StructType(TypeContext &ctx, llvm::StringRef name, const std::vector<alaska::Type *> &fields)
+        : Type(ctx, Type::StructTyID)
+        , _name(name.bytes_begin(), name.bytes_end()) {
+      setContainedTypes(fields);
+    }
+
+   public:
     virtual ~StructType() = default;
 
     static bool classof(const Type *s) { return s->getTypeID() == Type::StructTyID; }
 
-    inline auto getFieldCount(void) { return _fields.size(); }
-    inline auto &getFields(void) { return _fields; }
-    inline const std::string &getName(void) { return _name; }
+    inline auto getFieldCount(void) const { return getNumContainedTypes(); }
+    inline const auto &getFields(void) const { return getContainedTypes(); }
+    inline const std::string &getName(void) const { return _name; }
 
-    inline bool validIndex(unsigned idx) const { return _fields.size() > idx; }
-    inline auto *getTypeAtIndex(unsigned idx) const { return _fields.at(idx); }
+    inline bool validIndex(unsigned idx) const { return getFieldCount() > idx; }
+    inline auto *getTypeAtIndex(unsigned idx) const { return getContainedType(idx); }
     alaska::Type *getTypeAtIndex(const Value *V) const {
       unsigned Idx = (unsigned)cast<Constant>(V)->getUniqueInteger().getZExtValue();
       ALASKA_SANITY(validIndex(Idx), "Invalid structure index!");
@@ -103,17 +139,22 @@ namespace alaska {
 
    private:
     std::string _name;
-    std::vector<alaska::Type *> _fields;
   };
 
 
   class PointerType final : public Type {
-   public:
+   protected:
+    friend class TypeContext;
     ALASKA_NOCOPY_NOMOVE(PointerType);
-    PointerType(alaska::Type *elTy)
-        : Type(Type::PointerTyID)
+    PointerType(TypeContext &ctx, alaska::Type *elTy)
+        : Type(ctx, Type::PointerTyID)
         , _elementType(elTy) {}
+
+   public:
     virtual ~PointerType() = default;
+
+
+    static PointerType *get(alaska::Type *elTy);
 
     static bool classof(const Type *s) { return s->getTypeID() == Type::PointerTyID; }
 
@@ -125,12 +166,15 @@ namespace alaska {
 
 
   class ArrayType final : public Type {
-   public:
+   protected:
+    friend class TypeContext;
     ALASKA_NOCOPY_NOMOVE(ArrayType);
-    ArrayType(alaska::Type *elTy, uint64_t numElements)
-        : Type(Type::ArrayTyID)
+    ArrayType(TypeContext &ctx, alaska::Type *elTy, uint64_t numElements)
+        : Type(ctx, Type::ArrayTyID)
         , _elementType(elTy)
         , _numElements(numElements) {}
+
+   public:
     virtual ~ArrayType() = default;
 
     static bool classof(const Type *s) { return s->getTypeID() == Type::ArrayTyID; }
@@ -144,22 +188,11 @@ namespace alaska {
   };
 
 
-  class TILatticePoint : public LatticePoint<alaska::Type *> {
-   public:
-    using Base = LatticePoint<alaska::Type *>;
-    using Base::Base;
-    ~TILatticePoint() override = default;
-    // Return true if the point changed.
-    bool meet(const Base &incoming) override;
-    bool join(const Base &incoming) override;
-  };
-
-
   // A context in which the alaska types exist. This class encapuslates the conversion to alaska
   // types, as well as the assumptions which assign types to llvm values. At it's core, alaska
   // exists to map an LLVM type to a representation which is more friendly to the forms of analysis
-  // we want to do. As such, each llvm type must be able to map into it's relative alaska type, which
-  // has additional information we extract from optimistic analysis.
+  // we want to do. As such, each llvm type must be able to map into it's relative alaska type,
+  // which has additional information we extract from optimistic analysis.
   class TypeContext final {
    public:
     TypeContext(llvm::Module &m)
@@ -172,9 +205,9 @@ namespace alaska {
     void dump(llvm::Function &F);
 
     alaska::Type *getType(llvm::Value *);
+    alaska::PointerType *getPointerTo(alaska::Type *elTy);
 
    private:
-    alaska::PointerType *getPointerTo(alaska::Type *elTy);
     void unify(alaska::Type *, alaska::Type *);
 
     std::set<std::pair<alaska::Type *, alaska::Type *>> _unifications;
@@ -196,7 +229,7 @@ namespace alaska {
 
 
   alaska::Type *getIndexedType(alaska::Type *Agg, ArrayRef<unsigned> Idxs);
-  alaska::Type *getIndexedType(alaska::Type *Agg, ArrayRef<llvm::Value*> Idxs);
+  alaska::Type *getIndexedType(alaska::Type *Agg, ArrayRef<llvm::Value *> Idxs);
 
 
 }  // namespace alaska
