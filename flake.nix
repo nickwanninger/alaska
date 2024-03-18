@@ -11,28 +11,42 @@
       (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          buildInputs = with pkgs; [
+            cmake
+
+            libunwind
+
+
+            python3 python3Packages.pip
+            gdb ps which git
+
+            # Compiler dependencies
+            llvmPackages_16.libllvm
+            llvmPackages_16.clang
+            llvmPackages_16.stdenv
+            llvmPackages_16.libunwind
+
+            gllvm
+
+            bashInteractive
+          ];
         in
-        {
-          devShell = with pkgs; pkgs.mkShell {
-            buildInputs = [
-              cmake
+        with pkgs; {
+          devShell = mkShell {
+            buildInputs = buildInputs;
+          };
 
-              libunwind
+          packages.default = pkgs.stdenv.mkDerivation {
+            name = "alaska";
+            nativeBuildInputs = [ cmake ];
 
+            src = pkgs.nix-gitignore.gitignoreSource [] ./.;
+            preConfigure = ''
+              make defconfig
+            '';
 
-              python3 python3Packages.pip
-              gdb ps which git
+            buildInputs = buildInputs;
 
-              # Compiler dependencies
-              llvmPackages_16.libllvm
-              llvmPackages_16.clang
-              llvmPackages_16.stdenv
-              llvmPackages_16.libunwind
-
-              gllvm
-
-              bashInteractive
-            ];
           };
         }
       );
