@@ -170,7 +170,9 @@ function(add_bitcode name)
 	llvmir_attach_link_target(
 		TARGET  ${name}
 		DEPENDS ${name}_bitcodes
-		OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 	set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
 endfunction(add_bitcode)
