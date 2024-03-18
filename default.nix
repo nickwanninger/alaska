@@ -20,15 +20,20 @@ pkgs.stdenv.mkDerivation {
 
 
   buildInputs = with pkgs; [
-    autoconf automake cmake
-    coreutils moreutils binutils
-    cmake libunwind
+    # autoconf automake cmake
+    # coreutils moreutils binutils
+    cmake
+
+    libunwind
+    zlib
+
+    python3
 
     # General
-    python3 patch git wget
-    python3 python3Packages.pip
-
-    gdb ps which
+    # python3 patch git wget
+    # python3 python3Packages.pip
+    #
+    # gdb ps which
 
 
     # Compiler dependencies
@@ -39,9 +44,16 @@ pkgs.stdenv.mkDerivation {
 
     gllvm
 
-    zlib
-
     bashInteractive
+  ];
+
+  propagatedBuildInputs = with pkgs; [
+    python3
+    llvmPackages_16.libllvm
+    llvmPackages_16.clang
+    llvmPackages_16.stdenv
+    llvmPackages_16.libunwind
+    gllvm
   ];
 
   hardeningDisable = [ "all" ];
