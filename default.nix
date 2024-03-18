@@ -39,6 +39,8 @@ pkgs.stdenv.mkDerivation {
 
     gllvm
 
+    zlib
+
     bashInteractive
   ];
 
