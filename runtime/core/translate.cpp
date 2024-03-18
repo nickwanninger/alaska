@@ -29,6 +29,11 @@
  * or duplciated needlessly. (Which can lead to linker errors)
  */
 
+
+#ifdef ALASKA_TRANSLATION_TRACING
+extern "C" void alaska_trace_translation(void *handle);
+#endif
+
 static ALASKA_INLINE void alaska_track_hit(void) {
 #ifdef ALASKA_TRACK_TRANSLATION_HITRATE
   alaska::record_translation_info(true);
@@ -66,11 +71,13 @@ void *alaska_translate_escape(void *ptr) {
 }
 
 
-static __attribute_noinline__ void track(uintptr_t handle) {
-  fprintf(stderr, "tr %p\n", handle);
-}
+static __attribute_noinline__ void track(uintptr_t handle) { fprintf(stderr, "tr %p\n", handle); }
 
 void *alaska_translate(void *ptr) {
+#ifdef ALASKA_TRANSLATION_TRACING
+  alaska_trace_translation(ptr);
+#endif
+
   int64_t bits = (int64_t)ptr;
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;
@@ -111,6 +118,4 @@ void print_backtrace() {
 extern bool alaska_should_safepoint;
 extern "C" uint64_t alaska_barrier_poll();
 
-extern "C" void alaska_safepoint(void) {
-  alaska_barrier_poll();
-}
+extern "C" void alaska_safepoint(void) { alaska_barrier_poll(); }

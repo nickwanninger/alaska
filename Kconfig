@@ -74,6 +74,10 @@ menu "Experimental"
 		default n
 
 
+  config TRANSLATION_TRACING
+    bool "Invoke a trace handler function whenever a translation is made"
+    default n
+
 	config ARGUMENT_TRACE
 		bool "Dynamically trace if arguments to functions are handles or not and dump it to a trace file"
 		default n

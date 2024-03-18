@@ -47,6 +47,10 @@ set(SRC_FILES
 
 
 
+if (ALASKA_TRANSLATION_TRACING)
+	set(SRC_FILES ${SRC_FILES} core/tracing.cpp)
+endif(ALASKA_TRANSLATION_TRACING)
+
 if (ALASKA_SERVICE_ANCHORAGE)
 	# Anchorage's allocator relies on a modified version of
 	# Heap-Layers, which we have vendored here:
