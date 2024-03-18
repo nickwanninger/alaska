@@ -43,22 +43,6 @@ struct alaska_blob_config {
 // In barrier.cpp
 void alaska_blob_init(struct alaska_blob_config *cfg);
 
-
-// #define TABLE_START 0x80000000LU
-//
-#if ALASKA_SIZE_BITS >= 17
-#define TABLE_START (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS))
-#else
-#error "Cannot handle size bits less than 17"
-#endif
-
-// The alaska safepoint page lives immediately before the table start
-// #define ALASKA_SAFEPOINT_PAGE ((void*)(TABLE_START - 0x1000))
-#define ALASKA_SAFEPOINT_PAGE (void *)(0x7ffff000UL)
-// The implementation of the safepoint poll function
-extern void alaska_safepoint(void);
-
-
 // Not a good function to call. This is always an external function in the compiler's eyes
 extern void *__alaska_leak(void *);
 
