@@ -20,6 +20,20 @@
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
 
+// Fwd decl stuff
+namespace alaska {
+  class Mapping;
+}
+
+extern "C" {
+// src/translate.cpp
+void *alaska_encode(alaska::Mapping *m, off_t offset);
+void *alaska_translate_escape(void *ptr);
+void *alaska_translate(void *ptr);
+void alaska_release(void *ptr);
+void *alaska_ensure_present(alaska::Mapping *m);
+}
+
 namespace alaska {
 
   extern long translation_hits;
@@ -46,7 +60,7 @@ namespace alaska {
       if (unlikely(alt.swap)) {
         // Ask the runtime to "swap" the object back in. We blindly assume that
         // this will succeed for performance reasons.
-        return alaska_ensure_present(m);
+        return alaska_ensure_present(this);
       }
 #endif
       return ptr;
@@ -138,16 +152,4 @@ namespace alaska {
 
 // In barrier.c
 
-extern "C" {
-// src/lock.c
-void *alaska_encode(alaska::Mapping *m, off_t offset);
-void *alaska_translate_escape(void *ptr);
-void *alaska_translate(void *ptr);
-void alaska_release(void *ptr);
-
-
-
-// Ensure a handle is present.
-void *alaska_ensure_present(alaska::Mapping *m);
-}
 
