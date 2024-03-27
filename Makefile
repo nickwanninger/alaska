@@ -25,7 +25,7 @@ $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config deps $(BUILD_REQ)
+alaska: .config $(BUILD_REQ)
 	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
 
