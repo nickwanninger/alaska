@@ -1,9 +1,3 @@
-
-config LLVM_VERSION
-  string "LLVM Version to use. This must be after LLVM 16.0.4"
-  default "16.0.4"
-
-
 choice
 	prompt "Runtime Service"
 	default SERVICE_NONE

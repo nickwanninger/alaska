@@ -6,36 +6,13 @@ ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 mkdir -p $ROOT/local
 pushd $ROOT/local
 
-if [ ! -f "${ROOT}/.config" ]; then
-	echo "ERROR: run 'make menuconfig' first";
-	exit;
-fi
 
-LLVM_VERSION=15.0.2
+LLVM_VERSION=16.0.4
 PREFIX=$ROOT/local
 mkdir -p ${PREFIX}/{bin,lib}
 
 export PATH=$PREFIX/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
-
-
-# make sure we get libunicorn for emulation
-# if [ ! -f ${PREFIX}/lib/libunicorn.a ]; then
-# 	mkdir -p ${PREFIX}
-#
-# 	if [ ! -d unicorn ]; then
-# 		git clone git@github.com:unicorn-engine/unicorn.git --depth 1
-# 	fi
-# 	pushd unicorn
-# 		mkdir build
-# 		pushd build
-# 			cmake ../ -G Ninja -DCMAKE_INSTALL_PREFIX=${PREFIX}
-# 			ninja install
-# 		popd
-# 	popd
-# 	# rm -rf unicorn
-# fi
-
 
 
 if [ ! -f ${PREFIX}/bin/gclang ]; then
@@ -74,16 +51,13 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 		case $(uname -m) in
 			x86_64)
 				# the RHEL version is more stable on other distributions, it seems
-				LLVM_FILE=clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz
-				# LLVM_FILE=clang+llvm-16.0.3-x86_64-linux-gnu-ubuntu-22.04.tar.xz
+				LLVM_FILE=clang+llvm-16.0.4-x86_64-linux-gnu-ubuntu-22.04.tar.xz
 				;;
 			arm)
-				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
-				# LLVM_FILE=clang+llvm-16.0.3-aarch64-linux-gnu.tar.xz
+				LLVM_FILE=clang+llvm-16.0.4-aarch64-linux-gnu.tar.xz
 				;;
 			aarch64)
-				LLVM_FILE=clang+llvm-15.0.2-aarch64-linux-gnu.tar.xz
-				# LLVM_FILE=clang+llvm-16.0.3-aarch64-linux-gnu.tar.xz
+				LLVM_FILE=clang+llvm-16.0.4-aarch64-linux-gnu.tar.xz
 				;;
 		esac
 	fi
@@ -92,12 +66,10 @@ if [ ! -f "${PREFIX}/bin/clang" ]; then
 	if [ "$(uname)" == "Darwin" ]; then
 		case $(uname -m) in
 			arm64)
-		LLVM_FILE=clang+llvm-15.0.2-arm64-apple-darwin21.0.tar.xz
+		    LLVM_FILE=clang+llvm-16.0.4-arm64-apple-darwin22.0.tar.xz
 				;;
 		esac
 	fi
-
-	# LLVM_FILE=""
 
 	if [ "${LLVM_FILE}" != "" ]; then
 
