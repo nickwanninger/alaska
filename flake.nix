@@ -11,14 +11,9 @@
       (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          buildInputs = with pkgs; [
-            cmake
 
-            python3 python3Packages.pip
-            gdb ps which git
-            zlib
 
-            # Compiler dependencies
+          runInputs = with pkgs; [
             llvmPackages_16.libllvm
             llvmPackages_16.clang
             llvmPackages_16.stdenv
@@ -26,8 +21,25 @@
 
             gllvm
 
+            coreutils # For our bash scripts
+            python3 # For running bin/alaska-transform
+            file
+
+            getconf
+          ];
+
+          buildInputs = with pkgs; runInputs ++ [
+            cmake
+
+            makeWrapper
+
+            python3Packages.pip
+            gdb ps which git
+            zlib
+
             bashInteractive
           ];
+
         in
         with pkgs; {
           devShell = mkShell {
@@ -45,6 +57,12 @@
 
             buildInputs = buildInputs;
 
+            postFixup = ''
+              for b in $out/bin/*; do
+                wrapProgram $b --set PATH ${lib.makeBinPath runInputs } \
+                               --prefix PATH : $out/bin
+              done
+            '';
           };
         }
       );
