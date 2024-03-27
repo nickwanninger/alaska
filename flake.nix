@@ -44,6 +44,10 @@
         with pkgs; {
           devShell = mkShell {
             buildInputs = buildInputs;
+
+            shellHook = '' 
+              source $PWD/enable
+            '';
           };
 
           packages.default = pkgs.stdenv.mkDerivation {
@@ -55,6 +59,7 @@
               make defconfig
             '';
 
+
             buildInputs = buildInputs;
 
             postFixup = ''
@@ -63,6 +68,8 @@
                                --prefix PATH : $out/bin
               done
             '';
+
+
           };
         }
       );
