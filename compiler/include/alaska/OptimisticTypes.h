@@ -15,6 +15,7 @@
 #include "llvm/IR/InstVisitor.h"
 
 #include <alaska/LatticePoint.h>
+#include <alaska/Types.h>
 #include <alaska/Utils.h>
 #include <map>
 
@@ -24,9 +25,9 @@
  */
 
 namespace alaska {
-  class OTLatticePoint : public LatticePoint<llvm::Type *> {
+  class OTLatticePoint : public LatticePoint<alaska::Type *> {
    public:
-    using Base = LatticePoint<llvm::Type *>;
+    using Base = LatticePoint<alaska::Type *>;
     using Base::Base;
     ~OTLatticePoint() override = default;
     // Return true if the point changed.
@@ -61,7 +62,7 @@ namespace alaska {
     void visitStoreInst(llvm::StoreInst &I);
     void visitAllocaInst(llvm::AllocaInst &I);
 
-    void use(llvm::Value *v, llvm::Type *t);
+    void use(llvm::Value *v, alaska::Type *t);
 
 
    private:
@@ -69,13 +70,13 @@ namespace alaska {
     std::map<llvm::Value *, OTLatticePoint> m_types;
 
     // A cache mapping from type to a metadata node.
-    std::map<llvm::Type *, llvm::MDNode *> m_mdMap;
+    std::map<alaska::Type *, llvm::MDNode *> m_mdMap;
 
 
-    llvm::MDNode *embedType(llvm::Type *);
+    llvm::MDNode *embedType(alaska::Type *);
   };
 
 
   // Get the type metadata from a value
-  llvm::Type *extractTypeMD(llvm::Value *v);
+  alaska::Type *extractTypeMD(llvm::Value *v);
 }  // namespace alaska

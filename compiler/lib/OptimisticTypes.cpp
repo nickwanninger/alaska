@@ -9,72 +9,72 @@
 // #define DEBUGLN(...) alaska::println(__VA_ARGS__)
 #define DEBUGLN(...)
 
-static void get_deep_struct_element_types_r(llvm::Type *t, std::vector<llvm::Type *> &out) {
-  if (auto st = dyn_cast<llvm::StructType>(t)) {
-    for (auto el : st->elements()) {
-      get_deep_struct_element_types_r(el, out);
+static void get_deep_struct_element_types_r(alaska::Type *t, std::vector<alaska::Type *> &out) {
+  if (auto st = dyn_cast<alaska::StructType>(t)) {
+    for (auto field : st->getFields()) {
+      get_deep_struct_element_types_r(field, out);
     }
   } else {
     out.push_back(t);
   }
 }
 
-static std::vector<llvm::Type *> get_deep_struct_element_types(llvm::StructType *st) {
-  std::vector<llvm::Type *> out;
+static std::vector<alaska::Type *> get_deep_struct_element_types(alaska::StructType *st) {
+  std::vector<alaska::Type *> out;
   get_deep_struct_element_types_r(st, out);
   return out;
 }
 
 
 
-static bool type_lifts_into(llvm::Type *tolift, llvm::Type *into) {
+static bool type_lifts_into(alaska::Type *tolift, alaska::Type *into) {
   if (tolift == into) {
     DEBUGLN("lift equal: ", *tolift, " | ", *into);
     return true;
   }
   DEBUGLN("lift check: ", *tolift, " | ", *into);
-  if (auto tlTP = dyn_cast<alaska::TypedPointer>(tolift)) {
-    if (auto intoTP = dyn_cast<alaska::TypedPointer>(into)) {
+  if (auto tlTP = dyn_cast<alaska::PointerType>(tolift)) {
+    if (auto intoTP = dyn_cast<alaska::PointerType>(into)) {
       return type_lifts_into(tlTP->getElementType(), intoTP->getElementType());
     }
   }
 
   // if `tolift` is a vector type, and `into` is a struct, we need to check if the
   // first `n` fields of the struct are that type. If not, we cannot lift.
-  if (auto vec = dyn_cast_or_null<llvm::VectorType>(tolift)) {
-    if (auto intoStruct = dyn_cast_or_null<StructType>(into)) {
-      DEBUGLN("can ", *vec, " lift into ", *into);
-      // Extrac the deep struct types from this structure
-      auto types = get_deep_struct_element_types(intoStruct);
-      auto elcount = vec->getElementCount();
-      // If the vector could be referencing the first N elements of the struct,
-      // it can be lifted into the struct type. Otherwise strict aliasing was violated.
-      if (elcount.isVector() && elcount.getFixedValue() <= types.size()) {
-        for (unsigned int i = 0; i < elcount.getFixedValue(); i++) {
-          if (types[i] != vec->getElementType()) return false;
-        }
-        return true;
-      }
-    }
-    return false;  // No dice.
-  }
+  // if (auto vec = dyn_cast_or_null<alaska::VectorType>(tolift)) {
+  //   if (auto intoStruct = dyn_cast_or_null<StructType>(into)) {
+  //     DEBUGLN("can ", *vec, " lift into ", *into);
+  //     // Extrac the deep struct types from this structure
+  //     auto types = get_deep_struct_element_types(intoStruct);
+  //     auto elcount = vec->getElementCount();
+  //     // If the vector could be referencing the first N elements of the struct,
+  //     // it can be lifted into the struct type. Otherwise strict aliasing was violated.
+  //     if (elcount.isVector() && elcount.getFixedValue() <= types.size()) {
+  //       for (unsigned int i = 0; i < elcount.getFixedValue(); i++) {
+  //         if (types[i] != vec->getElementType()) return false;
+  //       }
+  //       return true;
+  //     }
+  //   }
+  //   return false;  // No dice.
+  // }
 
 
-  if (auto *pt = dyn_cast<llvm::PointerType>(tolift)) {
+  if (auto *pt = dyn_cast<alaska::PointerType>(tolift)) {
     DEBUGLN("tolift is a pointer");
-    if (isa<llvm::PointerType>(into) || isa<alaska::TypedPointer>(into)) {
+    if (isa<alaska::PointerType>(into) || isa<alaska::PointerType>(into)) {
       DEBUGLN("into is also a pointer");
       return true;
     }
     // return false;
   }
 
-  if (auto *st = dyn_cast<llvm::StructType>(into)) {
+  if (auto *st = dyn_cast<alaska::StructType>(into)) {
     DEBUGLN("into is a struct");
-    if (st->getNumElements() == 0) {
+    if (st->getFieldCount() == 0) {
       return false;
     }
-    auto firstType = st->getElementType(0);
+    auto firstType = st->getContainedType(0);
     return type_lifts_into(tolift, firstType);
   }
   return false;
@@ -189,8 +189,8 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
               if (lp.is_defined()) {
                 if (type_lifts_into(lp.get_state(), t.get_state())) {
                   do_meet = false;
-                } else if (auto tp = dyn_cast_or_null<alaska::TypedPointer>(lp.get_state())) {
-                  if (auto st = dyn_cast<llvm::StructType>(tp->getElementType())) {
+                } else if (auto tp = dyn_cast_or_null<alaska::PointerType>(lp.get_state())) {
+                  if (auto st = dyn_cast<alaska::StructType>(tp->getElementType())) {
                     auto types = get_deep_struct_element_types(st);
                     // if the first type can lift into t's state, don't meet.
                     if (type_lifts_into(types[0], t.get_state())) {
@@ -200,7 +200,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
                 }
               }
               if (do_meet) {
-                temp.set_state(alaska::TypedPointer::get(t.get_state()));
+                temp.set_state(alaska::PointerType::get(t.get_state()));
                 changed |= lp.meet(temp);
               }
             }
@@ -252,7 +252,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
 
 
 
-void alaska::OptimisticTypes::use(llvm::Value *v, llvm::Type *t) {
+void alaska::OptimisticTypes::use(llvm::Value *v, alaska::Type *t) {
   DEBUGLN("use ", *v, " as ", *t);
   auto found = m_types.find(v);
 
@@ -371,7 +371,7 @@ void alaska::OptimisticTypes::dump(void) {
 
 
 
-llvm::MDNode *alaska::OptimisticTypes::embedType(llvm::Type *type) {
+llvm::MDNode *alaska::OptimisticTypes::embedType(alaska::Type *type) {
   auto it = m_mdMap.find(type);
   if (it != m_mdMap.end()) {
     return it->second;
@@ -384,23 +384,27 @@ llvm::MDNode *alaska::OptimisticTypes::embedType(llvm::Type *type) {
   };
 
 
-  auto m = llvm::TypeSwitch<llvm::Type *, llvm::MDNode *>(type)
-               .Case<alaska::TypedPointer>([&](auto tp) {
+  auto m = llvm::TypeSwitch<alaska::Type *, llvm::MDNode *>(type)
+               .Case<alaska::PointerType>([&](auto tp) {
                  return MDNode::get(ctx, {createString("ptr"), embedType(tp->getElementType())});
                })
-               .Case<llvm::StructType>([&](auto st) {
-                 if (not st->hasName()) {
-                   st->setName("anon");
-                 }
+               .Case<alaska::StructType>([&](auto st) {
+                 // if (not st->hasName()) {
+                 //   st->setName("anon");
+                 // }
                  return MDNode::get(ctx, {createString("struct"), createString(st->getName())});
                })
-               .Case<llvm::PointerType>([&](auto pt) {
-                 return MDNode::get(ctx, {createString("ptr")});
-               })
-               .Default([&](llvm::Type *t) {
+               .Case<alaska::PrimitiveType>([&](alaska::PrimitiveType *pt) {
+
                  std::string raw;
                  llvm::raw_string_ostream raw_writer(raw);
-                 t->print(raw_writer, false, true);
+                 pt->getWrapped()->print(raw_writer, false, true);
+                 return MDNode::get(ctx, {createString("prim"), createString(raw)});
+               })
+               .Default([&](alaska::Type *t) {
+                 std::string raw;
+                 llvm::raw_string_ostream raw_writer(raw);
+                 // t->print(raw_writer, false, true);
                  return MDNode::get(ctx, {createString("other"), createString(raw)});
                });
 
@@ -434,7 +438,7 @@ void alaska::OptimisticTypes::embed(void) {
 
     std::vector<llvm::Metadata *> argsVec;
     for (auto &arg : F.args()) {
-      llvm::Type *t = arg.getType();
+      alaska::Type *t = alaska::convertType(arg.getType());
       if (auto lp = get_lattice_point(&arg); lp.is_defined()) {
         t = lp.get_state();
       }
@@ -460,27 +464,27 @@ void alaska::OptimisticTypes::embed(void) {
 
 void alaska::OptimisticTypes::visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
   // The pointer operand is used as the type listed in the instruction.
-  use(I.getPointerOperand(), alaska::TypedPointer::get(I.getSourceElementType()));
+  use(I.getPointerOperand(), alaska::PointerType::get(alaska::convertType(I.getSourceElementType())));
   if (I.hasAllConstantIndices()) {
     std::vector<llvm::Value *> inds(I.idx_begin(), I.idx_end());
     auto t = llvm::GetElementPtrInst::getIndexedType(I.getSourceElementType(), inds);
-    if (t) use(&I, alaska::TypedPointer::get(t));
+    if (t) use(&I, alaska::PointerType::get(alaska::convertType(t)));
   }
 }
 
 void alaska::OptimisticTypes::visitLoadInst(llvm::LoadInst &I) {
   // The pointer operand must be a pointer to the type of the result of the load.
-  use(I.getPointerOperand(), alaska::TypedPointer::get(I.getType()));
+  use(I.getPointerOperand(), alaska::PointerType::get(alaska::convertType(I.getType())));
 }
 
 void alaska::OptimisticTypes::visitStoreInst(llvm::StoreInst &I) {
   auto stored = I.getValueOperand();
   // The pointer operand must be a pointer to the type of the value stored to memory
-  use(I.getPointerOperand(), alaska::TypedPointer::get(stored->getType()));
+  use(I.getPointerOperand(), alaska::PointerType::get(alaska::convertType(stored->getType())));
 }
 
 void alaska::OptimisticTypes::visitAllocaInst(llvm::AllocaInst &I) {
-  use(&I, alaska::TypedPointer::get(I.getAllocatedType()));
+  use(&I, alaska::PointerType::get(alaska::convertType(I.getAllocatedType())));
 }
 
 
@@ -551,14 +555,14 @@ bool alaska::OTLatticePoint::join(const OTLatticePoint::Base &incoming) {
 
 
 
-static llvm::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
+static alaska::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
   if (auto md = dyn_cast<llvm::MDNode>(m)) {
     auto &ctx = md->getContext();
     if (md->getNumOperands() == 1) {
       // Handle only "ptr"
       if (MDString *tag = dyn_cast<MDString>(md->getOperand(0))) {
         if (tag->getString() == "ptr") {
-          return llvm::PointerType::get(ctx, 0);
+          return alaska::convertType(llvm::PointerType::get(ctx, 0));
         }
       }
     }
@@ -567,14 +571,14 @@ static llvm::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
       if (MDString *tag = dyn_cast<MDString>(md->getOperand(0))) {
         // Pointer to a type
         if (tag->getString() == "ptr") {
-          return alaska::TypedPointer::get(parseTypeMD(M, md->getOperand(1).get()));
+          return alaska::PointerType::get(parseTypeMD(M, md->getOperand(1).get()));
         }
 
         // {"struct", "struct.X"}
         if (tag->getString() == "struct") {
           MDString *tag2 = dyn_cast<MDString>(md->getOperand(1));
           ALASKA_SANITY(tag2 != nullptr, "The second tag in a struct metadata must be a string.");
-          return llvm::StructType::getTypeByName(ctx, tag2->getString());
+          return alaska::convertType(llvm::StructType::getTypeByName(ctx, tag2->getString()));
         }
 
         // {"other", "..."} (other llvm type)
@@ -582,7 +586,7 @@ static llvm::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
           MDString *tag2 = dyn_cast<MDString>(md->getOperand(1));
           ALASKA_SANITY(tag2 != nullptr, "The second tag in a struct metadata must be a string.");
           llvm::SMDiagnostic Err;
-          return llvm::parseType(tag2->getString(), Err, M, nullptr);
+          return alaska::convertType(llvm::parseType(tag2->getString(), Err, M, nullptr));
         }
       }
     }
@@ -590,7 +594,7 @@ static llvm::Type *parseTypeMD(llvm::Module &M, llvm::Metadata *m) {
   return nullptr;
 }
 
-llvm::Type *alaska::extractTypeMD(llvm::Value *v) {
+alaska::Type *alaska::extractTypeMD(llvm::Value *v) {
   if (auto *inst = dyn_cast<Instruction>(v)) {
     if (not inst->hasMetadata("alaska.type")) return nullptr;
 

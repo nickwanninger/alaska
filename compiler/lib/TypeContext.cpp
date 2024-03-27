@@ -21,17 +21,17 @@ void alaska::TypeContext::runInference(void) {
     _assump[v] = convert(v->getType());
   };
 
-  for (auto &F : _module) {
-    for (auto &arg : F.args()) {
-      add_initial_assump(&arg);
-    }
-
-    for (auto &BB : F) {
-      for (auto &I : BB) {
-        add_initial_assump(&I);
-      }
-    }
-  }
+  // for (auto &F : _module) {
+  //   for (auto &arg : F.args()) {
+  //     add_initial_assump(&arg);
+  //   }
+  //
+  //   for (auto &BB : F) {
+  //     for (auto &I : BB) {
+  //       add_initial_assump(&I);
+  //     }
+  //   }
+  // }
 
 
   auto dump_value = [&](const char *msg, llvm::Value *val) {
@@ -213,7 +213,7 @@ alaska::Type *alaska::TypeContext::convert(llvm::Type *type) {
                .Case<alaska::TypedPointer>([&](auto *t) {
                  return getPointerTo(convert(t->getElementType()));
                })
-               // TODO: array types should really be unique to their context (?)
+               // // TODO: array types should really be unique to their context (?)
                // .Case<llvm::ArrayType>([&](llvm::ArrayType *t) {
                //   return new alaska::ArrayType(convert(t->getElementType()), t->getNumElements());
                // })
