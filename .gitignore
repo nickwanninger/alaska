@@ -5,6 +5,8 @@
 *.o
 /.config
 /build
+# nix
+/result
 /.clangd
 /.cache
 /artifacts

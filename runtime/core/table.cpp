@@ -22,6 +22,13 @@
 #define MAP_ENTRY_SIZE sizeof(alaska::Mapping)
 #define MAP_GRANULARITY 0x1000LU * MAP_ENTRY_SIZE
 
+
+#if ALASKA_SIZE_BITS >= 17
+#define TABLE_START (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS))
+#else
+#error "Cannot handle size bits less than 17"
+#endif
+
 // A lock on the table itself.
 // TODO: how do we make this atomic? Can we even?
 static pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;

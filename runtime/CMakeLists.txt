@@ -170,7 +170,9 @@ function(add_bitcode name)
 	llvmir_attach_link_target(
 		TARGET  ${name}
 		DEPENDS ${name}_bitcodes
-		OUTPUT_DIR ${CMAKE_INSTALL_LIBDIR})
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 	set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
 endfunction(add_bitcode)
@@ -208,8 +210,8 @@ target_link_libraries(htlb dl pthread)
 install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
-install(FILES include/alaska/config.h DESTINATION include/alaska)
-install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
+# install(FILES include/alaska/config.h DESTINATION include/alaska)
+# install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
 
 install(
   TARGETS alaska

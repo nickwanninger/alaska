@@ -25,7 +25,7 @@ $(BUILD)/Makefile:
 	mkdir -p $(BUILD)
 	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config deps $(BUILD_REQ)
+alaska: .config $(BUILD_REQ)
 	@cd $(BUILD) && cmake --build . --target install --config Debug
 	@cp build/compile_commands.json .
 
@@ -87,12 +87,12 @@ docker:
 deps: local/bin/gclang local/bin/clang
 
 
-local/bin/gclang: .config
+local/bin/gclang:
 	tools/build_gclang.sh
 
 
 
-local/bin/clang: .config | deps/${LLVM}-build/Makefile
+local/bin/clang: | deps/${LLVM}-build/Makefile
 	$(MAKE) -C deps/${LLVM}-build
 	$(MAKE) -C deps/${LLVM}-build install
 

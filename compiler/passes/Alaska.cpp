@@ -1,9 +1,11 @@
 // Alaska includes
+#include "alaska/AccessAutomata.h"
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
 #include <alaska/Translations.h>
 #include <alaska/Passes.h>
 #include <alaska/PlaceSafepoints.h>  // Stolen from LLVM
+#include <alaska/OptimisticTypes.h>
 
 // LLVM includes
 #include <llvm/Pass.h>
@@ -29,10 +31,6 @@
 
 #include <noelle/core/DGBase.hpp>
 
-
-
-
-
 static bool print_progress = true;
 class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
  public:
@@ -40,8 +38,7 @@ class ProgressPass : public llvm::PassInfoMixin<ProgressPass> {
 
   const char *message = NULL;
   ProgressPass(const char *message)
-      : message(message) {
-  }
+      : message(message) {}
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     double now = alaska::time_ms();
     if (progress_start == 0) {
@@ -143,6 +140,21 @@ class SimpleFunctionPass : public llvm::PassInfoMixin<SimpleFunctionPass> {
 
 
 
+class OptimisticTypesPass : public llvm::PassInfoMixin<OptimisticTypesPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
+    // Simply analyze the types, then embed them.
+    alaska::OptimisticTypes ot;
+    ot.analyze(M);
+    ot.embed();
+    ot.dump();
+
+    return PreservedAnalyses::all();
+  }
+};
+
+
+
 template <typename T>
 static auto adapt(T &&fp) {
   return llvm::createModuleToFunctionPassAdaptor(std::move(fp));
@@ -161,6 +173,11 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
       [](PassBuilder &PB) {
         PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                ArrayRef<llvm::PassBuilder::PipelineElement>) {
+          if (name == "alaska-type-infer") {
+            MPM.addPass(OptimisticTypesPass());
+            return true;
+          }
+
           if (name == "alaska-prepare") {
             MPM.addPass(adapt(DCEPass()));
             MPM.addPass(adapt(DCEPass()));

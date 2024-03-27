@@ -19,6 +19,12 @@ add_llvm_library(Alaska MODULE
 	lib/Utils.cpp
 	lib/TranslationForest.cpp
 	lib/Translations.cpp
+	lib/OptimisticTypes.cpp
+	lib/TypedPointer.cpp
+  lib/Types.cpp
+  lib/TypeContext.cpp
+  lib/TypeInference.cpp
+  lib/AccessAutomata.cpp
 
 	
 	# ======= Hacky Noelle Embedding ======= 

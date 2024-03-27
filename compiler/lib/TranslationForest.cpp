@@ -8,8 +8,12 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/ADT/SparseBitVector.h"
 #include <noelle/core/DataFlow.hpp>
+#include "llvm/Analysis/MemoryLocation.h"
+#include "llvm/IR/TypedPointerType.h"  // Hack.
+#include "llvm/Support/raw_ostream.h"
 
 
+#include <alaska/OptimisticTypes.h>
 
 
 // Either get the `incoming` of this node or the node it shares with, or the parent's
@@ -32,8 +36,7 @@ llvm::Instruction *get_incoming_translated_value(alaska::TranslationForest::Node
 struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
   alaska::TranslationForest::Node &node;
   TranslationVisitor(alaska::TranslationForest::Node &node)
-      : node(node) {
-  }
+      : node(node) {}
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst &I) {
     // Simply insert an `alaska.derive` function right after `I`
@@ -169,8 +172,7 @@ static llvm::Instruction *compute_translation_insertion_location(
 
 
 alaska::TranslationForest::TranslationForest(llvm::Function &F)
-    : func(F) {
-}
+    : func(F) {}
 
 
 

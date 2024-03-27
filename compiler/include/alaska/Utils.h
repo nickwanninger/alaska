@@ -24,10 +24,9 @@ namespace alaska {
   bool bootstrapping(void);  // are we bootstrapping?
 
 
-  inline void fprint(llvm::raw_ostream &out) {
-  }
+  inline void fprint(llvm::raw_ostream &out) {}
   template <class T, class... Ts>
-  inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &... rest) {
+  inline void fprint(llvm::raw_ostream &out, T const &first, Ts const &...rest) {
     out << first;
     alaska::fprint(out, rest...);
   }
@@ -35,19 +34,19 @@ namespace alaska {
 
 
   template <class... Ts>
-  inline void fprintln(llvm::raw_ostream &out, Ts const &... args) {
+  inline void fprintln(llvm::raw_ostream &out, Ts const &...args) {
     alaska::fprint(out, args..., '\n');
   }
 
 
 
   template <class... Ts>
-  inline void println(Ts const &... args) {
+  inline void println(Ts const &...args) {
     alaska::fprintln(llvm::errs(), args...);
   }
 
   template <class... Ts>
-  inline void print(Ts const &... args) {
+  inline void print(Ts const &...args) {
     alaska::fprint(llvm::errs(), args...);
   }
 
@@ -61,9 +60,7 @@ namespace alaska {
     return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
   }
 
-  inline double time_ms() {
-		return (double)timestamp() / 1000.0 / 1000.0;
-  }
+  inline double time_ms() { return (double)timestamp() / 1000.0 / 1000.0; }
 }  // namespace alaska
 
 
@@ -79,3 +76,8 @@ namespace alaska {
       exit(EXIT_FAILURE);                                                                       \
     }                                                                                           \
   } while (0);
+
+#define ALASKA_NOCOPY_NOMOVE(T)        \
+  T(T const &) = delete;               \
+  void operator=(T const &t) = delete; \
+  T(T &&) = delete;
