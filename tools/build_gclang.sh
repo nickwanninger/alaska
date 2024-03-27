@@ -11,7 +11,6 @@ if [ ! -f "${ROOT}/.config" ]; then
 	exit;
 fi
 
-LLVM_VERSION=15.0.2
 PREFIX=$ROOT/local
 mkdir -p ${PREFIX}/{bin,lib}
 

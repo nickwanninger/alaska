@@ -13,9 +13,6 @@ export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
 
 
 
-LLVM_VERSION=$(shell echo ${ALASKA_LLVM_VERSION})
-LLVM=llvm-${LLVM_VERSION}
-
 BUILD=build
 
 
@@ -75,9 +72,6 @@ menuconfig:
 redis: alaska
 	$(MAKE) -C test/redis
 
-build/lua: alaska
-	local/bin/alaska -O2 -b -k test/lua/onelua.c -o $@
-
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
@@ -86,33 +80,11 @@ docker:
 
 deps: local/bin/gclang local/bin/clang
 
-
 local/bin/gclang:
 	tools/build_gclang.sh
 
-
-
-local/bin/clang: | deps/${LLVM}-build/Makefile
-	$(MAKE) -C deps/${LLVM}-build
-	$(MAKE) -C deps/${LLVM}-build install
-
-deps/${LLVM}-build/Makefile: | deps/${LLVM}
-	mkdir -p deps/${LLVM}-build
-	cd deps/${LLVM}-build && cmake ../${LLVM}/llvm                              \
-		-DCMAKE_BUILD_TYPE=Release                                          \
-		-DCMAKE_INSTALL_PREFIX=$(ROOT)/local                                \
-		-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;openmp;compiler-rt" \
-		-DLLVM_TARGETS_TO_BUILD="X86;AArch64;RISCV"
-		# -DLLVM_BINUTILS_INCDIR="$(ROOT)/local/include"
-
-deps/${LLVM}:
-	mkdir -p deps
-	wget -O deps/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-$(LLVM_VERSION)/llvm-project-$(LLVM_VERSION).src.tar.xz
-	tar xvf deps/llvm.tar.xz -C deps/
-	mv deps/llvm-project-$(LLVM_VERSION).src deps/${LLVM}
-
-
-
+local/bin/clang:
+	tools/get_llvm.sh
 
 
 
