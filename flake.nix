@@ -14,11 +14,9 @@
           buildInputs = with pkgs; [
             cmake
 
-            libunwind
-
-
             python3 python3Packages.pip
             gdb ps which git
+            zlib
 
             # Compiler dependencies
             llvmPackages_16.libllvm
