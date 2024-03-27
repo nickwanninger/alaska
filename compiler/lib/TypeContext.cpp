@@ -16,23 +16,6 @@
 
 
 void alaska::TypeContext::runInference(void) {
-  // Add the initial assumption using just the ->getType() from an llvm value
-  auto add_initial_assump = [&](llvm::Value *v) {
-    _assump[v] = convert(v->getType());
-  };
-
-  // for (auto &F : _module) {
-  //   for (auto &arg : F.args()) {
-  //     add_initial_assump(&arg);
-  //   }
-  //
-  //   for (auto &BB : F) {
-  //     for (auto &I : BB) {
-  //       add_initial_assump(&I);
-  //     }
-  //   }
-  // }
-
 
   auto dump_value = [&](const char *msg, llvm::Value *val) {
     auto t = getType(val);
