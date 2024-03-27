@@ -37,3 +37,9 @@ test/npb/MG/penmp
 /runtime/include/alaska/autoconf.h
 .vscode
 .ipynb_checkpoints
+
+
+/.direnv
+
+# Nix result
+/result
