@@ -4,6 +4,12 @@
 
 
 
+static alaska::TypeContext typeContext;
+
+alaska::Type *alaska::convertType(llvm::Type *t) {
+  return typeContext.convert(t);
+}
+
 
 alaska::PointerType *alaska::PointerType::get(alaska::Type *elTy) {
   return elTy->getContext().getPointerTo(elTy);

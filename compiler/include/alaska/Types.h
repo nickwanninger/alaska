@@ -130,7 +130,7 @@ namespace alaska {
     inline const std::string &getName(void) const { return _name; }
 
     inline bool validIndex(unsigned idx) const { return getFieldCount() > idx; }
-    inline auto *getTypeAtIndex(unsigned idx) const { return getContainedType(idx); }
+    inline alaska::Type *getTypeAtIndex(unsigned idx) const { return getContainedType(idx); }
     alaska::Type *getTypeAtIndex(const Value *V) const {
       unsigned Idx = (unsigned)cast<Constant>(V)->getUniqueInteger().getZExtValue();
       ALASKA_SANITY(validIndex(Idx), "Invalid structure index!");
@@ -195,8 +195,6 @@ namespace alaska {
   // which has additional information we extract from optimistic analysis.
   class TypeContext final {
    public:
-    TypeContext(llvm::Module &m)
-        : _module(m) {}
     alaska::Type *convert(llvm::Type *);
     // Construct a fresh type variable
     alaska::VarType *freshVar(void);
@@ -223,9 +221,10 @@ namespace alaska {
 
     // A mapping from element to the pointertype
     std::unordered_map<alaska::Type *, alaska::PointerType *> _pointers;
-
-    llvm::Module &_module;
   };
+
+
+  alaska::Type *convertType(llvm::Type *t);
 
 
   alaska::Type *getIndexedType(alaska::Type *Agg, ArrayRef<unsigned> Idxs);
