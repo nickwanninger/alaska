@@ -10,7 +10,7 @@
  */
 
 #include <anchorage/Block.hpp>
-#include <anchorage/Chunk.hpp>
+#include <anchorage/SubHeap.hpp>
 #include <limits.h>
 #include <string.h>
 

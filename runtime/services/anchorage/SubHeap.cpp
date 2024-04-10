@@ -8,7 +8,7 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
-#include <anchorage/Chunk.hpp>
+#include <anchorage/SubHeap.hpp>
 #include <anchorage/Block.hpp>
 
 #include <alaska/alaska.hpp>
@@ -24,10 +24,10 @@
 
 static constexpr bool do_dumps = true;
 
-anchorage::Chunk *anchorage::Chunk::to_space = NULL;
-anchorage::Chunk *anchorage::Chunk::from_space = NULL;
+anchorage::SubHeap *anchorage::SubHeap::to_space = NULL;
+anchorage::SubHeap *anchorage::SubHeap::from_space = NULL;
 
-void anchorage::Chunk::swap_spaces() {
+void anchorage::SubHeap::swap_spaces() {
   auto old_from = from_space;
   from_space = to_space;
   to_space = old_from;
@@ -36,13 +36,13 @@ void anchorage::Chunk::swap_spaces() {
 static void alldump(anchorage::Block *focus, const char *message) {
   if constexpr (do_dumps) {
     printf("%-10s | ", message);
-    anchorage::Chunk::to_space->dump(focus, "to");
+    anchorage::SubHeap::to_space->dump(focus, "to");
     printf("%-10s | ", "");
-    anchorage::Chunk::from_space->dump(focus, "from");
+    anchorage::SubHeap::from_space->dump(focus, "from");
   }
 }
 
-auto anchorage::Chunk::get(void *ptr) -> anchorage::Chunk * {
+auto anchorage::SubHeap::get(void *ptr) -> anchorage::SubHeap * {
   // TODO: lock!
   if (to_space->contains(ptr)) return to_space;
   if (from_space->contains(ptr)) return from_space;
@@ -50,11 +50,11 @@ auto anchorage::Chunk::get(void *ptr) -> anchorage::Chunk * {
 }
 
 
-auto anchorage::Chunk::contains(void *ptr) -> bool {
+auto anchorage::SubHeap::contains(void *ptr) -> bool {
   return ptr >= front && ptr < tos;
 }
 
-anchorage::Chunk::Chunk(size_t pages)
+anchorage::SubHeap::SubHeap(size_t pages)
     : pages(pages)
     , free_list(*this) {
   size_t size = anchorage::page_size * pages;
@@ -71,13 +71,13 @@ anchorage::Chunk::Chunk(size_t pages)
   tos->set_next(nullptr);
 }
 
-anchorage::Chunk::~Chunk(void) {
+anchorage::SubHeap::~SubHeap(void) {
   munmap((void *)front, 4096 * pages);
 }
 
 
 // Split a free block, leaving `to_split` in the free list.
-bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t required_size) {
+bool anchorage::SubHeap::split_free_block(anchorage::Block *to_split, size_t required_size) {
   auto current_size = to_split->size();
   if (current_size == required_size) return true;
 
@@ -105,13 +105,13 @@ bool anchorage::Chunk::split_free_block(anchorage::Block *to_split, size_t requi
 
 
 // add and remove blocks from the free list
-void anchorage::Chunk::fl_add(Block *blk) {
+void anchorage::SubHeap::fl_add(Block *blk) {
   ALASKA_ASSERT(blk < tos, "A block being added to the free list must be below tos");
   // blk->dump_content("before add");
   free_list.add(blk);
   // blk->dump_content("after add");
 }
-void anchorage::Chunk::fl_del(Block *blk) {
+void anchorage::SubHeap::fl_del(Block *blk) {
   // blk->dump_content("before del");
   free_list.remove(blk);
   // blk->dump_content("after del");
@@ -120,7 +120,7 @@ void anchorage::Chunk::fl_del(Block *blk) {
 
 
 
-anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
+anchorage::Block *anchorage::SubHeap::alloc(size_t requested_size) {
   validate_heap("alloc - start");
 
   size_t size = round_up(requested_size, anchorage::block_size);
@@ -171,7 +171,7 @@ anchorage::Block *anchorage::Chunk::alloc(size_t requested_size) {
 
 
 
-void anchorage::Chunk::free(anchorage::Block *blk) {
+void anchorage::SubHeap::free(anchorage::Block *blk) {
   validate_heap("free - start");
   ALASKA_ASSERT(blk < tos, "A live block must be below the top of stack");
   active_bytes -= blk->size();
@@ -187,13 +187,13 @@ void anchorage::Chunk::free(anchorage::Block *blk) {
   validate_heap("free - after coalesce_free");
 }
 
-size_t anchorage::Chunk::span(void) const {
+size_t anchorage::SubHeap::span(void) const {
   return (off_t)tos - (off_t)front;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int anchorage::Chunk::coalesce_free(Block *blk) {
+int anchorage::SubHeap::coalesce_free(Block *blk) {
   // if the previous is free, ask it to coalesce instead, as we only handle
   // left-to-right coalescing.
   while (true) {
@@ -229,7 +229,7 @@ int anchorage::Chunk::coalesce_free(Block *blk) {
   return changes;
 }
 
-void anchorage::Chunk::dump(Block *focus, const char *message) {
+void anchorage::SubHeap::dump(Block *focus, const char *message) {
   if constexpr (do_dumps) {
     printf("%-10s ", message);
     for (auto &block : *this) {
@@ -240,7 +240,7 @@ void anchorage::Chunk::dump(Block *focus, const char *message) {
   }
 }
 
-void anchorage::Chunk::dump_free_list(void) {
+void anchorage::SubHeap::dump_free_list(void) {
   return;
   printf("Free list:\n");
   ck::vec<anchorage::Block *> blocks;
@@ -254,8 +254,8 @@ void anchorage::Chunk::dump_free_list(void) {
 
 
 void anchorage::allocator_init(void) {
-  anchorage::Chunk::to_space = new anchorage::Chunk(anchorage::min_chunk_pages);
-  anchorage::Chunk::from_space = new anchorage::Chunk(anchorage::min_chunk_pages);
+  anchorage::SubHeap::to_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
+  anchorage::SubHeap::from_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
 }
 
 void anchorage::allocator_deinit(void) {
@@ -263,7 +263,7 @@ void anchorage::allocator_deinit(void) {
 
 
 
-void anchorage::Chunk::validate_block(anchorage::Block *blk, const char *context_name) {
+void anchorage::SubHeap::validate_block(anchorage::Block *blk, const char *context_name) {
   if (blk->prev() == NULL)
     ALASKA_ASSERT(blk == front, "if prev() is null, the block must be the bottom of the stack");
   if (blk->next() == NULL)
@@ -275,7 +275,7 @@ void anchorage::Chunk::validate_block(anchorage::Block *blk, const char *context
     ALASKA_ASSERT(blk->prev()->next() == blk, "The prev's next must be this block");
 }
 
-void anchorage::Chunk::validate_heap(const char *context_name) {
+void anchorage::SubHeap::validate_heap(const char *context_name) {
   return;
   // printf("Validating in context '%s'\n", context_name);
   // dump(nullptr, "Validate");
@@ -300,8 +300,8 @@ void anchorage::Chunk::validate_heap(const char *context_name) {
 
 
 // In this function, Dianoga does his work.
-long anchorage::Chunk::perform_compaction(
-    anchorage::Chunk &dst_space, anchorage::CompactionConfig &config) {
+long anchorage::SubHeap::perform_compaction(
+    anchorage::SubHeap &dst_space, anchorage::CompactionConfig &config) {
   // How much free space is there in the heap at the start?
   long used_start = memory_used_including_overheads();
   // How many tokens have been spent so far?

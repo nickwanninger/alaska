@@ -53,7 +53,7 @@ if (ALASKA_SERVICE_ANCHORAGE)
 	set(SRC_FILES ${SRC_FILES}
 		services/anchorage/Anchorage.cpp
 		services/anchorage/Block.cpp
-		services/anchorage/Chunk.cpp
+    services/anchorage/SubHeap.cpp
 		services/anchorage/Swapper.cpp
 	)
 endif(ALASKA_SERVICE_ANCHORAGE)

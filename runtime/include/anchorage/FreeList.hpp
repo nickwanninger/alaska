@@ -14,7 +14,7 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Block.hpp>
-#include <anchorage/Chunk.hpp>
+#include <anchorage/SubHeap.hpp>
 #include <anchorage/SizeMap.hpp>
 #include <alaska/list_head.h>
 #include <ck/set.h>
@@ -28,7 +28,7 @@ namespace anchorage {
     static constexpr int num_classes = 16;
     static constexpr int num_free_lists = num_classes + 1;
 
-    inline FirstFitSegFreeList(anchorage::Chunk &chunk)
+    inline FirstFitSegFreeList(anchorage::SubHeap &chunk)
         : m_chunk(chunk) {
       for (int i = 0; i < num_classes; i++) {
         free_lists[i] = LIST_HEAD_INIT(free_lists[i]);
@@ -132,7 +132,7 @@ namespace anchorage {
 
     struct list_head free_lists[num_classes];
     struct list_head huge_free_list = LIST_HEAD_INIT(huge_free_list);
-    anchorage::Chunk &m_chunk;
+    anchorage::SubHeap &m_chunk;
   };
 
 }  // namespace anchorage
