@@ -14,12 +14,13 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Block.hpp>
-#include <anchorage/SubHeap.hpp>
 #include <anchorage/SizeMap.hpp>
 #include <alaska/list_head.h>
 #include <ck/set.h>
 
 namespace anchorage {
+
+  struct SubHeap;
 
   class FirstFitSegFreeList {
    public:
