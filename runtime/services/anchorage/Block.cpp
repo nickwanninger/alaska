@@ -11,7 +11,6 @@
 
 #include <anchorage/Block.hpp>
 #include <anchorage/SubHeap.hpp>
-#include <limits.h>
 #include <string.h>
 
 #include <anchorage/crc32.h>
@@ -99,10 +98,6 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     c = '-';
   }
 
-
-  //  size_t count = (size() / anchorage::block_size);
-  //  printf(" %zu ", size());
-  // putchar(' ');
   if (0) {
     set_fg(0x88'88'88);
     size_t count = (size() + 16) / 8;
@@ -121,64 +116,4 @@ void anchorage::Block::dump(bool verbose, bool highlight) {
     }
   }
   clear_format();
-
-  return;
-  // int color = 0;
-  // char c = ' ';
-  // if (is_used()) {
-  //   auto &handle = *this->handle();
-  //   if (0) {       // (handle.anchorage.flags & ANCHORAGE_FLAG_LAZY_FREE) {
-  //     color = 35;  // purple
-  //     c = '#';
-  //   } else if (is_locked()) {  // (handle.anchorage.locks > 0) {
-  //     color = 31;              // red
-  //     c = 'X';
-  //   } else {
-  //     color = 32;  // green
-  //     c = '#';
-  //   }
-  //
-  //   if (handle.ptr != data()) {
-  //     color = 33;  // yellow
-  //     c = '?';
-  //   }
-  // } else {
-  //   color = 90;  // gray
-  //   c = '-';
-  // }
-  // (void)c;
-  //
-  // if (highlight) {
-  //   color = 97;  // highlighted blocks should be white (with a background)
-  //   // Print a background color
-  //   printf("\e[%dm", 100);
-  // }
-  // // color += 10;
-  //
-  // printf("\e[%dm", color);
-  // ssize_t sz = size();
-  //
-  // if (verbose) {
-  //   // putchar('|');
-  //   auto *d = (uint64_t *)this;  // data();
-  //   size_t count = (sz + 16) / 8;
-  //   if (count > 8) count = 8;
-  //
-  //   for (size_t i = 0; i < count; i++) {
-  //     // if (i % 8 == 0) printf(" ");
-  //     printf("%016lx ", d[i]);
-  //   }
-  // } else {
-  //   // c = ' ';
-  //   // putchar(c);
-  //   putchar('|');
-  //
-  //   size_t count = ((sz - anchorage::block_size) / anchorage::block_size);
-  //   if (count > 64) count = 64;
-  //   for (size_t i = 0; i <= count; i++)
-  //     putchar(c);
-  // }
-  // printf("\e[0m");
-  //
-  // if (verbose) printf("\n");
 }
