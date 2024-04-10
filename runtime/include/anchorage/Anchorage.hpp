@@ -23,7 +23,7 @@ namespace anchorage {
 
 
   struct Block;
-  struct Chunk;
+  struct SubHeap;
 
   // main interface to the allocator
   void allocator_init(void);
@@ -41,11 +41,9 @@ namespace anchorage {
   constexpr size_t min_chunk_pages = (512 * GB) / 4096;
 
   // constexpr size_t min_chunk_pages = 4096;
-  static inline size_t size_with_overhead(size_t sz) {
-    return sz + block_size;
-  }
+  static inline size_t size_with_overhead(size_t sz) { return sz + block_size; }
 
 
-	double get_heap_frag(void);
-	double get_heap_frag_locked(void);
+  double get_heap_frag(void);
+  double get_heap_frag_locked(void);
 }  // namespace anchorage

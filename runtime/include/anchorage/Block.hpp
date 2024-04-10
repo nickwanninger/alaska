@@ -38,7 +38,7 @@ namespace anchorage {
     // nonsense to cram all the data we need into only 16 bytes.
     auto handle(void) const -> alaska::Mapping *;  // get the handle
     void set_handle(alaska::Mapping *handle);      // set the handle
-    void mark_as_free(anchorage::Chunk &chunk);    // clear the handle and record it in the
+    void mark_as_free(anchorage::SubHeap &chunk);    // clear the handle and record it in the
     auto next(void) const -> anchorage::Block *;   // get the next block
     void set_next(anchorage::Block *new_next, bool backlink = true);    // set the next block (TODO: abstract into LL ops)
     auto prev(void) const -> anchorage::Block *;  // get the prev block
@@ -58,12 +58,14 @@ namespace anchorage {
     // Strict byte layout here. Must be 16 bytes
     uint32_t m_prev_off;  // how many 16 byte blocks the previous node is
     uint32_t m_next_off;  // how many 16 byte blocks until the next node?
-    uint32_t m_handle;    // The handle this block belongs to (basically a 32bit pointer)
-
-    union {
-      uint32_t m_flags;
-      struct {
-        bool m_locked : 1;
+    struct {
+      // The handle this block belongs to.
+      uint64_t m_handle : 48;
+      union {
+        uint16_t m_flags : 16;
+        struct {
+          bool m_locked : 1;
+        };
       };
     };
   };
@@ -130,7 +132,7 @@ inline void anchorage::Block::set_handle(alaska::Mapping *handle) {
   m_handle = handle->to_compact();
 }
 
-inline void anchorage::Block::mark_as_free(anchorage::Chunk &chunk) {
+inline void anchorage::Block::mark_as_free(anchorage::SubHeap &chunk) {
   set_handle(nullptr);
 }
 

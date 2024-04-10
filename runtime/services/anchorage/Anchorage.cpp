@@ -11,7 +11,7 @@
 
 #include <anchorage/Anchorage.hpp>
 #include <anchorage/Block.hpp>
-#include <anchorage/Chunk.hpp>
+#include <anchorage/SubHeap.hpp>
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
@@ -40,7 +40,7 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
   Block *new_block = NULL;
 
   // Allocate from the to_space
-  auto new_chunk = anchorage::Chunk::to_space;
+  auto new_chunk = anchorage::SubHeap::to_space;
   auto blk = new_chunk->alloc(size);
   new_block = blk;
   ALASKA_ASSERT(blk < new_chunk->tos, "An allocated block must be less than the top of stack");
@@ -58,7 +58,7 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
 
   if (ptr != NULL) {
     Block *old_block = anchorage::Block::get(ptr);
-    auto *old_chunk = anchorage::Chunk::get(ptr);
+    auto *old_chunk = anchorage::SubHeap::get(ptr);
     size_t copy_size = old_block->size();
     if (new_block->size() < copy_size) copy_size = new_block->size();
     memcpy(new_block->data(), old_block->data(), copy_size);
@@ -78,7 +78,7 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
 void alaska::service::free(alaska::Mapping *ent) {
   anch_lock.lock();
 
-  auto *chunk = anchorage::Chunk::get(ent->get_pointer());
+  auto *chunk = anchorage::SubHeap::get(ent->get_pointer());
 
   if (chunk) {
     auto *blk = anchorage::Block::get(ent->get_pointer());
@@ -111,8 +111,8 @@ static double get_overall_frag(void) {
   long rss_bytes = alaska_translate_rss_kb() * 1024;
   long heap_size = 0;
 
-  heap_size += anchorage::Chunk::to_space->active_bytes;
-  heap_size += anchorage::Chunk::from_space->active_bytes;
+  heap_size += anchorage::SubHeap::to_space->active_bytes;
+  heap_size += anchorage::SubHeap::from_space->active_bytes;
 
   anch_lock.unlock();
 
@@ -123,11 +123,11 @@ double anchorage::get_heap_frag_locked(void) {
   long rss_bytes = 0;
   long heap_size = 0;
 
-  rss_bytes += anchorage::Chunk::to_space->span();
-  rss_bytes += anchorage::Chunk::from_space->span();
+  rss_bytes += anchorage::SubHeap::to_space->span();
+  rss_bytes += anchorage::SubHeap::from_space->span();
 
-  heap_size += anchorage::Chunk::to_space->memory_used_including_overheads();
-  heap_size += anchorage::Chunk::from_space->memory_used_including_overheads();
+  heap_size += anchorage::SubHeap::to_space->memory_used_including_overheads();
+  heap_size += anchorage::SubHeap::from_space->memory_used_including_overheads();
 
   return rss_bytes / (double)heap_size;
 }
@@ -280,8 +280,8 @@ static void barrier_control_overhead_target(void) {
     auto start = alaska_timestamp();
     float frag_before = anchorage::get_heap_frag();
 
-    auto to_use = anchorage::Chunk::to_space->memory_used_including_overheads();
-    auto from_use = anchorage::Chunk::from_space->memory_used_including_overheads();
+    auto to_use = anchorage::SubHeap::to_space->memory_used_including_overheads();
+    auto from_use = anchorage::SubHeap::from_space->memory_used_including_overheads();
 
     if (state == WAITING) {
       // If the fragmentation has gotten "out of hand", switch to the compacting
@@ -300,7 +300,7 @@ static void barrier_control_overhead_target(void) {
         // When entering the COMPACTING state, swap the spaces.
         // This ensures that allocations are made to the *to space* while, and
         // objects are moved from the *from_space*
-        anchorage::Chunk::swap_spaces();
+        anchorage::SubHeap::swap_spaces();
       }
     }
 
@@ -313,7 +313,7 @@ static void barrier_control_overhead_target(void) {
       // Perform compaction. Transfer objects from the `from_space` to the `to_space`
       printf("Compacting! Tokens = %5.2fMB\n", tokens_to_spend / 1024.0 / 1024.0);
       auto moved =
-          anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+          anchorage::SubHeap::from_space->perform_compaction(*anchorage::SubHeap::to_space, config);
       total_moved_this_cycle += moved;
       ms_spent_in_this_cycle += (alaska_timestamp() - start) / 1000.0 / 1000.0;
 
@@ -421,15 +421,15 @@ static void stress_workload(void) {
 
     config.available_tokens = tokens;
 
-    if (anchorage::Chunk::from_space->memory_used_including_overheads() < tokens) {
-      anchorage::Chunk::swap_spaces();
+    if (anchorage::SubHeap::from_space->memory_used_including_overheads() < tokens) {
+      anchorage::SubHeap::swap_spaces();
     }
 
     auto moved =
-        anchorage::Chunk::from_space->perform_compaction(*anchorage::Chunk::to_space, config);
+        anchorage::SubHeap::from_space->perform_compaction(*anchorage::SubHeap::to_space, config);
 
     if (moved == 0) {
-      anchorage::Chunk::swap_spaces();
+      anchorage::SubHeap::swap_spaces();
     }
 
     alaska::barrier::end();
@@ -486,8 +486,8 @@ void alaska::service::commit_lock_status(alaska::Mapping *ent, bool locked) {
 
   auto *block = anchorage::Block::get(ent->get_pointer());
 
-  if (anchorage::Chunk::to_space->contains(block) ||
-      anchorage::Chunk::from_space->contains(block)) {
+  if (anchorage::SubHeap::to_space->contains(block) ||
+      anchorage::SubHeap::from_space->contains(block)) {
     block->mark_locked(locked);
   }
 }

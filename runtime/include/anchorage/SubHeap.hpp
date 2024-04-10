@@ -32,10 +32,10 @@ namespace anchorage {
    * it's memory (enabled by Alaska, of course), and uses this to great
    * success.
    */
-  struct Chunk {
+  struct SubHeap {
 
-		static Chunk *to_space;
-		static Chunk *from_space;
+		static SubHeap *to_space;
+		static SubHeap *from_space;
 		static void swap_spaces(void);
 
     friend anchorage::FirstFitSegFreeList;
@@ -54,14 +54,14 @@ namespace anchorage {
     anchorage::FirstFitSegFreeList free_list;
 
     // ctor/dtor
-    Chunk(size_t pages);
-    Chunk(Chunk &&) = delete;
-    Chunk(const Chunk &) = delete;
-    ~Chunk();
+    SubHeap(size_t pages);
+    SubHeap(SubHeap &&) = delete;
+    SubHeap(const SubHeap &) = delete;
+    ~SubHeap();
 
 
     // Given a pointer, get the chunk it is a part of (TODO: make this slightly faster)
-    static auto get(void *ptr) -> anchorage::Chunk *;
+    static auto get(void *ptr) -> anchorage::SubHeap *;
     // The main allocator interface for *this* chunk
     auto alloc(size_t size) -> anchorage::Block *;
     void free(Block *blk);
@@ -72,7 +72,7 @@ namespace anchorage {
     bool contains(void *allocation);
 
     bool split_free_block(anchorage::Block *to_split, size_t required_size);
-    long perform_compaction(anchorage::Chunk &to_space, anchorage::CompactionConfig &config);
+    long perform_compaction(anchorage::SubHeap &to_space, anchorage::CompactionConfig &config);
 		void validate_heap(const char *context_name);
     void validate_block(anchorage::Block *block, const char *context_name);
 
