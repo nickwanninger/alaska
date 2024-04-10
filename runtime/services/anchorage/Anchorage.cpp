@@ -414,7 +414,7 @@ static void stress_workload(void) {
   while (true) {
     usleep(interval * 1000);
 
-    auto start =alaska_timestamp();
+    auto start = alaska_timestamp();
     anch_lock.lock();
     alaska::barrier::begin();
     anchorage::CompactionConfig config;
@@ -474,9 +474,7 @@ void alaska::service::init(void) {
   }
 }
 
-void alaska::service::deinit(void) {
-  anchorage::allocator_deinit();
-}
+void alaska::service::deinit(void) { anchorage::allocator_deinit(); }
 
 void alaska::service::barrier(void) {
   // Don't do anything. Anchorage fires it's own barriers.
