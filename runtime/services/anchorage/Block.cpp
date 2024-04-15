@@ -37,10 +37,7 @@ static void set_bg(uint32_t color) {
   printf("\e[48;2;%d;%d;%dm", r, g, b);
 }
 
-static void clear_format(void) {
-  printf("\e[0m");
-}
-
+static void clear_format(void) { printf("\e[0m"); }
 
 void anchorage::Block::dump_content(const char *message) {
   printf("%20s ", message);

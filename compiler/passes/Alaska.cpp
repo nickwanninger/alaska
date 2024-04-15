@@ -1,5 +1,5 @@
 // Alaska includes
-#include "alaska/AccessAutomata.h"
+#include <alaska/AccessAutomata.h>
 #include <alaska/PointerFlowGraph.h>
 #include <alaska/Utils.h>
 #include <alaska/Translations.h>

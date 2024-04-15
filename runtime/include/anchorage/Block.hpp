@@ -38,11 +38,13 @@ namespace anchorage {
     // nonsense to cram all the data we need into only 16 bytes.
     auto handle(void) const -> alaska::Mapping *;  // get the handle
     void set_handle(alaska::Mapping *handle);      // set the handle
-    void mark_as_free(anchorage::SubHeap &chunk);    // clear the handle and record it in the
+    void mark_as_free(anchorage::SubHeap &chunk);  // clear the handle and record it in the
     auto next(void) const -> anchorage::Block *;   // get the next block
-    void set_next(anchorage::Block *new_next, bool backlink = true);    // set the next block (TODO: abstract into LL ops)
+    void set_next(anchorage::Block *new_next,
+        bool backlink = true);                    // set the next block (TODO: abstract into LL ops)
     auto prev(void) const -> anchorage::Block *;  // get the prev block
-    void set_prev(anchorage::Block *new_prev, bool backlink = true);    // set the prev block (TODO: abstract into LL ops)
+    void set_prev(anchorage::Block *new_prev,
+        bool backlink = true);  // set the prev block (TODO: abstract into LL ops)
 
 
     auto crc(void) -> uint32_t;  // compute the crc32 of the data in the block
@@ -83,15 +85,10 @@ namespace anchorage {
 
    public:
     inline BlockIterator(anchorage::Block *current)
-        : current(current) {
-    }
+        : current(current) {}
 
-    void step(void) override {
-      current = current->next();
-    }
-    anchorage::Block *get(void) const override {
-      return current;
-    }
+    void step(void) override { current = current->next(); }
+    anchorage::Block *get(void) const override { return current; }
   };
 
 
@@ -100,28 +97,20 @@ namespace anchorage {
 
 
 inline void anchorage::Block::clear(void) {
-	set_handle(nullptr);
+  set_handle(nullptr);
   // clear_handle();
   m_flags = 0;
 }
 
-inline bool anchorage::Block::is_free(void) const {
-  return handle() == NULL;
-}
+inline bool anchorage::Block::is_free(void) const { return handle() == NULL; }
 
 
-inline bool anchorage::Block::is_used(void) const {
-  return !is_free();
-}
+inline bool anchorage::Block::is_used(void) const { return !is_free(); }
 
 
-inline void anchorage::Block::mark_locked(bool locked) {
-  m_locked = locked;
-}
+inline void anchorage::Block::mark_locked(bool locked) { m_locked = locked; }
 
-inline bool anchorage::Block::is_locked(void) {
-  return m_locked;
-}
+inline bool anchorage::Block::is_locked(void) { return m_locked; }
 
 inline auto anchorage::Block::handle(void) const -> alaska::Mapping * {
   return alaska::Mapping::from_compact(m_handle);
@@ -132,9 +121,7 @@ inline void anchorage::Block::set_handle(alaska::Mapping *handle) {
   m_handle = handle->to_compact();
 }
 
-inline void anchorage::Block::mark_as_free(anchorage::SubHeap &chunk) {
-  set_handle(nullptr);
-}
+inline void anchorage::Block::mark_as_free(anchorage::SubHeap &chunk) { set_handle(nullptr); }
 
 
 

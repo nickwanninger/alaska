@@ -154,7 +154,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
 
   int next_id = 0;
   std::vector<std::unique_ptr<alaska::Translation>> trs;
-  std::unordered_map<int, alaska::Translation*> id_map;
+  std::unordered_map<int, alaska::Translation *> id_map;
 
 
 
@@ -200,7 +200,7 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::extractTranslations(ll
 
   // Populate the GEN/KILL sets for each translation
   for (auto &tr : trs) {
-    BasicBlock* bb;
+    BasicBlock *bb;
     // KILL = "translations that are created here"
     //      ... Little confusing cause it's a backwards analysis.
     bb = tr->translation->getParent();
