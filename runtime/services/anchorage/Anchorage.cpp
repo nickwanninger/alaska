@@ -30,42 +30,44 @@
 
 static ck::mutex anch_lock;
 
+
 void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
   void *ptr = ent->get_pointer();
   // Grab a lock
   anch_lock.lock();
 
-  auto &m = *ent;
-  using namespace anchorage;
-  Block *new_block = NULL;
 
-  // Allocate from the to_space
-  auto new_chunk = anchorage::SubHeap::to_space;
-  auto blk = new_chunk->alloc(size);
-  new_block = blk;
-  ALASKA_ASSERT(blk < new_chunk->tos, "An allocated block must be less than the top of stack");
-  (void)new_chunk;
+  anchorage::Block *new_block = nullptr;
 
-  // If we couldn't find anything, trigger a barrier.
-  // TODO: mark *why* we want to barrier somewhere...
-  //       We should prioritize compaction
-  if (new_block == NULL) {
-    anch_lock.unlock();
-    alaska::service::barrier();
-    alaska::service::alloc(ent, size);
-    return;
+  while (new_block == nullptr) {
+    auto lh = anchorage::get_local_heap();
+
+    if (lh == nullptr) {
+      lh = anchorage::new_local_heap(size);
+    }
+
+    // printf("Trying to allocate into %p\n", lh);
+    new_block = lh->alloc(size);
+    // printf("got %p\n", new_block);
+
+    if (new_block == nullptr) {
+      lh = anchorage::new_local_heap(size);
+    }
   }
 
+  ALASKA_ASSERT(new_block != nullptr, "We must be able to allocate a block.");
+  auto &m = *ent;
+
   if (ptr != NULL) {
-    Block *old_block = anchorage::Block::get(ptr);
-    auto *old_chunk = anchorage::SubHeap::get(ptr);
+    auto *old_block = anchorage::Block::get(ptr);
+    auto *old_sub_heap = anchorage::SubHeap::get(ptr);
     size_t copy_size = old_block->size();
     if (new_block->size() < copy_size) copy_size = new_block->size();
     memcpy(new_block->data(), old_block->data(), copy_size);
 
     new_block->set_handle(&m);
     ent->set_pointer(new_block->data());
-    old_chunk->free(old_block);
+    old_sub_heap->free(old_block);
   } else {
     new_block->set_handle(&m);
     ent->set_pointer(new_block->data());
@@ -78,11 +80,11 @@ void alaska::service::alloc(alaska::Mapping *ent, size_t size) {
 void alaska::service::free(alaska::Mapping *ent) {
   anch_lock.lock();
 
-  auto *chunk = anchorage::SubHeap::get(ent->get_pointer());
+  auto *sub_heap = anchorage::SubHeap::get(ent->get_pointer());
 
-  if (chunk) {
+  if (sub_heap) {
     auto *blk = anchorage::Block::get(ent->get_pointer());
-    chunk->free(blk);
+    sub_heap->free(blk);
     ent->set_pointer(nullptr);
   } else {
     fprintf(stderr, "[anchorage] attempt to free a pointer not managed by anchorage (%p)\n",
@@ -382,14 +384,14 @@ static void barrier_simple_time(void) {
     // Get everyone prepped for a barrier
     alaska::barrier::begin();
     // anchorage::CompactionConfig config;
-    // moved = anchorage::Chunk::to_space->perform_compaction(*anchorage::Chunk::from_space,
-    // config); anchorage::Chunk::swap_spaces(); auto end = alaska_timestamp(); printf("%lu moved
+    // moved = anchorage::sub_heap::to_space->perform_compaction(*anchorage::sub_heap::from_space,
+    // config); anchorage::sub_heap::swap_spaces(); auto end = alaska_timestamp(); printf("%lu moved
     // barrier took %lf ms\n", moved, (end - start) / 1000.0 / 1000.0); (void)(end - start);
 
     alaska::barrier::end();
     anch_lock.unlock();
     // Swap the spaces and switch to waiting.
-    // anchorage::Chunk::swap_spaces();
+    // anchorage::sub_heap::swap_spaces();
   }
 }
 
@@ -469,9 +471,10 @@ void alaska::service::init(void) {
 
   anchorage::allocator_init();
 
-  if (getenv("ANCH_NO_DEFRAG") == NULL) {
-    pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
-  }
+  // TODO: block
+  // if (getenv("ANCH_NO_DEFRAG") == NULL) {
+  //   pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  // }
 }
 
 void alaska::service::deinit(void) { anchorage::allocator_deinit(); }

@@ -24,44 +24,67 @@
 
 static constexpr bool do_dumps = true;
 
+
+// TODO: temp!
+static ck::vec<anchorage::SubHeap *> heaps;
+
+
+auto anchorage::get_local_heap(void) -> anchorage::SubHeap * {
+  if (heaps.size() == 0) return nullptr;
+  return heaps.last();
+}
+auto anchorage::new_local_heap(size_t required_size) -> anchorage::SubHeap * {
+  auto pages = 16;
+  if (required_size > pages * anchorage::page_size) {
+    pages = round_up(required_size, anchorage::page_size) / anchorage::page_size;
+  }
+
+  auto sh = new anchorage::SubHeap(pages);
+
+  heaps.push(sh);
+  return sh;
+}
+
+
+
 anchorage::SubHeap *anchorage::SubHeap::to_space = NULL;
 anchorage::SubHeap *anchorage::SubHeap::from_space = NULL;
 
 void anchorage::SubHeap::swap_spaces() {
-  auto old_from = from_space;
-  from_space = to_space;
-  to_space = old_from;
+  abort();
+  // auto old_from = from_space;
+  // from_space = to_space;
+  // to_space = old_from;
 }
 
 static void alldump(anchorage::Block *focus, const char *message) {
   if constexpr (do_dumps) {
-    printf("%-10s | ", message);
-    anchorage::SubHeap::to_space->dump(focus, "to");
-    printf("%-10s | ", "");
-    anchorage::SubHeap::from_space->dump(focus, "from");
+    // printf("%-10s | ", message);
+    // anchorage::SubHeap::to_space->dump(focus, "to");
+    // printf("%-10s | ", "");
+    // anchorage::SubHeap::from_space->dump(focus, "from");
   }
 }
 
 auto anchorage::SubHeap::get(void *ptr) -> anchorage::SubHeap * {
-  // TODO: lock!
-  if (to_space->contains(ptr)) return to_space;
-  if (from_space->contains(ptr)) return from_space;
+  for (auto heap : heaps) {
+    if (heap->contains(ptr)) return heap;
+  }
   return nullptr;
 }
 
 
-auto anchorage::SubHeap::contains(void *ptr) -> bool {
-  return ptr >= front && ptr < tos;
-}
+auto anchorage::SubHeap::contains(void *ptr) -> bool { return ptr >= front && ptr < tos; }
 
 anchorage::SubHeap::SubHeap(size_t pages)
     : pages(pages)
     , free_list(*this) {
   size_t size = anchorage::page_size * pages;
+  // front = (anchorage::Block*)malloc(size);
   front = (Block *)mmap(
       NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
-  printf("heap @ %p\n", front);
+  printf("heap @ %p. %zu pages, %zu bytes\n", front, pages, size);
 
   front->mark_locked(true);
   front->set_handle((alaska::Mapping *)-1);  // Intentionally set an invalid handle
@@ -72,6 +95,7 @@ anchorage::SubHeap::SubHeap(size_t pages)
 }
 
 anchorage::SubHeap::~SubHeap(void) {
+  // free(front);
   munmap((void *)front, 4096 * pages);
 }
 
@@ -187,9 +211,7 @@ void anchorage::SubHeap::free(anchorage::Block *blk) {
   validate_heap("free - after coalesce_free");
 }
 
-size_t anchorage::SubHeap::span(void) const {
-  return (off_t)tos - (off_t)front;
-}
+size_t anchorage::SubHeap::span(void) const { return (off_t)tos - (off_t)front; }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -254,12 +276,11 @@ void anchorage::SubHeap::dump_free_list(void) {
 
 
 void anchorage::allocator_init(void) {
-  anchorage::SubHeap::to_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
-  anchorage::SubHeap::from_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
+  // anchorage::SubHeap::to_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
+  // anchorage::SubHeap::from_space = new anchorage::SubHeap(anchorage::min_chunk_pages);
 }
 
-void anchorage::allocator_deinit(void) {
-}
+void anchorage::allocator_deinit(void) {}
 
 
 
