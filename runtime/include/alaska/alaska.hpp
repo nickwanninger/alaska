@@ -46,9 +46,10 @@ namespace alaska {
     union {
       void *ptr;  // Raw pointer memory
       struct {
-        uint64_t misc : 62;  // Some kind of extra info (usually just a pointer)
-        unsigned invl : 1;   // This handle is not mapped. ptr is a free list
-        unsigned swap : 1;   // This handle is swapped
+        uint64_t misc : 61;   // Some kind of extra info (usually just a pointer)
+        unsigned pinned : 1;  // If this handle is pinned currently.
+        unsigned invl : 1;    // This handle is not mapped. ptr is a free list
+        unsigned swap : 1;    // This handle is swapped
       } alt __attribute__((packed));
     };
 
@@ -88,6 +89,11 @@ namespace alaska {
 
 
     bool is_free(void) const { return alt.invl; }
+
+
+    // TODO: should these be atomic?
+    bool is_pinned(void) const { return this->alt.pinned; }
+    void set_pinned(bool to) { this->alt.pinned = to; }
 
 
     void reset(void) {
@@ -151,5 +157,3 @@ namespace alaska {
 
 
 // In barrier.c
-
-
