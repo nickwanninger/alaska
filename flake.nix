@@ -18,6 +18,7 @@
             llvmPackages_16.clang
             llvmPackages_16.stdenv
             llvmPackages_16.libunwind
+            llvmPackages_16.openmp
 
             gllvm
 
