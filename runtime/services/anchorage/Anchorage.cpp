@@ -444,6 +444,28 @@ static void stress_workload(void) {
 
 
 
+static void barrier_test_workload(void) {
+  // The interval that the stress test should work in.
+  // Defaults to once a second.
+  long interval = get_knob("INTERVAL", 100);
+
+  usleep(interval * 1000);
+  while (true) {
+
+    auto start = alaska_timestamp();
+    anch_lock.lock();
+    alaska::barrier::begin();
+    // ...
+    alaska::barrier::end();
+    anch_lock.unlock();
+
+    auto end = alaska_timestamp();
+    printf("Barrier took %lf ms\n", (end - start) / (1000.0 * 1000.0));
+    usleep(interval * 1000);
+  }
+}
+
+
 static pthread_t anchorage_barrier_thread;
 static void *barrier_thread_fn(void *) {
   // Mark this thread as escaped. (TODO: is this even needed anymore?)
@@ -457,6 +479,8 @@ static void *barrier_thread_fn(void *) {
     // barrier_simple_time();
   } else if (strcmp(mode, "stress") == 0) {
     stress_workload();
+  } else if (strcmp(mode, "barrier-test") == 0) {
+    barrier_test_workload();
   } else if (strcmp(mode, "disable") == 0) {
     // Nothing!
   } else {
@@ -472,9 +496,9 @@ void alaska::service::init(void) {
   anchorage::allocator_init();
 
   // TODO: block
-  // if (getenv("ANCH_NO_DEFRAG") == NULL) {
-  //   pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
-  // }
+  if (getenv("ANCH_NO_DEFRAG") == NULL) {
+    pthread_create(&anchorage_barrier_thread, NULL, barrier_thread_fn, NULL);
+  }
 }
 
 void alaska::service::deinit(void) { anchorage::allocator_deinit(); }
