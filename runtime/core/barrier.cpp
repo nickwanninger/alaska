@@ -175,7 +175,10 @@ static void record_handle(void* possible_handle, bool marked) {
     return;
   }
 
-  alaska::service::commit_lock_status(m, marked);
+  if (m->is_free()) return;
+
+  m->set_pinned(marked);
+  // alaska::service::commit_lock_status(m, marked);
 }
 
 
