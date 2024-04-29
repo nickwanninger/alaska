@@ -12,6 +12,7 @@
 #include <alaska/service.hpp>
 #include <alaska/alaska.hpp>
 #include <alaska/table.hpp>
+#include <sim/trace.h>
 #include <malloc.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -31,11 +32,11 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
-	// return malloc(sz);
-	// Just some big number.
-	if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS - 1)) - 1) {
-		return ::malloc(sz);
-	}
+  // return malloc(sz);
+  // Just some big number.
+  if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS - 1)) - 1) {
+    return ::malloc(sz);
+  }
 
   alaska::Mapping *ent = alaska::table::get();
   if (unlikely(ent == NULL)) {
@@ -53,16 +54,18 @@ static void *_halloc(size_t sz, int zero) {
 
   if (out == NULL) abort();
 
+#ifdef ALASKA_TRANSLATION_TRACING
+  alaska_trace_halloc((uint64_t)out, (uint64_t)ent->get_pointer(), sz);
+#endif
+
   return out;
 }
 
-void *halloc(size_t sz) noexcept {
-  return _halloc(sz, 0);
-}
+void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
 
 void *hcalloc(size_t nmemb, size_t size) {
   void *out = _halloc(nmemb * size, 1);
-	// printf("hcalloc %p\n", out);
+  // printf("hcalloc %p\n", out);
   return out;
 }
 
@@ -75,7 +78,7 @@ void *hrealloc(void *handle, size_t new_size) {
     // printf("realloc edge case: NULL pointer (sz=%zu)\n", new_size);
     return halloc(new_size);
   }
-	// printf("hrealloc %p\n", handle);
+  // printf("hrealloc %p\n", handle);
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     // printf("realloc edge case: not a handle %p!\n", handle);
@@ -105,7 +108,6 @@ void *hrealloc(void *handle, size_t new_size) {
 extern void alaska_remove_from_local_lock_list(void *ptr);
 
 void hfree(void *ptr) {
-
   // no-op if NULL is passed
   if (ptr == NULL) {
     return;
@@ -119,6 +121,10 @@ void hfree(void *ptr) {
 
   alaska_remove_from_local_lock_list(ptr);
 
+#ifdef ALASKA_TRANSLATION_TRACING
+  alaska_trace_hfree((uint64_t)ptr);
+#endif
+
   // Defer to the service to free
   alaska::service::free(m);
   num_alive--;
@@ -127,24 +133,14 @@ void hfree(void *ptr) {
 
 
 // operator new
-extern "C" void *alaska_Znwm(size_t sz) {
-	return halloc(sz);
-}
+extern "C" void *alaska_Znwm(size_t sz) { return halloc(sz); }
 
-extern "C" void *alaska_Znam(size_t sz) {
-	return halloc(sz);
-}
+extern "C" void *alaska_Znam(size_t sz) { return halloc(sz); }
 
 // operator delete[]
-extern "C" void alaska_ZdaPv(void *ptr) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdaPv(void *ptr) { hfree(ptr); }
 
 // operator delete
-extern "C" void alaska_ZdlPv(void *ptr) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdlPv(void *ptr) { hfree(ptr); }
 
-extern "C" void alaska_ZdlPvm(void *ptr, unsigned long s) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdlPvm(void *ptr, unsigned long s) { hfree(ptr); }

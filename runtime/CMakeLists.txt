@@ -3,7 +3,7 @@
 set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -gdwarf-4 -fdeclspec ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -fno-rtti ") 
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ") 
@@ -202,6 +202,10 @@ add_bitcode(alaska_stub SOURCES
 
 
 target_link_libraries(alaska alaska_translate_native)
+
+if (ALASKA_TRANSLATION_TRACING)
+target_link_libraries(alaska z)
+endif(ALASKA_TRANSLATION_TRACING)
 
 
 add_library(rsstracker SHARED extra/rsstracker.c)

@@ -10,6 +10,7 @@
  */
 
 #include <alaska/alaska.hpp>
+#include <sim/trace.h>
 #include <alaska/table.hpp>
 #include <pthread.h>
 #include <string.h>
@@ -120,16 +121,23 @@ void alaska::table::init() {
   pthread_mutex_init(&table_lock, NULL);
   pthread_mutex_lock(&table_lock);
   next_free = NULL;
+#ifdef ALASKA_TRANSLATION_TRACING
+  char *trace_file = getenv("ALASKA_TRACEFILE");
+  if (!trace_file) {
+    init_tracer("/pool/atmn/new_alaska/alaska/trace.gz");
+  } else {
+    init_tracer(trace_file);
+  }
+#endif
   alaska_table_grow();
   pthread_mutex_unlock(&table_lock);
 }
 
 void alaska::table::deinit() {
+#ifdef ALASKA_TRANSLATION_TRACING
+  deinit_tracer();
+#endif
 }
 
-alaska::Mapping *alaska::table::begin(void) {
-  return table_memory;
-}
-alaska::Mapping *alaska::table::end(void) {
-  return bump_next;
-}
+alaska::Mapping *alaska::table::begin(void) { return table_memory; }
+alaska::Mapping *alaska::table::end(void) { return bump_next; }

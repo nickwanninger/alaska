@@ -19,6 +19,7 @@
 
 #include <alaska.h>
 #include <alaska/alaska.hpp>
+#include <sim/trace.h>
 #include <alaska/config.h>
 #include <alaska/utils.h>
 #include <dlfcn.h>
@@ -77,6 +78,9 @@ void *alaska_translate(void *ptr) {
   // if (unlikely(bits >= 0)) {
   //   return ptr;
   // }
+#ifdef ALASKA_TRANSLATION_TRACING
+  alaska_trace_translation((enum mem_op_ty)0, 0, (uint64_t)ptr, 4);
+#endif
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
