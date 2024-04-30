@@ -6,7 +6,7 @@ A compiler and runtime framework for handle based memory management.
 ## Releases + Development
 
 This project is under active development, and APIs are still in flux.
-If you would like to get the version used in our [ASPLOS'24 Paper](https://nickw.io/papers/asplos24-alaska.pdf), you can access it through the [tag/release](/releases/tag/asplos-24-revision).
+If you would like to get the version used in our [ASPLOS'24 Paper](https://nickw.io/papers/asplos24-alaska.pdf), you can access it through the tagged [release](https://github.com/nickwanninger/alaska/releases/tag/asplos-24-revision).
 
 Otherwise, this project uses `main` as a pseudo "stable" branch (for some definition of that word).
 The `dev` branch is where most of the development is based.
