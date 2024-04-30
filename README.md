@@ -3,7 +3,14 @@
 # Alaska
 A compiler and runtime framework for handle based memory management.
 
+## Releases + Development
 
+This project is under active development, and APIs are still in flux.
+If you would like to get the version used in our [ASPLOS'24 Paper](https://nickw.io/papers/asplos24-alaska.pdf), you can access it through the [tag/release](/releases/tag/asplos-24-revision).
+
+Otherwise, this project uses `main` as a pseudo "stable" branch (for some definition of that word).
+The `dev` branch is where most of the development is based.
+`main` is protected and cannot be pushed to without a PR.
 
 ## Building
 
@@ -58,7 +65,3 @@ local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 You can also run `make sanity`, which will do it for you.
 
 ## Developing
-
-This project uses `main` as a pseudo "stable" branch (for some definition of that word).
-The `dev` branch is where most of the development is based.
-`main` is protected and cannot be pushed to without a PR.
