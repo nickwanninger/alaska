@@ -31,11 +31,10 @@ extern "C" size_t alaska_usable_size(void *ptr) {
 
 
 static void *_halloc(size_t sz, int zero) {
-	// return malloc(sz);
-	// Just some big number.
-	if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS - 1)) - 1) {
-		return ::malloc(sz);
-	}
+  // Just some big number.
+  if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS - 1)) - 1) {
+    return ::malloc(sz);
+  }
 
   alaska::Mapping *ent = alaska::table::get();
   if (unlikely(ent == NULL)) {
@@ -56,14 +55,10 @@ static void *_halloc(size_t sz, int zero) {
   return out;
 }
 
-void *halloc(size_t sz) noexcept {
-  return _halloc(sz, 0);
-}
+void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
 
 void *hcalloc(size_t nmemb, size_t size) {
-  void *out = _halloc(nmemb * size, 1);
-	// printf("hcalloc %p\n", out);
-  return out;
+  return _halloc(nmemb * size, 1);
 }
 
 // Reallocate a handle
@@ -75,7 +70,6 @@ void *hrealloc(void *handle, size_t new_size) {
     // printf("realloc edge case: NULL pointer (sz=%zu)\n", new_size);
     return halloc(new_size);
   }
-	// printf("hrealloc %p\n", handle);
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     // printf("realloc edge case: not a handle %p!\n", handle);
@@ -127,24 +121,14 @@ void hfree(void *ptr) {
 
 
 // operator new
-extern "C" void *alaska_Znwm(size_t sz) {
-	return halloc(sz);
-}
+extern "C" void *alaska_Znwm(size_t sz) { return halloc(sz); }
 
-extern "C" void *alaska_Znam(size_t sz) {
-	return halloc(sz);
-}
+extern "C" void *alaska_Znam(size_t sz) { return halloc(sz); }
 
 // operator delete[]
-extern "C" void alaska_ZdaPv(void *ptr) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdaPv(void *ptr) { hfree(ptr); }
 
 // operator delete
-extern "C" void alaska_ZdlPv(void *ptr) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdlPv(void *ptr) { hfree(ptr); }
 
-extern "C" void alaska_ZdlPvm(void *ptr, unsigned long s) {
-	hfree(ptr);
-}
+extern "C" void alaska_ZdlPvm(void *ptr, unsigned long s) { hfree(ptr); }
