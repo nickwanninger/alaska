@@ -3,9 +3,9 @@
 # Alaska
 A compiler and runtime framework for handle based memory management.
 
+
+
 ## Building
-
-
 
 Alaska requires two main dependencies: `clang`, `llvm 16` and [`gclang`](https://github.com/SRI-CSL/gllvm).
 Alaska's build system can download these dependencies for you, but if you already have them in your path you don't need to worry.
@@ -56,3 +56,9 @@ Once built, `local/bin/alaska` functions as a drop-in replacement for `clang`. Y
 local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 ```
 You can also run `make sanity`, which will do it for you.
+
+## Developing
+
+This project uses `main` as a pseudo "stable" branch (for some definition of that word).
+The `dev` branch is where most of the development is based.
+`main` is protected and cannot be pushed to without a PR.
