@@ -34,7 +34,7 @@ auto anchorage::get_local_heap(void) -> anchorage::SubHeap * {
   return heaps.last();
 }
 auto anchorage::new_local_heap(size_t required_size) -> anchorage::SubHeap * {
-  auto pages = 16;
+  auto pages = 65565;
   if (required_size > pages * anchorage::page_size) {
     pages = round_up(required_size, anchorage::page_size) / anchorage::page_size;
   }
