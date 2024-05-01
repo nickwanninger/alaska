@@ -45,7 +45,7 @@ Once this is done, re-run `make` to compile alaska.
 
 ### Building with `nix`
 
-Alaska's dependencies can also be managed through (nix)[https://nixos.org/] if you have it installed.
+Alaska's dependencies can also be managed through [nix](https://nixos.org/) if you have it installed.
 The main way to develop alaska with `nix` is to use flakes, and the following commands can be used to build alaska:
 ```bash
 $ nix develop
