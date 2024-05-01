@@ -37,6 +37,11 @@ do
 			-g*)
 				shift
 				;;
+
+      # ignore LTO
+      -flto*)
+        shift
+        ;;
 			-b|--baseline)
 				BASELINE="true"
 				shift
