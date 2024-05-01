@@ -62,6 +62,7 @@ class TranslationInlinePass : public llvm::PassInfoMixin<TranslationInlinePass> 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
     std::vector<llvm::CallInst *> toInline;
     for (auto &F : M) {
+      INTENTIIONALLY BROKEN
       if (F.empty()) continue;
       if (F.getName().startswith("alaska_")) {
         for (auto user : F.users()) {
