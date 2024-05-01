@@ -147,7 +147,7 @@ void alaska::OptimisticTypes::reach_fixed_point(void) {
                 if (auto retInst = dyn_cast_or_null<llvm::ReturnInst>(BB.getTerminator())) {
                   auto t = get_lattice_point(retInst->getReturnValue());
                   if (t.is_defined()) {
-                    errs() << "meet " << *p << " with " << *retInst << "\n";
+                    // errs() << "meet " << *p << " with " << *retInst << "\n";
                     changed |= lp.meet(t);
                   }
                 }
