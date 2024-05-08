@@ -3,11 +3,11 @@
 /*
 
   Heap Layers: An Extensible Memory Allocation Infrastructure
-  
+
   Copyright (C) 2000-2020 by Emery Berger
   http://www.emeryberger.com
   emery@cs.umass.edu
-  
+
   Heap Layers is distributed under the terms of the Apache 2.0 license.
 
   You may obtain a copy of the License at
@@ -21,6 +21,7 @@
 #if !defined(_WIN32)
 
 #include <pthread.h>
+#include <unistd.h>
 
 /**
  * @class PosixLockType
@@ -36,23 +37,24 @@ namespace HL {
     {
       int r = pthread_mutex_init (&mutex, NULL);
       if (r) {
-	throw 0;
+        exit(-1);
+	// throw 0;
       }
     }
-  
+
     ~PosixLockType (void)
     {
       pthread_mutex_destroy (&mutex);
     }
-  
+
     void lock (void) {
       pthread_mutex_lock (&mutex);
     }
-  
+
     void unlock (void) {
       pthread_mutex_unlock (&mutex);
     }
-  
+
   private:
     union {
       pthread_mutex_t mutex;
@@ -61,7 +63,7 @@ namespace HL {
   };
 
   typedef PosixLockType PosixLock;
-  
+
 }
 
 #endif
