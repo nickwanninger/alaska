@@ -560,20 +560,6 @@ void alaska::barrier::add_self_thread(void) {
 
   setup_signal_handlers();
 
-
-  // Set up the signal handler for SIGSEGV (Segmentation Fault)
-  struct sigaction sa;
-  sa.sa_handler = segfault_handler;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESTART | SA_SIGINFO;
-
-  if (sigaction(SIGSEGV, &sa, NULL) == -1) {
-    perror("sigaction");
-    exit(EXIT_FAILURE);
-  }
-
-
-
   pthread_mutex_lock(&all_threads_lock);
   // Alocate and add a thread
   auto* tinfo = (alaska_thread_info*)calloc(1, sizeof(alaska_thread_info));
