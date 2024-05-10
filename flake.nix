@@ -37,6 +37,7 @@
             python3Packages.pip
             gdb ps which git
             zlib
+            wget
 
             bashInteractive
           ];
@@ -46,7 +47,7 @@
           devShell = mkShell {
             buildInputs = buildInputs;
 
-            shellHook = '' 
+            shellHook = ''
               source $PWD/enable
             '';
           };
