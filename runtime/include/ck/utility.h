@@ -373,10 +373,10 @@ namespace ck {
   // Utility to detect referenceable types ([defns.referenceable]).
 
   template <typename _Tp, typename = void>
-  struct __is_referenceable : public false_type {};
+  struct is_referenceable : public false_type {};
 
   template <typename _Tp>
-  struct __is_referenceable<_Tp, __void_t<_Tp&>> : public true_type {};
+  struct is_referenceable<_Tp, __void_t<_Tp&>> : public true_type {};
 
   // Type properties.
 
@@ -581,7 +581,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_copy_constructible_impl;
 
   template <typename _Tp>
@@ -597,7 +597,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_move_constructible_impl;
 
   template <typename _Tp>
@@ -631,7 +631,7 @@ namespace ck {
   };
 
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_nothrow_copy_constructible_impl;
 
   template <typename _Tp>
@@ -647,7 +647,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_nothrow_move_constructible_impl;
 
   template <typename _Tp>
@@ -670,7 +670,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_copy_assignable_impl;
 
   template <typename _Tp>
@@ -686,7 +686,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_move_assignable_impl;
 
   template <typename _Tp>
@@ -712,7 +712,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_nt_copy_assignable_impl;
 
   template <typename _Tp>
@@ -728,7 +728,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_nt_move_assignable_impl;
 
   template <typename _Tp>
@@ -780,7 +780,7 @@ namespace ck {
   struct __is_implicitly_default_constructible
       : public __and_<__is_constructible_impl<_Tp>, __is_implicitly_default_constructible_safe<_Tp>> {};
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_trivially_copy_constructible_impl;
 
   template <typename _Tp>
@@ -798,7 +798,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_trivially_move_constructible_impl;
 
   template <typename _Tp>
@@ -823,7 +823,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_trivially_copy_assignable_impl;
 
   template <typename _Tp>
@@ -840,7 +840,7 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  template <typename _Tp, bool = __is_referenceable<_Tp>::value>
+  template <typename _Tp, bool = is_referenceable<_Tp>::value>
   struct __is_trivially_move_assignable_impl;
 
   template <typename _Tp>
