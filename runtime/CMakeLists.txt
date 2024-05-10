@@ -1,5 +1,16 @@
 # add_link_options("-fuse-ld=lld")
 
+
+
+
+
+
+
+
+
+
+
+
 set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
@@ -220,3 +231,54 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+
+if (ALASKA_ENABLE_TESTING)
+  include(FetchContent)
+  FetchContent_Declare(
+  googletest
+    URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  # For Windows: Prevent overriding the parent project's compiler/linker settings
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+
+  enable_testing()
+  include(GoogleTest)
+
+  function(add_test name)
+    enable_testing()
+
+    set(CMAKE_C_COMPILER clang)
+
+    add_executable(
+      ${name}
+      test/${name}.cpp
+    )
+    target_link_libraries(
+      ${name}
+      GTest::gtest_main
+      alaska
+    )
+
+    gtest_discover_tests(${name})
+  endfunction(add_test)
+
+
+  add_test(halloc_test)
+  add_test(table_test)
+
+  # # Get all .cpp files in the directory
+  # file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test/*_test.cpp")
+
+  # # Loop through each .cpp file and extract the name without extension
+  # foreach(TEST_FILE ${TEST_FILES})
+  #   # Get the file name without extension
+  #   get_filename_component(FILE_NAME ${TEST_FILE} NAME_WE)
+  #   add_test(${FILE_NAME})
+  # endforeach()
+
+
+endif(ALASKA_ENABLE_TESTING)

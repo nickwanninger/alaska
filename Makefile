@@ -31,7 +31,7 @@ sanity: alaska
 	@build/sanity
 
 test: alaska
-	@python3 tools/unittest.py -s
+	cd build && ctest
 
 .PHONY: alaska all bench bench/nas libc
 

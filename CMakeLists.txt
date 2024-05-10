@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 
 
+# set(CMAKE_CXX_STANDARD 14)
+# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
 find_program(CLANG_PATH clang)
 find_program(CLANGXX_PATH clang++)
 
@@ -28,11 +32,11 @@ SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_LIBDIR}")
 
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -fPIC -g3 -Wno-unknown-warning-option ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -fPIC -g3 -Wno-unknown-warning-option -Wno-covered-switch-default ")
 
 set(CMAKE_INSTALL_MESSAGE LAZY)
 
-# configure LLVM 
+# configure LLVM
 find_package(LLVM 16 REQUIRED CONFIG)
 
 set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/)
@@ -61,4 +65,3 @@ endif()
 
 add_subdirectory(runtime)
 add_subdirectory(compiler)
-add_subdirectory(test)
