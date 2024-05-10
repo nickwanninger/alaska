@@ -535,24 +535,6 @@ static void clear_pending_signals(void) {
 }
 
 
-static void segfault_handler(int signal_number) {
-    printf("Segmentation fault caught. Dumping backtrace:\n");
-
-    void *backtrace_array[10];
-    size_t size = backtrace(backtrace_array, 10);
-    char **symbols = backtrace_symbols(backtrace_array, size);
-
-    for (size_t i = 0; i < size; ++i) {
-        printf("\e[31m%s\e[0m\n", symbols[i]);
-    }
-
-    free(symbols);
-
-    // You can add additional handling or exit the program here if necessary
-    exit(EXIT_FAILURE);
-}
-
-
 void alaska::barrier::add_self_thread(void) {
   auto self = pthread_self();
   num_threads++;
