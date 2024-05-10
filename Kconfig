@@ -1,18 +1,13 @@
 choice
 	prompt "Runtime Service"
-	default SERVICE_NONE
-
-	config SERVICE_NONE
-		bool "No service"
+	default SERVICE_ANCHORAGE
 
 	config SERVICE_ANCHORAGE
 		bool "Anchorage allocator and defragmentation"
 
-	config SERVICE_CORDOVA
-		bool "Cordova File Mapping"
+	config SERVICE_NONE
+		bool "No service"
 
-	config SERVICE_JEMALLOC
-		bool "jemalloc + Activedefrag"
 endchoice
 
 
