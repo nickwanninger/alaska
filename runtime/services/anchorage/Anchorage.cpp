@@ -271,8 +271,6 @@ static void barrier_control_overhead_target(void) {
   if (frag_lb > frag_ub) {
     frag_ub = frag_lb + 0.20;
   }
-  printf("target overhead: %f\n", target_oh);
-  printf("frag bounds:    [%f, %f]\n", frag_lb, frag_ub);
 
   double ms_to_sleep = 1000;
   do {
@@ -489,6 +487,7 @@ static void *barrier_thread_fn(void *) {
   }
   return NULL;
 }
+
 
 void alaska::service::init(void) {
   anch_lock.init();
