@@ -57,9 +57,7 @@ static void *_halloc(size_t sz, int zero) {
 
 void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
 
-void *hcalloc(size_t nmemb, size_t size) {
-  return _halloc(nmemb * size, 1);
-}
+void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
@@ -99,7 +97,6 @@ void *hrealloc(void *handle, size_t new_size) {
 extern void alaska_remove_from_local_lock_list(void *ptr);
 
 void hfree(void *ptr) {
-
   // no-op if NULL is passed
   if (ptr == NULL) {
     return;

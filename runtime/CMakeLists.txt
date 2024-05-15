@@ -1,16 +1,5 @@
 # add_link_options("-fuse-ld=lld")
 
-
-
-
-
-
-
-
-
-
-
-
 set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough")
 
 # Compile the runtime with some special flags
@@ -152,9 +141,16 @@ if (ALASKA_SERVICE_JEMALLOC)
 )
 endif(ALASKA_SERVICE_JEMALLOC)
 
-add_library(alaska SHARED ${SRC_FILES})
-# add_library(alaska STATIC ${SRC_FILES})
-target_include_directories(alaska PUBLIC include/)
+
+# this is the "object library" target: compiles the sources only once
+add_library(alaska_obj OBJECT ${SRC_FILES})
+# shared libraries need PIC
+set_property(TARGET alaska_obj PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+add_library(alaska SHARED $<TARGET_OBJECTS:alaska_obj>)
+add_library(alaska_static STATIC $<TARGET_OBJECTS:alaska_obj>)
+
+target_include_directories(alaska_obj PUBLIC include/)
 set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
 
 target_link_libraries(alaska dl pthread ${LIBUNWIND_LIBRARIES})
@@ -210,6 +206,7 @@ add_bitcode(alaska_stub SOURCES
 
 
 target_link_libraries(alaska alaska_translate_native)
+target_link_libraries(alaska_static alaska_translate_native)
 
 
 add_library(rsstracker SHARED extra/rsstracker.c)
@@ -222,8 +219,6 @@ target_link_libraries(htlb dl pthread)
 install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
-# install(FILES include/alaska/config.h DESTINATION include/alaska)
-# install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
 
 install(
   TARGETS alaska
@@ -232,6 +227,13 @@ install(
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+
+install(
+  TARGETS alaska_static
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 if (ALASKA_ENABLE_TESTING)
@@ -248,37 +250,21 @@ if (ALASKA_ENABLE_TESTING)
   enable_testing()
   include(GoogleTest)
 
-  function(add_test name)
-    enable_testing()
+	set(CMAKE_C_COMPILER clang)
 
-    set(CMAKE_C_COMPILER clang)
+	add_executable(
+		alaska_test
+		test/halloc_test.cpp
+		test/table_test.cpp
+	)
 
-    add_executable(
-      ${name}
-      test/${name}.cpp
-    )
-    target_link_libraries(
-      ${name}
-      GTest::gtest_main
-      alaska
-    )
+	target_link_libraries(
+		alaska_test
+		GTest::gtest_main
+		alaska_static dl pthread ${LIBUNWIND_LIBRARIES}
+	)
 
-    gtest_discover_tests(${name})
-  endfunction(add_test)
-
-
-  add_test(halloc_test)
-  add_test(table_test)
-
-  # # Get all .cpp files in the directory
-  # file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test/*_test.cpp")
-
-  # # Loop through each .cpp file and extract the name without extension
-  # foreach(TEST_FILE ${TEST_FILES})
-  #   # Get the file name without extension
-  #   get_filename_component(FILE_NAME ${TEST_FILE} NAME_WE)
-  #   add_test(${FILE_NAME})
-  # endforeach()
+	gtest_discover_tests(alaska_test)
 
 
 endif(ALASKA_ENABLE_TESTING)
