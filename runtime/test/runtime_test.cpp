@@ -121,20 +121,20 @@ TEST_F(RuntimeTest, SlabNFreeDecreasesOnHandleGet) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab();
   // Get the initial nfree count
-  int initialNFree = slab->nfree();
+  int initialNFree = slab->nfree;
   // Get a handle from the slab
   auto handle = slab->get();
   // Check that the handle is valid
   ASSERT_NE(handle, nullptr);
   // Check that the nfree count has decreased by 1
-  ASSERT_EQ(slab->nfree(), initialNFree - 1);
+  ASSERT_EQ(slab->nfree, initialNFree - 1);
 }
 
 TEST_F(RuntimeTest, SlabNFreeOnInitialAllocation) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab();
   // Get the initial nfree count
-  int initialNFree = slab->nfree();
+  int initialNFree = slab->nfree;
   // Check that the nfree count is equal to the slab's capacity
   ASSERT_EQ(initialNFree, alaska::HandleTable::slab_capacity);
 }
@@ -148,7 +148,7 @@ TEST_F(RuntimeTest, SlabGetSlab) {
     auto* slab = runtime.handle_table.fresh_slab();
     ASSERT_NE(slab, nullptr);
     // Check that get_slab returns the right slab
-    ASSERT_EQ(runtime.handle_table.get_slab(slab->idx()), slab);
+    ASSERT_EQ(runtime.handle_table.get_slab(slab->idx), slab);
   }
 }
 
@@ -225,12 +225,15 @@ TEST_F(RuntimeTest, SlabMappingIndex) {
       auto handle = slab->get();
       ASSERT_NE(handle, nullptr);
       // Check that the handle is in the right index
-      ASSERT_EQ(slab->idx(), runtime.handle_table.mapping_slab_idx(handle));
+      ASSERT_EQ(slab->idx, runtime.handle_table.mapping_slab_idx(handle));
     }
   }
 }
 
 
+//////////////////////
+// Handle Slab Queue
+//////////////////////
 
 // Test that HandleSlabQueues pop all the slabs that are pushed
 TEST_F(RuntimeTest, HandleSlabQueuePop) {
@@ -257,4 +260,70 @@ TEST_F(RuntimeTest, HandleSlabQueuePop) {
     ASSERT_EQ(slab, slabs[i]);
   }
   ASSERT_TRUE(queue.empty());
+}
+
+
+TEST_F(RuntimeTest, HandleSlabQueuePopEmpty) {
+  alaska::HandleSlabQueue queue;
+  ASSERT_TRUE(queue.empty());
+  ASSERT_EQ(nullptr, queue.pop());
+}
+
+// Test that removing a slab from the queue makes it empty
+TEST_F(RuntimeTest, HandleSlabQueueEmpty) {
+  alaska::HandleSlabQueue queue;
+  ASSERT_TRUE(queue.empty());
+  auto* slab = runtime.handle_table.fresh_slab();
+  queue.push(slab);
+  ASSERT_FALSE(queue.empty());
+  queue.pop();
+  ASSERT_TRUE(queue.empty());
+}
+
+// Test that removing a slab from the start of the queue works.
+TEST_F(RuntimeTest, HandleSlabQueueRemoveStart) {
+  alaska::HandleSlabQueue queue;
+  auto* slab1 = runtime.handle_table.fresh_slab();
+  auto* slab2 = runtime.handle_table.fresh_slab();
+  auto* slab3 = runtime.handle_table.fresh_slab();
+
+  queue.push(slab1);
+  queue.push(slab2);
+  queue.push(slab3);
+
+  queue.remove(slab1);
+  ASSERT_EQ(queue.pop(), slab2);
+  ASSERT_EQ(queue.pop(), slab3);
+}
+
+// Test that removing a slab from the middle of the queue works.
+TEST_F(RuntimeTest, HandleSlabQueueRemoveMiddle) {
+  alaska::HandleSlabQueue queue;
+  auto* slab1 = runtime.handle_table.fresh_slab();
+  auto* slab2 = runtime.handle_table.fresh_slab();
+  auto* slab3 = runtime.handle_table.fresh_slab();
+
+  queue.push(slab1);
+  queue.push(slab2);
+  queue.push(slab3);
+
+  queue.remove(slab2);
+  ASSERT_EQ(queue.pop(), slab1);
+  ASSERT_EQ(queue.pop(), slab3);
+}
+
+// Test that removing a slab from the end of the queue works.
+TEST_F(RuntimeTest, HandleSlabQueueRemoveEnd) {
+  alaska::HandleSlabQueue queue;
+  auto* slab1 = runtime.handle_table.fresh_slab();
+  auto* slab2 = runtime.handle_table.fresh_slab();
+  auto* slab3 = runtime.handle_table.fresh_slab();
+
+  queue.push(slab1);
+  queue.push(slab2);
+  queue.push(slab3);
+
+  queue.remove(slab3);
+  ASSERT_EQ(queue.pop(), slab1);
+  ASSERT_EQ(queue.pop(), slab2);
 }

@@ -100,6 +100,8 @@ namespace alaska {
   // Handle Slab Queue
   //////////////////////
   void HandleSlabQueue::push(HandleSlab *slab) {
+    slab->current_queue = this;
+
     // Initialize
     if (head == nullptr and tail == nullptr) {
       head = tail = slab;
@@ -113,15 +115,35 @@ namespace alaska {
   HandleSlab *HandleSlabQueue::pop(void) {
     if (head == nullptr) return nullptr;
 
-    auto *ret = head;
+    auto *slab = head;
     head = head->next;
     if (head != nullptr) {
       head->prev = nullptr;
     } else {
       tail = nullptr;
     }
-    ret->prev = ret->next = nullptr;
-    return ret;
+    slab->prev = slab->next = nullptr;
+    slab->current_queue = nullptr;
+    return slab;
+  }
+
+
+  void HandleSlabQueue::remove(HandleSlab *slab) {
+    if (slab->prev != nullptr) {
+      slab->prev->next = slab->next;
+    } else {
+      head = slab->next;
+    }
+
+    if (slab->next != nullptr) {
+      slab->next->prev = slab->prev;
+    } else {
+      tail = slab->prev;
+    }
+
+    slab->prev = slab->next = nullptr;
+
+    slab->current_queue = nullptr;
   }
 
 
@@ -131,32 +153,31 @@ namespace alaska {
   // Handle Slab
   //////////////////////
 
-
-
   HandleSlab::HandleSlab(HandleTable &table, slabidx_t idx)
-      : m_table(table)
-      , m_idx(idx) {
-    m_bump_next = table.get_slab_start(idx);
-    m_nfree = table.get_slab_end(idx) - m_bump_next;
+      : table(table)
+      , idx(idx) {
+    bump_next = table.get_slab_start(idx);
+    nfree = table.get_slab_end(idx) - bump_next;
   }
+
+
 
   Mapping *HandleSlab::get(void) {
     // We always try to pop from the free-list to reuse the mappings which can reduce fragmentation
     // compared to always bump allocating.
 
-
     // Pop from the next_free list if it is not null.
-    if (m_next_free != nullptr) {
-      m_nfree--;
-      auto *ret = m_next_free;
-      m_next_free = m_next_free->get_next();
+    if (next_free != nullptr) {
+      nfree--;
+      auto *ret = next_free;
+      next_free = next_free->get_next();
       return ret;
     }
 
     // If the next_free list is null, we need to bump the next pointer
-    if (m_bump_next < m_table.get_slab_end(m_idx)) {
-      m_nfree--;
-      return m_bump_next++;
+    if (bump_next < table.get_slab_end(idx)) {
+      nfree--;
+      return bump_next++;
     }
 
     return nullptr;
@@ -165,13 +186,12 @@ namespace alaska {
 
   void HandleSlab::put(Mapping *m) {
     // Validate that the handle is in this slab.
-    ALASKA_ASSERT(
-        m_idx == m_table.mapping_slab_idx(m), "attempted to put a handle into the wrong slab")
+    ALASKA_ASSERT(idx == table.mapping_slab_idx(m), "attempted to put a handle into the wrong slab")
 
     // Increment the number of free mappings
-    m_nfree++;
-    m->set_next(m_next_free);
-    m_next_free = m;
+    nfree++;
+    m->set_next(next_free);
+    next_free = m;
   }
 
 }  // namespace alaska

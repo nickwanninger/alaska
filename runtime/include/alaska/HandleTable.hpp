@@ -24,29 +24,28 @@ namespace alaska {
   class HandleTable;
   class HandleSlabQueue;
 
-  class HandleSlab final {
-   public:
+
+  enum HandleSlabState {
+    SlabStateEmpty,
+    SlabStatePartial,
+    SlabStateFull,
+  };
+
+
+  struct HandleSlab final {
+    HandleTable &table;                        // Which table does this belong to?
+    slabidx_t idx;                             // Which slab is this?
+    uint16_t nfree = 0;                        // how many free mappings are in this slab?
+    alaska::Mapping *next_free = nullptr;      // the next free mapping in the slab (linked list)
+    alaska::Mapping *bump_next = nullptr;      // The next mapping to bump-allocate from
+    HandleSlab *next = nullptr;                // The next slab in the queue
+    HandleSlab *prev = nullptr;                // The previous slab in the queue
+    HandleSlabQueue *current_queue = nullptr;  // What queue is this slab in?
+
+    // -- Methods --
     HandleSlab(HandleTable &table, slabidx_t idx);
-
-    alaska::Mapping *get(void);
-    void put(alaska::Mapping *m);
-
-
-    inline auto nfree(void) const { return m_nfree; }
-    slabidx_t idx(void) const { return m_idx; }
-
-   protected:
-    friend HandleSlabQueue;
-    HandleSlab *next = nullptr;
-    HandleSlab *prev = nullptr;
-
-   private:
-    HandleTable &m_table;  // Which table does this belong to?
-    slabidx_t m_idx;       // Which slab is this?
-
-    uint16_t m_nfree = 0;
-    alaska::Mapping *m_next_free = nullptr;
-    alaska::Mapping *m_bump_next = nullptr;
+    alaska::Mapping *get(void);    // Allocate a mapping from this slab
+    void put(alaska::Mapping *m);  // Return a mapping back to this slab
   };
 
 
@@ -58,6 +57,9 @@ namespace alaska {
     void push(HandleSlab *slab);
     HandleSlab *pop(void);
     inline bool empty(void) const { return head == nullptr; }
+
+    // remove a slab from the queue without popping it
+    void remove(HandleSlab *slab);
 
    private:
     HandleSlab *head = nullptr;
