@@ -31,7 +31,7 @@ sanity: alaska
 	@build/sanity
 
 test: alaska
-	@env GTEST_COLOR=1 ctest --test-dir build --output-on-failure
+	@env GTEST_COLOR=1 ctest --test-dir build
 
 .PHONY: alaska all bench bench/nas libc
 

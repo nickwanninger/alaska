@@ -206,7 +206,10 @@ add_bitcode(alaska_stub SOURCES
 
 
 target_link_libraries(alaska alaska_translate_native)
+
+
 target_link_libraries(alaska_static alaska_translate_native)
+set_target_properties(alaska_static PROPERTIES OUTPUT_NAME "alaska")
 
 
 add_library(rsstracker SHARED extra/rsstracker.c)
@@ -245,6 +248,8 @@ if (ALASKA_ENABLE_TESTING)
   )
   # For Windows: Prevent overriding the parent project's compiler/linker settings
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+	set(INSTALL_GTEST OFF)
+
   FetchContent_MakeAvailable(googletest)
 
   enable_testing()
