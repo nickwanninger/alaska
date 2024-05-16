@@ -105,9 +105,97 @@ TEST_F(RuntimeTest, CapacityGrowth) {
 
 
 
-// TEST_F(RuntimeTest, HallocWorks) {
-//   // Allocate a handle
-//   auto handle = runtime.halloc(16);
-//   // Check that the handle is valid
-//   ASSERT_NE(handle, nullptr);
-// }
+TEST_F(RuntimeTest, SlabGetHandle) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+
+  // Get a handle from the slab
+  auto handle = slab->get();
+
+  // Check that the handle is valid
+  ASSERT_NE(handle, nullptr);
+}
+
+TEST_F(RuntimeTest, SlabNFreeDecreasesOnHandleGet) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+  // Get the initial nfree count
+  int initialNFree = slab->nfree();
+  // Get a handle from the slab
+  auto handle = slab->get();
+  // Check that the handle is valid
+  ASSERT_NE(handle, nullptr);
+  // Check that the nfree count has decreased by 1
+  ASSERT_EQ(slab->nfree(), initialNFree - 1);
+}
+
+TEST_F(RuntimeTest, SlabNFreeOnInitialAllocation) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+  // Get the initial nfree count
+  int initialNFree = slab->nfree();
+  // Check that the nfree count is equal to the slab's capacity
+  ASSERT_EQ(initialNFree, alaska::HandleTable::slab_capacity);
+}
+
+
+
+TEST_F(RuntimeTest, SlabGetReturnsNullWhenOutOfCapacity) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+  // Fill up the slab with handles
+  for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+    auto handle = slab->get();
+    ASSERT_NE(handle, nullptr);
+  }
+  // Try to get another handle from the slab
+  auto handle = slab->get();
+  // Check that the handle is null
+  ASSERT_EQ(handle, nullptr);
+}
+
+
+// Test that a slab returns all unique handles
+TEST_F(RuntimeTest, SlabUniqueHandles) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+  // Create a set to store the handles
+  std::set<alaska::Mapping*> handles;
+  // Fill up the slab with handles
+  for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+    auto handle = slab->get();
+    ASSERT_NE(handle, nullptr);
+    // Check that the handle is unique
+    ASSERT_EQ(handles.count(handle), 0);
+    handles.insert(handle);
+  }
+}
+
+
+
+// test that a slab returns the same mapping once it is put back
+TEST_F(RuntimeTest, SlabReturnHandle) {
+  // Allocate a fresh slab from the handle table
+  auto* slab = runtime.handle_table.fresh_slab();
+  // Get a handle from the slab
+  auto handle = slab->get();
+  // Return the handle to the slab
+  slab->put(handle);
+  // Get another handle from the slab
+  auto handle2 = slab->get();
+  // Check that the handle is the same as the one that was returned the first time
+  ASSERT_EQ(handle, handle2);
+}
+
+
+
+// test that the program dies if a mapping is returned to the wrong slab
+TEST_F(RuntimeTest, SlabReturnToWrongSlab) {
+  // Allocate a fresh slab from the handle table
+  auto* slab1 = runtime.handle_table.fresh_slab();
+  auto* slab2 = runtime.handle_table.fresh_slab();
+  // Get a handle from slab1
+  auto handle = slab1->get();
+  // Try to return the handle to slab2
+  ASSERT_DEATH({ slab2->put(handle); }, "");
+}

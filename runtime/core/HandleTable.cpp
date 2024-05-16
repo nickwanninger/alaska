@@ -78,5 +78,56 @@ namespace alaska {
   }
 
 
+  off_t HandleTable::mapping_slab_idx(Mapping *m) { return (m - m_table) / HandleTable::slab_size; }
+
+
+  //////////////////////
+  // Handle Slab
+  //////////////////////
+
+
+
+  HandleSlab::HandleSlab(HandleTable &table, slabidx_t idx)
+      : m_table(table)
+      , m_idx(idx) {
+    m_bump_next = table.get_slab_start(idx);
+    m_nfree = table.get_slab_end(idx) - m_bump_next;
+  }
+
+  Mapping *HandleSlab::get(void) {
+    // We always try to pop from the free-list to reuse the mappings which can reduce fragmentation
+    // compared to always bump allocating.
+
+
+    // Pop from the next_free list if it is not null.
+    if (m_next_free != nullptr) {
+      m_nfree--;
+      auto *ret = m_next_free;
+      m_next_free = m_next_free->get_next();
+      return ret;
+    }
+
+    // If the next_free list is null, we need to bump the next pointer
+    if (m_bump_next < m_table.get_slab_end(m_idx)) {
+      m_nfree--;
+      return m_bump_next++;
+    }
+
+    // Die!
+    return nullptr;
+  }
+
+
+  void HandleSlab::put(Mapping *m) {
+    // Validate that the handle is in this slab.
+    if (m < m_table.get_slab_start(m_idx) || m >= m_table.get_slab_end(m_idx)) {
+      ALASKA_ASSERT(false, "attempted to put a handle into the wrong slab");
+    }
+
+    // Increment the number of free mappings
+    m_nfree++;
+    m->set_next(m_next_free);
+    m_next_free = m;
+  }
 
 }  // namespace alaska
