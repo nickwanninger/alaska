@@ -69,12 +69,20 @@ namespace alaska {
       ALASKA_ASSERT(idx < this->capacity(), "failed to grow handle table");
     }
 
+    // Allocate a new slab using the system allocator.
     auto *sl = new HandleSlab(*this, idx);
 
-    // Add the slab to the list of slabs
+    // Add the slab to the list of slabs and return it
     m_slabs.push(sl);
-
     return sl;
+  }
+
+
+  HandleSlab *HandleTable::get_slab(slabidx_t idx) {
+    if (idx >= m_slabs.size()) {
+      return nullptr;
+    }
+    return m_slabs[idx];
   }
 
 
@@ -84,6 +92,39 @@ namespace alaska {
     auto byte_distance = (uintptr_t)m - (uintptr_t)m_table;
     return byte_distance / HandleTable::slab_size;
   }
+
+
+
+
+  //////////////////////
+  // Handle Slab Queue
+  //////////////////////
+  void HandleSlabQueue::push(HandleSlab *slab) {
+    // Initialize
+    if (head == nullptr and tail == nullptr) {
+      head = tail = slab;
+    } else {
+      tail->next = slab;
+      slab->prev = tail;
+      tail = slab;
+    }
+  }
+
+  HandleSlab *HandleSlabQueue::pop(void) {
+    if (head == nullptr) return nullptr;
+
+    auto *ret = head;
+    head = head->next;
+    if (head != nullptr) {
+      head->prev = nullptr;
+    } else {
+      tail = nullptr;
+    }
+    ret->prev = ret->next = nullptr;
+    return ret;
+  }
+
+
 
 
   //////////////////////

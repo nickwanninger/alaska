@@ -2,6 +2,7 @@
 #include <alaska.h>
 #include <alaska/table.hpp>
 #include "gtest/gtest.h"
+#include <vector>
 
 #include <alaska/Runtime.hpp>
 
@@ -140,6 +141,18 @@ TEST_F(RuntimeTest, SlabNFreeOnInitialAllocation) {
 
 
 
+// Make sure that for many slabs, get_slab returns the right one
+TEST_F(RuntimeTest, SlabGetSlab) {
+  // Allocate a large number of slabs
+  for (int i = 0; i < alaska::HandleTable::initial_capacity * 2; i++) {
+    auto* slab = runtime.handle_table.fresh_slab();
+    ASSERT_NE(slab, nullptr);
+    // Check that get_slab returns the right slab
+    ASSERT_EQ(runtime.handle_table.get_slab(slab->idx()), slab);
+  }
+}
+
+
 TEST_F(RuntimeTest, SlabGetReturnsNullWhenOutOfCapacity) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab();
@@ -215,4 +228,33 @@ TEST_F(RuntimeTest, SlabMappingIndex) {
       ASSERT_EQ(slab->idx(), runtime.handle_table.mapping_slab_idx(handle));
     }
   }
+}
+
+
+
+// Test that HandleSlabQueues pop all the slabs that are pushed
+TEST_F(RuntimeTest, HandleSlabQueuePop) {
+  // Create a queue
+  alaska::HandleSlabQueue queue;
+  ASSERT_TRUE(queue.empty());
+
+  // Create a vector to store the slabs
+  std::vector<alaska::HandleSlab*> slabs;
+  // For a few iterations...
+  for (int i = 0; i < 10; i++) {
+    // Allocate a fresh slab from the handle table
+    auto* slab = runtime.handle_table.fresh_slab();
+    // Push the slab to the queue
+    queue.push(slab);
+    // Store the slab in the vector
+    slabs.push_back(slab);
+  }
+
+  // Pop all the slabs from the queue
+  for (int i = 0; i < 10; i++) {
+    auto* slab = queue.pop();
+    // Check that the slab is the same as the one that was pushed
+    ASSERT_EQ(slab, slabs[i]);
+  }
+  ASSERT_TRUE(queue.empty());
 }

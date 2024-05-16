@@ -22,6 +22,7 @@ namespace alaska {
   using slabidx_t = uint64_t;
 
   class HandleTable;
+  class HandleSlabQueue;
 
   class HandleSlab final {
    public:
@@ -34,6 +35,11 @@ namespace alaska {
     inline auto nfree(void) const { return m_nfree; }
     slabidx_t idx(void) const { return m_idx; }
 
+   protected:
+    friend HandleSlabQueue;
+    HandleSlab *next = nullptr;
+    HandleSlab *prev = nullptr;
+
    private:
     HandleTable &m_table;  // Which table does this belong to?
     slabidx_t m_idx;       // Which slab is this?
@@ -41,6 +47,21 @@ namespace alaska {
     uint16_t m_nfree = 0;
     alaska::Mapping *m_next_free = nullptr;
     alaska::Mapping *m_bump_next = nullptr;
+  };
+
+
+
+  // A handle slab list is a doubly linked list of handle slabs.
+  // It is used to keep track of groupings of slabs.
+  class HandleSlabQueue final {
+   public:
+    void push(HandleSlab *slab);
+    HandleSlab *pop(void);
+    inline bool empty(void) const { return head == nullptr; }
+
+   private:
+    HandleSlab *head = nullptr;
+    HandleSlab *tail = nullptr;
   };
 
   // This is a class which manages the mapping from pages in the handle table to slabs. If a
@@ -58,6 +79,7 @@ namespace alaska {
 
     // Allocate a fresh slab, resizing the table if necessary.
     alaska::HandleSlab *fresh_slab(void);
+    alaska::HandleSlab *get_slab(slabidx_t idx);
     // Given a mapping, return the index of the slab it belongs to.
     slabidx_t mapping_slab_idx(Mapping *m);
 
