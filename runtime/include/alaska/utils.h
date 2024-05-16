@@ -35,8 +35,8 @@
       fprintf(stderr, "\x1b[31m-----------[ Alaska Assert Failed ]-----------\x1b[0m\n");       \
       fprintf(stderr, "%s line %d\n", __FILE__, __LINE__);                                      \
       fprintf(stderr, "Check, `%s`, failed\n", #c, ##__VA_ARGS__);                              \
-      fprintf(stderr, "Reason: \e[33m" msg "\e[0m\n", ##__VA_ARGS__);                                                 \
-      alaska_dump_backtrace();                                                                  \
+      fprintf(stderr, "Reason: \e[33m" msg "\e[0m\n", ##__VA_ARGS__);                           \
+      /*alaska_dump_backtrace();*/                                                              \
       fprintf(stderr, "\x1b[31mExiting.\x1b[0m\n");                                             \
       abort();                                                                                  \
       fprintf(stderr, "\x1b[31m----------------------------------------------------\x1b[0m\n"); \

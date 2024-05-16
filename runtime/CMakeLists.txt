@@ -1,6 +1,6 @@
 # add_link_options("-fuse-ld=lld")
 
-set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough")
+set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough -Wno-unused-private-field -Wno-covered-switch-default ")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
@@ -34,12 +34,16 @@ message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
 set(SRC_FILES
 	# The core of the runtime
-	core/runtime.cpp
+	core/core.cpp
 	core/table.cpp
   # core/translate.cpp
 	core/halloc.cpp
 	core/barrier.cpp
 	core/glue.cpp # Stuff to support a nostdlibc++ environment
+
+
+	core/HandleTable.cpp
+	core/Runtime.cpp
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
@@ -259,8 +263,7 @@ if (ALASKA_ENABLE_TESTING)
 
 	add_executable(
 		alaska_test
-		test/halloc_test.cpp
-		test/table_test.cpp
+		test/runtime_test.cpp
 	)
 
 	target_link_libraries(

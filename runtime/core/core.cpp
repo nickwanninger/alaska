@@ -115,6 +115,8 @@ extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t
 
 // High priority constructor: todo: do this lazily when you call halloc the first time.
 void __attribute__((constructor(102))) alaska_init(void) {
+  // TODO:
+  return;
   // Add the main thread to the list of active threads
   // Note: the main thread never removes itself from the barrier thread list
   alaska::barrier::add_self_thread();
@@ -124,6 +126,8 @@ void __attribute__((constructor(102))) alaska_init(void) {
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
+  // TODO:
+  return;
   alaska::service::deinit();
   alaska::table::deinit();
 
@@ -231,10 +235,6 @@ void* alaska_ensure_present(alaska::Mapping* m) {
 
 
 
-extern "C" void __cxa_pure_virtual(void) {
-  abort();
-}
+extern "C" void __cxa_pure_virtual(void) { abort(); }
 
-extern "C" void* __alaska_leak(void* ptr) {
-  return alaska_translate(ptr);
-}
+extern "C" void* __alaska_leak(void* ptr) { return alaska_translate(ptr); }
