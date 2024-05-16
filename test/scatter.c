@@ -3,32 +3,34 @@
 
 #define NUM_OBJECTS 10000
 
+
+struct object {
+  int id;
+  char name[20];
+};
+
+
 int main() {
   // Allocate memory for an array of objects
-  int* objects = (int*)malloc(NUM_OBJECTS * sizeof(int));
-  if (objects == NULL) {
-    printf("Memory allocation failed!\n");
-    return 1;
-  }
+  struct object **objects = calloc(NUM_OBJECTS, sizeof(struct object *));
 
   // Initialize the objects
   for (int i = 0; i < NUM_OBJECTS; i++) {
-    objects[i] = i + 1;
+    objects[i] = calloc(1, sizeof(struct object));
   }
 
   // Free half of the objects
-  for (int i = 0; i < NUM_OBJECTS / 2; i++) {
-    free(&objects[i]);
+  for (int i = 0; i < NUM_OBJECTS; i += 2) {
+    free(objects[i]);
+    objects[i] = NULL;
   }
 
-  // Print the remaining objects
-  printf("Remaining objects: ");
-  for (int i = 0; i < NUM_OBJECTS; i++) {
-    if (objects[i] != 0) {
-      printf("%d ", objects[i]);
-    }
+
+  // Free the other half
+  for (int i = 1; i < NUM_OBJECTS; i += 2) {
+    free(objects[i]);
+    objects[i] = NULL;
   }
-  printf("\n");
 
   // Free the memory allocated for the objects
   free(objects);
