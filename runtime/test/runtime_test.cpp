@@ -199,3 +199,20 @@ TEST_F(RuntimeTest, SlabReturnToWrongSlab) {
   // Try to return the handle to slab2
   ASSERT_DEATH({ slab2->put(handle); }, "");
 }
+
+
+// test that all mappings in a slab are in the right index
+TEST_F(RuntimeTest, SlabMappingIndex) {
+  // For a few iterations...
+  for (int slabi = 0; slabi < 10; slabi++) {
+    // Allocate a fresh slab from the handle table
+    auto* slab = runtime.handle_table.fresh_slab();
+    // Fill up the slab with handles
+    for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+      auto handle = slab->get();
+      ASSERT_NE(handle, nullptr);
+      // Check that the handle is in the right index
+      ASSERT_EQ(slab->idx(), runtime.handle_table.mapping_slab_idx(handle));
+    }
+  }
+}

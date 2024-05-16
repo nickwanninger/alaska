@@ -32,6 +32,7 @@ namespace alaska {
 
 
     inline auto nfree(void) const { return m_nfree; }
+    slabidx_t idx(void) const { return m_idx; }
 
    private:
     HandleTable &m_table;  // Which table does this belong to?
@@ -47,24 +48,21 @@ namespace alaska {
   // In the actual runtime implementation, there will be a global instance of this class.
   class HandleTable final {
    public:
-    HandleTable(void);
-    ~HandleTable(void);
-
-
-
     static constexpr size_t slab_size = 0x1000;
     static constexpr size_t slab_capacity = slab_size / sizeof(alaska::Mapping);
     static constexpr size_t initial_capacity = 16;
 
-    auto slab_count() const { return m_slabs.size(); }
-    auto capacity() const { return m_capacity; }
 
+    HandleTable(void);
+    ~HandleTable(void);
 
     // Allocate a fresh slab, resizing the table if necessary.
     alaska::HandleSlab *fresh_slab(void);
+    // Given a mapping, return the index of the slab it belongs to.
+    slabidx_t mapping_slab_idx(Mapping *m);
 
-
-    off_t mapping_slab_idx(Mapping *m);
+    auto slab_count() const { return m_slabs.size(); }
+    auto capacity() const { return m_capacity; }
 
    protected:
     friend HandleSlab;
@@ -72,6 +70,7 @@ namespace alaska {
     inline alaska::Mapping *get_slab_start(slabidx_t idx) {
       return (alaska::Mapping *)((uintptr_t)m_table + idx * slab_size);
     }
+
     inline alaska::Mapping *get_slab_end(slabidx_t idx) {
       return (alaska::Mapping *)((uintptr_t)m_table + (idx + 1) * slab_size);
     }

@@ -78,7 +78,12 @@ namespace alaska {
   }
 
 
-  off_t HandleTable::mapping_slab_idx(Mapping *m) { return (m - m_table) / HandleTable::slab_size; }
+
+
+  slabidx_t HandleTable::mapping_slab_idx(Mapping *m) {
+    auto byte_distance = (uintptr_t)m - (uintptr_t)m_table;
+    return byte_distance / HandleTable::slab_size;
+  }
 
 
   //////////////////////
@@ -113,16 +118,14 @@ namespace alaska {
       return m_bump_next++;
     }
 
-    // Die!
     return nullptr;
   }
 
 
   void HandleSlab::put(Mapping *m) {
     // Validate that the handle is in this slab.
-    if (m < m_table.get_slab_start(m_idx) || m >= m_table.get_slab_end(m_idx)) {
-      ALASKA_ASSERT(false, "attempted to put a handle into the wrong slab");
-    }
+    ALASKA_ASSERT(
+        m_idx == m_table.mapping_slab_idx(m), "attempted to put a handle into the wrong slab")
 
     // Increment the number of free mappings
     m_nfree++;
