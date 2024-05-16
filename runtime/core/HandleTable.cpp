@@ -11,6 +11,7 @@
 
 
 #include <alaska/HandleTable.hpp>
+#include <stdio.h>
 #include <sys/mman.h>
 
 
@@ -94,6 +95,16 @@ namespace alaska {
 
 
 
+  void HandleTable::dump(FILE *stream) {
+    // Dump the handle table in a nice debug output
+    fprintf(stream, "Handle Table:\n");
+    fprintf(stream, " - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
+    for (auto *slab : m_slabs) {
+      slab->dump(stream);
+    }
+  }
+
+
 
   //////////////////////
   // Handle Slab Queue
@@ -170,12 +181,14 @@ namespace alaska {
       nfree--;
       auto *ret = next_free;
       next_free = next_free->get_next();
+      update_state();
       return ret;
     }
 
     // If the next_free list is null, we need to bump the next pointer
     if (bump_next < table.get_slab_end(idx)) {
       nfree--;
+      update_state();
       return bump_next++;
     }
 
@@ -191,6 +204,34 @@ namespace alaska {
     nfree++;
     m->set_next(next_free);
     next_free = m;
+    update_state();
   }
 
+  void HandleSlab::update_state() {
+    switch (nfree) {
+      case 0:
+        state = SlabStateFull;
+        break;
+      case HandleTable::slab_capacity:
+        state = SlabStateEmpty;
+        break;
+      default:
+        state = SlabStatePartial;
+        break;
+    }
+  }
+
+
+  void HandleSlab::dump(FILE *stream) {
+    fprintf(stream, "Slab %4d | ", idx);
+    fprintf(stream, "st %d | ", state);
+
+    fprintf(stream, "free %4d | ", nfree);
+    fprintf(stream, "bump %016p | ", bump_next);
+    fprintf(stream, "next %016p | ", next_free);
+
+
+
+    fprintf(stream, "\n");
+  }
 }  // namespace alaska

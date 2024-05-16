@@ -32,20 +32,27 @@ namespace alaska {
   };
 
 
+  // A handle slab is a slice of the handle table that is used to allocate
+  // mappings. It is a fixed size, and no two threads will allocate from the
+  // same slab at the same time.
   struct HandleSlab final {
-    HandleTable &table;                        // Which table does this belong to?
     slabidx_t idx;                             // Which slab is this?
+    HandleSlabState state = SlabStateEmpty;    // What is the state of this slab?
     uint16_t nfree = 0;                        // how many free mappings are in this slab?
+    HandleTable &table;                        // Which table does this belong to?
     alaska::Mapping *next_free = nullptr;      // the next free mapping in the slab (linked list)
     alaska::Mapping *bump_next = nullptr;      // The next mapping to bump-allocate from
     HandleSlab *next = nullptr;                // The next slab in the queue
     HandleSlab *prev = nullptr;                // The previous slab in the queue
     HandleSlabQueue *current_queue = nullptr;  // What queue is this slab in?
 
+
     // -- Methods --
     HandleSlab(HandleTable &table, slabidx_t idx);
     alaska::Mapping *get(void);    // Allocate a mapping from this slab
     void put(alaska::Mapping *m);  // Return a mapping back to this slab
+    void update_state(void);       // Update the state of this slab
+    void dump(FILE *stream);       // Dump this slab's debug info to a file
   };
 
 
@@ -88,6 +95,9 @@ namespace alaska {
     auto slab_count() const { return m_slabs.size(); }
     auto capacity() const { return m_capacity; }
 
+
+    void dump(FILE *stream);
+
    protected:
     friend HandleSlab;
 
@@ -98,6 +108,7 @@ namespace alaska {
     inline alaska::Mapping *get_slab_end(slabidx_t idx) {
       return (alaska::Mapping *)((uintptr_t)m_table + (idx + 1) * slab_size);
     }
+
 
    private:
     void grow();

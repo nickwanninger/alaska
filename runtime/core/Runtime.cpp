@@ -33,10 +33,15 @@ namespace alaska {
   }
 
 
-  void* Runtime::halloc(size_t size) {
-    // Simply call hrealloc with a null pointer. This is
-    // how realloc in libc works.
-    return this->hrealloc(NULL, size);
+  void* Runtime::halloc(size_t sz, bool zero) {
+    // Just some big number.
+    if (sz > (1LLU << (uint64_t)(ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS - 1)) - 1) {
+      return ::malloc(sz);
+    }
+
+    // TODO:
+    abort();
+    return nullptr;
   }
 
   void Runtime::hfree(void* ptr) {
@@ -52,5 +57,14 @@ namespace alaska {
     // TODO: Implement hrealloc function
     return nullptr;
   }
+
+
+
+  void Runtime::dump(FILE* stream) {
+    //
+    fprintf(stream, "Alaska Runtime Information:\n");
+    handle_table.dump(stream);
+  }
+
 
 }  // namespace alaska
