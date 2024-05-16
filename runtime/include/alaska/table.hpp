@@ -48,8 +48,6 @@ namespace alaska {
 
       Slab(int idx);
 
-
-
      private:
       alaska::Mapping *start(void);
 
