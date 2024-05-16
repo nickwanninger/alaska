@@ -16,6 +16,11 @@
 
 
 namespace alaska {
+
+
+  //////////////////////
+  // Handle Table
+  //////////////////////
   HandleTable::HandleTable() {
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
@@ -35,7 +40,6 @@ namespace alaska {
         m_table != MAP_FAILED, "failed to allocate handle table. Maybe one is already allocated?");
   }
 
-
   HandleTable::~HandleTable() {
     // Release the handle table back to the OS
     munmap(m_table, m_capacity * HandleTable::slab_size);
@@ -44,7 +48,6 @@ namespace alaska {
       delete slab;
     }
   }
-
 
 
   void HandleTable::grow() {
@@ -59,7 +62,6 @@ namespace alaska {
     // Validate that the table was reallocated
     ALASKA_ASSERT(m_table != MAP_FAILED, "failed to reallocate handle table during growth");
   }
-
 
   HandleSlab *HandleTable::fresh_slab() {
     int idx = m_slabs.size();
@@ -84,9 +86,6 @@ namespace alaska {
     }
     return m_slabs[idx];
   }
-
-
-
 
   slabidx_t HandleTable::mapping_slab_idx(Mapping *m) {
     auto byte_distance = (uintptr_t)m - (uintptr_t)m_table;
