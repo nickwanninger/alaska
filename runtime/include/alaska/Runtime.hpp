@@ -9,10 +9,9 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-
-
+#pragma once
 #include <alaska/HandleTable.hpp>
-
+#include <alaska/Logger.hpp>
 
 namespace alaska {
 

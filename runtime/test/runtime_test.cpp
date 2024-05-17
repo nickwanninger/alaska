@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
 #include <alaska/table.hpp>
+#include "alaska/Logger.hpp"
 #include "gtest/gtest.h"
 #include <vector>
 
@@ -10,7 +11,10 @@
 
 class RuntimeTest : public ::testing::Test {
  public:
-  void SetUp() override {}
+  void SetUp() override {
+    // Make it so we only get warnings
+    alaska::set_log_level(LOG_WARN);
+  }
   void TearDown() override {}
 
   alaska::Runtime runtime;

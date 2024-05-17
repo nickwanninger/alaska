@@ -11,6 +11,7 @@
 
 
 #include <alaska/HandleTable.hpp>
+#include <alaska/Logger.hpp>
 #include <stdio.h>
 #include <sys/mman.h>
 
@@ -39,6 +40,9 @@ namespace alaska {
     // Validate that the table was allocated
     ALASKA_ASSERT(
         m_table != MAP_FAILED, "failed to allocate handle table. Maybe one is already allocated?");
+
+
+    log_debug("handle table successfully allocated with initial capacity of %lu", m_capacity);
   }
 
   HandleTable::~HandleTable() {
@@ -54,6 +58,7 @@ namespace alaska {
   void HandleTable::grow() {
     auto new_cap = m_capacity * HandleTable::growth_factor;
     // Scale the capacity of the handle table
+    log_debug("Growing handle table. New capacity: %lu, old: %lu", new_cap, m_capacity);
 
     // Grow the mmap region
     m_table = (alaska::Mapping *)mremap(
@@ -65,9 +70,11 @@ namespace alaska {
   }
 
   HandleSlab *HandleTable::fresh_slab() {
-    int idx = m_slabs.size();
+    slabidx_t idx = m_slabs.size();
+    log_trace("Allocating a new slab at idx %d", idx);
 
     if (idx >= this->capacity()) {
+      log_debug("New slab requires more capacity in the table");
       grow();
       ALASKA_ASSERT(idx < this->capacity(), "failed to grow handle table");
     }
@@ -82,7 +89,9 @@ namespace alaska {
 
 
   HandleSlab *HandleTable::get_slab(slabidx_t idx) {
+    log_trace("Getting slab %d", idx);
     if (idx >= m_slabs.size()) {
+      log_trace("Invalid slab requeset!");
       return nullptr;
     }
     return m_slabs[idx];
