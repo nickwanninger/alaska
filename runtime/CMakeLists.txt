@@ -44,6 +44,7 @@ set(SRC_FILES
 
 	core/HandleTable.cpp
 	core/Runtime.cpp
+	core/Logger.cpp
 
 	# libc functions that we reimplement to avoid
 	# glibc doing terrible things with AVX512
