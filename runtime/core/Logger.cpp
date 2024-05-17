@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 
 static const char *level_strings[] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
@@ -25,11 +26,20 @@ static const char *level_colors[] = {
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int log_level = LOG_ERROR;
+static bool enable_colors = true;
 
 // If the log level is coming from ENV, lock it so it cannot change.
 static bool log_level_locked = false;
 
-static void __attribute__((constructor(102))) alaska_init(void) {
+static void __attribute__((constructor(102))) alaska_logger_init(void) {
+  if (isatty(2)) {
+    enable_colors = true;
+  } else {
+    enable_colors = false;
+  }
+
+
+
   const char *env = getenv("ALASKA_LOG_LEVEL");
   if (env != NULL) {
     if (env[0] == 'T') log_level = LOG_TRACE;
@@ -38,7 +48,6 @@ static void __attribute__((constructor(102))) alaska_init(void) {
     if (env[0] == 'W') log_level = LOG_WARN;
     if (env[0] == 'E') log_level = LOG_ERROR;
     if (env[0] == 'F') log_level = LOG_FATAL;
-
     log_level_locked = true;
   }
 }
@@ -61,8 +70,13 @@ namespace alaska {
 
       char buf[16];
       buf[strftime(buf, sizeof(buf), "%H:%M:%S", time)] = '\0';
-      fprintf(stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ", buf, level_colors[level],
-          level_strings[level], file, line);
+
+      if (enable_colors) {
+        fprintf(stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d\x1b[0m | ", buf, level_colors[level],
+            level_strings[level], file, line);
+      } else {
+        fprintf(stderr, "%s %-5s %s:%d | ", buf, level_strings[level], file, line);
+      }
       vfprintf(stderr, fmt, args);
       fprintf(stderr, "\n");
 
