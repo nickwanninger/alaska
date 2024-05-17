@@ -70,6 +70,35 @@ menu "Experimental"
 endmenu
 
 
+
+menu "Logging"
+
+config LOG_LEVEL_TRACE
+	bool "Enable TRACE level logging (recommended to leave off for performance reasons)"
+	default n
+
+config LOG_LEVEL_DEBUG
+	bool "Enable DEBUG level logging"
+	default y
+
+config LOG_LEVEL_INFO
+	bool "Enable INFO level logging"
+	default y
+
+config LOG_LEVEL_WARN
+	bool "Enable WARN level logging"
+	default y
+
+config LOG_LEVEL_ERROR
+	bool "Enable ERROR level logging"
+	default y
+
+config LOG_LEVEL_FATAL
+	bool "Enable FATAL level logging"
+	default y
+endmenu
+
+
 config SIZE_BITS
   int "How many bits to use for handle sizes. Smaller = more handles. Larger = less handles"
   default 32

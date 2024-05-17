@@ -14,6 +14,8 @@
 #include <alaska/Logger.hpp>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdlib.h>
+
 
 static const char *level_strings[] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
 
@@ -22,7 +24,27 @@ static const char *level_colors[] = {
 
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int log_level = LOG_INFO;
+static int log_level = LOG_ERROR;
+
+// If the log level is coming from ENV, lock it so it cannot change.
+static bool log_level_locked = false;
+
+static void __attribute__((constructor(102))) alaska_init(void) {
+  const char *env = getenv("ALASKA_LOG_LEVEL");
+  if (env != NULL) {
+    if (env[0] == 'T') log_level = LOG_TRACE;
+    if (env[0] == 'D') log_level = LOG_DEBUG;
+    if (env[0] == 'I') log_level = LOG_INFO;
+    if (env[0] == 'W') log_level = LOG_WARN;
+    if (env[0] == 'E') log_level = LOG_ERROR;
+    if (env[0] == 'F') log_level = LOG_FATAL;
+
+    log_level_locked = true;
+  }
+}
+
+
+
 
 namespace alaska {
   void log(int level, const char *file, int line, const char *fmt, ...) {
@@ -51,5 +73,9 @@ namespace alaska {
   }
 
 
-  void set_log_level(int level) { log_level = level; }
+  void set_log_level(int level) {
+    if (!log_level_locked) {
+      log_level = level;
+    }
+  }
 }  // namespace alaska

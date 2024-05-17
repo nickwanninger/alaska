@@ -24,11 +24,38 @@ namespace alaska {
   void set_log_level(int level);
 };  // namespace alaska
 
-// clang-format off
+#ifdef ALASKA_LOG_LEVEL_TRACE
 #define log_trace(...) alaska::log(LOG_TRACE, __FILE_NAME__, __LINE__, __VA_ARGS__)
+#else
+#define log_trace(...)
+#endif
+
+#ifdef ALASKA_LOG_LEVEL_DEBUG
 #define log_debug(...) alaska::log(LOG_DEBUG, __FILE_NAME__, __LINE__, __VA_ARGS__)
-#define log_info(...)  alaska::log(LOG_INFO,  __FILE_NAME__, __LINE__, __VA_ARGS__)
-#define log_warn(...)  alaska::log(LOG_WARN,  __FILE_NAME__, __LINE__, __VA_ARGS__)
+#else
+#define log_debug(...)
+#endif
+
+#ifdef ALASKA_LOG_LEVEL_INFO
+#define log_info(...) alaska::log(LOG_INFO, __FILE_NAME__, __LINE__, __VA_ARGS__)
+#else
+#define log_info(...)
+#endif
+
+#ifdef ALASKA_LOG_LEVEL_WARN
+#define log_warn(...) alaska::log(LOG_WARN, __FILE_NAME__, __LINE__, __VA_ARGS__)
+#else
+#define log_warn(...)
+#endif
+
+#ifdef ALASKA_LOG_LEVEL_ERROR
 #define log_error(...) alaska::log(LOG_ERROR, __FILE_NAME__, __LINE__, __VA_ARGS__)
+#else
+#define log_error(...)
+#endif
+
+#ifdef ALASKA_LOG_LEVEL_FATAL
 #define log_fatal(...) alaska::log(LOG_FATAL, __FILE_NAME__, __LINE__, __VA_ARGS__)
-// clang-format on
+#else
+#define log_fatal(...)
+#endif
