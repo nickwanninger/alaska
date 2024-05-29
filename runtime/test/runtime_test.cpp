@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
-#include <alaska/table.hpp>
 #include "alaska/Logger.hpp"
 #include "gtest/gtest.h"
 #include <vector>
@@ -330,4 +329,30 @@ TEST_F(RuntimeTest, HandleSlabQueueRemoveEnd) {
   queue.remove(slab3);
   ASSERT_EQ(queue.pop(), slab1);
   ASSERT_EQ(queue.pop(), slab2);
+}
+
+
+
+
+TEST_F(RuntimeTest, HandleTableGetMapping) {
+  // Get a mapping from the handle table
+  auto m = runtime.handle_table.get();
+  // Check that the mapping is not null
+  ASSERT_NE(m, nullptr);
+  runtime.handle_table.put(m);
+}
+
+
+TEST_F(RuntimeTest, HandleTableGetUniqueValues) {
+  // Create a set to store the mappings
+  std::set<alaska::Mapping*> mappings;
+  // Get multiple mappings from the handle table
+  for (int i = 0; i < 1000; i++) {
+    auto m = runtime.handle_table.get();
+    // Check that the mapping is not null
+    ASSERT_NE(m, nullptr);
+    // Check that the mapping is unique
+    ASSERT_EQ(mappings.count(m), 0);
+    mappings.insert(m);
+  }
 }

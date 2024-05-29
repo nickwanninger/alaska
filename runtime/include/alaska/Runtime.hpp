@@ -12,6 +12,7 @@
 #pragma once
 #include <alaska/HandleTable.hpp>
 #include <alaska/Logger.hpp>
+#include <alaska/VariablePage.hpp>
 
 namespace alaska {
 
@@ -34,6 +35,8 @@ namespace alaska {
   struct Runtime final {
     // The handle table is a global table that maps handles to their corresponding memory blocks.
     alaska::HandleTable handle_table;
+
+    alaska::VariablePage page;
 
     // TODO:
     // alaska::Heap allocator;

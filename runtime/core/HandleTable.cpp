@@ -42,14 +42,22 @@ namespace alaska {
         m_table != MAP_FAILED, "failed to allocate handle table. Maybe one is already allocated?");
 
 
-    log_debug("handle table successfully allocated with initial capacity of %lu", m_capacity);
+    log_debug("handle table successfully allocated to %p with initial capacity of %lu", m_table,
+        m_capacity);
   }
 
   HandleTable::~HandleTable() {
     // Release the handle table back to the OS
-    munmap(m_table, m_capacity * HandleTable::slab_size);
+    int r = munmap(m_table, m_capacity * HandleTable::slab_size);
+    if (r < 0) {
+      log_error("failed to release handle table memory to the OS");
+    } else {
+      log_debug("handle table memory released to the OS");
+    }
+
 
     for (auto &slab : m_slabs) {
+      log_trace("deleting slab %p (idx: %lu)", slab, slab->idx);
       delete slab;
     }
   }
@@ -111,6 +119,37 @@ namespace alaska {
     for (auto *slab : m_slabs) {
       slab->dump(stream);
     }
+  }
+
+
+
+  Mapping *HandleTable::get(void) {
+    // NAIVE: Just attempt to allocate from each slab
+
+    for (auto *slab : m_slabs) {
+      log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
+      auto *m = slab->get();
+      if (m != nullptr) {
+        log_trace("Success. Allocated mapping %p", m);
+        return m;
+      }
+    }
+
+    log_debug("No slab has any handles. Asking for a fresh one");
+    // if we get here we need to allocate a new slab
+    return fresh_slab()->get();
+  }
+
+
+  void HandleTable::put(Mapping *m) {
+    log_trace("Putting handle %p", m);
+    // Validate that the handle is in this table
+    ALASKA_ASSERT(
+        mapping_slab_idx(m) < m_slabs.size(), "attempted to put a handle into the wrong table")
+
+    // Get the slab that the handle is in
+    auto *slab = m_slabs[mapping_slab_idx(m)];
+    slab->put(m);
   }
 
 

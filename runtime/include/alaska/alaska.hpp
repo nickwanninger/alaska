@@ -120,7 +120,7 @@ namespace alaska {
       return (void *)out;
     }
 
-    uint32_t to_compact(void) { return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS); }
+    uint32_t to_compact(void) const { return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS); }
 
 
     static alaska::Mapping *from_compact(uint32_t c) {

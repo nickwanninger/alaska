@@ -94,8 +94,11 @@ namespace alaska {
     auto slab_count() const { return m_slabs.size(); }
     auto capacity() const { return m_capacity; }
 
-
     void dump(FILE *stream);
+
+
+    alaska::Mapping *get(void);
+    void put(alaska::Mapping *m);
 
    protected:
     friend HandleSlab;
