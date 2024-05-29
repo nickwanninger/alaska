@@ -82,5 +82,4 @@ config SQUEEZE_BITS
 
 config ENABLE_TESTING
   bool "Enable runtime testing"
-  depends on SERVICE_ANCHORAGE
   default y
