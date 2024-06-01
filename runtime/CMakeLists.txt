@@ -35,6 +35,7 @@ add_library(alaska_core STATIC
 	core/HandleTable.cpp
 	core/Runtime.cpp
 	core/Logger.cpp
+	core/Heap.cpp
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp
@@ -51,7 +52,6 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 
 ##########################################################################################
@@ -75,76 +75,6 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
-
-
-
-
-
-
-
-
-
-
-# set(SRC_FILES
-# 	# The core of the runtime
-# 	core/core.cpp
-# 	core/table.cpp
-#   # core/translate.cpp
-# 	core/halloc.cpp
-# 	core/barrier.cpp
-# 	core/glue.cpp # Stuff to support a nostdlibc++ environment
-
-
-# 	core/HandleTable.cpp
-# 	core/Runtime.cpp
-# 	core/Logger.cpp
-# 	core/ThreadLocalData.cpp
-
-# 	# libc functions that we reimplement to avoid
-# 	# glibc doing terrible things with AVX512
-# 	core/compat.c
-# )
-
-
-
-# if (ALASKA_SERVICE_ANCHORAGE)
-# 	# Anchorage's allocator relies on a modified version of
-# 	# Heap-Layers, which we have vendored here:
-# 	set(SRC_FILES ${SRC_FILES}
-# 		services/anchorage/Anchorage.cpp
-# 		services/anchorage/Block.cpp
-#     services/anchorage/SubHeap.cpp
-# 		services/anchorage/Swapper.cpp
-# 	)
-# endif(ALASKA_SERVICE_ANCHORAGE)
-
-# if (ALASKA_SERVICE_NONE)
-# 	# If the configuration calls for "no service", then we
-# 	# need to compile simple stubs so the program will work.
-# 	# These stubs will just use the system allocator to make
-# 	# everything work fine.
-# 	set(SRC_FILES ${SRC_FILES} services/none/none.cpp)
-# endif(ALASKA_SERVICE_NONE)
-
-
-
-# # this is the "object library" target: compiles the sources only once
-# add_library(alaska_obj OBJECT ${SRC_FILES})
-# # shared libraries need PIC
-# set_property(TARGET alaska_obj PROPERTY POSITION_INDEPENDENT_CODE 1)
-
-# add_library(alaska SHARED $<TARGET_OBJECTS:alaska_obj>)
-# add_library(alaska_static STATIC $<TARGET_OBJECTS:alaska_obj>)
-
-# target_include_directories(alaska_obj PUBLIC include/)
-# set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
-
-# target_link_libraries(alaska dl pthread ${LIBUNWIND_LIBRARIES})
-
-
-
 
 
 
@@ -203,11 +133,6 @@ add_bitcode(alaska_stub SOURCES
 
 target_link_libraries(alaska alaska_translate_native)
 
-
-# target_link_libraries(alaska_static alaska_translate_native)
-# set_target_properties(alaska_static PROPERTIES OUTPUT_NAME "alaska")
-
-
 add_library(rsstracker SHARED extra/rsstracker.c)
 target_link_libraries(rsstracker dl pthread)
 install(TARGETS rsstracker)
@@ -219,34 +144,29 @@ install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
 
-# install(
-#   TARGETS alaska
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
-# install(
-#   TARGETS alaska_static
-#   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 if (ALASKA_ENABLE_TESTING)
-  include(FetchContent)
-  FetchContent_Declare(
-  googletest
-    URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  )
-  # For Windows: Prevent overriding the parent project's compiler/linker settings
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-	set(INSTALL_GTEST OFF)
 
-  FetchContent_MakeAvailable(googletest)
+	find_package(GTest)
+
+	IF (${GTest_FOUND})
+   MESSAGE(STATUS "Found Google Test.")
+	ELSE (${GTest_FOUND})
+		MESSAGE(STATUS "Could not locate Google Test - Installing with FetchContent.")
+		include(FetchContent)
+		FetchContent_Declare(
+		googletest
+		  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+		  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+		)
+		# For Windows: Prevent overriding the parent project's compiler/linker settings
+		set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+		set(INSTALL_GTEST OFF)
+
+		FetchContent_MakeAvailable(googletest)
+	ENDIF (${GTest_FOUND})
+
+
 
   enable_testing()
   include(GoogleTest)
