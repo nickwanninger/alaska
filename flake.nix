@@ -45,7 +45,7 @@
         in
         with pkgs; {
           devShell = mkShell {
-            buildInputs = buildInputs;
+            inherit buildInputs;
 
             shellHook = ''
               source $PWD/enable
@@ -62,7 +62,7 @@
             '';
 
 
-            buildInputs = buildInputs;
+            inherit buildInputs;
 
             postFixup = ''
               for b in $out/bin/*; do
