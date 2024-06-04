@@ -44,6 +44,8 @@ namespace alaska {
     void free_page(void *page);
 
 
+    inline auto get_allocated_page_count(void) const { return alloc_count; }
+
    private:
     struct FreePage {
       FreePage *next;
@@ -53,6 +55,8 @@ namespace alaska {
     void *heap;
     void *end;   // the end of the heap. If bump == end, we are OOM. make heap_size bigger!
     void *bump;  // the current bump pointer
+
+    uint64_t alloc_count = 0;  // How many pages are currently in use
 
     ck::mutex lock;
 

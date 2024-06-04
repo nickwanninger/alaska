@@ -423,3 +423,46 @@ TEST_F(PageManagerTest, PageManagerFree) {
   // Check that the page is the same as the one that was freed
   ASSERT_EQ(page, page2);
 }
+
+
+TEST_F(PageManagerTest, PageManagerAllocateAndFree) {
+  // Test that the page manager can allocate and free multiple pages
+  std::vector<void*> pages;
+  const int numPages = 10;
+
+  // Allocate multiple pages
+  for (int i = 0; i < numPages; i++) {
+    auto page = pm.alloc_page();
+    ASSERT_NE(page, nullptr);
+    pages.push_back(page);
+  }
+
+  // Free the pages
+  for (auto page : pages) {
+    pm.free_page(page);
+  }
+
+  // Allocate the same number of pages again
+  std::vector<void*> newPages;
+  for (int i = 0; i < numPages; i++) {
+    auto page = pm.alloc_page();
+    ASSERT_NE(page, nullptr);
+    newPages.push_back(page);
+  }
+
+  // Check that the newly allocated pages are different from the previously allocated ones
+  for (int i = 0; i < numPages; i++) {
+    ASSERT_NE(pages[i], newPages[i]);
+  }
+}
+
+TEST_F(PageManagerTest, PageManagerFreeInvalidPage) {
+  // Test that the page manager handles freeing an invalid page correctly
+  void* invalidPage = reinterpret_cast<void*>(0x1000);
+
+  // Try to free the invalid page
+  pm.free_page(invalidPage);
+
+  // Check that the page manager reports the correct number of allocated pages
+  ASSERT_EQ(pm.get_allocated_page_count(), 0);
+}

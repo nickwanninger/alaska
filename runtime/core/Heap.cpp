@@ -53,6 +53,7 @@ namespace alaska {
       FreePage *fp = this->free_list;
       this->free_list = fp->next;
       log_trace("PageManager: reusing free page at %p", fp);
+      alloc_count++;
       return (void *)fp;
     }
 
@@ -65,13 +66,18 @@ namespace alaska {
 
     // TODO: this is *so unlikely* to happen. This check is likely expensive and not needed.
     ALASKA_ASSERT(page < this->end, "Out of memory in the page manager.");
+    alloc_count++;
 
     return page;
   }
 
 
   void PageManager::free_page(void *page) {
-    // TODO: we do not validate the page here for performance reasons.
+    // check that the pointer is within the heap and early return if it is not
+    if (unlikely(page < this->heap || page >= this->end)) {
+      return;
+    }
+
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
 
     // cast the page to a FreePage to store metadata in.
@@ -80,6 +86,8 @@ namespace alaska {
     // Super simple: push to the free list.
     fp->next = this->free_list;
     this->free_list = fp;
+
+    alloc_count--;
   }
 
 }  // namespace alaska
