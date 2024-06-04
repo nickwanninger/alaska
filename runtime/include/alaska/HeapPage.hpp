@@ -18,7 +18,7 @@
 
 namespace alaska {
 
-  static constexpr size_t page_size = 0x80000;
+  static constexpr size_t page_size = 1024 * 256;  // we use 128kb pages.
 
   // A super simple type-level indicator that a size is aligned to the heap's alignment
   class AlignedSize final {

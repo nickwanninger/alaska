@@ -27,6 +27,13 @@ namespace alaska {
     ALASKA_ASSERT(
         this->heap != MAP_FAILED, "Failed to allocate the heap's backing memory. Aborting.");
 
+    // Set the bump allocator to the start of the heap.
+    this->bump = this->heap;
+    this->end = (void *)((uintptr_t)this->heap + alaska::heap_size);
+
+    // Initialize the free list w/ null, so the first allocation is a simple bump.
+    this->free_list = nullptr;
+
     log_debug("PageManager: Heap allocated at %p", this->heap);
   }
 
@@ -36,9 +43,43 @@ namespace alaska {
   }
 
 
-  HeapPage *PageManager::get_page(size_t index) {
-    log_warn("PageManager: get_page not implemented");
-    return NULL;
+  void *PageManager::alloc_page(void) {
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+
+
+
+    if (this->free_list != nullptr) {
+      // If we have a free page, pop it off the free list and return it.
+      FreePage *fp = this->free_list;
+      this->free_list = fp->next;
+      log_trace("PageManager: reusing free page at %p", fp);
+      return (void *)fp;
+    }
+
+    // If we don't have a free page, we need to allocate a new one with the bump allocator.
+    void *page = this->bump;
+    log_trace("PageManager: bumping to %p", this->bump);
+    this->bump = (void *)((uintptr_t)this->bump + alaska::page_size);
+
+    log_trace("PageManager: end = %p", this->end);
+
+    // TODO: this is *so unlikely* to happen. This check is likely expensive and not needed.
+    ALASKA_ASSERT(page < this->end, "Out of memory in the page manager.");
+
+    return page;
+  }
+
+
+  void PageManager::free_page(void *page) {
+    // TODO: we do not validate the page here for performance reasons.
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+
+    // cast the page to a FreePage to store metadata in.
+    FreePage *fp = (FreePage *)page;
+
+    // Super simple: push to the free list.
+    fp->next = this->free_list;
+    this->free_list = fp;
   }
 
 }  // namespace alaska

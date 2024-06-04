@@ -15,11 +15,12 @@
 #include <alaska/HeapPage.hpp>
 #include <ck/vec.h>
 #include <stdlib.h>
+#include <ck/lock.h>
 
 namespace alaska {
   static constexpr size_t kilobyte = 1024;
   static constexpr size_t megabyte = 1024 * kilobyte;
-  static constexpr size_t gigabyte = 1024 * kilobyte;
+  static constexpr size_t gigabyte = 1024 * megabyte;
 
   // For now, the heap is a fixed size, large contiguious
   // block of memory managed by the PageManager. Eventually,
@@ -28,20 +29,34 @@ namespace alaska {
   static constexpr size_t heap_size = 128 * gigabyte;
 
   // The PageManager is responsible for managing the memory backing the heap, and subdividing it
-  // into pages which are handed to HeapPage instances.
+  // into pages which are handed to HeapPage instances. The main interface here is to allocate a
+  // page of size alaska::page_size, and allow it to be freed again. Fundamentally, the PageManager
+  // is a trivial bump allocator that uses a free-list to manage reuse.
+  //
+  // The methods behind this structure are currently behind a lock.
   class PageManager final {
-    // This is the memory backing the heap. It is `alaska::heap_size` bytes long.
-    void *heap;
-
    public:
     PageManager();
     ~PageManager();
 
 
+    void *alloc_page(void);
+    void free_page(void *page);
+
+
    private:
-    // Get a page from the page manager given it's index.
-    // This may return NULL, in which case a new one can be allocated.
-    HeapPage *get_page(size_t index);
+    struct FreePage {
+      FreePage *next;
+    };
+
+    // This is the memory backing the heap. It is `alaska::heap_size` bytes long.
+    void *heap;
+    void *end;   // the end of the heap. If bump == end, we are OOM. make heap_size bigger!
+    void *bump;  // the current bump pointer
+
+    ck::mutex lock;
+
+    alaska::PageManager::FreePage *free_list;
   };
 
   class Heap final {
