@@ -176,6 +176,8 @@ if (ALASKA_ENABLE_TESTING)
 	add_executable(
 		alaska_test
 		test/runtime_test.cpp
+		test/pagemanager_test.cpp
+		test/heap_test.cpp
 	)
 
 	target_link_libraries(
