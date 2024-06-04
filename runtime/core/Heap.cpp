@@ -9,8 +9,6 @@
  * and modify it as specified in the file "LICENSE".
  */
 
-#pragma once
-
 
 #include <sys/mman.h>
 #include <alaska/Logger.hpp>
@@ -90,4 +88,60 @@ namespace alaska {
     alloc_count--;
   }
 
+
+  static void *allocate_page_table(void) {
+    return calloc(1LU << bits_per_pt_level, sizeof(void *));
+  }
+
+  HeapPageTable::HeapPageTable(void *heap_start)
+      : heap_start(heap_start) {
+    // Allocate the root of the page table. The subsequent mappings will be allocated on demand.
+    root = (alaska::HeapPage ***)allocate_page_table();
+  }
+  HeapPageTable::~HeapPageTable() {
+    // Free all the entries.
+  }
+
+
+
+  alaska::HeapPage *HeapPageTable::get(void *page) { return *walk(page); }
+  void HeapPageTable::set(void *page, alaska::HeapPage *hp) { *walk(page) = hp; }
+
+
+  alaska::HeapPage **HeapPageTable::walk(void *vpage) {
+    // `page` here means the offset from the start of the heap.
+    uintptr_t page_off = (uintptr_t)vpage - (uintptr_t)heap_start;
+    // Extrac the page number (just an index into the page table structure)
+    off_t page_number = page_off >> alaska::page_shift_factor;
+
+    // Gross math here. Can't avoid it.
+    // Effectively, we are using the bits in the page number to index into two-level page table
+    // structure in the exact same way that we would on a real x86_64 system's page table.
+    off_t ind1 = page_number & pt_level_mask;
+    off_t ind2 = (page_number >> bits_per_pt_level) & pt_level_mask;
+
+    log_debug(
+        "HeapPageTable: walk(%p) -> pn: %lu, inds: (%zu, %zu)", vpage, page_number, ind1, ind2);
+
+    // Grab the entry from the root page table.
+    HeapPage **pt1 = root[ind1];
+    // It is null, allocate a new entry and set it.
+    if (pt1 == nullptr) {
+      // If the first level page table entry is null, we need to allocate a new page table.
+      pt1 = (HeapPage **)allocate_page_table();
+      root[ind1] = pt1;
+    }
+
+    return &pt1[ind2];
+  }
+
+
+
+
+  ////////////////////////////////////
+  Heap::Heap(void)
+      : pm()
+      , pt(pm.get_start()) {
+    log_debug("Heap: Initialized heap");
+  }
 }  // namespace alaska
