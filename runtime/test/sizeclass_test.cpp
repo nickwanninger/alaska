@@ -23,13 +23,15 @@
 
 
 
-// TEST(SizeClass, RoundUpIsSane) {
-//   for (int i = 0; i < alaska::num_size_classes; i++) {
-//     size_t sz = alaska::class_to_size(i);
-//     printf("%3d,%zu\n", i, sz);
-//   }
-// }
 
+TEST(SizeClass, RoundUpIsSane) {
+  // Iterate just up to 1MB for now.
+  for (size_t sz = alaska::alignment; sz < 1048576; sz += alaska::alignment) {
+    size_t rounded = alaska::round_up_size(sz);
+    ASSERT_TRUE(rounded >= sz);
+  }
+
+}
 
 TEST(SizeClass, SizeToClass) {
   // Iterate just up to 1MB for now.

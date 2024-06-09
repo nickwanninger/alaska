@@ -62,4 +62,10 @@ namespace alaska {
     return sizes[cls];
   }
 
+
+  size_t round_up_size(size_t sz) {
+    // Simply ask for the size
+    return class_to_size(size_to_class(sz));
+  }
+
 }  // namespace alaska

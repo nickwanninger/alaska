@@ -43,10 +43,6 @@ namespace alaska {
   static constexpr long max_object_size = (1LU << 30); //
   static constexpr long num_size_classes = internal::ilog<100 + max_overhead, 100, max_object_size>::VALUE;
 
-
-  class SizeClassManager final {};
-
-
   // Returns size of the memory block that will be allcoated if you ask for `sz` bytes.
   size_t round_up_size(size_t sz);
 
