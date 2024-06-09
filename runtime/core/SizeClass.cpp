@@ -21,9 +21,7 @@
 
 /// Builds an array to speed size computations, stored in sizes.
 static bool create_table(size_t *sizes) {
-  printf("Creating table!\n");
   const double base = (1.0 + (double)alaska::max_overhead / (double)100.0);
-  printf("base: %lf\n", base);
   size_t sz = alaska::alignment;
   for (int i = 0; i < alaska::num_size_classes; i++) {
     sizes[i] = sz;
