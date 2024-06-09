@@ -13,6 +13,7 @@
 
 #include "./graph_lite.h"
 #include <stack>
+#include <queue>
 
 namespace alaska {
 
