@@ -36,6 +36,7 @@ add_library(alaska_core STATIC
 	core/Runtime.cpp
 	core/Logger.cpp
 	core/Heap.cpp
+	core/SizeClass.cpp
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp
@@ -178,6 +179,7 @@ if (ALASKA_ENABLE_TESTING)
 		test/runtime_test.cpp
 		test/pagemanager_test.cpp
 		test/heap_test.cpp
+		test/sizeclass_test.cpp
 	)
 
 	target_link_libraries(
