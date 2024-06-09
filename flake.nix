@@ -2,7 +2,7 @@
   description = "The Alaska Handle-Based Memory Management System";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-23.05";
+    nixpkgs.url = "nixpkgs/nixos-24.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -20,7 +20,9 @@
             llvmPackages_16.libunwind
             llvmPackages_16.openmp
 
-            gllvm
+            (gllvm.overrideAttrs {
+              doCheck = false;
+            })
 
             coreutils # For our bash scripts
             python3 # For running bin/alaska-transform
