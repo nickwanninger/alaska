@@ -76,9 +76,12 @@ TEST_F(MagazineTest, AddTwoRemoveOne) {
   alaska::HeapPage* page2 = new_page();
   mag.add(page1);
   mag.add(page2);
+
+
+  mag.remove(page2);
   alaska::HeapPage *popped = mag.pop();
 
-  ASSERT_EQ(1, mag.size());
+  ASSERT_EQ(0, mag.size());
   ASSERT_EQ(page1, popped);
 }
 
