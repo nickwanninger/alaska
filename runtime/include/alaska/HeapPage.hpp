@@ -25,6 +25,7 @@ namespace alaska {
   static constexpr uint64_t page_shift_factor = 17;
   static constexpr size_t page_size = 1LU << page_shift_factor;
 
+
   // A super simple type-level indicator that a size is aligned to the heap's alignment
   class AlignedSize final {
     size_t size;
@@ -56,9 +57,7 @@ namespace alaska {
     friend class Magazine;
 
     // Intrusive linked list for magazine membership
-    HeapPage *m_next;
-    HeapPage *m_prev;
-
-
+    HeapPage* m_next;
+    HeapPage* m_prev;
   };
 }  // namespace alaska

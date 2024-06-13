@@ -49,7 +49,7 @@ namespace alaska {
     void *get_start(void) const { return heap; }
 
 
-    inline auto get_allocated_page_count(void) const { return alloc_count; }
+    inline uint64_t get_allocated_page_count(void) const { return alloc_count; }
 
    private:
     struct FreePage {
