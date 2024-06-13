@@ -13,6 +13,7 @@
 
 
 #include <alaska/HeapPage.hpp>
+#include <alaska/SizeClass.hpp>
 #include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
@@ -109,7 +110,14 @@ namespace alaska {
     PageManager pm;
     HeapPageTable pt;
 
-    //
     Heap(void);
+
+    // The main interface to the Heap: halloc and hfree.
+    void *halloc(size_t size);
+    void hfree(void *handle);
+
+
+   private:
+    alaska::HeapPage *size_classes[alaska::num_size_classes];
   };
 }  // namespace alaska

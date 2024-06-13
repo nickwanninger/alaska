@@ -38,6 +38,8 @@ add_library(alaska_core STATIC
 	core/Heap.cpp
 	core/SizeClass.cpp
 
+  core/SizedPage.cpp
+
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp
 )
@@ -180,11 +182,13 @@ if (ALASKA_ENABLE_TESTING)
 		test/pagemanager_test.cpp
 		test/heap_test.cpp
 		test/sizeclass_test.cpp
+		test/magazine_test.cpp
 	)
 
 	target_link_libraries(
 		alaska_test
 		GTest::gtest_main
+    GTest::gmock
 		alaska_core dl pthread ${LIBUNWIND_LIBRARIES}
 	)
 

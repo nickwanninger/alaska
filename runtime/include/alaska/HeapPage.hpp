@@ -18,6 +18,9 @@
 
 namespace alaska {
 
+  // Forward Declaration
+  class Magazine;
+
 
   static constexpr uint64_t page_shift_factor = 17;
   static constexpr size_t page_size = 1LU << page_shift_factor;
@@ -34,14 +37,28 @@ namespace alaska {
     AlignedSize operator+(size_t other) { return size + other; }
   };
 
+
+
+
   // This class is the base-level class for a heap page. A heap page is a
   // single contiguous block of memory that is managed by some policy.
   class HeapPage {
    public:
     virtual ~HeapPage() {}
+
     // The size argument is already aligned and rounded up to a multiple of the rounding size.
     // Returns the data allocated, or NULL if it couldn't be.
     virtual void* alloc(const Mapping& m, AlignedSize size) = 0;
     virtual bool release(Mapping& m, void* ptr) = 0;
+
+   protected:
+    // A Magazine needs to be able to reach into the intrusive list
+    friend class Magazine;
+
+    // Intrusive linked list for magazine membership
+    HeapPage *m_next;
+    HeapPage *m_prev;
+
+
   };
 }  // namespace alaska
