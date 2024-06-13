@@ -35,6 +35,9 @@ static bool create_table(size_t *sizes) {
   return true;
 }
 
+static size_t sizes[alaska::num_size_classes];
+static bool tables_created = false;
+
 namespace alaska {
 
 
@@ -56,9 +59,10 @@ namespace alaska {
   }
 
   size_t class_to_size(int cls) {
-    static size_t sizes[alaska::num_size_classes];
-    static bool init = create_table(sizes);
-    (void)init;
+    if (!tables_created) {
+      create_table(sizes);
+      tables_created = true;
+    }
     return sizes[cls];
   }
 
