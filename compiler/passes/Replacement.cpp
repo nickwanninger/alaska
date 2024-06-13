@@ -67,7 +67,6 @@ static void replace_function(
 
 
 PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &AM) {
-#ifdef ALASKA_REPLACE_MALLOC
   if (getenv("ALASKA_NO_REPLACE_MALLOC") == NULL) {
     if (getenv("ALASKA_SPECIAL_CASE_GCC") != NULL) {
       // I hate GCC. I hate this (FIXME)
@@ -90,7 +89,6 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
     replace_function(M, "calloc_beebs", "hcalloc", true);    // embench
     replace_function(M, "realloc_beebs", "hrealloc", true);  // embench
   }
-#endif
 
   // even if calls to malloc are not replaced, we still ought to replace these functions for
   // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
