@@ -69,7 +69,6 @@ namespace alaska {
     return page;
   }
 
-
   void PageManager::free_page(void *page) {
     // check that the pointer is within the heap and early return if it is not
     if (unlikely(page < this->heap || page >= this->end)) {

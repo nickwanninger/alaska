@@ -13,6 +13,9 @@
 #include <alaska/HandleTable.hpp>
 #include <alaska/Logger.hpp>
 #include <alaska/VariablePage.hpp>
+#include <alaska/ThreadCache.hpp>
+#include <alaska/Heap.hpp>
+#include <ck/set.h>
 
 namespace alaska {
 
@@ -35,12 +38,15 @@ namespace alaska {
   struct Runtime final {
     // The handle table is a global table that maps handles to their corresponding memory blocks.
     alaska::HandleTable handle_table;
-
     alaska::VariablePage page;
 
-    // TODO:
-    // alaska::Heap allocator;
-    // alaska::BarrierManager barrier;
+
+    alaska::Heap heap;
+
+
+    // This is a set of all the active thread caches in the system
+    ck::set<alaska::ThreadCache*> tcs;
+    ck::mutex tcs_lock;
 
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
@@ -49,6 +55,10 @@ namespace alaska {
 
     Runtime();
     ~Runtime();
+
+    // Allocate and free thread caches.
+    ThreadCache *new_threadcache(void);
+    void del_threadcache(ThreadCache *);
 
 
     // The main interfaces to the runtime. This function is called by the C API.

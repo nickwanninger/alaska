@@ -11,6 +11,7 @@
 
 
 #include <alaska/Runtime.hpp>
+#include "alaska/SizeClass.hpp"
 #include <stdlib.h>
 
 
@@ -47,6 +48,12 @@ namespace alaska {
           "Allocation of size %zu deemed too big - using the system allocator instead...", sz);
       return ::malloc(sz);
     }
+
+
+
+    int sc = alaska::size_to_class(sz);
+    size_t rsz = alaska::class_to_size(sc);
+    log_trace("sz = %zu, sc = %d, rsz = %zu\n", sz, sc, rsz);
 
     alaska::Mapping* m = rt.handle_table.get();
     if (m == nullptr) {
@@ -99,6 +106,23 @@ namespace alaska {
     //
     fprintf(stream, "Alaska Runtime Information:\n");
     handle_table.dump(stream);
+  }
+
+
+
+  ThreadCache *Runtime::new_threadcache(void) {
+    auto tc = new ThreadCache(this->heap);
+    tcs_lock.lock();
+    tcs.add(tc);
+    tcs_lock.unlock();
+    return tc;
+  }
+
+  void Runtime::del_threadcache(ThreadCache *tc) {
+    tcs_lock.lock();
+    tcs.remove(tc);
+    delete tc;
+    tcs_lock.unlock();
   }
 
 

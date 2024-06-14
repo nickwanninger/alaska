@@ -14,6 +14,7 @@
 
 #include <alaska/HeapPage.hpp>
 #include <alaska/SizeClass.hpp>
+#include <alaska/Magazine.hpp>
 #include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
@@ -118,6 +119,6 @@ namespace alaska {
 
 
    private:
-    alaska::HeapPage *size_classes[alaska::num_size_classes];
+    alaska::Magazine size_classes[alaska::num_size_classes];
   };
 }  // namespace alaska

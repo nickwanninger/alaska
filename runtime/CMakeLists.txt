@@ -183,6 +183,7 @@ if (ALASKA_ENABLE_TESTING)
 		test/heap_test.cpp
 		test/sizeclass_test.cpp
 		test/magazine_test.cpp
+		test/threadcache_test.cpp
 	)
 
 	target_link_libraries(
