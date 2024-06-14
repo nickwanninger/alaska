@@ -15,6 +15,7 @@
 
 namespace alaska {
 
+  struct Runtime;
 
   // A ThreadCache is the class which manages the thread-private
   // allocations out of a shared heap. The core runtime itself does
@@ -23,12 +24,15 @@ namespace alaska {
   // thread-local variable
   class ThreadCache final {
    public:
-    ThreadCache(alaska::Heap &heap)
-        : heap(heap) {}
+    ThreadCache(alaska::Runtime &rt)
+    : runtime(rt) {}
+
+    void *halloc(size_t size, bool zero = false);
+    void hfree(void *ptr);
 
 
    private:
-    alaska::Heap &heap;
+    alaska::Runtime &runtime;
   };
 
 

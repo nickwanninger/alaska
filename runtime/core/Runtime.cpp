@@ -11,7 +11,7 @@
 
 
 #include <alaska/Runtime.hpp>
-#include "alaska/SizeClass.hpp"
+#include <alaska/SizeClass.hpp>
 #include <stdlib.h>
 
 
@@ -111,7 +111,7 @@ namespace alaska {
 
 
   ThreadCache *Runtime::new_threadcache(void) {
-    auto tc = new ThreadCache(this->heap);
+    auto tc = new ThreadCache(*this);
     tcs_lock.lock();
     tcs.add(tc);
     tcs_lock.unlock();
