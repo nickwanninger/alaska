@@ -71,13 +71,13 @@ graph LR;
 
     HeapPageTable-->HeapPage;
     PageManager-->heap_backing_memory;
-    HeapPage-->slice_of_heap_backing_memory;
+    HeapPage-->heap_backing_memory;
 
 
 
     HandleTable-->HandleSlab;
     HandleTable-->handle_table_backing_memory;
-    HandleSlab-->slice_of_handle_table_memory;
+    HandleSlab-->handle_table_backing_memory;
 
 
     ThreadCache-->Runtime;
