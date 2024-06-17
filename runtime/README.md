@@ -56,12 +56,33 @@ If an allocation cannot be made, the full page is left behind and a new page is 
 > **Note**: I have not yet figured out how to deal with reclamation of full or partially full pages. I think there is something interesting to do there w.r.t. compaction and defragmentation, though
 
 
+
+The broad overview of the runtime's object model through references in the structures are as follows:
 ```mermaid
-graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;
+graph LR;
+
+    Runtime-->HandleTable;
+    Runtime-->Heap;
+    Runtime-->ThreadCache;
+
+
+    Heap-->PageManager;
+    Heap-->HeapPageTable;
+
+    HeapPageTable-->HeapPage;
+    PageManager-->heap_backing_memory;
+    HeapPage-->slice_of_heap_backing_memory;
+
+
+
+    HandleTable-->HandleSlab;
+    HandleTable-->handle_table_backing_memory;
+    HandleSlab-->slice_of_handle_table_memory;
+
+
+    ThreadCache-->Runtime;
+    ThreadCache-->HandleSlab;
+    ThreadCache-->HeapPage;
 ```
 
 ## The Runtime System (rt)
