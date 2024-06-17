@@ -14,13 +14,13 @@
 
 #include <stdlib.h>
 #include <alaska/alaska.hpp>
-
+#include <alaska/OwnedBy.hpp>
 
 namespace alaska {
 
   // Forward Declaration
   class Magazine;
-
+  class ThreadCache;
 
   static constexpr uint64_t page_shift_factor = 17;
   static constexpr size_t page_size = 1LU << page_shift_factor;
@@ -43,7 +43,7 @@ namespace alaska {
 
   // This class is the base-level class for a heap page. A heap page is a
   // single contiguous block of memory that is managed by some policy.
-  class HeapPage {
+  class HeapPage : public alaska::OwnedBy<ThreadCache> {
    public:
     virtual ~HeapPage() {}
 

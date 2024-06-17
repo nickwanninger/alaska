@@ -62,7 +62,7 @@ void *hrealloc(void *handle, size_t new_size) {
   // Defer to the service to realloc
   log_fatal("realloc not implemented in alaska yet!");
 
-  handle = alaska::Runtime::get().hrealloc(handle, new_size);
+  handle = get_tc()->hrealloc(handle, new_size);
   return handle;
 }
 

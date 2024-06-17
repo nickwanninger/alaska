@@ -30,7 +30,8 @@ namespace alaska {
         : runtime(rt) {}
 
     void *halloc(size_t size, bool zero = false);
-    void hfree(void *ptr);
+    void *hrealloc(void *handle, size_t new_size);
+    void hfree(void *handle);
 
    private:
     // A reference to the global runtime. This is here mainly to gain

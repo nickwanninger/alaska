@@ -18,13 +18,20 @@ namespace alaska {
 
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
-
     log_fatal("ThreadCache::halloc not implemented yet!!\n");
     return nullptr;
   }
+
+
+  void *ThreadCache::hrealloc(void *handle, size_t new_size) {
+    log_fatal("ThreadCache::hrealloc not implemented yet!!\n");
+    return nullptr;
+  }
+
 
   void ThreadCache::hfree(void* ptr) {
     log_warn("ThreadCache::hfree(%p) not implemented yet!!\n", ptr);
     return;
   }
+
 }

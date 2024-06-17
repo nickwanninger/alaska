@@ -61,11 +61,6 @@ namespace alaska {
     void del_threadcache(ThreadCache *);
 
 
-    // The main interfaces to the runtime. This function is called by the C API.
-    void *halloc(size_t size, bool zero = false);
-    void hfree(void *ptr);
-    void *hrealloc(void *ptr, size_t size);
-
     void dump(FILE *stream);
   };
 }  // namespace alaska
