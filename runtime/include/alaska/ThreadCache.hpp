@@ -32,8 +32,7 @@ namespace alaska {
     void *halloc(size_t size, bool zero = false);
     void hfree(void *ptr);
 
-  private:
-
+   private:
     // A reference to the global runtime. This is here mainly to gain
     // access to the HandleTable and the Heap.
     alaska::Runtime &runtime;

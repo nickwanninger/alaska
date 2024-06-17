@@ -11,14 +11,25 @@
 
 
 #include <alaska/Runtime.hpp>
+#include "alaska/ThreadCache.hpp"
 #include <alaska.h>
 #include <errno.h>
 
+
+// TODO: don't have this be global!
+static alaska::ThreadCache *g_tc;
+
+static auto get_tc(void) {
+  if (g_tc == nullptr) g_tc = alaska::Runtime::get().new_threadcache();
+  return g_tc;
+}
+
+
 static void *_halloc(size_t sz, int zero) {
-  void *result = alaska::Runtime::get().halloc(sz, zero);
-  if (result == NULL) {
-    errno = ENOMEM;
-  }
+  void *result = get_tc()->halloc(sz, zero);
+
+  // This seems right...
+  if (result == NULL) errno = ENOMEM;
   return result;
 }
 
@@ -59,15 +70,13 @@ void *hrealloc(void *handle, size_t new_size) {
 
 void hfree(void *ptr) {
   // no-op if NULL is passed
-  if (ptr == NULL) {
-    return;
-  }
+  if (ptr == NULL) return;
+
   // Grab the Mapping
   auto *m = alaska::Mapping::from_handle_safe(ptr);
-  if (m == NULL) {
-    // Not a handle? Pass it to the system allocator.
-    return ::free(ptr);
-  }
+  // Not a handle? Pass it to the system allocator.
+  if (m == NULL) return ::free(ptr);
 
-  alaska::Runtime::get().hfree(ptr);
+  // Simply ask the thread cache to free it!
+  get_tc()->hfree(ptr);
 }

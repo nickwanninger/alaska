@@ -36,6 +36,7 @@ add_library(alaska_core STATIC
 	core/Runtime.cpp
 	core/Logger.cpp
 	core/Heap.cpp
+  core/ThreadCache.cpp
 	core/SizeClass.cpp
 
   core/SizedPage.cpp
