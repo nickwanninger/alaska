@@ -2,6 +2,10 @@
 
 This directory contains the source code for the Alaska runtime system.
 Logically, it is broken down into two components: the `core` and the `rt`.
+The `core` of the runtime provides the majority of the functionality of the alaska runtime, while the `rt` part provides the glue between the compiled application and the more abstract C++ classes in the core.
+
+This README mostly acts as a bit of a design doc where I can list out broad ideas in the runtime for future reference, as well as a bit of a notebook for brain dumps as I come up with ideas.
+It will likely be out of date at some point...
 
 
 ## The Core Runtime
@@ -38,7 +42,7 @@ If you wanted, you could allocate a single global thread cache, and hide it behi
 
 
 The thread cache is very closely modeled after classic allocators like Hoard.
-This means that a thread is only ever allowed to touch *its* heap, and the global heap.
+This means that a thread is only ever allowed to touch *its* heap (thread cache), and the global heap (`alaska::Runtime::heap`).
 Allocation is thus entirely lock-free, ideally.
 When an allocation request is made, it is first routed to the correct size class, which in turn may allocate a `HeapPage` (in particular, `SizedPage`), and the object is then bump allocated from that page.
 If that object is freed, it is added to a thread-private free list.
