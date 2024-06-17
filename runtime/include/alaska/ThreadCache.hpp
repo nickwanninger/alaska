@@ -12,6 +12,8 @@
 #pragma once
 
 #include <alaska/Heap.hpp>
+#include <alaska/HeapPage.hpp>
+#include <alaska/HandleTable.hpp>
 
 namespace alaska {
 
@@ -25,14 +27,25 @@ namespace alaska {
   class ThreadCache final {
    public:
     ThreadCache(alaska::Runtime &rt)
-    : runtime(rt) {}
+        : runtime(rt) {}
 
     void *halloc(size_t size, bool zero = false);
     void hfree(void *ptr);
 
+  private:
 
-   private:
+    // A reference to the global runtime. This is here mainly to gain
+    // access to the HandleTable and the Heap.
     alaska::Runtime &runtime;
+
+    // A pointer to the current slab of the handle table that this thread
+    // cache is allocating from.
+    alaska::HandleSlab *handle_slab;
+
+    // Each thread cache has a private heap page for each size class
+    // it might allocate from. When a size class fills up, it is returned
+    // to the global heap and another one is allocated.
+    alaska::HeapPage *size_classes[alaska::num_size_classes];
   };
 
 

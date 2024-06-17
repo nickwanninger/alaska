@@ -38,9 +38,9 @@ namespace alaska {
   struct Runtime final {
     // The handle table is a global table that maps handles to their corresponding memory blocks.
     alaska::HandleTable handle_table;
-    alaska::VariablePage page;
+    alaska::VariablePage page; // TODO: remove me!
 
-
+    // This is the actual heap
     alaska::Heap heap;
 
 
