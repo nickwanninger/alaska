@@ -56,6 +56,14 @@ If an allocation cannot be made, the full page is left behind and a new page is 
 > **Note**: I have not yet figured out how to deal with reclamation of full or partially full pages. I think there is something interesting to do there w.r.t. compaction and defragmentation, though
 
 
+```mermaid
+graph TD;
+    A-->B;
+    A-->C;
+    B-->D;
+    C-->D;
+```
+
 ## The Runtime System (rt)
 
 This system provides binding and initializers to *applications* written using Alaska handles.
