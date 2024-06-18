@@ -1,4 +1,4 @@
-ff/*
+/*
  * This file is part of the Alaska Handle-Based Memory Management System
  *
  * Copyright (c) 2024, Nick Wanninger <ncw@u.northwestern.edu>
@@ -23,7 +23,6 @@ namespace alaska {
     OwnedBy(void)
         : m_current_owner(nullptr) {}
 
-    // TODO: ATOMICS??
     inline T *get_owner(void) const { return __atomic_load_n(&m_current_owner, __ATOMIC_ACQUIRE); }
     inline void set_owner(T *new_owner) {
       __atomic_store_n(&m_current_owner, new_owner, __ATOMIC_RELEASE);
@@ -36,4 +35,3 @@ namespace alaska {
     T *m_current_owner;
   };
 }  // namespace alaska
-p
