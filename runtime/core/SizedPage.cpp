@@ -10,13 +10,18 @@
  */
 
 #include <alaska/SizedPage.hpp>
-
+#include <alaska/SizeClass.hpp>
+#include <alaska/Logger.hpp>
 
 
 namespace alaska {
 
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
+    // If we cannot allocate an object, return null
+    if (available() == 0) return nullptr;
+
+
     // TODO:
     return nullptr;
   }
@@ -26,4 +31,25 @@ namespace alaska {
     // Don't free, yet
     return true;
   }
+
+
+
+
+  void SizedPage::set_size_class(int cls) {
+    size_class = cls;
+
+    size_t object_size = alaska::class_to_size(cls);
+
+
+    capacity = alaska::page_size / (object_size + sizeof(SizedPage::Header));
+
+    if (capacity == 0) {
+      log_warn("SizedPage allocated with an object which was too large (%zu bytes in a %zu byte page. max object = %zu). No capacity!", object_size, alaska::page_size, alaska::max_object_size);
+    } else {
+      log_trace("set_size_class(%d). os=%zu, cap=%zu\n", cls, object_size, capacity);
+    }
+  }
+
+
+
 }  // namespace alaska

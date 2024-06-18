@@ -26,11 +26,12 @@ namespace alaska {
    public:
     using Metadata = uint32_t;
 
-    inline VariablePage() {
-      data = malloc(alaska::page_size);
-      data_bump_next = data;
-      md_bump_next = get_md(0);
-    }
+    using HeapPage::HeapPage;
+    // inline VariablePage() {
+    //   data = malloc(alaska::page_size);
+    //   data_bump_next = data;
+    //   md_bump_next = get_md(0);
+    // }
     inline ~VariablePage() override { ::free(data); }
 
 

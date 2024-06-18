@@ -13,6 +13,9 @@
 #include <sys/mman.h>
 #include <alaska/Logger.hpp>
 #include <alaska/Heap.hpp>
+#include "alaska/HeapPage.hpp"
+#include "alaska/SizeClass.hpp"
+#include "alaska/SizedPage.hpp"
 #include "alaska/utils.h"
 
 namespace alaska {
@@ -43,7 +46,6 @@ namespace alaska {
 
   void *PageManager::alloc_page(void) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
-
 
 
     if (this->free_list != nullptr) {
@@ -143,4 +145,42 @@ namespace alaska {
       , pt(pm.get_start()) {
     log_debug("Heap: Initialized heap");
   }
+
+
+
+  SizedPage *Heap::get(size_t size) {
+
+    int cls = alaska::size_to_class(size);
+    auto &mag = this->size_classes[cls];
+
+    if (mag.size() != 0) {
+      auto p = mag.pop();
+      log_trace("Heap::get(%zu) :: using existing page", size);
+      // We know for sure that this static cast is fine because the size_classes magazines are only ever SizedPage instances
+      return static_cast<SizedPage*>(p);
+    }
+
+
+    // Allocate backing memory
+    void *memory = this->pm.alloc_page();
+    log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
+
+    // Allocate a new SizedPage for that memory
+    auto *p = new SizedPage(memory);
+    p->set_size_class(cls);
+
+    // Map it in the page table for fast lookup
+    pt.set(memory, p);
+
+    return p;
+  }
+
+
+  void Heap::put(SizedPage *page) {
+    page->set_owner(nullptr);
+    int cls = page->get_size_class();
+    // TODO: there's more to this, I think. We should somehow split up or sort pages by their fullness somewhere...
+    size_classes[cls].add(page);
+  }
+
 }  // namespace alaska

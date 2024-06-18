@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
 #include "alaska/Logger.hpp"
+#include "alaska/SizeClass.hpp"
 #include "gtest/gtest.h"
 #include <vector>
 #include <alaska/Heap.hpp>
@@ -41,5 +42,32 @@ TEST_F(HeapTest, HeapPageTable) {
 
     auto hp_actual = heap.pt.get(page);
     ASSERT_EQ(hp_actual, hp_expected);
+  }
+}
+
+
+
+TEST_F(HeapTest, SizedPageGet) {
+  auto sp = heap.get(16);
+  ASSERT_NE(sp, nullptr);
+}
+
+
+
+TEST_F(HeapTest, SizedPageGetPutGet) {
+  // Allocating a heap page, then putting it back should return it again.
+  auto sp = heap.get(16);
+  ASSERT_NE(sp, nullptr);
+  heap.put(sp);
+  auto sp2 = heap.get(16);
+  ASSERT_EQ(sp, sp2);
+}
+
+
+
+TEST_F(HeapTest, SizedPageMany) {
+
+  for (int i = 0; i < alaska::num_size_classes; i++) {
+    heap.get(alaska::class_to_size(i));
   }
 }

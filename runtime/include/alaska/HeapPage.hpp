@@ -22,7 +22,7 @@ namespace alaska {
   class Magazine;
   class ThreadCache;
 
-  static constexpr uint64_t page_shift_factor = 17;
+  static constexpr uint64_t page_shift_factor = 19;
   static constexpr size_t page_size = 1LU << page_shift_factor;
 
 
@@ -44,7 +44,8 @@ namespace alaska {
   // This class is the base-level class for a heap page. A heap page is a
   // single contiguous block of memory that is managed by some policy.
   class HeapPage : public alaska::OwnedBy<ThreadCache> {
-   public:
+  public:
+    HeapPage(void *backing_memory);
     virtual ~HeapPage() {}
 
     // The size argument is already aligned and rounded up to a multiple of the rounding size.
@@ -56,8 +57,12 @@ namespace alaska {
     // A Magazine needs to be able to reach into the intrusive list
     friend class Magazine;
 
+
+    // This is the backing memory for the page. it is alaska::page_size bytes long.
+    void *memory;
+
     // Intrusive linked list for magazine membership
-    HeapPage* m_next;
-    HeapPage* m_prev;
+    HeapPage* m_next = nullptr;
+    HeapPage* m_prev = nullptr;
   };
 }  // namespace alaska

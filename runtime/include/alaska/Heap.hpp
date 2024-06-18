@@ -13,6 +13,7 @@
 
 
 #include <alaska/HeapPage.hpp>
+#include <alaska/SizedPage.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/Magazine.hpp>
 #include <ck/vec.h>
@@ -116,6 +117,12 @@ namespace alaska {
     // The main interface to the Heap: halloc and hfree.
     void *halloc(size_t size);
     void hfree(void *handle);
+
+    // Get an unowned sized page given a certain size request.
+    // TODO: Allow filtering by fullness?
+    alaska::SizedPage *get(size_t size);
+    // Return an owned sized page to the global heap.
+    void put(alaska::SizedPage *page);
 
 
    private:

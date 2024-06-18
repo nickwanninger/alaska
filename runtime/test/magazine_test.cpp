@@ -14,7 +14,8 @@
 
 
 class MockHeapPage : public alaska::HeapPage {
- public:
+public:
+  using HeapPage::HeapPage;
   ~MockHeapPage(void) override {}
   MOCK_METHOD(void*, alloc, (const alaska::Mapping& m, alaska::AlignedSize size), (override));
   MOCK_METHOD(bool, release, (alaska::Mapping& m, void* ptr), (override));
@@ -29,7 +30,7 @@ class MagazineTest : public ::testing::Test {
   void TearDown() override {}
 
   alaska::HeapPage* new_page(void) {
-    return new MockHeapPage();
+    return new MockHeapPage(nullptr);
   }
 
   alaska::Magazine mag;
@@ -64,8 +65,8 @@ TEST_F(MagazineTest, AddTwo) {
 TEST_F(MagazineTest, AddRemove) {
   alaska::HeapPage* page = new_page();
   mag.add(page);
-  alaska::HeapPage *popped = mag.pop();
 
+  alaska::HeapPage *popped = mag.pop();
   ASSERT_EQ(page, popped);
 }
 

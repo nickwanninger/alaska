@@ -39,6 +39,7 @@ add_library(alaska_core STATIC
   core/ThreadCache.cpp
 	core/SizeClass.cpp
 
+  core/HeapPage.cpp
   core/SizedPage.cpp
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
