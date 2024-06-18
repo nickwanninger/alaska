@@ -17,7 +17,7 @@ namespace alaska {
 
   // A SizedPage allocates objects of one specific size class.
   class SizedPage : public alaska::HeapPage {
-  public:
+   public:
     using HeapPage::HeapPage;
     inline ~SizedPage(void) override {
       // ...
@@ -35,8 +35,7 @@ namespace alaska {
     int get_size_class(void) const { return size_class; }
 
 
-  private:
-
+   private:
     struct Header {
       void *pointer;
     };

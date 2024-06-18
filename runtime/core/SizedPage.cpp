@@ -40,18 +40,23 @@ namespace alaska {
 
     size_t object_size = alaska::class_to_size(cls);
 
-    capacity = alaska::page_size / round_up(object_size + sizeof(SizedPage::Header), alaska::alignment);
+    capacity =
+        alaska::page_size / round_up(object_size + sizeof(SizedPage::Header), alaska::alignment);
 
     if (capacity == 0) {
-      log_warn("SizedPage allocated with an object which was too large (%zu bytes in a %zu byte page. max object = %zu). No capacity!", object_size, alaska::page_size, alaska::max_object_size);
+      log_warn(
+          "SizedPage allocated with an object which was too large (%zu bytes in a %zu byte page. "
+          "max object = %zu). No capacity!",
+          object_size, alaska::page_size, alaska::max_object_size);
     } else {
       log_trace("set_size_class(%d). os=%zu, cap=%zu", cls, object_size, capacity);
     }
 
 
-    headers = (SizedPage::Header*)memory;
-    allocation_start = (void*)round_up((uintptr_t)headers + capacity, alaska::alignment);
-    log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers, allocation_start);
+    headers = (SizedPage::Header *)memory;
+    allocation_start = (void *)round_up((uintptr_t)headers + capacity, alaska::alignment);
+    log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers,
+        allocation_start);
   }
 
 
