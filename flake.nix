@@ -49,6 +49,10 @@
           devShell = mkShell {
             inherit buildInputs;
 
+
+            LOCALE_ARCHIVE = "${glibcLocales}/lib/locale/locale-archive";
+            hardeningDisable = ["all"];
+
             shellHook = ''
               source $PWD/enable
             '';
