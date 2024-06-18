@@ -38,12 +38,21 @@ namespace alaska {
   private:
 
     struct Header {
+      void *pointer;
     };
     ////////////////////////////////////////////////
+
+
 
     int size_class;
     long live_objects;
     long capacity;
+
+    Header *headers;
+    void *allocation_start;
+
+
+    Header *bump_next;
   };
 
 
