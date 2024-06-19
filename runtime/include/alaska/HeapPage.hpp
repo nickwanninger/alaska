@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <alaska/alaska.hpp>
 #include <alaska/OwnedBy.hpp>
+#include <alaska/list_head.h>
 
 namespace alaska {
 
@@ -59,10 +60,9 @@ namespace alaska {
 
 
     // This is the backing memory for the page. it is alaska::page_size bytes long.
-    void *memory;
+    void* memory = nullptr;
 
     // Intrusive linked list for magazine membership
-    HeapPage* m_next = nullptr;
-    HeapPage* m_prev = nullptr;
+    struct list_head mag_list;
   };
 }  // namespace alaska

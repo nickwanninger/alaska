@@ -17,6 +17,7 @@ namespace alaska {
 
 
   HeapPage::HeapPage(void *backing_memory) : memory(backing_memory) {
+    mag_list = LIST_HEAD_INIT(mag_list);
   }
 
 }
