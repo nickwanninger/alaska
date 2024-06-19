@@ -21,8 +21,7 @@ namespace alaska {
   // set which can be added and removed from easily.
   // (its a pun)
   class Magazine final {
-  public:
-
+   public:
     Magazine();
     void add(HeapPage *page);
     void remove(HeapPage *page);
@@ -30,16 +29,30 @@ namespace alaska {
 
     inline size_t size(void) const { return m_count; }
 
+
+    template <typename Fn>
+    HeapPage *find(Fn f) {
+      HeapPage *entry, *temp;
+
+      // Iterate over the list safely
+      list_for_each_entry_safe(entry, temp, &this->list, mag_list) {
+        if (f(entry)) {
+          // Remove the entry from the list
+          list_del(&entry->mag_list);
+          return entry;
+        }
+      }
+
+      return nullptr;
+    }
+
    private:
     struct list_head list;
 
     size_t m_count = 0;
   };
 
-  inline Magazine::Magazine() {
-    list = LIST_HEAD_INIT(list);
-
-  }
+  inline Magazine::Magazine() { list = LIST_HEAD_INIT(list); }
 
 
   inline void Magazine::add(HeapPage *page) {

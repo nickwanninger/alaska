@@ -36,7 +36,7 @@ namespace alaska {
     int cls = alaska::size_to_class(size);
 
     auto *heap = size_classes[cls];
-    log_info("ThreadCache::halloc heap=%p", heap);
+    log_info("ThreadCache::halloc heap=%p, avail = %lu", heap, heap == nullptr ? 0 : heap->available());
     if (heap == nullptr or heap->available() == 0) {
       auto old_heap = heap;
 
@@ -44,15 +44,19 @@ namespace alaska {
       heap = runtime.heap.get(size);
       // And set the owner
       heap->set_owner(this);
-      log_info("ThreadCache::halloc got new heap: %p", heap);
+      log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
-      // Swap the heaps
+      // Swap the heaps in the thread cache
       if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
       size_classes[cls] = heap;
+
+      ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
+      log_info("new heaps avail = %lu", heap->available());
     }
 
 
     log_info("about to allocate from heap %p", heap);
+
     void *ptr = heap->alloc(*m, size);
     log_info("ptr = %p", ptr);
 

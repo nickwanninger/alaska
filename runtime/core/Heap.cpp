@@ -149,15 +149,19 @@ namespace alaska {
 
 
   SizedPage *Heap::get(size_t size) {
-
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
 
     if (mag.size() != 0) {
-      auto p = mag.pop();
-      log_trace("Heap::get(%zu) :: using existing page", size);
-      // We know for sure that this static cast is fine because the size_classes magazines are only ever SizedPage instances
-      return static_cast<SizedPage*>(p);
+      auto p = mag.find([](HeapPage *p) {
+        auto sp = static_cast<SizedPage *>(p);
+        if (sp->available() > 0) return true;
+        return false;
+      });
+
+      if (p != NULL) {
+        return static_cast<SizedPage *>(p);
+      }
     }
 
 
@@ -179,7 +183,8 @@ namespace alaska {
   void Heap::put(SizedPage *page) {
     page->set_owner(nullptr);
     int cls = page->get_size_class();
-    // TODO: there's more to this, I think. We should somehow split up or sort pages by their fullness somewhere...
+    // TODO: there's more to this, I think. We should somehow split up or sort pages by their
+    // fullness somewhere...
     size_classes[cls].add(page);
   }
 
