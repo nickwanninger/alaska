@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <alaska/alaska.hpp>
+#include <alaska/OwnedBy.hpp>
 #include <ck/vec.h>
 
 
@@ -22,6 +23,7 @@ namespace alaska {
 
   class HandleTable;
   class HandleSlabQueue;
+  class ThreadCache;
 
 
   enum HandleSlabState {
@@ -34,7 +36,7 @@ namespace alaska {
   // A handle slab is a slice of the handle table that is used to allocate
   // mappings. It is a fixed size, and no two threads will allocate from the
   // same slab at the same time.
-  struct HandleSlab final {
+  struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache> {
     slabidx_t idx;                             // Which slab is this?
     HandleSlabState state = SlabStateEmpty;    // What is the state of this slab?
     uint16_t nfree = 0;                        // how many free mappings are in this slab?
@@ -87,6 +89,8 @@ namespace alaska {
 
     // Allocate a fresh slab, resizing the table if necessary.
     alaska::HandleSlab *fresh_slab(void);
+    // Get *some* unowned slab, the amount of free entries currently doesn't really matter.
+    alaska::HandleSlab *new_slab(void);
     alaska::HandleSlab *get_slab(slabidx_t idx);
     // Given a mapping, return the index of the slab it belongs to.
     slabidx_t mapping_slab_idx(Mapping *m);

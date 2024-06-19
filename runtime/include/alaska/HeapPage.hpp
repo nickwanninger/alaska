@@ -45,14 +45,15 @@ namespace alaska {
   // This class is the base-level class for a heap page. A heap page is a
   // single contiguous block of memory that is managed by some policy.
   class HeapPage : public alaska::OwnedBy<ThreadCache> {
-  public:
-    HeapPage(void *backing_memory);
+   public:
+    HeapPage(void* backing_memory);
     virtual ~HeapPage() {}
 
     // The size argument is already aligned and rounded up to a multiple of the rounding size.
     // Returns the data allocated, or NULL if it couldn't be.
     virtual void* alloc(const Mapping& m, AlignedSize size) = 0;
-    virtual bool release(Mapping& m, void* ptr) = 0;
+    virtual bool release_local(Mapping& m, void* ptr) = 0;
+    virtual bool release_remote(Mapping& m, void* ptr) { return release_local(m, ptr); }
 
    protected:
     // A Magazine needs to be able to reach into the intrusive list

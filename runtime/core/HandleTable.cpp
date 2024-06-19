@@ -96,7 +96,21 @@ namespace alaska {
   }
 
 
+  HandleSlab *HandleTable::new_slab(void) {
+    // TODO: LOCK
+    for (auto *slab : m_slabs) {
+      log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
+      if (slab->get_owner() == nullptr && slab->nfree != 0) {
+        return slab;
+      }
+    }
+
+    return fresh_slab();
+  }
+
+
   HandleSlab *HandleTable::get_slab(slabidx_t idx) {
+    // TODO: LOCK
     log_trace("Getting slab %d", idx);
     if (idx >= m_slabs.size()) {
       log_trace("Invalid slab requeset!");
@@ -113,6 +127,8 @@ namespace alaska {
 
 
   void HandleTable::dump(FILE *stream) {
+    // TODO: LOCK
+
     // Dump the handle table in a nice debug output
     fprintf(stream, "Handle Table:\n");
     fprintf(stream, " - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
@@ -124,6 +140,7 @@ namespace alaska {
 
 
   Mapping *HandleTable::get(void) {
+    // TODO: LOCK
     // NAIVE: Just attempt to allocate from each slab
 
     for (auto *slab : m_slabs) {

@@ -19,15 +19,35 @@ namespace alaska {
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
     // If we cannot allocate an object, return null
-    if (available() == 0) return nullptr;
+    if (available() == 0 || bump_next == capacity) {
+      log_trace("Could not allocate object from sized heap! avail=%zu", available());
+      return nullptr;
+    }
 
 
-    // TODO:
-    return nullptr;
+    // This functionality does not have to be thread safe
+    oid_t oid = bump_next++;
+
+    live_objects++;
+
+    auto *h = oid_to_header(oid);
+    auto *o = oid_to_object(oid);
+
+
+    h->mapping = const_cast<alaska::Mapping*>(&m);
+
+    return o;
   }
 
 
-  bool SizedPage::release(alaska::Mapping &m, void *ptr) {
+  bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
+    // we are trusting it is aligned...
+    // TODO: security!
+    oid_t oid = object_to_oid(ptr);
+    auto *h = oid_to_header(oid);
+    h->mapping = nullptr;
+    live_objects--; // TODO: Free list!
+
     // Don't free, yet
     return true;
   }
@@ -54,9 +74,13 @@ namespace alaska {
 
 
     headers = (SizedPage::Header *)memory;
-    allocation_start = (void *)round_up((uintptr_t)headers + capacity, alaska::alignment);
+    objects = (void *)round_up((uintptr_t)headers + capacity, alaska::alignment);
     log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers,
-        allocation_start);
+             objects);
+
+
+    live_objects = 0;
+    bump_next = 0;
   }
 
 

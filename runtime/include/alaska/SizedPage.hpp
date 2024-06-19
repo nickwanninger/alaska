@@ -12,6 +12,7 @@
 #pragma once
 
 #include <alaska/HeapPage.hpp>
+#include <alaska/SizeClass.hpp>
 
 namespace alaska {
 
@@ -25,10 +26,10 @@ namespace alaska {
 
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
-    bool release(alaska::Mapping &m, void *ptr) override;
+    bool release_local(alaska::Mapping &m, void *ptr) override;
 
     // How many free slots are there?
-    long available(void) { return 0; }
+    long available(void) { return capacity - live_objects; }
 
 
     void set_size_class(int cls);
@@ -36,11 +37,24 @@ namespace alaska {
 
 
    private:
+    using oid_t = uint64_t;
     struct Header {
-      void *pointer;
+      alaska::Mapping *mapping;
     };
-    ////////////////////////////////////////////////
 
+    oid_t header_to_oid(Header *h) { return (h - headers); }
+
+    Header *oid_to_header(oid_t oid) { return headers + oid; }
+
+    oid_t object_to_oid(void *ob) {
+      return ((uintptr_t)ob - (uintptr_t)objects) / alaska::class_to_size(size_class);
+    }
+
+    void *oid_to_object(oid_t oid) {
+      return (void *)((uintptr_t)objects + oid * alaska::class_to_size(size_class));
+    }
+
+    ////////////////////////////////////////////////
 
 
     int size_class;
@@ -48,10 +62,10 @@ namespace alaska {
     long capacity;
 
     Header *headers;
-    void *allocation_start;
+    void *objects;
 
 
-    Header *bump_next;
+    oid_t bump_next;
   };
 
 

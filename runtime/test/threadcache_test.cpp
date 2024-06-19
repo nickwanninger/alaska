@@ -38,3 +38,14 @@ TEST_F(ThreadCacheTest, Sanity) {
   // This test is just to make sure that the runtime and thread caches
   // are initialized correctly.
 }
+
+TEST_F(ThreadCacheTest, Halloc) {
+  void *h = t1->halloc(16);
+  ASSERT_NE(h, nullptr);
+}
+
+TEST_F(ThreadCacheTest, HallocUnique) {
+  void *h1 = t1->halloc(16);
+  void *h2 = t1->halloc(16);
+  ASSERT_NE(h1, h2);
+}

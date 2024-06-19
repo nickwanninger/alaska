@@ -61,7 +61,7 @@ namespace alaska {
     }
 
 
-    bool release(alaska::Mapping &m, void *ptr) override {
+    bool release_local(alaska::Mapping &m, void *ptr) override {
       // do nothing for now.
       off_t offset = (uintptr_t)ptr - (uintptr_t)data;
       off_t capacity = (uintptr_t)data_bump_next - (uintptr_t)data;

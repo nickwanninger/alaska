@@ -26,14 +26,17 @@ namespace alaska {
   // thread-local variable
   class ThreadCache final {
    public:
-    ThreadCache(alaska::Runtime &rt)
-        : runtime(rt) {}
+    ThreadCache(alaska::Runtime &rt);
 
     void *halloc(size_t size, bool zero = false);
     void *hrealloc(void *handle, size_t new_size);
     void hfree(void *handle);
 
    private:
+    // Allocate a new handle table mapping
+    alaska::Mapping *new_mapping(void);
+
+
     // A reference to the global runtime. This is here mainly to gain
     // access to the HandleTable and the Heap.
     alaska::Runtime &runtime;
@@ -45,7 +48,7 @@ namespace alaska {
     // Each thread cache has a private heap page for each size class
     // it might allocate from. When a size class fills up, it is returned
     // to the global heap and another one is allocated.
-    alaska::HeapPage *size_classes[alaska::num_size_classes];
+    alaska::SizedPage *size_classes[alaska::num_size_classes] = { nullptr };
   };
 
 
