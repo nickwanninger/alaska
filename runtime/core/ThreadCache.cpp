@@ -37,7 +37,7 @@ namespace alaska {
 
     auto *heap = size_classes[cls];
     log_info("ThreadCache::halloc heap=%p, avail = %lu", heap, heap == nullptr ? 0 : heap->available());
-    if (heap == nullptr or heap->available() == 0) {
+    if (unlikely(heap == nullptr or heap->available() == 0)) {
       auto old_heap = heap;
 
       // Get a new heap
@@ -59,13 +59,10 @@ namespace alaska {
 
     void *ptr = heap->alloc(*m, size);
     log_info("ptr = %p", ptr);
-
     m->set_pointer(ptr);
-
 
     void *out = m->to_handle();
     log_info("handle = %p", out);
-
     return out;
   }
 

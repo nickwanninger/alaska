@@ -19,7 +19,7 @@ namespace alaska {
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
     // If we cannot allocate an object, return null
-    if (available() == 0 || bump_next == capacity) {
+    if (unlikely(available() == 0 || bump_next == capacity)) {
       log_trace("Could not allocate object from sized heap! avail=%zu", available());
       return nullptr;
     }
@@ -33,8 +33,7 @@ namespace alaska {
     auto *h = oid_to_header(oid);
     auto *o = oid_to_object(oid);
 
-
-    h->mapping = const_cast<alaska::Mapping*>(&m);
+    h->mapping = const_cast<alaska::Mapping *>(&m);
 
     return o;
   }
@@ -46,7 +45,7 @@ namespace alaska {
     oid_t oid = object_to_oid(ptr);
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
-    live_objects--; // TODO: Free list!
+    live_objects--;  // TODO: Free list!
 
     // Don't free, yet
     return true;
@@ -75,8 +74,7 @@ namespace alaska {
 
     headers = (SizedPage::Header *)memory;
     objects = (void *)round_up((uintptr_t)headers + capacity, alaska::alignment);
-    log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers,
-             objects);
+    log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers, objects);
 
 
     live_objects = 0;

@@ -108,51 +108,20 @@ namespace alaska {
       auto guess_ptr = get_ptr(guess_off);
       auto original_guess_off = guess_off;
 
-      int steps = 0;
       // Go left or right to find the right one.
       if (ptr > guess_ptr) {
         while (ptr > guess_ptr) {
           if (guess_off >= num_alloc) return nullptr;
           guess_off++;
           guess_ptr = get_ptr(guess_off);
-          steps++;
         }
       } else {
         while (ptr < guess_ptr) {
           if (guess_off <= 0) return nullptr;
           guess_off--;
           guess_ptr = get_ptr(guess_off);
-          steps++;
         }
       }
-
-      log_debug("%p guess: %d, found: %d, steps: %d", ptr, original_guess_off, guess_off, steps);
-
-
-      // {
-      //   // find the real one.
-      //   off_t real_off = -1;
-      //   for (int i = 0; i < num_allocated(); i++) {
-      //     auto md = get_md(i);
-      //     if (*md == m->to_compact()) {
-      //       real_off = i;
-      //       break;
-      //     }
-      //   }
-
-      //   auto real_md = get_md(real_off);
-      //   auto guess_md = get_md(guess_off);
-
-
-      //   auto real_ptr = get_ptr(real_off);
-      //   auto guess_ptr = get_ptr(guess_off);
-      //   off_t guess_ptr_off = (uintptr_t)real_ptr - (uintptr_t)guess_ptr;
-
-      //   log_debug("%p g:%4zu r:%4zu n:%4zu %4zd Δ:%zd", ptr, guess_off, real_off,
-      //   num_allocated(),
-      //       real_off - guess_off, guess_ptr_off);
-      // }
-
 
       return nullptr;
     }

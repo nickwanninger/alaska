@@ -38,12 +38,21 @@ namespace alaska {
       list_for_each_entry_safe(entry, temp, &this->list, mag_list) {
         if (f(entry)) {
           // Remove the entry from the list
-          list_del(&entry->mag_list);
+          // list_del(&entry->mag_list);
           return entry;
         }
       }
 
       return nullptr;
+    }
+
+
+    template <typename Fn>
+    void foreach (Fn f) {
+      HeapPage *entry = nullptr;
+      list_for_each_entry(entry, &this->list, mag_list) {
+        if (!f(entry)) break;
+      }
     }
 
    private:
