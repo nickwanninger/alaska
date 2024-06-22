@@ -113,6 +113,7 @@ namespace alaska {
     HeapPageTable pt;
 
     Heap(void);
+    ~Heap(void);
 
     // The main interface to the Heap: halloc and hfree.
     void *halloc(size_t size);
@@ -124,6 +125,9 @@ namespace alaska {
     // Return an owned sized page to the global heap.
     void put(alaska::SizedPage *page);
 
+
+    // Dump the state of the global heap to some file stream.
+    void dump(FILE *stream);
 
    private:
     alaska::Magazine size_classes[alaska::num_size_classes];

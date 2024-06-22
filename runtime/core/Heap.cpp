@@ -148,6 +148,8 @@ namespace alaska {
 
 
 
+  Heap::~Heap(void) { dump(stderr); }
+
   SizedPage *Heap::get(size_t size) {
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
@@ -155,7 +157,7 @@ namespace alaska {
     if (mag.size() != 0) {
       auto p = mag.find([](HeapPage *p) {
         auto sp = static_cast<SizedPage *>(p);
-        if (sp->available() > 0) return true;
+        if (sp->available() > 0 and sp->get_owner() == nullptr) return true;
         return false;
       });
 
@@ -173,8 +175,11 @@ namespace alaska {
     auto *p = new SizedPage(memory);
     p->set_size_class(cls);
 
+
     // Map it in the page table for fast lookup
     pt.set(memory, p);
+
+    mag.add(p);
 
     return p;
   }
@@ -188,4 +193,28 @@ namespace alaska {
     size_classes[cls].add(page);
   }
 
+
+#define out(...) fprintf(stream, __VA_ARGS__)
+  void Heap::dump(FILE *stream) {
+    out("========== HEAP DUMP ==========\n");
+
+    for (int cls = 0; cls < alaska::num_size_classes; cls++) {
+      auto &mag = size_classes[cls];
+      if (mag.size() == 0) continue;
+
+      out("sc %d: %zu heaps\n", cls, mag.size());
+
+
+      int page_ind = 0;
+      mag.foreach ([&](HeapPage *hp) {
+        SizedPage *sp = static_cast<SizedPage *>(hp);
+        out(" - %p owned by %p. %zu avail\n", sp, sp->get_owner(), sp->available());
+        page_ind++;
+        if (page_ind > mag.size()) return false;
+        return true;
+      });
+    }
+  }
+
+#undef O
 }  // namespace alaska
