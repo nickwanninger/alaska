@@ -148,7 +148,9 @@ namespace alaska {
 
 
 
-  Heap::~Heap(void) { dump(stderr); }
+  Heap::~Heap(void) {
+    // dump(stderr);
+  }
 
   SizedPage *Heap::get(size_t size) {
     int cls = alaska::size_to_class(size);
