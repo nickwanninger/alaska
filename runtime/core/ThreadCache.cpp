@@ -26,6 +26,25 @@ namespace alaska {
     handle_slab = runtime.handle_table.new_slab();
   }
 
+
+
+  SizedPage *ThreadCache::new_sized_page(int cls) {
+    // Get a new heap
+    auto *heap = runtime.heap.get(alaska::class_to_size(cls));
+
+    // And set the owner
+    heap->set_owner(this);
+    log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
+
+    // Swap the heaps in the thread cache
+    // if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
+    size_classes[cls] = heap;
+
+    ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
+    log_info("new heaps avail = %lu", heap->available());
+    return heap;
+  }
+
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
     log_info("ThreadCache::halloc size=%zu", size);
@@ -35,30 +54,19 @@ namespace alaska {
 
     int cls = alaska::size_to_class(size);
 
-    auto *heap = size_classes[cls];
-    log_info(
-        "ThreadCache::halloc heap=%p, avail = %lu", heap, heap == nullptr ? 0 : heap->available());
-    if (unlikely(heap == nullptr or heap->available() == 0)) {
-      auto old_heap = heap;
+    auto *page = size_classes[cls];
+    if (unlikely(page == nullptr)) page = new_sized_page(cls);
 
-      // Get a new heap
-      heap = runtime.heap.get(size);
-      // And set the owner
-      heap->set_owner(this);
-      log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
-      // Swap the heaps in the thread cache
-      if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
-      size_classes[cls] = heap;
-
-      ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
-      log_info("new heaps avail = %lu", heap->available());
+    void *ptr = page->alloc(*m, size);
+    if (unlikely(ptr == nullptr)) {
+      // OOM?
+      page = new_sized_page(cls);
+      ptr = page->alloc(*m, size);
+      ALASKA_ASSERT(ptr != nullptr, "OOM!");
     }
 
 
-    log_info("about to allocate from heap %p", heap);
-
-    void *ptr = heap->alloc(*m, size);
     log_info("ptr = %p", ptr);
     m->set_pointer(ptr);
 

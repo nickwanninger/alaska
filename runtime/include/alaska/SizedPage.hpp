@@ -49,6 +49,9 @@ namespace alaska {
     oid_t object_to_oid(void *ob);
     void *oid_to_object(oid_t oid);
 
+    // Extend the free list by bump allocating
+    long extend(long count);
+
 
 
     // Perform a slow allocation (bump allocation)
@@ -56,7 +59,7 @@ namespace alaska {
 
     ////////////////////////////////////////////////
 
-    oid_t bump_next; // The
+    oid_t bump_next;
     int size_class;// The size class of this page
     long live_objects; // The number of live objects right now
     long capacity; // How many objects can be allocated total

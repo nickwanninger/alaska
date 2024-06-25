@@ -95,3 +95,15 @@ TEST_F(ThreadCacheTest, HallocFreeHallocRemote) {
 
   // NOTE: this test only makes sense in this controlled environment.
 }
+
+
+
+
+// Test that the thread cache can allocate 1M objects
+TEST_F(ThreadCacheTest, Halloc1M) {
+  size_t size = 64;
+  for (int i = 0; i < 1 << 20; i++) {
+    void *h = t1->halloc(size);
+    ASSERT_NE(h, nullptr);
+  }
+}

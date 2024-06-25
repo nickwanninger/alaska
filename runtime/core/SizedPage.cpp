@@ -12,47 +12,66 @@
 #include <alaska/SizedPage.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/Logger.hpp>
-
+#include <string.h>
 
 namespace alaska {
 
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
-    // If we cannot allocate an object, return null
-    if (unlikely(available() == 0 || bump_next == capacity)) {
-      log_trace("Could not allocate object from sized heap! avail=%zu", available());
-      return nullptr;
+    log_trace("alloc: size = %zu", size);
+    // In the fast path, this allocation routine is *just* a linked list pop.
+    // In the slow path, we must extend the free list by either bump allocating
+    // many free blocks *or* by swapping the remote free list.
+    Block *b = this->local_free;
+    log_trace("alloc local_free = %p", this->local_free);
+
+    if (unlikely(b == nullptr)) {
+      // If there was nothing on the local_free list, fall back to slow allocation :(
+      return alloc_slow(m, size);
     }
 
-    oid_t oid;
+    oid_t oid = this->object_to_oid(b);
+    Header *h = this->oid_to_header(oid);
 
-    Header *h = nullptr;
-    void *o = nullptr;
+    // Pop the entry
+    this->local_free = b->next;
+    b->next = nullptr;  // Zero out the block part of the object (SEC?)
 
-    // Try to allocate from the local free list
-    if (local_free != nullptr) {
-      o = (void *)local_free;
-      oid = object_to_oid(o);
-
-      local_free = local_free->next;  // We do NOT need atomics here.
-
-    } else {
-      oid = bump_next++;
-      o = oid_to_object(oid);
-    }
-
-
-    live_objects++;  // TODO: ATOMICS
-
-    h = oid_to_header(oid);
     h->mapping = const_cast<alaska::Mapping *>(&m);
-
-    return o;
+    return (void *)b;
   }
 
 
   void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
-    return nullptr;
+    // TODO: this number is random! Maybe there is a better way of chosing this.
+    long extended_count = extend(128);
+
+    log_trace("alloc: extended_count = %ld", extended_count);
+
+
+    // 1. If we managed to extend the list, return one of the blocks from it.
+    if (extended_count > 0) {
+      // Fall back into the alloc function to do the heavy lifting of actually allocating
+      // one of the blocks we just extended the list with.
+      return alloc(m, size);
+    }
+
+
+    // 2. If the list was not extended, try swapping the remote_free list and the local_free list.
+    // This is a little tricky because we need to worry about atomics here.
+    do {
+      log_trace("alloc: local_free = %p, remote_free = %p\n", local_free, remote_free);
+      this->local_free = this->remote_free;
+    } while (!__atomic_compare_exchange_n(
+        &this->remote_free, &this->local_free, nullptr, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+
+    // If local-free is still null, return null. otherwise, fall back to alloc.
+    if (this->local_free == nullptr) {
+      log_fatal("alloc_slow: Ran out of options for allocation. Returning null!");
+      return nullptr;
+    }
+    return alloc(m, size);
   }
 
 
@@ -84,6 +103,18 @@ namespace alaska {
     atomic_block_push(&remote_free, blk);
 
     return true;
+  }
+
+
+  long SizedPage::extend(long count) {
+    long e = 0;
+    for (; e < count && bump_next != capacity; e++) {
+      auto b = (Block *)oid_to_object(bump_next++);
+      b->next = this->local_free;
+      this->local_free = b;
+    }
+
+    return e;
   }
 
 

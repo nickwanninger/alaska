@@ -35,6 +35,8 @@ namespace alaska {
    private:
     // Allocate a new handle table mapping
     alaska::Mapping *new_mapping(void);
+    // Swap to a new sized page owned by this thread cache
+    alaska::SizedPage *new_sized_page(int cls);
 
 
     // A reference to the global runtime. This is here mainly to gain
