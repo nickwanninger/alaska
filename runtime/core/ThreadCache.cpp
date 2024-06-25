@@ -73,9 +73,24 @@ namespace alaska {
   }
 
 
-  void ThreadCache::hfree(void *ptr) {
-    log_warn("ThreadCache::hfree(%p) not implemented yet!!\n", ptr);
-    return;
+  void ThreadCache::hfree(void *handle) {
+    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    void *ptr = m->get_pointer();
+
+    // Grab the page from the global heap (walk the page table).
+    auto *page = this->runtime.heap.pt.get_unaligned(ptr);
+    ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
+    printf("page = %p\n", page);
+
+    if (page->is_owned_by(this)) {
+      log_trace("Free handle %p locally", handle);
+      page->release_local(*m, ptr);
+    } else {
+      log_trace("Free handle %p remotely", handle);
+      page->release_remote(*m, ptr);
+    }
+    // Return the handle to the handle table.
+    this->runtime.handle_table.put(m);
   }
 
   Mapping *ThreadCache::new_mapping(void) {

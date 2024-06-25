@@ -49,3 +49,25 @@ TEST_F(ThreadCacheTest, HallocUnique) {
   void *h2 = t1->halloc(16);
   ASSERT_NE(h1, h2);
 }
+
+
+TEST_F(ThreadCacheTest, HallocFreeHalloc) {
+  size_t size = 16;
+  // Allocate one handle
+  void *h1 = t1->halloc(size);
+  // Translate it...
+  void *p1 = alaska::Mapping::translate(h1);
+  // Free it
+  t1->hfree(h1);
+
+  // Then allocate another handle. The threadcache should return the same backing memory
+  void *h2 = t1->halloc(size);
+  // Translate it to get the backing address
+  void *p2 = alaska::Mapping::translate(h2);
+  // The old (UAF) backing address should equal the new one.
+  ASSERT_EQ(p1, p2);
+  // And the handles should be the same... of course
+  ASSERT_EQ(h1, h2);
+
+  // NOTE: this test only makes sense in this controlled environment.
+}

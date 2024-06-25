@@ -24,15 +24,27 @@ namespace alaska {
       return nullptr;
     }
 
+    oid_t oid;
 
-    // This functionality does not have to be thread safe
-    oid_t oid = bump_next++;
+    Header *h = nullptr;
+    void *o = nullptr;
+
+    // Try to allocate from the local free list
+    if (local_free != nullptr) {
+      o = local_free;
+      oid = object_to_oid(o);
+
+      local_free = *(void **)local_free;  // We do NOT need atomics here.
+
+    } else {
+      oid = bump_next++;
+      o = oid_to_object(oid);
+    }
+
 
     live_objects++;
 
-    auto *h = oid_to_header(oid);
-    auto *o = oid_to_object(oid);
-
+    h = oid_to_header(oid);
     h->mapping = const_cast<alaska::Mapping *>(&m);
 
     return o;

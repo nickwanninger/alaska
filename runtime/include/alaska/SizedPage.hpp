@@ -64,6 +64,9 @@ namespace alaska {
     Header *headers;
     void *objects;
 
+    void *local_free = nullptr;
+    void *remote_free = nullptr;
+
 
     oid_t bump_next;
   };
