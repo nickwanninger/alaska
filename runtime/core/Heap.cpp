@@ -106,6 +106,14 @@ namespace alaska {
 
 
   alaska::HeapPage *HeapPageTable::get(void *page) { return *walk(page); }
+  alaska::HeapPage *HeapPageTable::get_unaligned(void *addr) {
+    uintptr_t heap_offset = (uintptr_t)addr - (uintptr_t)heap_start;
+    uintptr_t page_ind = heap_offset / alaska::page_size;
+    void *page = (void *)((uintptr_t)heap_start + page_ind * alaska::page_size);
+
+    return *walk(page);
+  }
+
   void HeapPageTable::set(void *page, alaska::HeapPage *hp) { *walk(page) = hp; }
 
 

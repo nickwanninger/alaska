@@ -89,7 +89,8 @@ namespace alaska {
    public:
     HeapPageTable(void *heap_start);
     ~HeapPageTable(void);
-    alaska::HeapPage *get(void *page);
+    alaska::HeapPage *get(void *page);            // Get the HeapPage given an aligned address
+    alaska::HeapPage *get_unaligned(void *page);  // Get the HeapPage given an unaligned address
     void set(void *page, alaska::HeapPage *heap_page);
 
 
