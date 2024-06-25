@@ -127,6 +127,10 @@ namespace alaska {
       return (alaska::Mapping *)((uint64_t)c << ALASKA_SQUEEZE_BITS);
     }
 
+    static void *translate(void *handle) {
+      return alaska::Mapping::from_handle(handle)->get_pointer();
+    }
+
     // Extract an encoded mapping out of the bits of a handle. WARNING: this function does not
     // perform any checking, and will blindly translate any pointer regardless of if it really
     // contains a handle internally.
