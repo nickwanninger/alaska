@@ -51,13 +51,13 @@ TEST_F(ThreadCacheTest, HallocUnique) {
 }
 
 
-TEST_F(ThreadCacheTest, HallocFreeHalloc) {
+TEST_F(ThreadCacheTest, HallocFreeHallocLocal) {
   size_t size = 16;
   // Allocate one handle
   void *h1 = t1->halloc(size);
   // Translate it...
   void *p1 = alaska::Mapping::translate(h1);
-  // Free it
+  // Free it LOCALLY
   t1->hfree(h1);
 
   // Then allocate another handle. The threadcache should return the same backing memory
@@ -68,6 +68,30 @@ TEST_F(ThreadCacheTest, HallocFreeHalloc) {
   ASSERT_EQ(p1, p2);
   // And the handles should be the same... of course
   ASSERT_EQ(h1, h2);
+
+  // NOTE: this test only makes sense in this controlled environment.
+}
+
+
+
+TEST_F(ThreadCacheTest, HallocFreeHallocRemote) {
+  size_t size = 16;
+  // Allocate one handle
+  void *h1 = t1->halloc(size);
+  // Translate it...
+  void *p1 = alaska::Mapping::translate(h1);
+
+  // Free it REMOTELY (on t2)
+  t2->hfree(h1);
+
+  // Then allocate another handle. The threadcache should return the same backing memory
+  void *h2 = t1->halloc(size);
+  // Translate it to get the backing address
+  void *p2 = alaska::Mapping::translate(h2);
+
+  // The old (UAF) backing address should not be the same because of the remote free.
+  ASSERT_NE(p1, p2);
+  // TODO: we currently don't care about handle equality here
 
   // NOTE: this test only makes sense in this controlled environment.
 }

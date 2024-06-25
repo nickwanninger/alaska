@@ -31,10 +31,10 @@ namespace alaska {
 
     // Try to allocate from the local free list
     if (local_free != nullptr) {
-      o = local_free;
+      o = (void *)local_free;
       oid = object_to_oid(o);
 
-      local_free = *(void **)local_free;  // We do NOT need atomics here.
+      local_free = local_free->next;  // We do NOT need atomics here.
 
     } else {
       oid = bump_next++;
@@ -42,7 +42,7 @@ namespace alaska {
     }
 
 
-    live_objects++;
+    live_objects++;  // TODO: ATOMICS
 
     h = oid_to_header(oid);
     h->mapping = const_cast<alaska::Mapping *>(&m);
@@ -51,15 +51,38 @@ namespace alaska {
   }
 
 
+  void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
+    return nullptr;
+  }
+
+
   bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
-    // we are trusting it is aligned...
-    // TODO: security!
     oid_t oid = object_to_oid(ptr);
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
-    live_objects--;  // TODO: Free list!
+    live_objects--;  // TODO: ATOMICS
 
-    // Don't free, yet
+
+    Block *blk = static_cast<Block *>(ptr);
+    // Free the object by pushing it onto the local free list (no atomics needed!)
+    blk->next = local_free;
+    local_free = blk;
+
+    return true;
+  }
+
+
+  bool SizedPage::release_remote(alaska::Mapping &m, void *ptr) {
+    oid_t oid = object_to_oid(ptr);
+    auto *h = oid_to_header(oid);
+    h->mapping = nullptr;
+
+    // live_objects--; // TODO: ATOMICS!
+
+    // Free the object by pushing it, atomically onto the remote free list
+    Block *blk = static_cast<Block *>(ptr);
+    atomic_block_push(&remote_free, blk);
+
     return true;
   }
 
@@ -85,7 +108,7 @@ namespace alaska {
 
 
     headers = (SizedPage::Header *)memory;
-    objects = (void *)round_up((uintptr_t)headers + capacity, alaska::alignment);
+    objects = (Block *)round_up((uintptr_t)headers + capacity, alaska::alignment);
     log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers, objects);
 
 

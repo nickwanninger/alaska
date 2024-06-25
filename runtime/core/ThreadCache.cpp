@@ -36,7 +36,8 @@ namespace alaska {
     int cls = alaska::size_to_class(size);
 
     auto *heap = size_classes[cls];
-    log_info("ThreadCache::halloc heap=%p, avail = %lu", heap, heap == nullptr ? 0 : heap->available());
+    log_info(
+        "ThreadCache::halloc heap=%p, avail = %lu", heap, heap == nullptr ? 0 : heap->available());
     if (unlikely(heap == nullptr or heap->available() == 0)) {
       auto old_heap = heap;
 

@@ -15,6 +15,7 @@
 #include <alaska/SizeClass.hpp>
 
 namespace alaska {
+  struct Block;
 
   // A SizedPage allocates objects of one specific size class.
   class SizedPage : public alaska::HeapPage {
@@ -27,6 +28,7 @@ namespace alaska {
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
     bool release_local(alaska::Mapping &m, void *ptr) override;
+    bool release_remote(alaska::Mapping &m, void *ptr) override;
 
     // How many free slots are there?
     long available(void) { return capacity - live_objects; }
@@ -42,34 +44,37 @@ namespace alaska {
       alaska::Mapping *mapping;
     };
 
-    oid_t header_to_oid(Header *h) { return (h - headers); }
+    oid_t header_to_oid(Header *h);
+    Header *oid_to_header(oid_t oid);
+    oid_t object_to_oid(void *ob);
+    void *oid_to_object(oid_t oid);
 
-    Header *oid_to_header(oid_t oid) { return headers + oid; }
 
-    oid_t object_to_oid(void *ob) {
-      return ((uintptr_t)ob - (uintptr_t)objects) / alaska::class_to_size(size_class);
-    }
 
-    void *oid_to_object(oid_t oid) {
-      return (void *)((uintptr_t)objects + oid * alaska::class_to_size(size_class));
-    }
+    // Perform a slow allocation (bump allocation)
+    void *alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size);
 
     ////////////////////////////////////////////////
 
-
-    int size_class;
-    long live_objects;
-    long capacity;
-
-    Header *headers;
-    void *objects;
-
-    void *local_free = nullptr;
-    void *remote_free = nullptr;
-
-
-    oid_t bump_next;
+    oid_t bump_next; // The
+    int size_class;// The size class of this page
+    long live_objects; // The number of live objects right now
+    long capacity; // How many objects can be allocated total
+    Header *headers; // The start of the headers
+    Block *objects;                // The start of the blocks
+    Block *local_free = nullptr;   // Local free list
+    Block *remote_free = nullptr;  // Remote (Delayed) free list
   };
+
+
+  inline SizedPage::oid_t SizedPage::header_to_oid(Header *h) { return (h - headers); }
+  inline SizedPage::Header *SizedPage::oid_to_header(oid_t oid) { return headers + oid; }
+  inline SizedPage::oid_t SizedPage::object_to_oid(void *ob) {
+    return ((uintptr_t)ob - (uintptr_t)objects) / alaska::class_to_size(size_class);
+  }
+  inline void *SizedPage::oid_to_object(oid_t oid) {
+    return (void *)((uintptr_t)objects + oid * alaska::class_to_size(size_class));
+  }
 
 
 }  // namespace alaska

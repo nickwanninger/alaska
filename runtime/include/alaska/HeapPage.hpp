@@ -23,6 +23,14 @@ namespace alaska {
   class Magazine;
   class ThreadCache;
 
+
+  // used for linked lists in HeapPage instances
+  struct Block final {
+    Block *next;
+  };
+
+  void atomic_block_push(Block **list, Block *block);
+
   static constexpr uint64_t page_shift_factor = 19;
   static constexpr size_t page_size = 1LU << page_shift_factor;
 

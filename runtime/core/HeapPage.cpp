@@ -14,10 +14,19 @@
 
 namespace alaska {
 
-
-
-  HeapPage::HeapPage(void *backing_memory) : memory(backing_memory) {
+  HeapPage::HeapPage(void *backing_memory)
+      : memory(backing_memory) {
     mag_list = LIST_HEAD_INIT(mag_list);
   }
 
-}
+
+
+  void atomic_block_push(Block **list, Block *block) {
+    // TODO: NOT SURE ABOUT THE CONSISTENCY OPTIONS HERE
+    do {
+      block->next = *list;
+    } while (!__atomic_compare_exchange_n(
+        list, &block->next, block, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+  }
+
+}  // namespace alaska
