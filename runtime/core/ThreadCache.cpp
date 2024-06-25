@@ -30,14 +30,14 @@ namespace alaska {
 
   SizedPage *ThreadCache::new_sized_page(int cls) {
     // Get a new heap
-    auto *heap = runtime.heap.get(alaska::class_to_size(cls));
+    auto *heap = runtime.heap.get(alaska::class_to_size(cls), this);
 
     // And set the owner
     heap->set_owner(this);
     log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
     // Swap the heaps in the thread cache
-    // if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
+    if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
     size_classes[cls] = heap;
 
     ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
@@ -89,7 +89,6 @@ namespace alaska {
     // Grab the page from the global heap (walk the page table).
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
-    printf("page = %p\n", page);
 
     if (page->is_owned_by(this)) {
       log_trace("Free handle %p locally", handle);

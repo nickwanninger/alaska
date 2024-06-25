@@ -122,7 +122,7 @@ namespace alaska {
 
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
-    alaska::SizedPage *get(size_t size);
+    alaska::SizedPage *get(size_t size, ThreadCache *owner = nullptr);
     // Return an owned sized page to the global heap.
     void put(alaska::SizedPage *page);
 
@@ -131,6 +131,8 @@ namespace alaska {
     void dump(FILE *stream);
 
    private:
+    // This lock is taken whenever global state in the heap is changed by a thread cache.
+    ck::mutex lock;
     alaska::Magazine size_classes[alaska::num_size_classes];
   };
 }  // namespace alaska

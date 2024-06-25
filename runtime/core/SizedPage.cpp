@@ -38,6 +38,8 @@ namespace alaska {
     b->next = nullptr;  // Zero out the block part of the object (SEC?)
 
     h->mapping = const_cast<alaska::Mapping *>(&m);
+
+    live_objects++;
     return (void *)b;
   }
 
@@ -96,7 +98,7 @@ namespace alaska {
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
 
-    // live_objects--; // TODO: ATOMICS!
+    live_objects--; // TODO: ATOMICS!
 
     // Free the object by pushing it, atomically onto the remote free list
     Block *blk = static_cast<Block *>(ptr);

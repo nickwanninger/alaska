@@ -156,11 +156,10 @@ namespace alaska {
 
 
 
-  Heap::~Heap(void) {
-    // dump(stderr);
-  }
+  Heap::~Heap(void) { dump(stderr); }
 
-  SizedPage *Heap::get(size_t size) {
+  SizedPage *Heap::get(size_t size, ThreadCache *owner) {
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
 
@@ -172,6 +171,7 @@ namespace alaska {
       });
 
       if (p != NULL) {
+        p->set_owner(owner);
         return static_cast<SizedPage *>(p);
       }
     }
@@ -188,14 +188,14 @@ namespace alaska {
 
     // Map it in the page table for fast lookup
     pt.set(memory, p);
-
     mag.add(p);
-
+    p->set_owner(owner);
     return p;
   }
 
 
   void Heap::put(SizedPage *page) {
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
     int cls = page->get_size_class();
     // TODO: there's more to this, I think. We should somehow split up or sort pages by their
