@@ -94,7 +94,3 @@ config SIZE_BITS
 config SQUEEZE_BITS
   int # "how much to squeeze by (recommended to set this to 3"
   default 3
-
-config ENABLE_TESTING
-  bool "Enable runtime testing"
-  default y

@@ -4,6 +4,9 @@ project(Alaska C CXX ASM)
 # set(CMAKE_CXX_STANDARD 14)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(ALASKA_CORE_ONLY "Only build the core C++ runtime (libalaska_core.a). Not the compiler or runtime system (libalaska.so)" OFF)
+option(ALASKA_ENABLE_COMPILER "Build the Alaska Compiler, binding to LLVM" ON)
+option(ALASKA_DISABLE_TESTING "Disable testing the core runtime with gtest" OFF)
 
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -11,6 +14,12 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set(ALASKA_ENABLE_COMPILER TRUE)
 else()
   message(STATUS "Not using Clang. Disabling compilation of the Alaska Compiler because we cannot produce bitcode files with the current compiler")
+  set(ALASKA_ENABLE_COMPILER FALSE)
+endif()
+
+
+# If we are building the core only, don't enable the compiler!
+if(ALASKA_CORE_ONLY)
   set(ALASKA_ENABLE_COMPILER FALSE)
 endif()
 
@@ -24,20 +33,10 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_LIBDIR}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -fPIC -g3 -Wno-unknown-warning-option -Wno-covered-switch-default ")
 set(CMAKE_INSTALL_MESSAGE LAZY)
+set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake")
 include(LLVMIRUtil)
-
-
-
-include(config.cmake)
-
-if(ALASKA_ENABLE_COMPILER)
-    find_program(CLANG_PATH clang)
-    find_program(CLANGXX_PATH clang++)
-    set(CMAKE_VERBOSE_MAKEFILE OFF)
-endif(ALASKA_ENABLE_COMPILER)
-
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 # https://discourse.nixos.org/t/get-clangd-to-find-standard-headers-in-nix-shell/11268/10

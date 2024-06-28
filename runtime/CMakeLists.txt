@@ -51,7 +51,7 @@ add_library(alaska_core STATIC
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
+target_link_libraries(alaska_core dl pthread)
 
 
 install(
@@ -62,8 +62,10 @@ install(
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
+
 ##########################################################################################
 # This defines the runtime
+if(NOT ALASKA_CORE_ONLY)
 
 add_library(alaska SHARED
 	rt/init.cpp
@@ -83,7 +85,6 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 
 
@@ -142,9 +143,11 @@ add_bitcode(alaska_stub SOURCES
 
 target_link_libraries(alaska alaska_translate_native)
 
-add_library(rsstracker SHARED extra/rsstracker.c)
-target_link_libraries(rsstracker dl pthread)
-install(TARGETS rsstracker)
+endif(NOT ALASKA_CORE_ONLY)
+
+# add_library(rsstracker SHARED extra/rsstracker.c)
+# target_link_libraries(rsstracker dl pthread)
+# install(TARGETS rsstracker)
 
 
 # add_executable(htlb extra/htlb.c)
@@ -154,7 +157,7 @@ install(TARGETS rsstracker)
 install(FILES include/alaska.h DESTINATION include)
 
 
-if (ALASKA_ENABLE_TESTING)
+if (NOT ALASKA_DISABLE_TESTING)
 
 	find_package(GTest)
 
@@ -195,9 +198,9 @@ if (ALASKA_ENABLE_TESTING)
 		alaska_test
 		GTest::gtest_main
     GTest::gmock
-		alaska_core dl pthread ${LIBUNWIND_LIBRARIES}
+		alaska_core dl pthread
 	)
 
 	gtest_discover_tests(alaska_test)
 
-endif(ALASKA_ENABLE_TESTING)
+endif(NOT ALASKA_DISABLE_TESTING)
