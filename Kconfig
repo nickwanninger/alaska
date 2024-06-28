@@ -1,3 +1,7 @@
+config ENABLE_COMPILER
+  bool "Enable building the Alaska Compiler (this imparts a clang requirement)"
+  default y
+
 menu "Debug"
 	config SANITY_CHECK
 		bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
