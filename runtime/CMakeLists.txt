@@ -53,6 +53,7 @@ add_library(alaska_core SHARED
   ${CORE_SOURCES}
 )
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+set_target_properties(alaska_core PROPERTIES SOVERSION 0.1)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
 
