@@ -156,7 +156,9 @@ namespace alaska {
 
 
 
-  Heap::~Heap(void) { dump(stderr); }
+  Heap::~Heap(void) {
+    // dump(stderr);
+  }
 
   SizedPage *Heap::get(size_t size, ThreadCache *owner) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
