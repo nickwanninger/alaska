@@ -38,6 +38,8 @@ namespace alaska {
     int get_size_class(void) const { return size_class; }
 
 
+    void defragment(void);
+
    private:
     using oid_t = uint64_t;
     struct Header {

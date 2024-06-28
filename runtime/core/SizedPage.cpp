@@ -70,7 +70,6 @@ namespace alaska {
 
     // If local-free is still null, return null. otherwise, fall back to alloc.
     if (this->local_free == nullptr) {
-      log_fatal("alloc_slow: Ran out of options for allocation. Returning null!");
       return nullptr;
     }
     return alloc(m, size);
@@ -98,7 +97,7 @@ namespace alaska {
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
 
-    live_objects--; // TODO: ATOMICS!
+    live_objects--;  // TODO: ATOMICS!
 
     // Free the object by pushing it, atomically onto the remote free list
     Block *blk = static_cast<Block *>(ptr);
@@ -149,6 +148,13 @@ namespace alaska {
     bump_next = 0;
   }
 
+
+
+
+
+  void SizedPage::defragment(void) {
+    //
+  }
 
 
 }  // namespace alaska
