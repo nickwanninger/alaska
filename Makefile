@@ -12,6 +12,17 @@ export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
 -include .config
 
 
+ifdef ALASKA_ENABLE_COMPILER
+	CC=clang
+	CXX=clang++
+else
+	# default to use clang, but use whatever the user asked for otherwise
+	CC?=clang
+	CXX?=clang++
+endif
+
+export CC
+export CXX
 
 BUILD=build
 

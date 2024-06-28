@@ -1,15 +1,16 @@
 # add_link_options("-fuse-ld=lld")
 
-set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough -Wno-unused-private-field -Wno-covered-switch-default ")
+set(WARNINGS "-Wall -Wextra -Wno-cast-qual -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough -Wno-unused-private-field -Wno-covered-switch-default -Wno-attributes -Wno-cast-function-type ")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -fno-rtti ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 ${WARNINGS} ")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti ")
+
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ")
-set(CMAKE_C_COMPILER_ID "Clang")
-set(CMAKE_CXX_COMPILER_ID "Clang")
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+if(ALASKA_ENABLE_COMPILER)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif(ALASKA_ENABLE_COMPILER)
 
 # Do NOT link libc++ implicitly
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
@@ -46,8 +47,10 @@ add_library(alaska_core STATIC
 	core/glue.cpp
 )
 
+
 target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
 
@@ -102,18 +105,19 @@ function(add_bitcode name)
 		PROPERTIES LINKER_LANGUAGE C
 		PUBLIC_HEADER "${HEADER_FILES}"
 		PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
+  if(ALASKA_ENABLE_COMPILER)
+    llvmir_attach_bc_target(
+        TARGET  ${name}_bitcodes
+        DEPENDS ${name}_native)
+    llvmir_attach_link_target(
+        TARGET  ${name}
+        DEPENDS ${name}_bitcodes
+        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-	llvmir_attach_bc_target(
-		TARGET  ${name}_bitcodes
-		DEPENDS ${name}_native)
-	llvmir_attach_link_target(
-		TARGET  ${name}
-		DEPENDS ${name}_bitcodes
-    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-	set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
+    set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
+  endif(ALASKA_ENABLE_COMPILER)
 endfunction(add_bitcode)
 
 
@@ -124,16 +128,16 @@ target_link_libraries(lifetimemalloc dl)
 
 add_bitcode(alaska_translate SOURCES core/translate.cpp)
 add_bitcode(alaska_compat SOURCES core/compat.c)
-
-
-
 add_bitcode(alaska_stub SOURCES
-	stub/net.c
-	stub/dtoa.c
-	stub/obstack.c
-	stub/stub.c
-	stub/memcpy.c
+    stub/net.c
+    stub/dtoa.c
+    stub/obstack.c
+    stub/stub.c
+    stub/memcpy.c
 )
+
+
+
 
 
 target_link_libraries(alaska alaska_translate_native)
@@ -143,9 +147,9 @@ target_link_libraries(rsstracker dl pthread)
 install(TARGETS rsstracker)
 
 
-add_executable(htlb extra/htlb.c)
-target_link_libraries(htlb dl pthread)
-install(TARGETS htlb)
+# add_executable(htlb extra/htlb.c)
+# target_link_libraries(htlb dl pthread)
+# install(TARGETS htlb)
 
 install(FILES include/alaska.h DESTINATION include)
 
@@ -176,7 +180,6 @@ if (ALASKA_ENABLE_TESTING)
   enable_testing()
   include(GoogleTest)
 
-	set(CMAKE_C_COMPILER clang)
 
 	add_executable(
 		alaska_test
@@ -196,6 +199,5 @@ if (ALASKA_ENABLE_TESTING)
 	)
 
 	gtest_discover_tests(alaska_test)
-
 
 endif(ALASKA_ENABLE_TESTING)

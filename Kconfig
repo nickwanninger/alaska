@@ -1,9 +1,3 @@
-
-config ENABLE_COMPILER
-  bool "Enable building the Alaksa Compiler"
-  default y
-
-
 menu "Debug"
 	config SANITY_CHECK
 		bool "Perform expensive sanity checks in the runtime (bounds checks, etc)"
