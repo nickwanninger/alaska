@@ -67,4 +67,8 @@ endif()
 
 
 add_subdirectory(runtime)
+
+if(CONFIG_ALASKA_ENABLE_COMPILER)
 add_subdirectory(compiler)
+endif(CONFIG_ALASKA_ENABLE_COMPILER)
+
