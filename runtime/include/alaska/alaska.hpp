@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
+#include <alaska/autoconf.h>
 
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
@@ -78,7 +79,7 @@ namespace alaska {
     // if this isn't a free handle
     alaska::Mapping *get_next(void) {
       if (is_free()) return NULL;
-      return (alaska::Mapping *)alt.misc;
+      return (alaska::Mapping *)(uint64_t)alt.misc;
     }
 
     void set_next(alaska::Mapping *next) {
