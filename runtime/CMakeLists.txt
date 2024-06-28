@@ -20,9 +20,10 @@ include_directories(
 	include/
 )
 
-find_library(LIBUNWIND_LIBRARIES NAMES unwind )
-message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
+
+
+install(FILES include/alaska.h DESTINATION include)
 
 
 # The alaska library is broken up into two parts: the core, and the runtime.
@@ -32,7 +33,8 @@ message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 ##########################################################################################
 # This defines the core
 
-add_library(alaska_core STATIC
+
+set(CORE_SOURCES
 	core/HandleTable.cpp
 	core/Runtime.cpp
 	core/Logger.cpp
@@ -45,10 +47,11 @@ add_library(alaska_core STATIC
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp
+  )
+
+add_library(alaska_core SHARED
+  ${CORE_SOURCES}
 )
-
-
-target_include_directories(alaska_core PUBLIC include/)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
@@ -66,6 +69,9 @@ install(
 ##########################################################################################
 # This defines the runtime
 if(NOT ALASKA_CORE_ONLY)
+
+find_library(LIBUNWIND_LIBRARIES NAMES unwind )
+message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
 add_library(alaska SHARED
 	rt/init.cpp
@@ -144,17 +150,6 @@ add_bitcode(alaska_stub SOURCES
 target_link_libraries(alaska alaska_translate_native)
 
 endif(NOT ALASKA_CORE_ONLY)
-
-# add_library(rsstracker SHARED extra/rsstracker.c)
-# target_link_libraries(rsstracker dl pthread)
-# install(TARGETS rsstracker)
-
-
-# add_executable(htlb extra/htlb.c)
-# target_link_libraries(htlb dl pthread)
-# install(TARGETS htlb)
-
-install(FILES include/alaska.h DESTINATION include)
 
 
 if (NOT ALASKA_DISABLE_TESTING)
