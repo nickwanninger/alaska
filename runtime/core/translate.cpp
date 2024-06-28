@@ -97,6 +97,7 @@ uint64_t base_start = 0;
 void print_backtrace() {
   void *rbp = (void *)__builtin_frame_address(0);
   uint64_t start, end;
+  start = end = 0;
   start = (uint64_t)rbp;
   while ((uint64_t)rbp > 0x1000) {
     end = (uint64_t)rbp;
