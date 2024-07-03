@@ -4,14 +4,16 @@ project(Alaska C CXX ASM)
 # set(CMAKE_CXX_STANDARD 14)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(ALASKA_CORE_ONLY "Only build the core C++ runtime (libalaska_core.a). Not the compiler or runtime system (libalaska.so)" OFF)
-option(ALASKA_ENABLE_COMPILER "Build the Alaska Compiler, binding to LLVM" ON)
-option(ALASKA_DISABLE_TESTING "Disable testing the core runtime with gtest" OFF)
+
+set(ALASKA_ENABLE_COMPILER ON CACHE BOOL "Build the Alaska Compiler, binding to LLVM")
+set(ALASKA_DISABLE_TESTING OFF CACHE BOOL "Disable testing the core runtime with gtest")
+
+# include(config.cmake OPTIONAL)
+# configure_file(config.h.in config.h)
 
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
   message(STATUS "Using Clang")
-  set(ALASKA_ENABLE_COMPILER TRUE)
 else()
   message(STATUS "Not using Clang. Disabling compilation of the Alaska Compiler because we cannot produce bitcode files with the current compiler")
   set(ALASKA_ENABLE_COMPILER FALSE)

@@ -3,25 +3,24 @@
 set(WARNINGS "-Wall -Wextra -Wno-cast-qual -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough -Wno-unused-private-field -Wno-covered-switch-default -Wno-attributes -Wno-cast-function-type ")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -gdwarf-4 ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti ")
 
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ")
-if(ALASKA_ENABLE_COMPILER)
-    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif(ALASKA_ENABLE_COMPILER)
 
-# Do NOT link libc++ implicitly
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+
+
+# Do NOT link libc++ implicitly. This just makes it easier to port to new hardware or embedded environments
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
-
 add_definitions(-D_GNU_SOURCE -D_REENTRANT)
+
+
+
 include_directories(
 	include/
 )
-
-
-
 
 install(FILES include/alaska.h DESTINATION include)
 
@@ -30,9 +29,10 @@ install(FILES include/alaska.h DESTINATION include)
 # The core provides the main structures and functions to manage the alaska state.
 # The runtime provides a binding that applications link against.
 
+
+
 ##########################################################################################
 # This defines the core
-
 
 set(CORE_SOURCES
 	core/HandleTable.cpp
@@ -47,13 +47,11 @@ set(CORE_SOURCES
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp
-  )
-
-add_library(alaska_core SHARED
-  ${CORE_SOURCES}
 )
+
+add_library(alaska_core SHARED ${CORE_SOURCES})
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-set_target_properties(alaska_core PROPERTIES SOVERSION 0.1)
+set_target_properties(alaska_core PROPERTIES SOVERSION 1)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
 
@@ -67,90 +65,89 @@ install(
 
 
 
+
+
+
+
+
 ##########################################################################################
-# This defines the runtime
-if(NOT ALASKA_CORE_ONLY)
+# This defines the runtime that compiled code is linked against
+if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------------------------------------
 
-find_library(LIBUNWIND_LIBRARIES NAMES unwind )
-message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
+  find_library(LIBUNWIND_LIBRARIES NAMES unwind )
+  message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
-add_library(alaska SHARED
-	rt/init.cpp
-	rt/halloc.cpp
-	rt/threads.cpp
-	rt/barrier.cpp
-)
+  add_library(alaska SHARED
+    rt/init.cpp
+    rt/halloc.cpp
+    rt/threads.cpp
+    rt/barrier.cpp
+  )
 
-target_include_directories(alaska PUBLIC include/)
-set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
-
-
-install(
-  TARGETS alaska
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  target_include_directories(alaska PUBLIC include/)
+  set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
+  target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
 
+  install(
+    TARGETS alaska
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 
+  function(add_bitcode name)
+    cmake_parse_arguments(
+      SRC        # prefix of output variables
+      ""         # Boolean arguments
+      ""         # Single value arguments
+      "SOURCES"  # multi value arguments
+      ${ARGN}    # arguments of the function to parse, here we take the all original ones
+    )
 
-function(add_bitcode name)
-	cmake_parse_arguments(
-		SRC        # prefix of output variables
-		""         # Boolean arguments
-		""         # Single value arguments
-		"SOURCES"  # multi value arguments
-		${ARGN}    # arguments of the function to parse, here we take the all original ones
-	)
+    add_library(${name}_native STATIC ${SRC_SOURCES})
+    target_include_directories(${name}_native PUBLIC include/)
+    set_target_properties(${name}_native
+      PROPERTIES LINKER_LANGUAGE C
+      PUBLIC_HEADER "${HEADER_FILES}"
+      PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
+    if(ALASKA_ENABLE_COMPILER)
+      llvmir_attach_bc_target(
+          TARGET  ${name}_bitcodes
+          DEPENDS ${name}_native)
+      llvmir_attach_link_target(
+          TARGET  ${name}
+          DEPENDS ${name}_bitcodes
+          OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-	add_library(${name}_native STATIC ${SRC_SOURCES})
-	target_include_directories(${name}_native PUBLIC include/)
-	set_target_properties(${name}_native
-		PROPERTIES LINKER_LANGUAGE C
-		PUBLIC_HEADER "${HEADER_FILES}"
-		PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
-  if(ALASKA_ENABLE_COMPILER)
-    llvmir_attach_bc_target(
-        TARGET  ${name}_bitcodes
-        DEPENDS ${name}_native)
-    llvmir_attach_link_target(
-        TARGET  ${name}
-        DEPENDS ${name}_bitcodes
-        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-    set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
-  endif(ALASKA_ENABLE_COMPILER)
-endfunction(add_bitcode)
-
-
-
-set(SRC_FILES extra/lifetime.c)
-add_library(lifetimemalloc SHARED ${SRC_FILES})
-target_link_libraries(lifetimemalloc dl)
-
-add_bitcode(alaska_translate SOURCES core/translate.cpp)
-add_bitcode(alaska_compat SOURCES core/compat.c)
-add_bitcode(alaska_stub SOURCES
-    stub/net.c
-    stub/dtoa.c
-    stub/obstack.c
-    stub/stub.c
-    stub/memcpy.c
-)
+      set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
+    endif(ALASKA_ENABLE_COMPILER)
+  endfunction(add_bitcode)
 
 
 
+  set(SRC_FILES extra/lifetime.c)
+  add_library(lifetimemalloc SHARED ${SRC_FILES})
+  target_link_libraries(lifetimemalloc dl)
+
+  add_bitcode(alaska_translate SOURCES core/translate.cpp)
+  add_bitcode(alaska_compat SOURCES core/compat.c)
+  add_bitcode(alaska_stub SOURCES
+      stub/net.c
+      stub/dtoa.c
+      stub/obstack.c
+      stub/stub.c
+      stub/memcpy.c
+  )
 
 
-target_link_libraries(alaska alaska_translate_native)
+  target_link_libraries(alaska alaska_translate_native)
 
-endif(NOT ALASKA_CORE_ONLY)
+endif(NOT ALASKA_CORE_ONLY) # ---------------------------------------------------------------------------------
 
 
 if (NOT ALASKA_DISABLE_TESTING)
