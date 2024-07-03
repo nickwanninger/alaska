@@ -29,11 +29,11 @@ class MagazineTest : public ::testing::Test {
   }
   void TearDown() override {}
 
-  alaska::HeapPage* new_page(void) {
+  MockHeapPage* new_page(void) {
     return new MockHeapPage(nullptr);
   }
 
-  alaska::Magazine mag;
+  alaska::Magazine<MockHeapPage> mag;
 };
 
 
@@ -45,7 +45,7 @@ TEST_F(MagazineTest, HeapSanity) {
 
 // Test that adding a page increments the count
 TEST_F(MagazineTest, Add) {
-  alaska::HeapPage* page = new_page();
+  MockHeapPage* page = new_page();
   mag.add(page);
 
   ASSERT_EQ(1, mag.size());
@@ -53,8 +53,8 @@ TEST_F(MagazineTest, Add) {
 
 // Test that adding two pages increments the count by two
 TEST_F(MagazineTest, AddTwo) {
-  alaska::HeapPage* page1 = new_page();
-  alaska::HeapPage* page2 = new_page();
+  MockHeapPage* page1 = new_page();
+  MockHeapPage* page2 = new_page();
   mag.add(page1);
   mag.add(page2);
 
@@ -63,24 +63,24 @@ TEST_F(MagazineTest, AddTwo) {
 
 
 TEST_F(MagazineTest, AddRemove) {
-  alaska::HeapPage* page = new_page();
+  MockHeapPage* page = new_page();
   mag.add(page);
 
-  alaska::HeapPage *popped = mag.pop();
+  MockHeapPage *popped = mag.pop();
   ASSERT_EQ(page, popped);
 }
 
 
 // Add two pages, remove one, and test that the count is one
 TEST_F(MagazineTest, AddTwoRemoveOne) {
-  alaska::HeapPage* page1 = new_page();
-  alaska::HeapPage* page2 = new_page();
+  MockHeapPage* page1 = new_page();
+  MockHeapPage* page2 = new_page();
   mag.add(page1);
   mag.add(page2);
 
 
   mag.remove(page2);
-  alaska::HeapPage *popped = mag.pop();
+  MockHeapPage *popped = mag.pop();
 
   ASSERT_EQ(0, mag.size());
   ASSERT_EQ(page1, popped);
@@ -88,11 +88,11 @@ TEST_F(MagazineTest, AddTwoRemoveOne) {
 
 // Add two pages, remove one, and test that pop returns the other
 TEST_F(MagazineTest, AddTwoRemoveOnePop) {
-  alaska::HeapPage* page1 = new_page();
-  alaska::HeapPage* page2 = new_page();
+  MockHeapPage* page1 = new_page();
+  MockHeapPage* page2 = new_page();
   mag.add(page1);
   mag.add(page2);
-  alaska::HeapPage *popped = mag.pop();
+  MockHeapPage *popped = mag.pop();
 
   ASSERT_EQ(page1, popped);
 }

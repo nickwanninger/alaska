@@ -123,8 +123,15 @@ namespace alaska {
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
     alaska::SizedPage *get(size_t size, ThreadCache *owner = nullptr);
+
     // Return an owned sized page to the global heap.
     void put(alaska::SizedPage *page);
+
+    // Run a "heap collection" phase. This basically just means
+    // walking over the HeapPage instances, collecting statistics and
+    // updating datastructures. This will take the lock, so it
+    // currently only makes sense calling from a single thread.
+    void collect(void);
 
 
     // Dump the state of the global heap to some file stream.
@@ -133,6 +140,6 @@ namespace alaska {
    private:
     // This lock is taken whenever global state in the heap is changed by a thread cache.
     ck::mutex lock;
-    alaska::Magazine size_classes[alaska::num_size_classes];
+    alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
   };
 }  // namespace alaska

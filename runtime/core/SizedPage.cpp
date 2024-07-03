@@ -32,6 +32,7 @@ namespace alaska {
 
     oid_t oid = this->object_to_oid(b);
     Header *h = this->oid_to_header(oid);
+    printf("h = %p, b = %p, oid = %d\n", h, b, oid);
 
     // Pop the entry
     this->local_free = b->next;
@@ -77,6 +78,7 @@ namespace alaska {
 
 
   bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
+    printf("local free of %p\n", ptr);
     oid_t oid = object_to_oid(ptr);
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
@@ -93,6 +95,7 @@ namespace alaska {
 
 
   bool SizedPage::release_remote(alaska::Mapping &m, void *ptr) {
+    printf("remote free of %p\n", ptr);
     oid_t oid = object_to_oid(ptr);
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
@@ -147,7 +150,6 @@ namespace alaska {
     live_objects = 0;
     bump_next = 0;
   }
-
 
 
 

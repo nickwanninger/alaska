@@ -12,6 +12,7 @@
 
 #include <alaska/HandleTable.hpp>
 #include <alaska/Logger.hpp>
+#include "ck/lock.h"
 #include <stdio.h>
 #include <sys/mman.h>
 
@@ -77,7 +78,9 @@ namespace alaska {
     ALASKA_ASSERT(m_table != MAP_FAILED, "failed to reallocate handle table during growth");
   }
 
-  HandleSlab *HandleTable::fresh_slab() {
+  HandleSlab *HandleTable::fresh_slab(ThreadCache *new_owner) {
+    ck::scoped_lock lk(this->lock);
+
     slabidx_t idx = m_slabs.size();
     log_trace("Allocating a new slab at idx %d", idx);
 
@@ -89,6 +92,7 @@ namespace alaska {
 
     // Allocate a new slab using the system allocator.
     auto *sl = new HandleSlab(*this, idx);
+    sl->set_owner(new_owner);
 
     // Add the slab to the list of slabs and return it
     m_slabs.push(sl);
@@ -96,21 +100,27 @@ namespace alaska {
   }
 
 
-  HandleSlab *HandleTable::new_slab(void) {
-    // TODO: LOCK
-    for (auto *slab : m_slabs) {
-      log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
-      if (slab->get_owner() == nullptr && slab->nfree != 0) {
-        return slab;
+  HandleSlab *HandleTable::new_slab(ThreadCache *new_owner) {
+    {
+      ck::scoped_lock lk(this->lock);
+
+      // TODO: PERFORMANCE BAD HERE. POP FROM A LIST!
+      for (auto *slab : m_slabs) {
+        log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
+        if (slab->get_owner() == nullptr && slab->nfree != 0) {
+          slab->set_owner(new_owner);
+          return slab;
+        }
       }
     }
 
-    return fresh_slab();
+    return fresh_slab(new_owner);
   }
 
 
   HandleSlab *HandleTable::get_slab(slabidx_t idx) {
-    // TODO: LOCK
+    ck::scoped_lock lk(this->lock);
+
     log_trace("Getting slab %d", idx);
     if (idx >= m_slabs.size()) {
       log_trace("Invalid slab requeset!");
@@ -127,7 +137,7 @@ namespace alaska {
 
 
   void HandleTable::dump(FILE *stream) {
-    // TODO: LOCK
+    ck::scoped_lock lk(this->lock);
 
     // Dump the handle table in a nice debug output
     fprintf(stream, "Handle Table:\n");
@@ -135,26 +145,6 @@ namespace alaska {
     for (auto *slab : m_slabs) {
       slab->dump(stream);
     }
-  }
-
-
-
-  Mapping *HandleTable::get(void) {
-    // TODO: LOCK
-    // NAIVE: Just attempt to allocate from each slab
-
-    for (auto *slab : m_slabs) {
-      log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
-      auto *m = slab->get();
-      if (m != nullptr) {
-        log_trace("Success. Allocated mapping %p", m);
-        return m;
-      }
-    }
-
-    log_debug("No slab has any handles. Asking for a fresh one");
-    // if we get here we need to allocate a new slab
-    return fresh_slab()->get();
   }
 
 
@@ -238,8 +228,7 @@ namespace alaska {
 
 
   Mapping *HandleSlab::get(void) {
-    // We always try to pop from the free-list to reuse the mappings which can reduce fragmentation
-    // compared to always bump allocating.
+    // We always try to pop from the free-list to reuse the mappings.
 
     // Pop from the next_free list if it is not null.
     if (next_free != nullptr) {

@@ -15,6 +15,7 @@
 #include <alaska/alaska.hpp>
 #include <alaska/OwnedBy.hpp>
 #include <ck/vec.h>
+#include <ck/lock.h>
 
 
 namespace alaska {
@@ -88,9 +89,9 @@ namespace alaska {
     ~HandleTable(void);
 
     // Allocate a fresh slab, resizing the table if necessary.
-    alaska::HandleSlab *fresh_slab(void);
+    alaska::HandleSlab *fresh_slab(ThreadCache *new_owner);
     // Get *some* unowned slab, the amount of free entries currently doesn't really matter.
-    alaska::HandleSlab *new_slab(void);
+    alaska::HandleSlab *new_slab(ThreadCache *new_owner);
     alaska::HandleSlab *get_slab(slabidx_t idx);
     // Given a mapping, return the index of the slab it belongs to.
     slabidx_t mapping_slab_idx(Mapping *m);
@@ -101,7 +102,7 @@ namespace alaska {
     void dump(FILE *stream);
 
 
-    alaska::Mapping *get(void);
+    // Free/release *some* mapping
     void put(alaska::Mapping *m);
 
    protected:
@@ -120,6 +121,8 @@ namespace alaska {
     void grow();
 
 
+    // A lock for the handle table
+    ck::mutex lock;
     // How many slabs this table can hold (how big is the mmap region)
     uint64_t m_capacity;
     // The actual memory for the mmap region.

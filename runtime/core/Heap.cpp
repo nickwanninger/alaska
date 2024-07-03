@@ -158,7 +158,7 @@ namespace alaska {
 
   Heap::~Heap(void) {
     // dump(stderr);
-  }
+
 
   SizedPage *Heap::get(size_t size, ThreadCache *owner) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
@@ -166,8 +166,8 @@ namespace alaska {
     auto &mag = this->size_classes[cls];
 
     if (mag.size() != 0) {
-      auto p = mag.find([](HeapPage *p) {
-        auto sp = static_cast<SizedPage *>(p);
+      auto p = mag.find([](SizedPage *p) {
+        auto sp = p;
         if (sp->available() > 0 and sp->get_owner() == nullptr) return true;
         return false;
       });
@@ -229,4 +229,9 @@ namespace alaska {
   }
 
 #undef O
+
+  void Heap::collect() {
+    ck::scoped_lock lk(this->lock);
+    // TODO:
+  }
 }  // namespace alaska

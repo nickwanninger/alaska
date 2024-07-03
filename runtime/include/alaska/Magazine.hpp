@@ -20,19 +20,21 @@ namespace alaska {
   // A Magazine is just a class which wraps up many HeapPages into a
   // set which can be added and removed from easily.
   // (its a pun)
+
+  template <typename T>
   class Magazine final {
    public:
     Magazine();
-    void add(HeapPage *page);
-    void remove(HeapPage *page);
-    HeapPage *pop(void);
+    void add(T *page);
+    void remove(T *page);
+    T *pop(void);
 
     inline size_t size(void) const { return m_count; }
 
 
     template <typename Fn>
-    HeapPage *find(Fn f) {
-      HeapPage *entry, *temp;
+    T *find(Fn f) {
+      T *entry, *temp;
 
       // Iterate over the list safely
       list_for_each_entry_safe(entry, temp, &this->list, mag_list) {
@@ -49,7 +51,7 @@ namespace alaska {
 
     template <typename Fn>
     void foreach (Fn f) {
-      HeapPage *entry = nullptr;
+      T *entry = nullptr;
       list_for_each_entry(entry, &this->list, mag_list) {
         if (!f(entry)) break;
       }
@@ -61,28 +63,34 @@ namespace alaska {
     size_t m_count = 0;
   };
 
-  inline Magazine::Magazine() { list = LIST_HEAD_INIT(list); }
+  template <typename T>
+  inline Magazine<T>::Magazine() {
+    list = LIST_HEAD_INIT(list);
+  }
 
 
-  inline void Magazine::add(HeapPage *page) {
+  template <typename T>
+  inline void Magazine<T>::add(T *page) {
     list_add_tail(&page->mag_list, &this->list);
     m_count++;
   }
 
 
 
-  inline void Magazine::remove(HeapPage *page) {
+  template <typename T>
+  inline void Magazine<T>::remove(T *page) {
     m_count--;
 
     list_del_init(&page->mag_list);
   }
 
 
-  inline HeapPage *Magazine::pop(void) {
+  template <typename T>
+  inline T *Magazine<T>::pop(void) {
     if (list_empty(&this->list)) return nullptr;
 
     m_count--;
-    auto hp = list_first_entry(&this->list, HeapPage, mag_list);
+    auto hp = list_first_entry(&this->list, T, mag_list);
     list_del_init(&hp->mag_list);
     return hp;
   }

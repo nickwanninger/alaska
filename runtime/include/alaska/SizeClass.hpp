@@ -39,11 +39,12 @@ namespace alaska {
 
 
   // ...
-  static constexpr long alignment = 16; // Byte alignment for size classes
+  static constexpr long alignment = 16;     // Byte alignment for size classes
   static constexpr long max_overhead = 20;  // percent internal fragmentation
   // static constexpr long max_object_size = (1LU << 30);
   static constexpr long max_object_size = (alaska::page_size / 2);
-  static constexpr long num_size_classes = internal::ilog<100 + max_overhead, 100, max_object_size>::VALUE;
+  static constexpr long num_size_classes =
+      internal::ilog<100 + max_overhead, 100, max_object_size>::VALUE;
 
   // Returns size of the memory block that will be allcoated if you ask for `sz` bytes.
   size_t round_up_size(size_t sz);

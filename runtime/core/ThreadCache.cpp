@@ -23,7 +23,7 @@ namespace alaska {
 
   ThreadCache::ThreadCache(alaska::Runtime &rt)
       : runtime(rt) {
-    handle_slab = runtime.handle_table.new_slab();
+    handle_slab = runtime.handle_table.new_slab(this);
   }
 
 
@@ -98,14 +98,14 @@ namespace alaska {
       page->release_remote(*m, ptr);
     }
     // Return the handle to the handle table.
-    this->runtime.handle_table.put(m);
+    // this->runtime.handle_table.put(m);
   }
 
   Mapping *ThreadCache::new_mapping(void) {
     auto m = handle_slab->get();
 
     if (unlikely(m == NULL)) {
-      handle_slab = runtime.handle_table.new_slab();
+      handle_slab = runtime.handle_table.new_slab(this);
       // This BETTER work!
       m = handle_slab->get();
     }

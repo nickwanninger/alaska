@@ -42,8 +42,11 @@ namespace alaska {
 
 
   int size_to_class(size_t sz) {
+
+    int guess = 0;
+
     // Do a binary search to find the right size class.
-    int left = 0;
+    int left = guess;
     int right = alaska::num_size_classes - 1;
     while (left < right) {
       int mid = (left + right) / 2;

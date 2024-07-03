@@ -17,12 +17,17 @@
 
 
 // TODO: don't have this be global!
-static alaska::ThreadCache *g_tc;
+static __thread alaska::ThreadCache *g_tc = nullptr;
 
 static auto get_tc(void) {
-  if (g_tc == nullptr) g_tc = alaska::Runtime::get().new_threadcache();
+  if (g_tc == nullptr) {
+    printf("allocating a new thread cache\n");
+    g_tc = alaska::Runtime::get().new_threadcache();
+  }
   return g_tc;
 }
+
+
 
 
 static void *_halloc(size_t sz, int zero) {
@@ -69,13 +74,17 @@ void *hrealloc(void *handle, size_t new_size) {
 
 
 void hfree(void *ptr) {
+
+  // printf("hfree %p\n", ptr);
   // no-op if NULL is passed
   if (ptr == NULL) return;
 
   // Grab the Mapping
   auto *m = alaska::Mapping::from_handle_safe(ptr);
   // Not a handle? Pass it to the system allocator.
-  if (m == NULL) return ::free(ptr);
+  if (m == NULL) {
+    return ::free(ptr);
+  }
 
   // Simply ask the thread cache to free it!
   get_tc()->hfree(ptr);

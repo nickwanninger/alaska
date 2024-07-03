@@ -19,20 +19,24 @@
 
 namespace alaska {
 
+  // This dictates how big a page is. Note: This must be an odd number
+  // due to details about how the page table is implemented.
+  static constexpr uint64_t page_shift_factor = 21;
+  static constexpr size_t page_size = 1LU << page_shift_factor;
+
   // Forward Declaration
+  template <typename T>
   class Magazine;
   class ThreadCache;
 
 
   // used for linked lists in HeapPage instances
   struct Block final {
-    Block *next;
+    Block* next;
   };
 
-  void atomic_block_push(Block **list, Block *block);
+  void atomic_block_push(Block** list, Block* block);
 
-  static constexpr uint64_t page_shift_factor = 19;
-  static constexpr size_t page_size = 1LU << page_shift_factor;
 
 
   // A super simple type-level indicator that a size is aligned to the heap's alignment
@@ -64,13 +68,11 @@ namespace alaska {
     virtual bool release_remote(Mapping& m, void* ptr) { return release_local(m, ptr); }
 
    protected:
-    // A Magazine needs to be able to reach into the intrusive list
-    friend class Magazine;
-
 
     // This is the backing memory for the page. it is alaska::page_size bytes long.
     void* memory = nullptr;
 
+   public:
     // Intrusive linked list for magazine membership
     struct list_head mag_list;
   };
