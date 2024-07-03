@@ -158,6 +158,7 @@ namespace alaska {
 
   Heap::~Heap(void) {
     // dump(stderr);
+  }
 
 
   SizedPage *Heap::get(size_t size, ThreadCache *owner) {
