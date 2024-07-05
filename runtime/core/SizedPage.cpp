@@ -142,16 +142,23 @@ namespace alaska {
     }
 
 
+    // Headers live first
     headers = (SizedPage::Header *)memory;
-    objects = (Block *)round_up((uintptr_t)headers + capacity, alaska::alignment);
+    // Then, objects are placed later.
+    objects = (Block *)round_up((uintptr_t)(headers + capacity), alaska::alignment);
+
+
     log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers, objects);
 
 
+    // initialize
     live_objects = 0;
     bump_next = 0;
+
+
+    // Extend the free list
+    this->extend(128);
   }
-
-
 
 
   void SizedPage::defragment(void) {
