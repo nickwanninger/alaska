@@ -44,7 +44,7 @@ namespace alaska {
 
 
     // This is a set of all the active thread caches in the system
-    ck::set<alaska::ThreadCache*> tcs;
+    ck::set<alaska::ThreadCache *> tcs;
     ck::mutex tcs_lock;
 
 
@@ -61,5 +61,8 @@ namespace alaska {
 
 
     void dump(FILE *stream);
+
+   private:
+    int next_thread_cache_id = 0;
   };
 }  // namespace alaska

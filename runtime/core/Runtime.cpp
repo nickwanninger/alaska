@@ -111,7 +111,7 @@ namespace alaska {
 
 
   ThreadCache *Runtime::new_threadcache(void) {
-    auto tc = new ThreadCache(*this);
+    auto tc = new ThreadCache(next_thread_cache_id++, *this);
     tcs_lock.lock();
     tcs.add(tc);
     tcs_lock.unlock();

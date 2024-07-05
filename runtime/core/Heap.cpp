@@ -17,6 +17,8 @@
 #include "alaska/SizeClass.hpp"
 #include "alaska/SizedPage.hpp"
 #include "alaska/utils.h"
+#include <alaska/ThreadCache.hpp>
+
 
 namespace alaska {
 
@@ -197,12 +199,9 @@ namespace alaska {
 
 
   void Heap::put(SizedPage *page) {
+    // Return a SizedPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
-    // int cls = page->get_size_class();
-    // TODO: there's more to this, I think. We should somehow split up or sort pages by their
-    // fullness somewhere...
-    // size_classes[cls].add(page);
   }
 
 
@@ -220,7 +219,12 @@ namespace alaska {
       int page_ind = 0;
       mag.foreach ([&](HeapPage *hp) {
         SizedPage *sp = static_cast<SizedPage *>(hp);
-        out(" - %p owned by %p. %zu avail\n", sp, sp->get_owner(), sp->available());
+        int id = -1;
+        auto owner = sp->get_owner();
+        if (owner != NULL) {
+          id = owner->get_id();
+        }
+        out(" - %016p owner:%3d avail:%7zu\n", sp, id, sp->available());
         page_ind++;
         if (page_ind > mag.size()) return false;
         return true;
