@@ -168,8 +168,7 @@ namespace alaska {
 
     if (mag.size() != 0) {
       auto p = mag.find([](SizedPage *p) {
-        auto sp = p;
-        if (sp->available() > 0 and sp->get_owner() == nullptr) return true;
+        if (p->available() > 0 and p->get_owner() == nullptr) return true;
         return false;
       });
 
@@ -200,10 +199,10 @@ namespace alaska {
   void Heap::put(SizedPage *page) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
-    int cls = page->get_size_class();
+    // int cls = page->get_size_class();
     // TODO: there's more to this, I think. We should somehow split up or sort pages by their
     // fullness somewhere...
-    size_classes[cls].add(page);
+    // size_classes[cls].add(page);
   }
 
 

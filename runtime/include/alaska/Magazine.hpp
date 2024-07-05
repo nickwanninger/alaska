@@ -35,7 +35,6 @@ namespace alaska {
     template <typename Fn>
     T *find(Fn f) {
       T *entry, *temp;
-
       // Iterate over the list safely
       list_for_each_entry_safe(entry, temp, &this->list, mag_list) {
         if (f(entry)) {
