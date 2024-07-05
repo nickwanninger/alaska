@@ -99,7 +99,7 @@ namespace alaska {
       page->release_remote(*m, ptr);
     }
     // Return the handle to the handle table.
-    // this->runtime.handle_table.put(m);
+    this->runtime.handle_table.put(m);
   }
 
   Mapping *ThreadCache::new_mapping(void) {
