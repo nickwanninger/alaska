@@ -13,6 +13,7 @@
 
 #include <alaska/HeapPage.hpp>
 #include <alaska/SizeClass.hpp>
+#include <alaska/ShardedFreeList.hpp>
 
 namespace alaska {
   struct Block;
@@ -68,14 +69,14 @@ namespace alaska {
     ////////////////////////////////////////////////
 
     oid_t bump_next;
-    int size_class;                // The size class of this page
-    size_t object_size;            // The byte size of the size class of this page (saves a load)
-    long live_objects;             // The number of live objects right now
-    long capacity;                 // How many objects can be allocated total
-    Header *headers;               // The start of the headers
-    Block *objects;                // The start of the blocks
-    Block *local_free = nullptr;   // Local free list
-    Block *remote_free = nullptr;  // Remote (Delayed) free list
+    int size_class;      // The size class of this page
+    size_t object_size;  // The byte size of the size class of this page (saves a load)
+    long live_objects;   // The number of live objects right now
+    long capacity;       // How many objects can be allocated total
+    Header *headers;     // The start of the headers
+    Block *objects;      // The start of the blocks
+
+    ShardedFreeList free_list;     // The free list
   };
 
 

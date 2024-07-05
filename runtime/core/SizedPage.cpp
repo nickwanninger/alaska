@@ -21,31 +21,27 @@ namespace alaska {
     // In the fast path, this allocation routine is *just* a linked list pop.
     // In the slow path, we must extend the free list by either bump allocating
     // many free blocks *or* by swapping the remote free list.
-    Block *b = this->local_free;
+    void *o = free_list.pop();
 
-    if (unlikely(b == nullptr)) {
+    if (unlikely(o == nullptr)) {
       // If there was nothing on the local_free list, fall back to slow allocation :(
       return alloc_slow(m, size);
     }
 
-    oid_t oid = this->object_to_oid(b);
+
+    // All paths for allocation go through this path.
+    oid_t oid = this->object_to_oid(o);
     Header *h = this->oid_to_header(oid);
-    // printf("h = %p, b = %p, oid = %d\n", h, b, oid);
-
-    // Pop the entry
-    this->local_free = b->next;
-    b->next = nullptr;  // Zero out the block part of the object (SEC?)
-
     h->mapping = const_cast<alaska::Mapping *>(&m);
 
     live_objects++;
-    return (void *)b;
+    return o;
   }
 
 
   void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
     // TODO: this number is random! Maybe there is a better way of chosing this.
-    long extended_count = extend(128);
+    long extended_count = extend(64);
     log_trace("alloc: extended_count = %ld", extended_count);
 
     // 1. If we managed to extend the list, return one of the blocks from it.
@@ -57,32 +53,25 @@ namespace alaska {
 
     // 2. If the list was not extended, try swapping the remote_free list and the local_free list.
     // This is a little tricky because we need to worry about atomics here.
-    do {
-      log_trace("alloc: local_free = %p, remote_free = %p\n", local_free, remote_free);
-      this->local_free = this->remote_free;
-    } while (!__atomic_compare_exchange_n(
-        &this->remote_free, &this->local_free, nullptr, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+    free_list.swap();
+    // If local-free is still null, return null
+    if (not free_list.has_local_free()) return nullptr;
 
-    // If local-free is still null, return null. otherwise, fall back to alloc.
-    if (this->local_free == nullptr) {
-      return nullptr;
-    }
+    // Otherwise, fall back to alloc
     return alloc(m, size);
   }
 
 
   bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
+    // printf("release local\n");
     oid_t oid = object_to_oid(ptr);
+
 
     auto *h = oid_to_header(oid);
     h->mapping = nullptr;
     live_objects--;  // TODO: ATOMICS
 
-
-    Block *blk = static_cast<Block *>(ptr);
-    // Free the object by pushing it onto the local free list (no atomics needed!)
-    blk->next = local_free;
-    local_free = blk;
+    free_list.free_local(ptr);
 
     return true;
   }
@@ -95,9 +84,7 @@ namespace alaska {
 
     live_objects--;  // TODO: ATOMICS!
 
-    // Free the object by pushing it, atomically onto the remote free list
-    Block *blk = static_cast<Block *>(ptr);
-    atomic_block_push(&remote_free, blk);
+    free_list.free_remote(ptr);
 
     return true;
   }
@@ -106,9 +93,8 @@ namespace alaska {
   long SizedPage::extend(long count) {
     long e = 0;
     for (; e < count && bump_next != capacity; e++) {
-      auto b = (Block *)oid_to_object(bump_next++);
-      b->next = this->local_free;
-      this->local_free = b;
+      auto o = oid_to_object(bump_next++);
+      free_list.free_local(o);
     }
 
     return e;
@@ -159,27 +145,25 @@ namespace alaska {
 
 
   void SizedPage::validate(void) {
-    alaska::Block *b;
-    int ind;
+    // alaska::Block *b;
+    // int ind;
+    // ind = 0;
+    // for (b = this->local_free; b != NULL; b = b->next) {
+    //   ALASKA_ASSERT(contains(b),
+    //       "Local free list must contains blocks that are in the page. Index %d. b=%p", ind, b);
+    //   ALASKA_ASSERT(!is_header(b),
+    //       "Local free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
+    //   ind++;
+    // }
 
-    ind = 0;
-
-    for (b = this->local_free; b != NULL; b = b->next) {
-      ALASKA_ASSERT(contains(b),
-          "Local free list must contains blocks that are in the page. Index %d. b=%p", ind, b);
-      ALASKA_ASSERT(!is_header(b),
-          "Local free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
-      ind++;
-    }
-
-    ind = 0;
-    for (b = this->remote_free; b != NULL; b = b->next) {
-      ALASKA_ASSERT(contains(b),
-          "Remote free list must contains blocks that are in the page. Index %d, b=%p", ind, b);
-      ALASKA_ASSERT(!is_header(b),
-          "Remote free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
-      ind++;
-    }
+    // ind = 0;
+    // for (b = this->remote_free; b != NULL; b = b->next) {
+    //   ALASKA_ASSERT(contains(b),
+    //       "Remote free list must contains blocks that are in the page. Index %d, b=%p", ind, b);
+    //   ALASKA_ASSERT(!is_header(b),
+    //       "Remote free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
+    //   ind++;
+    // }
   }
 
 
