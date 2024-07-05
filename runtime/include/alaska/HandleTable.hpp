@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <alaska/alaska.hpp>
 #include <alaska/OwnedBy.hpp>
+#include <alaska/HeapPage.hpp>
 #include <ck/vec.h>
 #include <ck/lock.h>
 
@@ -80,7 +81,7 @@ namespace alaska {
   // In the actual runtime implementation, there will be a global instance of this class.
   class HandleTable final {
    public:
-    static constexpr size_t slab_size = 0x1000;
+    static constexpr size_t slab_size = alaska::page_size;
     static constexpr size_t slab_capacity = slab_size / sizeof(alaska::Mapping);
     static constexpr size_t initial_capacity = 16;
 
