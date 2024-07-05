@@ -19,6 +19,10 @@
 
 static alaska::Runtime *the_runtime = nullptr;
 
+extern "C" void alaska_dump(void) {
+  the_runtime->heap.dump(stderr);
+}
+
 void __attribute__((constructor(102))) alaska_init(void) {
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
