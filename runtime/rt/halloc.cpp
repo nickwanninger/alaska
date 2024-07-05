@@ -20,7 +20,7 @@
 static __thread alaska::ThreadCache *g_tc = nullptr;
 
 static auto get_tc(void) {
-  if (g_tc == nullptr) {
+  if (unlikely(g_tc == nullptr)) {
     printf("allocating a new thread cache\n");
     g_tc = alaska::Runtime::get().new_threadcache();
   }
@@ -74,15 +74,14 @@ void *hrealloc(void *handle, size_t new_size) {
 
 
 void hfree(void *ptr) {
-
-  // printf("hfree %p\n", ptr);
   // no-op if NULL is passed
-  if (ptr == NULL) return;
+  if (unlikely(ptr == NULL)) return;
 
   // Grab the Mapping
   auto *m = alaska::Mapping::from_handle_safe(ptr);
+
   // Not a handle? Pass it to the system allocator.
-  if (m == NULL) {
+  if (unlikely(m == NULL)) {
     return ::free(ptr);
   }
 

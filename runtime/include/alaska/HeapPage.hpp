@@ -67,8 +67,9 @@ namespace alaska {
     virtual bool release_local(Mapping& m, void* ptr) = 0;
     virtual bool release_remote(Mapping& m, void* ptr) { return release_local(m, ptr); }
 
-   protected:
+    inline bool contains(void* ptr) const;
 
+   protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.
     void* memory = nullptr;
 
@@ -76,4 +77,12 @@ namespace alaska {
     // Intrusive linked list for magazine membership
     struct list_head mag_list;
   };
+
+
+  inline bool HeapPage::contains(void *pt) const {
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(pt);
+    uintptr_t start = reinterpret_cast<uintptr_t>(memory);
+    uintptr_t end = start + alaska::page_size;
+    return ptr >= start && ptr < end;
+  }
 }  // namespace alaska

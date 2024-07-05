@@ -175,7 +175,7 @@ namespace alaska {
 
       if (p != NULL) {
         p->set_owner(owner);
-        return static_cast<SizedPage *>(p);
+        return p;
       }
     }
 
