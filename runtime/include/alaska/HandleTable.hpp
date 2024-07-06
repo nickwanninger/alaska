@@ -41,7 +41,7 @@ namespace alaska {
   struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache> {
     slabidx_t idx;                             // Which slab is this?
     HandleSlabState state = SlabStateEmpty;    // What is the state of this slab?
-    uint16_t nfree = 0;                        // how many free mappings are in this slab?
+    uint32_t nfree = 0;                        // how many free mappings are in this slab?
     HandleTable &table;                        // Which table does this belong to?
     alaska::Mapping *next_free = nullptr;      // the next free mapping in the slab (linked list)
     alaska::Mapping *bump_next = nullptr;      // The next mapping to bump-allocate from
