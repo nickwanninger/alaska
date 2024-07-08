@@ -224,7 +224,7 @@ namespace alaska {
         if (owner != NULL) {
           id = owner->get_id();
         }
-        out(" - %016p owner:%3d avail:%7zu\n", sp, id, sp->available());
+        out(" - %016p-%016p owner:%3d avail:%7zu\n", sp->start(), sp->end(), id, sp->available());
         page_ind++;
         if (page_ind > mag.size()) return false;
         return true;
