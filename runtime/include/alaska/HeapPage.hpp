@@ -69,6 +69,10 @@ namespace alaska {
 
     inline bool contains(void* ptr) const;
 
+
+    void* start(void) const { return memory; }
+    void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
+
    protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.
     void* memory = nullptr;
@@ -79,7 +83,7 @@ namespace alaska {
   };
 
 
-  inline bool HeapPage::contains(void *pt) const {
+  inline bool HeapPage::contains(void* pt) const {
     uintptr_t ptr = reinterpret_cast<uintptr_t>(pt);
     uintptr_t start = reinterpret_cast<uintptr_t>(memory);
     uintptr_t end = start + alaska::page_size;

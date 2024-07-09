@@ -12,93 +12,50 @@
 #include <alaska/SizedPage.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/Logger.hpp>
+#include <alaska/SizedAllocator.hpp>
 #include <string.h>
 
 namespace alaska {
 
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
-    // In the fast path, this allocation routine is *just* a linked list pop.
-    // In the slow path, we must extend the free list by either bump allocating
-    // many free blocks *or* by swapping the remote free list.
-    void *o = free_list.pop();
-
-    if (unlikely(o == nullptr)) {
-      // If there was nothing on the local_free list, fall back to slow allocation :(
-      return alloc_slow(m, size);
-    }
-
+    void *o = allocator.alloc();
+    if (unlikely(o == nullptr)) return nullptr;
 
     // All paths for allocation go through this path.
-    oid_t oid = this->object_to_oid(o);
-    Header *h = this->oid_to_header(oid);
+    long oid = this->object_to_ind(o);
+    Header *h = this->ind_to_header(oid);
     h->mapping = const_cast<alaska::Mapping *>(&m);
 
-    live_objects++;
+    atomic_inc(live_objects, 1);
     return o;
   }
 
 
-  void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
-    // TODO: this number is random! Maybe there is a better way of chosing this.
-    long extended_count = extend(64);
-    log_trace("alloc: extended_count = %ld", extended_count);
-
-    // 1. If we managed to extend the list, return one of the blocks from it.
-    if (extended_count > 0) {
-      // Fall back into the alloc function to do the heavy lifting of actually allocating
-      // one of the blocks we just extended the list with.
-      return alloc(m, size);
-    }
-
-    // 2. If the list was not extended, try swapping the remote_free list and the local_free list.
-    // This is a little tricky because we need to worry about atomics here.
-    free_list.swap();
-    // If local-free is still null, return null
-    if (not free_list.has_local_free()) return nullptr;
-
-    // Otherwise, fall back to alloc
-    return alloc(m, size);
-  }
-
-
   bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
-    // printf("release local\n");
-    oid_t oid = object_to_oid(ptr);
+    long oid = object_to_ind(ptr);
 
-
-    auto *h = oid_to_header(oid);
+    auto *h = ind_to_header(oid);
     h->mapping = nullptr;
-    live_objects--;  // TODO: ATOMICS
+    atomic_dec(live_objects, 1);
 
-    free_list.free_local(ptr);
-
+    allocator.release_local(ptr);
     return true;
   }
 
 
   bool SizedPage::release_remote(alaska::Mapping &m, void *ptr) {
-    oid_t oid = object_to_oid(ptr);
-    auto *h = oid_to_header(oid);
+    auto oid = object_to_ind(ptr);
+    auto *h = ind_to_header(oid);
     h->mapping = nullptr;
+    allocator.release_remote(ptr);
 
-    live_objects--;  // TODO: ATOMICS!
-
-    free_list.free_remote(ptr);
+    atomic_dec(live_objects, 1);
 
     return true;
   }
 
 
-  long SizedPage::extend(long count) {
-    long e = 0;
-    for (; e < count && bump_next != capacity; e++) {
-      auto o = oid_to_object(bump_next++);
-      free_list.free_local(o);
-    }
-
-    return e;
-  }
 
 
   void SizedPage::set_size_class(int cls) {
@@ -109,6 +66,7 @@ namespace alaska {
 
     capacity = (double)alaska::page_size /
                (double)(round_up(object_size, alaska::alignment) + sizeof(SizedPage::Header));
+    live_objects = 0;
 
     if (capacity == 0) {
       log_warn(
@@ -128,14 +86,8 @@ namespace alaska {
 
     log_info("cls = %-2d, memory = %p, headers = %p, objects = %p", cls, memory, headers, objects);
 
-
     // initialize
-    live_objects = 0;
-    bump_next = 0;
-
-
-    // Extend the free list
-    this->extend(128);
+    allocator.configure(objects, object_size, capacity);
   }
 
 

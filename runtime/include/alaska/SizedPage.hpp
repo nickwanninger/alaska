@@ -14,6 +14,7 @@
 #include <alaska/HeapPage.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/ShardedFreeList.hpp>
+#include <alaska/SizedAllocator.hpp>
 
 namespace alaska {
   struct Block;
@@ -45,65 +46,35 @@ namespace alaska {
     void validate(void);
 
    private:
-    using oid_t = uint64_t;
     struct Header {
       alaska::Mapping *mapping;
     };
 
-    oid_t header_to_oid(Header *h);
-    Header *oid_to_header(oid_t oid);
-    oid_t object_to_oid(void *ob);
-    void *oid_to_object(oid_t oid);
-
-    // Extend the free list by bump allocating
-    long extend(long count);
-
-
-
-    // Perform a slow allocation (bump allocation)
-    void *alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size);
-
-    bool is_header(void *);
-    bool is_object(void *);
+    long header_to_ind(Header *h);
+    Header *ind_to_header(long oid);
+    long object_to_ind(void *ob);
+    void *ind_to_object(long oid);
 
     ////////////////////////////////////////////////
 
-    oid_t bump_next;
     int size_class;      // The size class of this page
     size_t object_size;  // The byte size of the size class of this page (saves a load)
-    long live_objects;   // The number of live objects right now
-    long capacity;       // How many objects can be allocated total
     Header *headers;     // The start of the headers
-    Block *objects;      // The start of the blocks
+    void *objects;
+    long capacity;
+    long live_objects;
 
-    ShardedFreeList free_list;     // The free list
+    SizedAllocator allocator;
   };
 
 
-  inline SizedPage::oid_t SizedPage::header_to_oid(Header *h) { return (h - headers); }
-  inline SizedPage::Header *SizedPage::oid_to_header(oid_t oid) { return headers + oid; }
-  inline SizedPage::oid_t SizedPage::object_to_oid(void *ob) {
+  inline long SizedPage::header_to_ind(Header *h) { return (h - headers); }
+  inline SizedPage::Header *SizedPage::ind_to_header(long oid) { return headers + oid; }
+  inline long SizedPage::object_to_ind(void *ob) {
     return ((uintptr_t)ob - (uintptr_t)objects) / this->object_size;
   }
-  inline void *SizedPage::oid_to_object(oid_t oid) {
+  inline void *SizedPage::ind_to_object(long oid) {
     return (void *)((uintptr_t)objects + oid * this->object_size);
-  }
-
-
-
-
-  inline bool SizedPage::is_header(void *pt) {
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(pt);
-    uintptr_t start = reinterpret_cast<uintptr_t>(headers);
-    uintptr_t end = reinterpret_cast<uintptr_t>(headers + capacity);
-    return ptr >= start && ptr < end;
-  }
-
-  inline bool SizedPage::is_object(void *pt) {
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(pt);
-    uintptr_t start = reinterpret_cast<uintptr_t>(objects);
-    uintptr_t end = reinterpret_cast<uintptr_t>(memory) + alaska::page_size;
-    return ptr >= start && ptr < end;
   }
 
 }  // namespace alaska

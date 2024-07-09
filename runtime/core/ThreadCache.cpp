@@ -68,13 +68,8 @@ namespace alaska {
       ALASKA_ASSERT(ptr != nullptr, "OOM!");
     }
 
-
-    log_info("ptr = %p", ptr);
     m->set_pointer(ptr);
-
-    void *out = m->to_handle();
-    log_info("handle = %p", out);
-    return out;
+    return m->to_handle();
   }
 
 

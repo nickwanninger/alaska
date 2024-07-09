@@ -100,8 +100,8 @@ namespace alaska {
   }
 
 
-  void SizedAllocator::configure(void *objects, size_t object_size, long object_count) {
-    this->objects_start = objects;
+  inline void SizedAllocator::configure(void *objects, size_t object_size, long object_count) {
+    this->objects_start = this->bump_next = objects;
     this->objects_end = (void *)((uintptr_t)objects + (object_count * object_size));
     this->object_size = object_size;
     // Re-construct the free list just in case

@@ -107,3 +107,11 @@ TEST_F(ThreadCacheTest, Halloc1M) {
     ASSERT_NE(h, nullptr);
   }
 }
+
+
+
+// Test that the thread cache can allocate a large object
+// TEST_F(ThreadCacheTest, HallocHuge) {
+//   void *h = t1->halloc(1024LU * 1024LU * 1024LU);
+//   ASSERT_NE(h, nullptr);
+// }
