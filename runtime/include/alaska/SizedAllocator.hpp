@@ -12,6 +12,7 @@
 #pragma once
 
 #include <stdlib.h>
+#include <sys/cdefs.h>
 #include <alaska/ShardedFreeList.hpp>
 #include <alaska/HeapPage.hpp>
 
@@ -68,7 +69,7 @@ namespace alaska {
   }
 
 
-  inline void *SizedAllocator::alloc_slow(void) {
+  __attribute__((noinline)) inline void *SizedAllocator::alloc_slow(void) {
     long extended_count = extend(128);
 
     // 1. If we managed to extend the list, return one of the blocks from it.
