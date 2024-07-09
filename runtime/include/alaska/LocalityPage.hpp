@@ -11,29 +11,25 @@
 
 #pragma once
 
-#include <bits/types/FILE.h>
 #include <stdlib.h>
+#include <math.h>
 #include <stdint.h>
 #include <alaska/alaska.hpp>
 #include <alaska/Logger.hpp>
-#include <math.h>
 #include <alaska/HeapPage.hpp>
 
 namespace alaska {
 
 
-  class VariablePage : public alaska::HeapPage {
+  // A locality page is meant to strictly bump allocate objects of variable size in order
+  // of their expected access pattern in the future. It's optimized for moving objects into
+  // this page, and the expected lifetimes of these objects is long enough that we don't really
+  // care about freeing or re-using the memory occupied by them when they are gone.
+  class LocalityPage : public alaska::HeapPage {
    public:
     using Metadata = uint32_t;
-
     using HeapPage::HeapPage;
-    // inline VariablePage() {
-    //   data = malloc(alaska::page_size);
-    //   data_bump_next = data;
-    //   md_bump_next = get_md(0);
-    // }
-    inline ~VariablePage() override { ::free(data); }
-
+    inline ~LocalityPage() override { ::free(data); }
 
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override {
@@ -62,38 +58,15 @@ namespace alaska {
 
 
     bool release_local(alaska::Mapping &m, void *ptr) override {
-      // do nothing for now.
-      off_t offset = (uintptr_t)ptr - (uintptr_t)data;
-      off_t capacity = (uintptr_t)data_bump_next - (uintptr_t)data;
-
-      float loc = (float)offset / (float)capacity;
-      int count = num_allocated();
-
-      auto md = find_md(&m);
-
-
-      m.reset();
-      // TODO: Just return true for now...
+      // Don't do anything other than
+      auto md = find_md(ptr);
+      *md = 0;
       return true;
-      // for (int i = 0; i < count; i++) {
-      //   auto md = get_md(i);
-      //   if (*md == m->to_compact()) {
-      //     md_off = i;
-      //   }
-      // }
-
-      // float md_loc = (float)md_off / (float)count;
-      // // log_debug("ptr: off: %4zu, cap: %4zu, %5.2f%%", offset, capacity, loc * 100);
-      // // log_debug("md:  off: %4zu, cap: %4zu, %5.2f%%", md_off, count, md_loc * 100);
-      // float error = fabs((loc - md_loc));
-      // log_debug("byte off: %6zu   est: %5.2f%%   act: %5.2f%%  err: %5.2f%% (max %zu entries)",
-      //     offset, loc * 100, md_loc * 100, error * 100, (long)(count * error));
     }
 
 
-
-    Metadata *find_md(alaska::Mapping *m) {
-      void *ptr = m->get_pointer();
+   private:
+    Metadata *find_md(void *ptr) {
       if (ptr < data || ptr > data_bump_next) {
         log_warn("%p is not in this page.", ptr);
         return nullptr;
@@ -141,7 +114,6 @@ namespace alaska {
     int64_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
     int64_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
 
-   public:
     void *data = nullptr;
     void *data_bump_next = nullptr;
     uint32_t *md_bump_next = nullptr;

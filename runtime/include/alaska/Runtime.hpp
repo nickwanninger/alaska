@@ -12,7 +12,6 @@
 #pragma once
 #include <alaska/HandleTable.hpp>
 #include <alaska/Logger.hpp>
-#include <alaska/VariablePage.hpp>
 #include <alaska/ThreadCache.hpp>
 #include <alaska/Heap.hpp>
 #include <ck/set.h>
@@ -27,13 +26,13 @@ namespace alaska {
    * through a C API (see `alaska.h`, ex: halloc()).
    *
    * This class' main job is to tie together all the various components of the runtime. These
-   * components should operate entirely independently of each other, and this class should be the
+   * components should operate (mostly) independently of each other, and this class should be the
    * only place where they interact.
    *
    * Components:
    *  - HandleTable: A global table that maps handles to their corresponding memory blocks.
-   *  - Heap: A global memory manager that allocates and frees memory blocks. (Anchorage)
-   *  - BarrierManager: The system which manages the delivery of patch-based barriers
+   *  - Heap: A global memory manager that allocates and frees memory blocks.
+   *  - ThreadCaches: a list of the thread caches currently alive in the system.
    */
   struct Runtime final {
     // The handle table is a global table that maps handles to their corresponding memory blocks.
