@@ -24,6 +24,7 @@ namespace alaska {
    public:
     using HeapPage::HeapPage;
     inline ~SizedPage(void) override {
+      abort();
       // ...
     }
 
@@ -31,6 +32,7 @@ namespace alaska {
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
     bool release_local(alaska::Mapping &m, void *ptr) override;
     bool release_remote(alaska::Mapping &m, void *ptr) override;
+    size_t size_of(void *ptr) override;
 
     // How many free slots are there?
     long available(void) { return capacity - live_objects; }
@@ -68,6 +70,7 @@ namespace alaska {
   };
 
 
+  inline size_t SizedPage::size_of(void *ptr) { return this->object_size; }
   inline long SizedPage::header_to_ind(Header *h) { return (h - headers); }
   inline SizedPage::Header *SizedPage::ind_to_header(long oid) { return headers + oid; }
   inline long SizedPage::object_to_ind(void *ob) {

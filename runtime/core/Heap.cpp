@@ -163,7 +163,7 @@ namespace alaska {
   }
 
 
-  SizedPage *Heap::get(size_t size, ThreadCache *owner) {
+  SizedPage *Heap::get_sizedpage(size_t size, ThreadCache *owner) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
@@ -198,7 +198,7 @@ namespace alaska {
   }
 
 
-  void Heap::put(SizedPage *page) {
+  void Heap::put_sizedpage(SizedPage *page) {
     // Return a SizedPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);

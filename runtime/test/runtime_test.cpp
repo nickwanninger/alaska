@@ -116,7 +116,7 @@ TEST_F(RuntimeTest, SlabGetHandle) {
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
 
   // Get a handle from the slab
-  auto handle = slab->get();
+  auto handle = slab->alloc();
 
   // Check that the handle is valid
   ASSERT_NE(handle, nullptr);
@@ -128,7 +128,7 @@ TEST_F(RuntimeTest, SlabNFreeDecreasesOnHandleGet) {
   // Get the initial nfree count
   int initialNFree = slab->nfree;
   // Get a handle from the slab
-  auto handle = slab->get();
+  auto handle = slab->alloc();
   // Check that the handle is valid
   ASSERT_NE(handle, nullptr);
   // Check that the nfree count has decreased by 1
@@ -163,11 +163,11 @@ TEST_F(RuntimeTest, SlabGetReturnsNullWhenOutOfCapacity) {
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
   // Fill up the slab with handles
   for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
-    auto handle = slab->get();
+    auto handle = slab->alloc();
     ASSERT_NE(handle, nullptr);
   }
   // Try to get another handle from the slab
-  auto handle = slab->get();
+  auto handle = slab->alloc();
   // Check that the handle is null
   ASSERT_EQ(handle, nullptr);
 }
@@ -181,7 +181,7 @@ TEST_F(RuntimeTest, SlabUniqueHandles) {
   std::set<alaska::Mapping*> handles;
   // Fill up the slab with handles
   for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
-    auto handle = slab->get();
+    auto handle = slab->alloc();
     ASSERT_NE(handle, nullptr);
     // Check that the handle is unique
     ASSERT_EQ(handles.count(handle), 0);
@@ -196,27 +196,16 @@ TEST_F(RuntimeTest, SlabReturnHandle) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
   // Get a handle from the slab
-  auto handle = slab->get();
+  auto handle = slab->alloc();
   // Return the handle to the slab
-  slab->put(handle);
+  slab->release_local(handle);
   // Get another handle from the slab
-  auto handle2 = slab->get();
+  auto handle2 = slab->alloc();
   // Check that the handle is the same as the one that was returned the first time
   ASSERT_EQ(handle, handle2);
 }
 
 
-
-// test that the program dies if a mapping is returned to the wrong slab
-TEST_F(RuntimeTest, SlabReturnToWrongSlab) {
-  // Allocate a fresh slab from the handle table
-  auto* slab1 = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
-  auto* slab2 = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
-  // Get a handle from slab1
-  auto handle = slab1->get();
-  // Try to return the handle to slab2
-  ASSERT_DEATH({ slab2->put(handle); }, "");
-}
 
 
 // test that all mappings in a slab are in the right index
@@ -227,7 +216,7 @@ TEST_F(RuntimeTest, SlabMappingIndex) {
     auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
     // Fill up the slab with handles
     for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
-      auto handle = slab->get();
+      auto handle = slab->alloc();
       ASSERT_NE(handle, nullptr);
       // Check that the handle is in the right index
       ASSERT_EQ(slab->idx, runtime.handle_table.mapping_slab_idx(handle));

@@ -27,95 +27,33 @@ namespace alaska {
   // care about freeing or re-using the memory occupied by them when they are gone.
   class LocalityPage : public alaska::HeapPage {
    public:
-    using Metadata = uint32_t;
+    struct Metadata {
+      alaska::Mapping *mapping;
+    };
     using HeapPage::HeapPage;
-    inline ~LocalityPage() override { ::free(data); }
+    ~LocalityPage() override;
 
-
-    void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override {
-      log_debug("VariablePage: Alloc %zu into %p", size, &m);
-      log_debug(" free space: %zu", get_free_space());
-      if (get_free_space() < size) {
-        return nullptr;
-      }
-
-      void *data = data_bump_next;
-      log_trace("data %p", data);
-      data_bump_next = (void *)((uintptr_t)data_bump_next + size);
-      log_trace("new bump %p", data_bump_next);
-
-      auto md = md_bump_next;
-      log_trace("md %p", md);
-      md_bump_next--;
-
-
-      log_trace("setting md to %08lx", m.to_compact());
-      *md = m.to_compact();
-      log_trace("set md!");
-
-      return data;
-    }
-
-
-    bool release_local(alaska::Mapping &m, void *ptr) override {
-      // Don't do anything other than
-      auto md = find_md(ptr);
-      *md = 0;
-      return true;
-    }
+    void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
+    bool release_local(alaska::Mapping &m, void *ptr) override;
 
 
    private:
-    Metadata *find_md(void *ptr) {
-      if (ptr < data || ptr > data_bump_next) {
-        log_warn("%p is not in this page.", ptr);
-        return nullptr;
-      }
-
-      auto num_alloc = num_allocated();
-      int scale = used_space() / num_alloc;
-      off_t guess_off = ((uintptr_t)ptr - (uintptr_t)data) / scale;
-      if (guess_off >= num_alloc) guess_off = num_alloc - 1;
-
-      // Grab the guess metadata
-      auto guess_ptr = get_ptr(guess_off);
-      auto original_guess_off = guess_off;
-
-      // Go left or right to find the right one.
-      if (ptr > guess_ptr) {
-        while (ptr > guess_ptr) {
-          if (guess_off >= num_alloc) return nullptr;
-          guess_off++;
-          guess_ptr = get_ptr(guess_off);
-        }
-      } else {
-        while (ptr < guess_ptr) {
-          if (guess_off <= 0) return nullptr;
-          guess_off--;
-          guess_ptr = get_ptr(guess_off);
-        }
-      }
-
-      return nullptr;
+    Metadata *find_md(void *ptr);
+    inline Metadata *get_md(uint32_t offset) {
+      return (Metadata *)((uintptr_t)data + page_size) - (offset + 1);
     }
 
-    Metadata *get_md(uint32_t offset) {
-      return (uint32_t *)((uintptr_t)data + page_size) - (offset + 1);
-    }
+    inline void *get_ptr(uint32_t index) { return get_mapping(index)->get_pointer(); }
 
-    void *get_ptr(uint32_t index) { return get_mapping(index)->get_pointer(); }
+    inline int num_allocated(void) { return get_md(0) - (md_bump_next); }
 
-    int num_allocated(void) { return get_md(0) - (md_bump_next); }
+    inline alaska::Mapping *get_mapping(uint32_t offset) { return get_md(offset)->mapping; }
 
-    alaska::Mapping *get_mapping(uint32_t offset) {
-      return alaska::Mapping::from_compact(*get_md(offset));
-    }
-
-    int64_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
-    int64_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
+    inline int64_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
+    inline int64_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
 
     void *data = nullptr;
     void *data_bump_next = nullptr;
-    uint32_t *md_bump_next = nullptr;
+    Metadata *md_bump_next = nullptr;
   };
 };  // namespace alaska

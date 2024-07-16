@@ -64,7 +64,6 @@ void *hrealloc(void *handle, size_t new_size) {
     return NULL;
   }
 
-  // Defer to the service to realloc
   log_fatal("realloc not implemented in alaska yet!");
 
   handle = get_tc()->hrealloc(handle, new_size);

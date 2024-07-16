@@ -122,10 +122,10 @@ namespace alaska {
 
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
-    alaska::SizedPage *get(size_t size, ThreadCache *owner = nullptr);
+    alaska::SizedPage *get_sizedpage(size_t size, ThreadCache *owner = nullptr);
 
-    // Return an owned sized page to the global heap.
-    void put(alaska::SizedPage *page);
+
+    void put_sizedpage(alaska::SizedPage *page);
 
     // Run a "heap collection" phase. This basically just means
     // walking over the HeapPage instances, collecting statistics and

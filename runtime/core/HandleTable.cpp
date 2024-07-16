@@ -12,6 +12,7 @@
 
 #include <alaska/HandleTable.hpp>
 #include <alaska/Logger.hpp>
+#include <alaska/HeapPage.hpp>
 #include "ck/lock.h"
 #include <stdio.h>
 #include <sys/mman.h>
@@ -148,7 +149,7 @@ namespace alaska {
   }
 
 
-  void HandleTable::put(Mapping *m) {
+  void HandleTable::put(Mapping *m, alaska::ThreadCache *owner) {
     log_trace("Putting handle %p", m);
     // Validate that the handle is in this table
     ALASKA_ASSERT(
@@ -156,7 +157,11 @@ namespace alaska {
 
     // Get the slab that the handle is in
     auto *slab = m_slabs[mapping_slab_idx(m)];
-    slab->put(m);
+    if (slab->is_owned_by(owner)) {
+      slab->release_local(m);
+    } else {
+      slab->release_remote(m);
+    }
   }
 
 
@@ -221,59 +226,35 @@ namespace alaska {
   HandleSlab::HandleSlab(HandleTable &table, slabidx_t idx)
       : table(table)
       , idx(idx) {
-    bump_next = table.get_slab_start(idx);
-    nfree = table.get_slab_end(idx) - bump_next;
+    allocator.configure(
+        table.get_slab_start(idx), sizeof(alaska::Mapping), HandleTable::slab_capacity);
+    nfree = HandleTable::slab_capacity;
   }
 
 
 
-  Mapping *HandleSlab::get(void) {
-    // We always try to pop from the free-list to reuse the mappings.
+  Mapping *HandleSlab::alloc(void) {
+    auto *m = (Mapping *)allocator.alloc();
 
-    // Pop from the next_free list if it is not null.
-    if (next_free != nullptr) {
-      nfree--;
-      auto *ret = next_free;
-      next_free = next_free->get_next();
-      update_state();
-      return ret;
-    }
-
-    // If the next_free list is null, we need to bump the next pointer
-    if (bump_next < table.get_slab_end(idx)) {
-      nfree--;
-      update_state();
-      return bump_next++;
-    }
-
-    return nullptr;
+    if (unlikely(m == nullptr)) return nullptr;
+    nfree--;
+    update_state();
+    return m;
   }
 
-
-  void HandleSlab::put(Mapping *m) {
-    // Validate that the handle is in this slab.
-    ALASKA_ASSERT(idx == table.mapping_slab_idx(m), "attempted to put a handle into the wrong slab")
-
-    // Increment the number of free mappings
-    nfree++;
-    m->set_next(next_free);
-    next_free = m;
+  void HandleSlab::release_remote(Mapping *m) {
+    nfree++;  // TODO: ATOMICS
+    allocator.release_remote(m);
     update_state();
   }
 
-  void HandleSlab::update_state() {
-    switch (nfree) {
-      case 0:
-        state = SlabStateFull;
-        break;
-      case HandleTable::slab_capacity:
-        state = SlabStateEmpty;
-        break;
-      default:
-        state = SlabStatePartial;
-        break;
-    }
+  void HandleSlab::release_local(Mapping *m) {
+    nfree++;  // TODO: ATOMICS
+    allocator.release_local(m);
+    update_state();
   }
+
+  void HandleSlab::update_state() {}
 
 
   void HandleSlab::dump(FILE *stream) {
@@ -281,10 +262,6 @@ namespace alaska {
     fprintf(stream, "st %d | ", state);
 
     fprintf(stream, "free %4d | ", nfree);
-    fprintf(stream, "bump %016p | ", bump_next);
-    fprintf(stream, "next %016p | ", next_free);
-
-
 
     fprintf(stream, "\n");
   }

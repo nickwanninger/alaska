@@ -44,6 +44,7 @@ set(CORE_SOURCES
 
   core/HeapPage.cpp
   core/SizedPage.cpp
+  core/LocalityPage.cpp
 
 	# C++ glue stuff, since we don't link against libc++ in the core library.
 	core/glue.cpp

@@ -17,6 +17,7 @@
 #include <alaska/HeapPage.hpp>
 #include <ck/vec.h>
 #include <ck/lock.h>
+#include <alaska/SizedAllocator.hpp>
 
 
 namespace alaska {
@@ -39,12 +40,11 @@ namespace alaska {
   // mappings. It is a fixed size, and no two threads will allocate from the
   // same slab at the same time.
   struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache> {
-    slabidx_t idx;                             // Which slab is this?
-    HandleSlabState state = SlabStateEmpty;    // What is the state of this slab?
-    uint32_t nfree = 0;                        // how many free mappings are in this slab?
-    HandleTable &table;                        // Which table does this belong to?
-    alaska::Mapping *next_free = nullptr;      // the next free mapping in the slab (linked list)
-    alaska::Mapping *bump_next = nullptr;      // The next mapping to bump-allocate from
+    slabidx_t idx;                           // Which slab is this?
+    HandleSlabState state = SlabStateEmpty;  // What is the state of this slab?
+    uint32_t nfree = 0;                      // how many free mappings are in this slab?
+    HandleTable &table;                      // Which table does this belong to?
+
     HandleSlab *next = nullptr;                // The next slab in the queue
     HandleSlab *prev = nullptr;                // The previous slab in the queue
     HandleSlabQueue *current_queue = nullptr;  // What queue is this slab in?
@@ -52,10 +52,14 @@ namespace alaska {
 
     // -- Methods --
     HandleSlab(HandleTable &table, slabidx_t idx);
-    alaska::Mapping *get(void);    // Allocate a mapping from this slab
-    void put(alaska::Mapping *m);  // Return a mapping back to this slab
-    void update_state(void);       // Update the state of this slab
-    void dump(FILE *stream);       // Dump this slab's debug info to a file
+    void update_state(void);  // Update the state of this slab
+    void dump(FILE *stream);  // Dump this slab's debug info to a file
+
+    alaska::Mapping *alloc(void);             // Allocate a mapping from this slab
+    void release_remote(alaska::Mapping *m);  // Return a mapping back to this slab (remote)
+    void release_local(alaska::Mapping *m);   // Return a mapping back to this slab (local)
+
+    SizedAllocator allocator;
   };
 
 
@@ -104,7 +108,7 @@ namespace alaska {
 
 
     // Free/release *some* mapping
-    void put(alaska::Mapping *m);
+    void put(alaska::Mapping *m, alaska::ThreadCache *owner = (alaska::ThreadCache*)0x1000UL);
 
    protected:
     friend HandleSlab;

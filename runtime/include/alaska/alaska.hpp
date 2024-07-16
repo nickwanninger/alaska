@@ -40,6 +40,7 @@ namespace alaska {
   extern long translation_hits;
   extern long translation_misses;
 
+
   class Mapping {
    private:
     // Represent the fact that a handle is just a pointer w/ "important bit patterns"
@@ -119,13 +120,6 @@ namespace alaska {
       uint64_t out = ((uint64_t)encode() << ALASKA_SIZE_BITS) + offset;
       // printf("encode %p %zu -> %p\n", this, offset, out);
       return (void *)out;
-    }
-
-    uint32_t to_compact(void) const { return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS); }
-
-
-    static alaska::Mapping *from_compact(uint32_t c) {
-      return (alaska::Mapping *)((uint64_t)c << ALASKA_SQUEEZE_BITS);
     }
 
     static void *translate(void *handle) {

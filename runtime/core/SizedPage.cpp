@@ -5,7 +5,8 @@
  * Copyright (c) 2024, The Constellation Project
  * All rights reserved.
  *
- * This is free software.  You are permitted to use, redistribute,
+ */
+/** This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
 
@@ -19,6 +20,7 @@ namespace alaska {
 
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
+    // printf("sized page alloc %zu bytes in %zu class\n", size, object_size);
     void *o = allocator.alloc();
     if (unlikely(o == nullptr)) return nullptr;
 

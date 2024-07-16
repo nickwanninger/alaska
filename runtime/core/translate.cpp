@@ -73,9 +73,6 @@ void *alaska_translate(void *ptr) {
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;
   }
-  // if (unlikely(bits >= 0)) {
-  //   return ptr;
-  // }
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
@@ -83,7 +80,7 @@ void *alaska_translate(void *ptr) {
   // Grab the pointer
   void *mapped = m->get_pointer();
   // Apply the offset from the pointer
-  ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
+  ptr = (void *)((uint64_t)mapped + ((uint64_t)bits & ((1LU << ALASKA_SIZE_BITS) - 1)));
   return ptr;
 }
 

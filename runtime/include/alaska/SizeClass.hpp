@@ -43,8 +43,10 @@ namespace alaska {
   static constexpr long max_overhead = 20;  // percent internal fragmentation
   // static constexpr long max_object_size = (1LU << 30);
   static constexpr long max_object_size = (alaska::page_size / 2);
-  static constexpr long num_size_classes =
-      internal::ilog<100 + max_overhead, 100, max_object_size>::VALUE;
+
+  // Maximum number of size classes. (spaced exponentially in 12.5% increments)
+  static constexpr long num_size_classes = 72;
+  static constexpr long class_huge = num_size_classes;
 
   // Returns size of the memory block that will be allcoated if you ask for `sz` bytes.
   size_t round_up_size(size_t sz);

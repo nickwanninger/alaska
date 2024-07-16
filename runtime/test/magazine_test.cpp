@@ -19,6 +19,7 @@ public:
   ~MockHeapPage(void) override {}
   MOCK_METHOD(void*, alloc, (const alaska::Mapping& m, alaska::AlignedSize size), (override));
   MOCK_METHOD(bool, release_local, (alaska::Mapping& m, void* ptr), (override));
+  MOCK_METHOD(size_t, size_of, (void* ptr), (override));
 };
 
 class MagazineTest : public ::testing::Test {

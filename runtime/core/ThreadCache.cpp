@@ -31,14 +31,14 @@ namespace alaska {
 
   SizedPage *ThreadCache::new_sized_page(int cls) {
     // Get a new heap
-    auto *heap = runtime.heap.get(alaska::class_to_size(cls), this);
+    auto *heap = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
 
     // And set the owner
     heap->set_owner(this);
     log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
     // Swap the heaps in the thread cache
-    if (size_classes[cls] != nullptr) runtime.heap.put(size_classes[cls]);
+    if (size_classes[cls] != nullptr) runtime.heap.put_sizedpage(size_classes[cls]);
     size_classes[cls] = heap;
 
     ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
@@ -74,8 +74,20 @@ namespace alaska {
 
 
   void *ThreadCache::hrealloc(void *handle, size_t new_size) {
+    // TODO: THERE IS A RACE HERE FROM UPDATING THE HANDLE!
+    // We might be able to fix this with a fancy compare and swap?
+
+    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    void *ptr = m->get_pointer();
+
+    auto *page = this->runtime.heap.pt.get_unaligned(ptr);
+
+    size_t old_size = page->size_of(ptr);
+
+    printf("old: %zu, new: %zu\n", old_size, new_size);
+
     log_fatal("ThreadCache::hrealloc not implemented yet!!\n");
-    return nullptr;
+    return handle;
   }
 
 
@@ -95,16 +107,16 @@ namespace alaska {
       page->release_remote(*m, ptr);
     }
     // Return the handle to the handle table.
-    this->runtime.handle_table.put(m);
+    this->runtime.handle_table.put(m, this);
   }
 
   Mapping *ThreadCache::new_mapping(void) {
-    auto m = handle_slab->get();
+    auto m = handle_slab->alloc();
 
     if (unlikely(m == NULL)) {
       handle_slab = runtime.handle_table.new_slab(this);
       // This BETTER work!
-      m = handle_slab->get();
+      m = handle_slab->alloc();
     }
 
     return m;
