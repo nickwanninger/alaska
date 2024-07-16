@@ -17,7 +17,9 @@
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
 #include <alaska/autoconf.h>
+#include <alaska/liballoc.h>
 
+#include <ck/utility.h>
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
 
@@ -152,7 +154,51 @@ namespace alaska {
 
   // runtime.cpp
   extern void record_translation_info(bool hit);
+
+
+
+
+  template <typename T, typename... Args>
+  T *make_object(Args &&...args) {
+    // Allocate raw memory for the object
+    void *ptr = alaska_internal_malloc(sizeof(T));
+    // Use placement new to construct the object in the allocated memory
+    new (ptr) T(args...);
+    return (T *)ptr;
+  }
+
+  template <typename T>
+  void delete_object(T *ptr) {
+    if (ptr) {
+      // Call the destructor explicitly
+      ptr->~T();
+      // Free the raw memory
+      alaska_internal_free(ptr);
+    }
+  }
+
+
+  // Construct an array of length `length` with default constructors
+  template <typename T>
+  T *make_object_array(size_t length) {
+    // Allocate raw memory for the object
+    auto ptr = (T *)alaska_internal_calloc(length, sizeof(T));
+
+    for (size_t i = 0; i < length; i++) {
+      // Use placement new to construct the object in the allocated memory
+      new (ptr + i) T();
+    }
+    return ptr;
+  }
+  // Construct an array of length `length` with default constructors
+  template <typename T>
+  void delete_object_array(T *array, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+      // call dtor
+      array[i].~T();
+    }
+    alaska_internal_free((void*)array);
+  }
+
+
 }  // namespace alaska
-
-
-// In barrier.c
