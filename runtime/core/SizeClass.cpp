@@ -133,19 +133,6 @@ static inline size_t _mi_wsize_from_size(size_t size) { return (size + WORD_SIZE
 // clang-format on
 
 
-
-void dump_sc_shit(size_t sz) {
-  printf("%024b ", sz);
-  size_t wsize = _mi_wsize_from_size(sz);
-  printf("%024b ", wsize);
-
-  wsize--;
-  printf("%10d ", wsize);
-
-  uint8_t b = (uint8_t)mi_bsr(wsize);  // note: wsize != 0
-}
-
-
 static size_t cls_sizes[] = SIZE_CLASSES;
 
 namespace alaska {
