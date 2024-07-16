@@ -89,7 +89,7 @@ endmenu
 
 config SIZE_BITS
   int "How many bits to use for handle sizes. Smaller = more handles. Larger = less handles"
-  default 32
+  default 24
 
 config SQUEEZE_BITS
   int # "how much to squeeze by (recommended to set this to 3"

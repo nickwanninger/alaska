@@ -49,7 +49,11 @@ namespace alaska {
 
    private:
     struct Header {
-      alaska::Mapping *mapping;
+      uint64_t _mapping : (64 - ALASKA_SIZE_BITS);
+      uint32_t size_slack : ALASKA_SIZE_BITS;
+
+      inline void set_mapping(alaska::Mapping *m) { _mapping = (uint64_t)m; }
+      inline auto get_mapping(alaska::Mapping *m) { return (alaska::Mapping *)_mapping; }
     };
 
     long header_to_ind(Header *h);
@@ -70,7 +74,11 @@ namespace alaska {
   };
 
 
-  inline size_t SizedPage::size_of(void *ptr) { return this->object_size; }
+  inline size_t SizedPage::size_of(void *ptr) {
+    long ind = object_to_ind(ptr);
+    auto h = ind_to_header(ind);
+    return this->object_size - h->size_slack;
+  }
   inline long SizedPage::header_to_ind(Header *h) { return (h - headers); }
   inline SizedPage::Header *SizedPage::ind_to_header(long oid) { return headers + oid; }
   inline long SizedPage::object_to_ind(void *ob) {

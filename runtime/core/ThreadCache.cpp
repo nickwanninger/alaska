@@ -54,7 +54,6 @@ namespace alaska {
     log_info("ThreadCache::halloc mapping=%p", m);
 
     int cls = alaska::size_to_class(size);
-    size = alaska::class_to_size(cls);
 
     auto *page = size_classes[cls];
     if (unlikely(page == nullptr)) page = new_sized_page(cls);

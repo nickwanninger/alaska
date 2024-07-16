@@ -27,7 +27,9 @@ namespace alaska {
     // All paths for allocation go through this path.
     long oid = this->object_to_ind(o);
     Header *h = this->ind_to_header(oid);
-    h->mapping = const_cast<alaska::Mapping *>(&m);
+    h->set_mapping(const_cast<alaska::Mapping *>(&m));
+    h->size_slack = this->object_size - size;
+    printf("size slack: %8zu - %8zu = 0x%024zb\n", object_size, (size_t)size, h->size_slack);
 
     atomic_inc(live_objects, 1);
     return o;
@@ -38,7 +40,7 @@ namespace alaska {
     long oid = object_to_ind(ptr);
 
     auto *h = ind_to_header(oid);
-    h->mapping = nullptr;
+    h->set_mapping(nullptr);
     atomic_dec(live_objects, 1);
 
     allocator.release_local(ptr);
@@ -49,7 +51,7 @@ namespace alaska {
   bool SizedPage::release_remote(alaska::Mapping &m, void *ptr) {
     auto oid = object_to_ind(ptr);
     auto *h = ind_to_header(oid);
-    h->mapping = nullptr;
+    h->set_mapping(nullptr);
     allocator.release_remote(ptr);
 
     atomic_dec(live_objects, 1);

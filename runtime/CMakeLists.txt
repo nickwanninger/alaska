@@ -58,6 +58,8 @@ set(CORE_SOURCES
 add_library(alaska_core SHARED ${CORE_SOURCES})
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(alaska_core PROPERTIES SOVERSION 1)
+
+target_compile_options(alaska_core PUBLIC -nostdlib++)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
 
@@ -94,6 +96,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
   target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
+  target_compile_options(alaska PUBLIC -nostdlib++)
 
   install(
     TARGETS alaska
