@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <alaska/liballoc.h>
+
 #ifdef ALASKA_SANITY_CHECK
 #define ALASKA_SANITY(c, msg, ...)                                                              \
   do {                                                                                          \
