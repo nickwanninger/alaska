@@ -29,7 +29,6 @@ namespace alaska {
     Header *h = this->ind_to_header(oid);
     h->set_mapping(const_cast<alaska::Mapping *>(&m));
     h->size_slack = this->object_size - size;
-    printf("size slack: %8zu - %8zu = 0x%024zb\n", object_size, (size_t)size, h->size_slack);
 
     atomic_inc(live_objects, 1);
     return o;
