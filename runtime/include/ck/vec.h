@@ -111,7 +111,7 @@ namespace ck {
   class vec {
    private:
     void del(T* buf) {
-      free(buf);
+      alaska_internal_free(buf);
     }
 
    public:
@@ -422,7 +422,7 @@ namespace ck {
       if (m_capacity >= needed_capacity) return;
       int new_capacity = needed_capacity;
 
-      auto* new_buffer = (T*)malloc(new_capacity * sizeof(T));
+      auto* new_buffer = (T*)alaska_internal_malloc(new_capacity * sizeof(T));
 
       if (Traits<T>::is_trivial()) {
         typed_transfer<T>::copy(new_buffer, data(), m_size);
