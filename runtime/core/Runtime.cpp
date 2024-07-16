@@ -12,9 +12,8 @@
 
 #include <alaska/Runtime.hpp>
 #include <alaska/SizeClass.hpp>
+#include "alaska/alaska.hpp"
 #include <stdlib.h>
-
-
 
 namespace alaska {
   static Runtime* g_runtime = nullptr;
@@ -111,7 +110,7 @@ namespace alaska {
 
 
   ThreadCache *Runtime::new_threadcache(void) {
-    auto tc = new ThreadCache(next_thread_cache_id++, *this);
+    auto tc = alaska::make_object<ThreadCache>(next_thread_cache_id++, *this);
     tcs_lock.lock();
     tcs.add(tc);
     tcs_lock.unlock();
@@ -121,7 +120,7 @@ namespace alaska {
   void Runtime::del_threadcache(ThreadCache *tc) {
     tcs_lock.lock();
     tcs.remove(tc);
-    delete tc;
+    alaska::delete_object<ThreadCache>(tc);
     tcs_lock.unlock();
   }
 

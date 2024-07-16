@@ -295,7 +295,7 @@ namespace ck {
   void HashTable<T, TraitsForT>::rehash(int new_capacity) {
     TemporaryChange change(m_rehashing, true);
     new_capacity *= 2;
-    auto* new_buckets = new Bucket[new_capacity];
+    auto* new_buckets = alaska::make_object_array<Bucket>(new_capacity);
     auto* old_buckets = m_buckets;
     int old_capacity = m_capacity;
     m_buckets = new_buckets;
@@ -307,14 +307,14 @@ namespace ck {
       }
     }
 
-    delete[] old_buckets;
+    alaska::delete_object_array(old_buckets, old_capacity);
   }
 
   template <typename T, typename TraitsForT>
   void HashTable<T, TraitsForT>::clear() {
     TemporaryChange change(m_clearing, (bool)true);
     if (m_buckets) {
-      delete[] m_buckets;
+      delete_object_array(m_buckets, m_capacity);
       m_buckets = nullptr;
     }
     m_capacity = 0;

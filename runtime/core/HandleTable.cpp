@@ -60,7 +60,7 @@ namespace alaska {
 
     for (auto &slab : m_slabs) {
       log_trace("deleting slab %p (idx: %lu)", slab, slab->idx);
-      delete slab;
+      alaska::delete_object<HandleSlab>(slab);
     }
   }
 
@@ -92,7 +92,7 @@ namespace alaska {
     }
 
     // Allocate a new slab using the system allocator.
-    auto *sl = new HandleSlab(*this, idx);
+    auto *sl = alaska::make_object<HandleSlab>(*this, idx);
     sl->set_owner(new_owner);
 
     // Add the slab to the list of slabs and return it

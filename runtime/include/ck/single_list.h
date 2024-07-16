@@ -8,34 +8,23 @@ namespace ck {
   template <typename ListType, typename ElementType>
   class single_listIterator {
    public:
-    bool operator!=(const single_listIterator& other) const {
-      return m_node != other.m_node;
-    }
+    bool operator!=(const single_listIterator& other) const { return m_node != other.m_node; }
     single_listIterator& operator++() {
       m_prev = m_node;
       m_node = m_node->next;
       return *this;
     }
-    ElementType& operator*() {
-      return m_node->value;
-    }
-    ElementType* operator->() {
-      return &m_node->value;
-    }
-    bool is_end() const {
-      return !m_node;
-    }
-    static single_listIterator universal_end() {
-      return single_listIterator(nullptr);
-    }
+    ElementType& operator*() { return m_node->value; }
+    ElementType* operator->() { return &m_node->value; }
+    bool is_end() const { return !m_node; }
+    static single_listIterator universal_end() { return single_listIterator(nullptr); }
 
    private:
     friend ListType;
     explicit single_listIterator(
         typename ListType::Node* node, typename ListType::Node* prev = nullptr)
         : m_node(node)
-        , m_prev(prev) {
-    }
+        , m_prev(prev) {}
     typename ListType::Node* m_node{nullptr};
     typename ListType::Node* m_prev{nullptr};
   };
@@ -45,25 +34,18 @@ namespace ck {
    private:
     struct Node {
       explicit Node(T&& v)
-          : value(move(v)) {
-      }
+          : value(move(v)) {}
       explicit Node(const T& v)
-          : value(v) {
-      }
+          : value(v) {}
       T value;
       Node* next{nullptr};
     };
 
    public:
-    single_list() {
-    }
-    ~single_list() {
-      clear();
-    }
+    single_list() {}
+    ~single_list() { clear(); }
 
-    bool is_empty() const {
-      return !head();
-    }
+    bool is_empty() const { return !head(); }
 
     inline int size_slow() const {
       int size = 0;
@@ -75,7 +57,7 @@ namespace ck {
     void clear() {
       for (auto* node = m_head; node;) {
         auto* next = node->next;
-        delete node;
+        alaska::delete_object(node);
         node = next;
       }
       m_head = nullptr;
@@ -105,12 +87,12 @@ namespace ck {
       T value = move(first());
       if (m_tail == m_head) m_tail = nullptr;
       m_head = m_head->next;
-      delete prev_head;
+      alaska::delete_object(prev_head);
       return value;
     }
 
     void append(const T& value) {
-      auto* node = new Node(value);
+      auto* node = alaska::make_object<Node>(value);
       if (!m_head) {
         m_head = node;
         m_tail = node;
@@ -121,7 +103,7 @@ namespace ck {
     }
 
     void append(T&& value) {
-      auto* node = new Node(move(value));
+      auto* node = alaska::make_object<Node>(move(value));
       if (!m_head) {
         m_head = node;
         m_tail = node;
@@ -140,21 +122,13 @@ namespace ck {
 
     using Iterator = single_listIterator<single_list, T>;
     friend Iterator;
-    Iterator begin() {
-      return Iterator(m_head);
-    }
-    Iterator end() {
-      return Iterator::universal_end();
-    }
+    Iterator begin() { return Iterator(m_head); }
+    Iterator end() { return Iterator::universal_end(); }
 
     using ConstIterator = single_listIterator<const single_list, const T>;
     friend ConstIterator;
-    ConstIterator begin() const {
-      return ConstIterator(m_head);
-    }
-    ConstIterator end() const {
-      return ConstIterator::universal_end();
-    }
+    ConstIterator begin() const { return ConstIterator(m_head); }
+    ConstIterator end() const { return ConstIterator::universal_end(); }
 
     template <typename Finder>
     ConstIterator find(Finder finder) const {
@@ -193,23 +167,15 @@ namespace ck {
       if (m_head == iterator.m_node) m_head = iterator.m_node->next;
       if (m_tail == iterator.m_node) m_tail = iterator.m_prev;
       if (iterator.m_prev) iterator.m_prev->next = iterator.m_node->next;
-      delete iterator.m_node;
+      alaska::delete_object(iterator.m_node);
     }
 
    private:
-    Node* head() {
-      return m_head;
-    }
-    const Node* head() const {
-      return m_head;
-    }
+    Node* head() { return m_head; }
+    const Node* head() const { return m_head; }
 
-    Node* tail() {
-      return m_tail;
-    }
-    const Node* tail() const {
-      return m_tail;
-    }
+    Node* tail() { return m_tail; }
+    const Node* tail() const { return m_tail; }
 
     Node* m_head{nullptr};
     Node* m_tail{nullptr};

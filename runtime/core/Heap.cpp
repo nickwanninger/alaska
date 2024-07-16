@@ -186,7 +186,7 @@ namespace alaska {
     log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
 
     // Allocate a new SizedPage for that memory
-    auto *p = new SizedPage(memory);
+    auto *p = alaska::make_object<SizedPage>(memory);
     p->set_size_class(cls);
 
 

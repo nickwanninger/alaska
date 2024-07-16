@@ -15,6 +15,7 @@
 
 #include <alaska/rt.hpp>
 #include <alaska/Runtime.hpp>
+#include <alaska/alaska.hpp>
 #include <stdio.h>
 
 static alaska::Runtime *the_runtime = nullptr;
@@ -26,11 +27,11 @@ extern "C" void alaska_dump(void) {
 void __attribute__((constructor(102))) alaska_init(void) {
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
-  the_runtime = new alaska::Runtime();
+  the_runtime = alaska::make_object<alaska::Runtime>();
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
   // Note: we don't currently care about deinitializing the runtime for now, since the application
   // is about to die and all it's memory is going to be cleaned up.
-  delete the_runtime;
+  alaska::delete_object(the_runtime);
 }
