@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
+#include "alaska/HeapPage.hpp"
 #include "alaska/Logger.hpp"
 #include "gtest/gtest.h"
 #include <vector>
@@ -111,14 +112,15 @@ TEST_F(ThreadCacheTest, Halloc1M) {
 
 
 // Test that the thread cache can allocate a large object
-// TEST_F(ThreadCacheTest, HallocHuge) {
-//   void *h = t1->halloc(1024LU * 1024LU * 1024LU);
-//   ASSERT_NE(h, nullptr);
-// }
+TEST_F(ThreadCacheTest, HallocHuge) {
+  void *h = t1->halloc(1LU << 23);
+  ASSERT_NE(h, nullptr);
+}
 
 
 
-// A few tests that validate that threadcache hrealloc works correctly and produces objects of the right size
+// A few tests that validate that threadcache hrealloc works correctly and produces objects of the
+// right size
 TEST_F(ThreadCacheTest, Hrealloc) {
   void *h = t1->halloc(16);
   void *h2 = t1->hrealloc(h, 32);
@@ -129,4 +131,41 @@ TEST_F(ThreadCacheTest, HreallocSize) {
   void *h = t1->halloc(16);
   void *h2 = t1->hrealloc(h, 32);
   ASSERT_EQ(t1->get_size(h2), 32);
+}
+
+TEST_F(ThreadCacheTest, HreallocHandleToHandle) {
+  void *h = t1->halloc(16);
+  void *h2 = t1->hrealloc(h, 32);
+  ASSERT_EQ(h, h2);
+}
+TEST_F(ThreadCacheTest, HreallocHandleToHuge) {
+  void *h = t1->halloc(16);
+  void *h2 = t1->hrealloc(h, alaska::huge_object_thresh);
+  // The values should not be the same
+  ASSERT_NE(h, h2);
+  // The new object should be a huge object (not a handle)
+  ASSERT_EQ(nullptr, alaska::Mapping::from_handle_safe(h2));
+}
+
+TEST_F(ThreadCacheTest, HreallocHugeToHuge) {
+  void *h = t1->halloc(alaska::huge_object_thresh + 4096);
+  // The old object should be a huge object (not a handle)
+  ASSERT_EQ(nullptr, alaska::Mapping::from_handle_safe(h));
+  void *h2 = t1->hrealloc(h, alaska::huge_object_thresh);
+  // The values should not be the same
+  ASSERT_NE(h, h2);
+  // The new object should be a huge object (not a handle)
+  ASSERT_EQ(nullptr, alaska::Mapping::from_handle_safe(h2));
+}
+
+TEST_F(ThreadCacheTest, HreallocHugeToHandle) {
+  void *h = t1->halloc(alaska::huge_object_thresh + 4096);
+  // The old object should be a huge object (not a handle)
+  ASSERT_EQ(nullptr, alaska::Mapping::from_handle_safe(h));
+
+  void *h2 = t1->hrealloc(h, 32);
+  // The values should not be the same
+  ASSERT_NE(h, h2);
+  // The new object should be a handle
+  ASSERT_NE(nullptr, alaska::Mapping::from_handle_safe(h2));
 }

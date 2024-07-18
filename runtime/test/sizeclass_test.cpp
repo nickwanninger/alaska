@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include <alaska.h>
+#include "alaska/HeapPage.hpp"
 #include "alaska/Logger.hpp"
 #include "gtest/gtest.h"
 #include <vector>
@@ -26,7 +27,7 @@
 
 TEST(SizeClass, RoundUpIsSane) {
   // Iterate just up to 1MB for now.
-  for (size_t sz = alaska::alignment; sz < 1048576; sz += alaska::alignment) {
+  for (size_t sz = alaska::alignment; sz < alaska::huge_object_thresh; sz += alaska::alignment) {
     size_t rounded = alaska::round_up_size(sz);
     ASSERT_TRUE(rounded >= sz);
   }
@@ -37,6 +38,7 @@ TEST(SizeClass, RoundUpIsSane) {
 TEST(SizeClass, ClassToSizeToClass) {
   for (int cl = 0; cl < alaska::num_size_classes; cl++) {
     size_t sz = alaska::class_to_size(cl);
+    if (sz >= alaska::huge_object_thresh) continue;
     int cl2 = alaska::size_to_class(sz);
     ASSERT_EQ(cl, cl2);
   }
@@ -44,7 +46,7 @@ TEST(SizeClass, ClassToSizeToClass) {
 
 TEST(SizeClass, SizeToClass) {
   // Iterate just up to 1MB for now.
-  for (size_t sz = alaska::alignment; sz < 1048576; sz += alaska::alignment) {
+  for (size_t sz = alaska::alignment; sz < alaska::huge_object_thresh; sz += alaska::alignment) {
     int cl = alaska::size_to_class(sz);
     ASSERT_FALSE(sz > alaska::class_to_size(cl));
   }
@@ -53,6 +55,7 @@ TEST(SizeClass, SizeToClass) {
 TEST(SizeClass, ClassToSize) {
   for (int cl = 0; cl < alaska::num_size_classes; cl++) {
     size_t sz = alaska::class_to_size(cl);
+    if (sz >= alaska::huge_object_thresh) continue;
     ASSERT_FALSE(cl != alaska::size_to_class(sz));
   }
 }

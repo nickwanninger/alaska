@@ -45,6 +45,7 @@ void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
+  auto *tc = get_tc();
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) {
     // printf("realloc edge case: NULL pointer (sz=%zu)\n", new_size);
@@ -52,8 +53,10 @@ void *hrealloc(void *handle, size_t new_size) {
   }
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
-    log_debug("realloc edge case: not a handle %p!", handle);
-    return ::realloc(handle, new_size);
+    if (!alaska::Runtime::get().heap.huge_allocator.owns(handle)) {
+      log_debug("realloc edge case: not a handle %p!", handle);
+      return ::realloc(handle, new_size);
+    }
   }
 
   // If the size is equal to zero, and the handle is not null, realloc acts like free(handle)
@@ -64,9 +67,7 @@ void *hrealloc(void *handle, size_t new_size) {
     return NULL;
   }
 
-  log_fatal("realloc not implemented in alaska yet!");
-
-  handle = get_tc()->hrealloc(handle, new_size);
+  handle = tc->hrealloc(handle, new_size);
   return handle;
 }
 

@@ -107,13 +107,19 @@ namespace alaska {
 
 
 
-  alaska::HeapPage *HeapPageTable::get(void *page) { return *walk(page); }
+  alaska::HeapPage *HeapPageTable::get(void *page) {
+    auto *p = walk(page);
+    if (p == nullptr) return nullptr;
+    return *p;
+  }
   alaska::HeapPage *HeapPageTable::get_unaligned(void *addr) {
     uintptr_t heap_offset = (uintptr_t)addr - (uintptr_t)heap_start;
     uintptr_t page_ind = heap_offset / alaska::page_size;
     void *page = (void *)((uintptr_t)heap_start + page_ind * alaska::page_size);
 
-    return *walk(page);
+    auto *p = walk(page);
+    if (p == nullptr) return nullptr;
+    return *p;
   }
 
   void HeapPageTable::set(void *page, alaska::HeapPage *hp) { *walk(page) = hp; }
@@ -238,4 +244,24 @@ namespace alaska {
     ck::scoped_lock lk(this->lock);
     // TODO:
   }
+
+
+
+
+  void *mmap_alloc(size_t bytes) {
+    auto prot = PROT_READ | PROT_WRITE;
+    auto flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+    // round bytes up to 4096
+    bytes = (bytes + 4095) & ~4095;
+    void *ptr = mmap(NULL, bytes, prot, flags, -1, 0);
+    ALASKA_ASSERT(ptr != MAP_FAILED, "Failed to allocate memory with mmap.");
+    return ptr;
+  }
+
+  void mmap_free(void *ptr, size_t bytes) {
+    // round bytes up to 4096
+    bytes = (bytes + 4095) & ~4095;
+    munmap(ptr, bytes);
+  }
+
 }  // namespace alaska
