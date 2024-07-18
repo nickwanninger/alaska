@@ -76,8 +76,9 @@ namespace alaska {
 
 
   void *ThreadCache::hrealloc(void *handle, size_t new_size) {
-    // TODO: THERE IS A RACE HERE FROM UPDATING THE HANDLE!
-    // We might be able to fix this with a fancy compare and swap?
+    // TODO: There is a race here... I think its okay, as a realloc really should
+    // be treated like a UAF, and ideally another thread would not access the handle
+    // while it is being reallocated.
 
     alaska::Mapping *m = alaska::Mapping::from_handle(handle);
     void *ptr = m->get_pointer();
@@ -86,11 +87,12 @@ namespace alaska {
 
     size_t old_size = page->size_of(ptr);
 
-    printf("old: %zu, new: %zu\n", old_size, new_size);
+    void *old_data = m->get_pointer();
+    void *new_data = allocate_backing_data(*m, new_size);
 
-    log_fatal("ThreadCache::hrealloc not implemented yet!!\n");
-    return handle;
-  }
+    // We should copy the minimum of the two sizes between the allocations.
+    size_t copy_size = old_size > new_size ? new_size : old_size;
+    memcpy(new_data, old_data, copy_size);
 
 
     // Assign the handle to point to the new data

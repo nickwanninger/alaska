@@ -4,10 +4,14 @@
 #include <stdint.h>
 
 int main() {
-  void *x = malloc(0);
+  int *x = (int *)malloc(8);
+
+  printf("x = %zx\n", (uintptr_t)x);
+  *x = 42;
+
+  x = (int *)realloc(x, 64);
   printf("x = %zx\n", (uintptr_t)x);
 
-  x = realloc(x, 64);
-  printf("x = %zx\n", (uintptr_t)x);
+  *x += 1;
   return 0;
 }
