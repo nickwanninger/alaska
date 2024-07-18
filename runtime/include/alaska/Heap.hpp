@@ -16,6 +16,7 @@
 #include <alaska/SizedPage.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/Magazine.hpp>
+#include <alaska/HugeObjectAllocator.hpp>
 #include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
@@ -70,6 +71,10 @@ namespace alaska {
 
 
 
+  // allocate pages to fit `bytes` bytes from the kernel.
+  void *mmap_alloc(size_t bytes);
+  // free pages allocated by mmap_alloc
+  void mmap_free(void *ptr, size_t bytes);
 
   // how many bits are needed to manage page table lookups.
   static constexpr long pt_bits = heap_size_shift_factor - page_shift_factor;
@@ -113,12 +118,10 @@ namespace alaska {
     PageManager pm;
     HeapPageTable pt;
 
+    HugeObjectAllocator huge_allocator;
+
     Heap(void);
     ~Heap(void);
-
-    // The main interface to the Heap: halloc and hfree.
-    void *halloc(size_t size);
-    void hfree(void *handle);
 
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
@@ -141,5 +144,16 @@ namespace alaska {
     // This lock is taken whenever global state in the heap is changed by a thread cache.
     ck::mutex lock;
     alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
+
+
+    // Huge objects are managed independently of the size classes. They are allocated
+    // directly from the kernel and are *not handles*
+    ck::mutex huge_lock;
+    struct list_head huge_allocations;
+
+    struct HugeHeader {
+      struct list_head list;
+      size_t size;
+    };
   };
 }  // namespace alaska

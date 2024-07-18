@@ -36,8 +36,7 @@ namespace alaska {
     int get_id(void) const { return this->id; }
     size_t get_size(void *handle);
 
-  private:
-
+   private:
     // Allocate backing data for a handle, but don't assign it yet.
     void *allocate_backing_data(const alaska::Mapping &m, size_t size);
 

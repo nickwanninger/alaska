@@ -23,6 +23,7 @@ namespace alaska {
   // due to details about how the page table is implemented.
   static constexpr uint64_t page_shift_factor = 21;
   static constexpr size_t page_size = 1LU << page_shift_factor;
+  static constexpr size_t huge_object_thresh = page_size / 4;
 
   // Forward Declaration
   template <typename T>

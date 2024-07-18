@@ -14,6 +14,8 @@
 #include <alaska/Runtime.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/alaska.hpp>
+#include "alaska/Heap.hpp"
+#include "alaska/HeapPage.hpp"
 #include <alaska/utils.h>
 
 
@@ -44,6 +46,30 @@ namespace alaska {
   }
 
 
+
+
+  void ThreadCache::free_allocation(const alaska::Mapping &m) {
+    void *ptr = m.get_pointer();
+    // Grab the page from the global heap (walk the page table).
+    auto *page = this->runtime.heap.pt.get_unaligned(ptr);
+    if (unlikely(page == NULL)) {
+      this->runtime.heap.huge_allocator.free(ptr);
+      return;
+    }
+    ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
+
+    if (page->is_owned_by(this)) {
+      log_trace("Free handle %p locally", handle);
+      page->release_local(m, ptr);
+    } else {
+      log_trace("Free handle %p remotely", handle);
+      page->release_remote(m, ptr);
+    }
+  }
+
+
+
+
   SizedPage *ThreadCache::new_sized_page(int cls) {
     // Get a new heap
     auto *heap = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
@@ -63,7 +89,14 @@ namespace alaska {
 
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
+    if (unlikely(size >= alaska::huge_object_thresh)) {
+      log_info("ThreadCache::halloc huge size=%zu", size);
+      // Allocate the huge allocation.
+      return this->runtime.heap.huge_allocator.allocate(size);
+    }
+
     log_info("ThreadCache::halloc size=%zu", size);
+
     // Allocate a new mapping
     Mapping *m = new_mapping();
     log_info("ThreadCache::halloc mapping=%p", m);
@@ -86,12 +119,12 @@ namespace alaska {
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
 
     size_t old_size = page->size_of(ptr);
+    // We should copy the minimum of the two sizes between the allocations.
+    size_t copy_size = old_size > new_size ? new_size : old_size;
 
     void *old_data = m->get_pointer();
     void *new_data = allocate_backing_data(*m, new_size);
 
-    // We should copy the minimum of the two sizes between the allocations.
-    size_t copy_size = old_size > new_size ? new_size : old_size;
     memcpy(new_data, old_data, copy_size);
 
 
@@ -104,24 +137,14 @@ namespace alaska {
     return handle;
   }
 
-  void ThreadCache::free_allocation(const alaska::Mapping &m) {
-    void *ptr = m.get_pointer();
-    // Grab the page from the global heap (walk the page table).
-    auto *page = this->runtime.heap.pt.get_unaligned(ptr);
-    ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
-
-    if (page->is_owned_by(this)) {
-      log_trace("Free handle %p locally", handle);
-      page->release_local(m, ptr);
-    } else {
-      log_trace("Free handle %p remotely", handle);
-      page->release_remote(m, ptr);
-    }
-  }
-
 
   void ThreadCache::hfree(void *handle) {
-    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (unlikely(m == nullptr)) {
+      bool worked = this->runtime.heap.huge_allocator.free(handle);
+      ALASKA_ASSERT(worked, "huge free failed");
+      return;
+    }
     // Free the allocation behind a mapping
     free_allocation(*m);
     m->set_pointer(nullptr);

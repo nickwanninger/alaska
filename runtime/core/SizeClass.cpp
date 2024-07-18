@@ -139,6 +139,9 @@ namespace alaska {
 
 
   int size_to_class(size_t sz) {
+    if (sz >= alaska::huge_object_thresh) {
+      return alaska::class_huge;
+    }
     size_t wsize = _mi_wsize_from_size(sz);
     if (wsize == 0) wsize = 1;
     uint8_t cls;

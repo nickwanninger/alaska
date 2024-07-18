@@ -28,14 +28,13 @@ namespace alaska {
 
 
   void* HugeObjectAllocator::allocate(size_t size) {
-    printf("size = 0x%zx\n", size);
     ck::scoped_lock l(m_lock);
 
     size_t mapping_size = (size + 4095) & ~4095;
     if (mapping_size < 4096) {
       mapping_size = 4096;
     }
-    printf("mapping_size = 0x%zx\n", mapping_size);
+
     // Allocate memory using mmap
     void* memory = alaska::mmap_alloc(mapping_size);
 

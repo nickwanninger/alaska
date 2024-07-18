@@ -197,7 +197,7 @@ namespace alaska {
       // call dtor
       array[i].~T();
     }
-    alaska_internal_free((void*)array);
+    alaska_internal_free((void *)array);
   }
 
 
