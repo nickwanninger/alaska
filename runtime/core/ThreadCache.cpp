@@ -129,6 +129,15 @@ namespace alaska {
     this->runtime.handle_table.put(m, this);
   }
 
+
+  size_t ThreadCache::get_size(void *handle) {
+    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    void *ptr = m->get_pointer();
+    auto *page = this->runtime.heap.pt.get_unaligned(ptr);
+    if (page == nullptr) return 0;
+    return page->size_of(ptr);
+  }
+
   Mapping *ThreadCache::new_mapping(void) {
     auto m = handle_slab->alloc();
 

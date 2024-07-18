@@ -34,6 +34,7 @@ namespace alaska {
     void hfree(void *handle);
 
     int get_id(void) const { return this->id; }
+    size_t get_size(void *handle);
 
   private:
 

@@ -115,3 +115,18 @@ TEST_F(ThreadCacheTest, Halloc1M) {
 //   void *h = t1->halloc(1024LU * 1024LU * 1024LU);
 //   ASSERT_NE(h, nullptr);
 // }
+
+
+
+// A few tests that validate that threadcache hrealloc works correctly and produces objects of the right size
+TEST_F(ThreadCacheTest, Hrealloc) {
+  void *h = t1->halloc(16);
+  void *h2 = t1->hrealloc(h, 32);
+  ASSERT_NE(h2, nullptr);
+}
+
+TEST_F(ThreadCacheTest, HreallocSize) {
+  void *h = t1->halloc(16);
+  void *h2 = t1->hrealloc(h, 32);
+  ASSERT_EQ(t1->get_size(h2), 32);
+}
