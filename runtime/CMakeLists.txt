@@ -41,6 +41,7 @@ set(CORE_SOURCES
 	core/Heap.cpp
   core/ThreadCache.cpp
 	core/SizeClass.cpp
+  core/HugeObjectAllocator.cpp
 
   core/HeapPage.cpp
   core/SizedPage.cpp
@@ -194,6 +195,7 @@ if (NOT ALASKA_DISABLE_TESTING)
 		test/sizeclass_test.cpp
 		test/magazine_test.cpp
 		test/threadcache_test.cpp
+		test/hugeobject_test.cpp
 	)
 
 	target_link_libraries(
