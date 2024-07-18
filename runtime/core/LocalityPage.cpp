@@ -42,7 +42,7 @@ namespace alaska {
   }
 
 
-  bool LocalityPage::release_local(alaska::Mapping &m, void *ptr) {
+  bool LocalityPage::release_local(const alaska::Mapping &m, void *ptr) {
     // Don't do anything other than
     auto md = find_md(ptr);
     md->mapping = nullptr;

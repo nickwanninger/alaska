@@ -13,7 +13,8 @@
 #include <alaska/Logger.hpp>
 #include <alaska/Runtime.hpp>
 #include <alaska/SizeClass.hpp>
-#include "alaska/utils.h"
+#include <alaska/alaska.hpp>
+#include <alaska/utils.h>
 
 
 
@@ -27,6 +28,20 @@ namespace alaska {
     handle_slab = runtime.handle_table.new_slab(this);
   }
 
+
+  void *ThreadCache::allocate_backing_data(const alaska::Mapping &m, size_t size) {
+    int cls = alaska::size_to_class(size);
+    auto *page = size_classes[cls];
+    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+    void *ptr = page->alloc(m, size);
+    if (unlikely(ptr == nullptr)) {
+      // OOM?
+      page = new_sized_page(cls);
+      ptr = page->alloc(m, size);
+      ALASKA_ASSERT(ptr != nullptr, "OOM!");
+    }
+    return ptr;
+  }
 
 
   SizedPage *ThreadCache::new_sized_page(int cls) {
@@ -53,19 +68,7 @@ namespace alaska {
     Mapping *m = new_mapping();
     log_info("ThreadCache::halloc mapping=%p", m);
 
-    int cls = alaska::size_to_class(size);
-
-    auto *page = size_classes[cls];
-    if (unlikely(page == nullptr)) page = new_sized_page(cls);
-
-
-    void *ptr = page->alloc(*m, size);
-    if (unlikely(ptr == nullptr)) {
-      // OOM?
-      page = new_sized_page(cls);
-      ptr = page->alloc(*m, size);
-      ALASKA_ASSERT(ptr != nullptr, "OOM!");
-    }
+    void *ptr = allocate_backing_data(*m, size);
 
     m->set_pointer(ptr);
     return m->to_handle();
@@ -73,8 +76,9 @@ namespace alaska {
 
 
   void *ThreadCache::hrealloc(void *handle, size_t new_size) {
-    // TODO: THERE IS A RACE HERE FROM UPDATING THE HANDLE!
-    // We might be able to fix this with a fancy compare and swap?
+    // TODO: There is a race here... I think its okay, as a realloc really should
+    // be treated like a UAF, and ideally another thread would not access the handle
+    // while it is being reallocated.
 
     alaska::Mapping *m = alaska::Mapping::from_handle(handle);
     void *ptr = m->get_pointer();
@@ -83,28 +87,44 @@ namespace alaska {
 
     size_t old_size = page->size_of(ptr);
 
-    printf("old: %zu, new: %zu\n", old_size, new_size);
+    void *old_data = m->get_pointer();
+    void *new_data = allocate_backing_data(*m, new_size);
 
-    log_fatal("ThreadCache::hrealloc not implemented yet!!\n");
+    // We should copy the minimum of the two sizes between the allocations.
+    size_t copy_size = old_size > new_size ? new_size : old_size;
+    memcpy(new_data, old_data, copy_size);
+
+
+    // Assign the handle to point to the new data
+    m->set_pointer(new_data);
+
+    // Free the original allocation
+    free_allocation(*m);
+
     return handle;
   }
 
-
-  void ThreadCache::hfree(void *handle) {
-    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
-    void *ptr = m->get_pointer();
-
+  void ThreadCache::free_allocation(const alaska::Mapping &m) {
+    void *ptr = m.get_pointer();
     // Grab the page from the global heap (walk the page table).
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
 
     if (page->is_owned_by(this)) {
       log_trace("Free handle %p locally", handle);
-      page->release_local(*m, ptr);
+      page->release_local(m, ptr);
     } else {
       log_trace("Free handle %p remotely", handle);
-      page->release_remote(*m, ptr);
+      page->release_remote(m, ptr);
     }
+  }
+
+
+  void ThreadCache::hfree(void *handle) {
+    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    // Free the allocation behind a mapping
+    free_allocation(*m);
+    m->set_pointer(nullptr);
     // Return the handle to the handle table.
     this->runtime.handle_table.put(m, this);
   }
