@@ -35,7 +35,7 @@ namespace alaska {
   }
 
 
-  bool SizedPage::release_local(alaska::Mapping &m, void *ptr) {
+  bool SizedPage::release_local(const alaska::Mapping &m, void *ptr) {
     long oid = object_to_ind(ptr);
 
     auto *h = ind_to_header(oid);
@@ -47,7 +47,7 @@ namespace alaska {
   }
 
 
-  bool SizedPage::release_remote(alaska::Mapping &m, void *ptr) {
+  bool SizedPage::release_remote(const alaska::Mapping &m, void *ptr) {
     auto oid = object_to_ind(ptr);
     auto *h = ind_to_header(oid);
     h->set_mapping(nullptr);

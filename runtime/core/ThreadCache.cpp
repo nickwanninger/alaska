@@ -13,7 +13,8 @@
 #include <alaska/Logger.hpp>
 #include <alaska/Runtime.hpp>
 #include <alaska/SizeClass.hpp>
-#include "alaska/utils.h"
+#include <alaska/alaska.hpp>
+#include <alaska/utils.h>
 
 
 
@@ -27,6 +28,20 @@ namespace alaska {
     handle_slab = runtime.handle_table.new_slab(this);
   }
 
+
+  void *ThreadCache::allocate_backing_data(const alaska::Mapping &m, size_t size) {
+    int cls = alaska::size_to_class(size);
+    auto *page = size_classes[cls];
+    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+    void *ptr = page->alloc(m, size);
+    if (unlikely(ptr == nullptr)) {
+      // OOM?
+      page = new_sized_page(cls);
+      ptr = page->alloc(m, size);
+      ALASKA_ASSERT(ptr != nullptr, "OOM!");
+    }
+    return ptr;
+  }
 
 
   SizedPage *ThreadCache::new_sized_page(int cls) {
@@ -53,19 +68,7 @@ namespace alaska {
     Mapping *m = new_mapping();
     log_info("ThreadCache::halloc mapping=%p", m);
 
-    int cls = alaska::size_to_class(size);
-
-    auto *page = size_classes[cls];
-    if (unlikely(page == nullptr)) page = new_sized_page(cls);
-
-
-    void *ptr = page->alloc(*m, size);
-    if (unlikely(ptr == nullptr)) {
-      // OOM?
-      page = new_sized_page(cls);
-      ptr = page->alloc(*m, size);
-      ALASKA_ASSERT(ptr != nullptr, "OOM!");
-    }
+    void *ptr = allocate_backing_data(*m, size);
 
     m->set_pointer(ptr);
     return m->to_handle();
@@ -90,21 +93,36 @@ namespace alaska {
   }
 
 
-  void ThreadCache::hfree(void *handle) {
-    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
-    void *ptr = m->get_pointer();
+    // Assign the handle to point to the new data
+    m->set_pointer(new_data);
 
+    // Free the original allocation
+    free_allocation(*m);
+
+    return handle;
+  }
+
+  void ThreadCache::free_allocation(const alaska::Mapping &m) {
+    void *ptr = m.get_pointer();
     // Grab the page from the global heap (walk the page table).
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
 
     if (page->is_owned_by(this)) {
       log_trace("Free handle %p locally", handle);
-      page->release_local(*m, ptr);
+      page->release_local(m, ptr);
     } else {
       log_trace("Free handle %p remotely", handle);
-      page->release_remote(*m, ptr);
+      page->release_remote(m, ptr);
     }
+  }
+
+
+  void ThreadCache::hfree(void *handle) {
+    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    // Free the allocation behind a mapping
+    free_allocation(*m);
+    m->set_pointer(nullptr);
     // Return the handle to the handle table.
     this->runtime.handle_table.put(m, this);
   }

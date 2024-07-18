@@ -59,7 +59,7 @@ namespace alaska {
 
    public:
     // Return the pointer. If it is free, return NULL
-    ALASKA_INLINE void *get_pointer(void) {
+    ALASKA_INLINE void *get_pointer(void) const {
 #ifdef ALASKA_SWAP_SUPPORT
       // If swapping is enabled, the top bit will be set, so we need to check that
       if (unlikely(alt.swap)) {

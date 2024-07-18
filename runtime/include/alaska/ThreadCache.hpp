@@ -35,7 +35,14 @@ namespace alaska {
 
     int get_id(void) const { return this->id; }
 
-   private:
+  private:
+
+    // Allocate backing data for a handle, but don't assign it yet.
+    void *allocate_backing_data(const alaska::Mapping &m, size_t size);
+
+    // Free an allocation behind a handle, but not the handle
+    void free_allocation(const alaska::Mapping &m);
+
     // Allocate a new handle table mapping
     alaska::Mapping *new_mapping(void);
     // Swap to a new sized page owned by this thread cache

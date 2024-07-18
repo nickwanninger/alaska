@@ -34,7 +34,7 @@ namespace alaska {
     ~LocalityPage() override;
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
-    bool release_local(alaska::Mapping &m, void *ptr) override;
+    bool release_local(const alaska::Mapping &m, void *ptr) override;
 
 
    private:

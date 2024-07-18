@@ -64,8 +64,8 @@ namespace alaska {
     // The size argument is already aligned and rounded up to a multiple of the rounding size.
     // Returns the data allocated, or NULL if it couldn't be.
     virtual void* alloc(const Mapping& m, AlignedSize size) = 0;
-    virtual bool release_local(Mapping& m, void* ptr) = 0;
-    virtual bool release_remote(Mapping& m, void* ptr) { return release_local(m, ptr); }
+    virtual bool release_local(const Mapping& m, void* ptr) = 0;
+    virtual bool release_remote(const Mapping& m, void* ptr) { return release_local(m, ptr); }
     // return the size of an object
     virtual size_t size_of(void* ptr) = 0;
     inline bool contains(void* ptr) const;
