@@ -3,7 +3,7 @@
 set(WARNINGS "-Wall -Wextra -Wno-cast-qual -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough -Wno-unused-private-field -Wno-covered-switch-default -Wno-attributes -Wno-cast-function-type ")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -gdwarf-4 ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti ")
 
 
@@ -57,10 +57,10 @@ set(CORE_SOURCES
 )
 
 add_library(alaska_core SHARED ${CORE_SOURCES})
+target_compile_options(alaska_core PRIVATE -nostdlib++ -nostdinc++)
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
-set_target_properties(alaska_core PROPERTIES SOVERSION 1)
+set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
 
-target_compile_options(alaska_core PUBLIC -nostdlib++)
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
 
@@ -91,13 +91,15 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
     rt/halloc.cpp
     rt/threads.cpp
     rt/barrier.cpp
+    rt/compat.c
   )
 
   target_include_directories(alaska PUBLIC include/)
   set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
   target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
-  target_compile_options(alaska PUBLIC -nostdlib++)
+  target_compile_options(alaska PUBLIC -nostdlib++ -nostdinc++)
 
   install(
     TARGETS alaska
@@ -145,7 +147,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   target_link_libraries(lifetimemalloc dl)
 
   add_bitcode(alaska_translate SOURCES core/translate.cpp)
-  add_bitcode(alaska_compat SOURCES core/compat.c)
+  add_bitcode(alaska_compat SOURCES rt/compat.c)
   add_bitcode(alaska_stub SOURCES
       stub/net.c
       stub/dtoa.c

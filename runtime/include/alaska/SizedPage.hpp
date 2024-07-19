@@ -23,10 +23,7 @@ namespace alaska {
   class SizedPage : public alaska::HeapPage {
    public:
     using HeapPage::HeapPage;
-    inline ~SizedPage(void) override {
-      abort();
-      // ...
-    }
+    ~SizedPage(void) override;
 
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;

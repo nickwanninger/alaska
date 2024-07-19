@@ -158,24 +158,24 @@ namespace alaska {
 
 
 
-  template <typename T, typename... Args>
-  T *make_object(Args &&...args) {
-    // Allocate raw memory for the object
-    void *ptr = alaska_internal_malloc(sizeof(T));
-    // Use placement new to construct the object in the allocated memory
-    new (ptr) T(args...);
-    return (T *)ptr;
-  }
+  // template <typename T, typename... Args>
+  // T *make_object(Args &&...args) {
+  //   // Allocate raw memory for the object
+  //   void *ptr = alaska_internal_malloc(sizeof(T));
+  //   // Use placement new to construct the object in the allocated memory
+  //   new (ptr) T(args...);
+  //   return (T *)ptr;
+  // }
 
-  template <typename T>
-  void delete_object(T *ptr) {
-    if (ptr) {
-      // Call the destructor explicitly
-      ptr->~T();
-      // Free the raw memory
-      alaska_internal_free(ptr);
-    }
-  }
+  // template <typename T>
+  // void delete_object(T *ptr) {
+  //   if (ptr) {
+  //     // Call the destructor explicitly
+  //     ptr->~T();
+  //     // Free the raw memory
+  //     alaska_internal_free(ptr);
+  //   }
+  // }
 
 
   // Construct an array of length `length` with default constructors
@@ -186,7 +186,7 @@ namespace alaska {
 
     for (size_t i = 0; i < length; i++) {
       // Use placement new to construct the object in the allocated memory
-      new (ptr + i) T();
+      ::new (ptr + i) T();
     }
     return ptr;
   }
@@ -200,5 +200,12 @@ namespace alaska {
     alaska_internal_free((void *)array);
   }
 
+
+
+  class InternalHeapAllocated {
+   public:
+    void *operator new(size_t size) { return alaska_internal_malloc(size); }
+    void operator delete(void *ptr) { alaska_internal_free(ptr); }
+  };
 
 }  // namespace alaska

@@ -206,7 +206,7 @@ namespace alaska {
     alaska::Mapping *m = alaska::Mapping::from_handle(handle);
     void *ptr = m->get_pointer();
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
-    if (page == nullptr) return 0;
+    if (page == nullptr) return this->runtime.heap.huge_allocator.size_of(ptr);
     return page->size_of(ptr);
   }
 

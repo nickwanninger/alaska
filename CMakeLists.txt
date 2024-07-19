@@ -8,6 +8,9 @@ project(Alaska C CXX ASM)
 set(ALASKA_ENABLE_COMPILER ON CACHE BOOL "Build the Alaska Compiler, binding to LLVM")
 set(ALASKA_DISABLE_TESTING OFF CACHE BOOL "Disable testing the core runtime with gtest")
 
+
+
+set(ALASKA_VERSION 2)
 # include(config.cmake OPTIONAL)
 # configure_file(config.h.in config.h)
 
@@ -54,6 +57,9 @@ endif()
 
 
 
+add_subdirectory(runtime)
+
+
 if(ALASKA_ENABLE_COMPILER)
   # configure LLVM
   find_package(LLVM 16 REQUIRED CONFIG)
@@ -68,4 +74,3 @@ if(ALASKA_ENABLE_COMPILER)
   add_subdirectory(compiler)
 endif(ALASKA_ENABLE_COMPILER)
 
-add_subdirectory(runtime)

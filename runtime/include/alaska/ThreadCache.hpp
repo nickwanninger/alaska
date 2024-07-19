@@ -15,6 +15,7 @@
 #include <alaska/HeapPage.hpp>
 #include <alaska/HandleTable.hpp>
 #include <alaska/LocalityPage.hpp>
+#include <alaska/alaska.hpp>
 
 namespace alaska {
 
@@ -25,7 +26,7 @@ namespace alaska {
   // *not* manage where thread caches are used. It is assumed
   // something else manages storing a pointer to a ThreadCache in some
   // thread-local variable
-  class ThreadCache final {
+  class ThreadCache final : public alaska::InternalHeapAllocated {
    public:
     ThreadCache(int id, alaska::Runtime &rt);
 

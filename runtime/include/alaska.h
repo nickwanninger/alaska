@@ -23,6 +23,9 @@ extern void *hrealloc(void *handle, size_t sz);
 // Free a given handle. Is a no-op if ptr=null
 extern void hfree(void *ptr);
 
+
+extern size_t alaska_usable_size(void *ptr);
+
 // "Go do something in the runtime", whatever that means in the active service. Most of the time,
 // this will lead to a "slow" stop-the-world event, as the runtime must know all active/locked
 // handles in the application as to avoid corrupting program state.

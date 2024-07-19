@@ -15,7 +15,6 @@
 #include <alaska/Heap.hpp>
 #include "alaska/HeapPage.hpp"
 #include "alaska/SizeClass.hpp"
-#include "alaska/SizedPage.hpp"
 #include "alaska/utils.h"
 #include <alaska/ThreadCache.hpp>
 
@@ -192,7 +191,7 @@ namespace alaska {
     log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
 
     // Allocate a new SizedPage for that memory
-    auto *p = alaska::make_object<SizedPage>(memory);
+    auto *p = new SizedPage(memory);
     p->set_size_class(cls);
 
 

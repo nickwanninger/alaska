@@ -19,6 +19,8 @@
 namespace alaska {
 
 
+  SizedPage::~SizedPage() { return; }
+
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
     // printf("sized page alloc %zu bytes in %zu class\n", size, object_size);
     void *o = allocator.alloc();

@@ -39,7 +39,8 @@ namespace alaska {
   // A handle slab is a slice of the handle table that is used to allocate
   // mappings. It is a fixed size, and no two threads will allocate from the
   // same slab at the same time.
-  struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache> {
+  struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache>,
+                            public alaska::InternalHeapAllocated {
     slabidx_t idx;                           // Which slab is this?
     HandleSlabState state = SlabStateEmpty;  // What is the state of this slab?
     uint32_t nfree = 0;                      // how many free mappings are in this slab?
@@ -108,7 +109,7 @@ namespace alaska {
 
 
     // Free/release *some* mapping
-    void put(alaska::Mapping *m, alaska::ThreadCache *owner = (alaska::ThreadCache*)0x1000UL);
+    void put(alaska::Mapping *m, alaska::ThreadCache *owner = (alaska::ThreadCache *)0x1000UL);
 
    protected:
     friend HandleSlab;

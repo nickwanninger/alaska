@@ -32,7 +32,7 @@ namespace ck {
   template <typename T>
   class single_list {
    private:
-    struct Node {
+    struct Node : public alaska::InternalHeapAllocated {
       explicit Node(T&& v)
           : value(move(v)) {}
       explicit Node(const T& v)
@@ -57,7 +57,7 @@ namespace ck {
     void clear() {
       for (auto* node = m_head; node;) {
         auto* next = node->next;
-        alaska::delete_object(node);
+        delete node;
         node = next;
       }
       m_head = nullptr;
@@ -87,12 +87,12 @@ namespace ck {
       T value = move(first());
       if (m_tail == m_head) m_tail = nullptr;
       m_head = m_head->next;
-      alaska::delete_object(prev_head);
+      delete prev_head;
       return value;
     }
 
     void append(const T& value) {
-      auto* node = alaska::make_object<Node>(value);
+      auto* node = new Node(value);
       if (!m_head) {
         m_head = node;
         m_tail = node;
@@ -103,7 +103,7 @@ namespace ck {
     }
 
     void append(T&& value) {
-      auto* node = alaska::make_object<Node>(move(value));
+      auto* node = new Node(move(value));
       if (!m_head) {
         m_head = node;
         m_tail = node;
@@ -167,7 +167,7 @@ namespace ck {
       if (m_head == iterator.m_node) m_head = iterator.m_node->next;
       if (m_tail == iterator.m_node) m_tail = iterator.m_prev;
       if (iterator.m_prev) iterator.m_prev->next = iterator.m_node->next;
-      alaska::delete_object(iterator.m_node);
+      delete iterator.m_node;
     }
 
    private:

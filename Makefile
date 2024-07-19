@@ -80,9 +80,6 @@ cfg: menuconfig
 menuconfig:
 	@python3 tools/menuconfig.py
 
-redis: alaska
-	$(MAKE) -C test/redis
-
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
@@ -98,5 +95,8 @@ local/bin/clang:
 	tools/get_llvm.sh
 
 
+
+redis: FORCE
+	nix develop --command bash -c "source enable && make -C test/redis"
 
 FORCE: # anything you want to force, depend on this

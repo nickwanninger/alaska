@@ -11,7 +11,7 @@
 
 
 #include <alaska/Runtime.hpp>
-#include "alaska/ThreadCache.hpp"
+#include <alaska/ThreadCache.hpp>
 #include <alaska.h>
 #include <errno.h>
 
@@ -32,6 +32,7 @@ static auto get_tc(void) {
 
 static void *_halloc(size_t sz, int zero) {
   void *result = get_tc()->halloc(sz, zero);
+  printf("halloc(%8zu) = %p - %p\n", sz, result, (char *)result + sz);
 
   // This seems right...
   if (result == NULL) errno = ENOMEM;
@@ -68,12 +69,14 @@ void *hrealloc(void *handle, size_t new_size) {
   }
 
   handle = tc->hrealloc(handle, new_size);
+  printf("hrealloc(%p, %zu) = %p\n", handle, new_size, handle);
   return handle;
 }
 
 
 
 void hfree(void *ptr) {
+  printf("hfree(%p)\n", ptr);
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
@@ -88,3 +91,8 @@ void hfree(void *ptr) {
   // Simply ask the thread cache to free it!
   get_tc()->hfree(ptr);
 }
+
+
+
+
+size_t alaska_usable_size(void *ptr) { return get_tc()->get_size(ptr); }

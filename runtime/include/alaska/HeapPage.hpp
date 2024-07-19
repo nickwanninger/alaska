@@ -57,10 +57,10 @@ namespace alaska {
 
   // This class is the base-level class for a heap page. A heap page is a
   // single contiguous block of memory that is managed by some policy.
-  class HeapPage : public alaska::OwnedBy<ThreadCache> {
+  class HeapPage : public alaska::OwnedBy<ThreadCache>, public alaska::InternalHeapAllocated {
    public:
     HeapPage(void* backing_memory);
-    virtual ~HeapPage() {}
+    virtual ~HeapPage();
 
     // The size argument is already aligned and rounded up to a multiple of the rounding size.
     // Returns the data allocated, or NULL if it couldn't be.

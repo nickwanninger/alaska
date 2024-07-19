@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 namespace alaska {
-  static Runtime* g_runtime = nullptr;
+  static Runtime *g_runtime = nullptr;
 
 
   Runtime::Runtime() {
@@ -32,7 +32,7 @@ namespace alaska {
   }
 
 
-  Runtime& Runtime::get() {
+  Runtime &Runtime::get() {
     ALASKA_ASSERT(g_runtime != nullptr, "Runtime not initialized");
     return *g_runtime;
   }
@@ -101,7 +101,7 @@ namespace alaska {
 
 
 
-  void Runtime::dump(FILE* stream) {
+  void Runtime::dump(FILE *stream) {
     //
     fprintf(stream, "Alaska Runtime Information:\n");
     handle_table.dump(stream);
@@ -110,7 +110,7 @@ namespace alaska {
 
 
   ThreadCache *Runtime::new_threadcache(void) {
-    auto tc = alaska::make_object<ThreadCache>(next_thread_cache_id++, *this);
+    auto tc = new ThreadCache(next_thread_cache_id++, *this);
     tcs_lock.lock();
     tcs.add(tc);
     tcs_lock.unlock();
@@ -120,7 +120,7 @@ namespace alaska {
   void Runtime::del_threadcache(ThreadCache *tc) {
     tcs_lock.lock();
     tcs.remove(tc);
-    alaska::delete_object<ThreadCache>(tc);
+    delete tc;
     tcs_lock.unlock();
   }
 
