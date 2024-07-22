@@ -102,6 +102,9 @@ namespace alaska {
     log_info("ThreadCache::halloc mapping=%p", m);
 
     void *ptr = allocate_backing_data(*m, size);
+    if (zero) {
+      memset(ptr, 0, size);
+    }
 
     m->set_pointer(ptr);
     return m->to_handle();
@@ -123,8 +126,6 @@ namespace alaska {
     void *new_data = NULL;
     void *return_value = handle;
 
-    // We should copy the minimum of the two sizes between the allocations.
-    size_t copy_size = original_size > new_size ? new_size : original_size;
 
     // There are two case here:
     if (not old_was_handle) {
@@ -140,6 +141,8 @@ namespace alaska {
       original_size = page->size_of(original_data);
     }
 
+    // We should copy the minimum of the two sizes between the allocations.
+    size_t copy_size = original_size > new_size ? new_size : original_size;
 
 
     // So now we have the original data and size, we need to make a new allocation and copy things
@@ -147,43 +150,36 @@ namespace alaska {
 
     if (old_was_handle and new_data_is_huge) {
       // 1. handle -> huge - we need to free the original handle and return a new huge object
-      void *new_data = this->runtime.heap.huge_allocator.allocate(new_size);  // Allocate
-      memcpy(new_data, original_data, copy_size);                             // Copy
-      hfree(handle);  // Free the original handle
+      new_data = this->runtime.heap.huge_allocator.allocate(new_size);  // Allocate
+      memcpy(new_data, original_data, copy_size);                       // Copy
+      hfree(handle);                                                    // Free the original handle
       return_value = new_data;
     } else if (not old_was_handle and new_data_is_huge) {
       // 2. huge -> huge - we need to free the original huge object and return a new huge object
-      void *new_data = this->runtime.heap.huge_allocator.allocate(new_size);  // Allocate
-      memcpy(new_data, original_data, copy_size);                             // Copy
+      new_data = this->runtime.heap.huge_allocator.allocate(new_size);  // Allocate
+      memcpy(new_data, original_data, copy_size);                       // Copy
       return_value = new_data;
     } else if (old_was_handle and not new_data_is_huge) {
       // 3. handle -> handle - we need to copy the data and update the handle
-      void *new_data = this->allocate_backing_data(*m, new_size);  // Allocate
-      memcpy(new_data, original_data, copy_size);                  // Copy
-      m->set_pointer(new_data);                                    // Update the handle
-      free_allocation(*m);                                         // Free the original allocation
+      new_data = this->allocate_backing_data(*m, new_size);  // Allocate
+      memcpy(new_data, original_data, copy_size);            // Copy
+      free_allocation(*m);                                   // Free the original allocation
+      m->set_pointer(new_data);                              // Update the handle
       return_value = handle;
     } else if (not old_was_handle and not new_data_is_huge) {
       // 4. huge -> handle - allocate a new handle, copy the data, and free the original huge object
-      Mapping *m = new_mapping();                                  // Allocate a new handle
-      void *new_data = this->allocate_backing_data(*m, new_size);  // Allocate
-      memcpy(new_data, original_data, copy_size);                  // Copy
-      m->set_pointer(new_data);                                    // Update the handle
-      this->runtime.heap.huge_allocator.free(original_data);       // Free the original huge object
+      Mapping *m = new_mapping();                             // Allocate a new handle
+      new_data = this->allocate_backing_data(*m, new_size);   // Allocate
+      memcpy(new_data, original_data, copy_size);             // Copy
+      m->set_pointer(new_data);                               // Update the handle
+      this->runtime.heap.huge_allocator.free(original_data);  // Free the original huge object
       return_value = m->to_handle();
     }
 
+    // printf("hrealloc %p %p %8zu -> %p %p %8zu\n", handle, original_data, original_size,
+    //     return_value, new_data, new_size);
 
     return return_value;
-
-
-    // Assign the handle to point to the new data
-    m->set_pointer(new_data);
-
-    // Free the original allocation
-    free_allocation(*m);
-
-    return handle;
   }
 
 
