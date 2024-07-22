@@ -21,7 +21,6 @@ static __thread alaska::ThreadCache *g_tc = nullptr;
 
 static auto get_tc(void) {
   if (unlikely(g_tc == nullptr)) {
-    printf("allocating a new thread cache\n");
     g_tc = alaska::Runtime::get().new_threadcache();
   }
   return g_tc;
@@ -32,7 +31,6 @@ static auto get_tc(void) {
 
 static void *_halloc(size_t sz, int zero) {
   void *result = get_tc()->halloc(sz, zero);
-  printf("halloc(%8zu) = %p - %p\n", sz, result, (char *)result + sz);
 
   // This seems right...
   if (result == NULL) errno = ENOMEM;
@@ -49,7 +47,6 @@ void *hrealloc(void *handle, size_t new_size) {
   auto *tc = get_tc();
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) {
-    // printf("realloc edge case: NULL pointer (sz=%zu)\n", new_size);
     return halloc(new_size);
   }
   auto *m = alaska::Mapping::from_handle_safe(handle);
@@ -69,14 +66,12 @@ void *hrealloc(void *handle, size_t new_size) {
   }
 
   handle = tc->hrealloc(handle, new_size);
-  printf("hrealloc(%p, %zu) = %p\n", handle, new_size, handle);
   return handle;
 }
 
 
 
 void hfree(void *ptr) {
-  printf("hfree(%p)\n", ptr);
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
