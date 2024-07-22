@@ -12,9 +12,11 @@
 
 #include <alaska/Heap.hpp>
 #include <alaska/HugeObjectAllocator.hpp>
+#include <alaska/list_head.h>
 
 namespace alaska {
-  HugeObjectAllocator::HugeObjectAllocator() {}
+  HugeObjectAllocator::HugeObjectAllocator() { INIT_LIST_HEAD(&this->allocations); }
+
   HugeObjectAllocator::~HugeObjectAllocator() {
     HugeHeader *entry, *temp;
     // Iterate over the list safely
@@ -30,7 +32,7 @@ namespace alaska {
   void* HugeObjectAllocator::allocate(size_t size) {
     ck::scoped_lock l(m_lock);
 
-    size_t mapping_size = (size + 4095) & ~4095;
+    size_t mapping_size = ((size + sizeof(HugeHeader)) + 4095) & ~4095;
     if (mapping_size < 4096) {
       mapping_size = 4096;
     }
@@ -95,4 +97,4 @@ namespace alaska {
     // If no matching header is found, return nullptr
     return nullptr;
   }
-}  // namespace alaska
+}  // namespace alaska}  // namespace alaska
