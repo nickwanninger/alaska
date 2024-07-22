@@ -126,8 +126,6 @@ namespace alaska {
     void *new_data = NULL;
     void *return_value = handle;
 
-    // We should copy the minimum of the two sizes between the allocations.
-    size_t copy_size = original_size > new_size ? new_size : original_size;
 
     // There are two case here:
     if (not old_was_handle) {
@@ -143,6 +141,8 @@ namespace alaska {
       original_size = page->size_of(original_data);
     }
 
+    // We should copy the minimum of the two sizes between the allocations.
+    size_t copy_size = original_size > new_size ? new_size : original_size;
 
 
     // So now we have the original data and size, we need to make a new allocation and copy things
