@@ -17,6 +17,7 @@
 #include <alaska/SizeClass.hpp>
 #include <alaska/Magazine.hpp>
 #include <alaska/HugeObjectAllocator.hpp>
+#include <alaska/track.hpp>
 #include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
@@ -30,7 +31,13 @@ namespace alaska {
   // block of memory managed by the PageManager. Eventually,
   // we will split it up into different mmap regions, but that's
   // just a problem solved by another layer of allocators.
+
+#ifdef ALASKA_TRACK_VALGRIND
+  static constexpr uint64_t heap_size_shift_factor = 33;
+#else
   static constexpr uint64_t heap_size_shift_factor = 37;
+#endif
+
   static constexpr size_t heap_size = 1LU << heap_size_shift_factor;
 
 

@@ -29,20 +29,7 @@
 #define MI_INTPTR_SIZE (1 << MI_INTPTR_SHIFT)
 #define MI_INTPTR_BITS (MI_INTPTR_SIZE * 8)
 
-
-// #if (MI_MAX_ALIGN_SIZE > 4 * MI_INTPTR_SIZE)
-// #error "define alignment for more than 4x word size for this platform"
-// #elif (MI_MAX_ALIGN_SIZE > 2 * MI_INTPTR_SIZE)
-// #define MI_ALIGN4W  // 4 machine words minimal alignment
-// #elif (MI_MAX_ALIGN_SIZE > MI_INTPTR_SIZE)
-// #define MI_ALIGN2W  // 2 machine words minimal alignment
-// #else
-// // ok, default alignment is 1 word
-// #endif
-
-
 #define MI_ALIGN4W
-
 
 
 #if (SIZE_MAX / 2) > LONG_MAX

@@ -62,7 +62,6 @@ namespace alaska {
 
 
 
-
   void SizedPage::set_size_class(int cls) {
     size_class = cls;
 
@@ -96,33 +95,7 @@ namespace alaska {
   }
 
 
-  void SizedPage::defragment(void) {
-    //
-  }
-
-
-  void SizedPage::validate(void) {
-    // alaska::Block *b;
-    // int ind;
-    // ind = 0;
-    // for (b = this->local_free; b != NULL; b = b->next) {
-    //   ALASKA_ASSERT(contains(b),
-    //       "Local free list must contains blocks that are in the page. Index %d. b=%p", ind, b);
-    //   ALASKA_ASSERT(!is_header(b),
-    //       "Local free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
-    //   ind++;
-    // }
-
-    // ind = 0;
-    // for (b = this->remote_free; b != NULL; b = b->next) {
-    //   ALASKA_ASSERT(contains(b),
-    //       "Remote free list must contains blocks that are in the page. Index %d, b=%p", ind, b);
-    //   ALASKA_ASSERT(!is_header(b),
-    //       "Remote free list must contains blocks that are not headers. Index %d, b=%p", ind, b);
-    //   ind++;
-    // }
-  }
-
-
+  void SizedPage::defragment(void) {}
+  void SizedPage::validate(void) {}
 
 }  // namespace alaska

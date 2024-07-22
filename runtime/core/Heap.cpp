@@ -161,12 +161,7 @@ namespace alaska {
     log_debug("Heap: Initialized heap");
   }
 
-
-
-  Heap::~Heap(void) {
-    // dump(stderr);
-  }
-
+  Heap::~Heap(void) {}
 
   SizedPage *Heap::get_sizedpage(size_t size, ThreadCache *owner) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.

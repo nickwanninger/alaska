@@ -15,7 +15,7 @@
 #include <sys/cdefs.h>
 #include <alaska/ShardedFreeList.hpp>
 #include <alaska/HeapPage.hpp>
-
+#include <alaska/track.hpp>
 
 namespace alaska {
 
@@ -34,8 +34,14 @@ namespace alaska {
     void *alloc(void);
 
     // Free objects. NOTE: no checks are made that this pointer is valid!
-    inline void release_local(void *ptr) { free_list.free_local(ptr); }
-    inline void release_remote(void *ptr) { free_list.free_remote(ptr); }
+    inline void release_local(void *ptr) {
+      free_list.free_local(ptr);
+      alaska_track_free(ptr, 0);
+    }
+    inline void release_remote(void *ptr) {
+      free_list.free_remote(ptr);
+      alaska_track_free(ptr, 0);
+    }
 
     void configure(void *objects, size_t object_size, long object_count);
 
@@ -64,6 +70,8 @@ namespace alaska {
     if (unlikely(object == nullptr)) {
       return alloc_slow();
     }
+
+    alaska_track_malloc_size(object, object_size, object_size, 0);
 
     return object;
   }

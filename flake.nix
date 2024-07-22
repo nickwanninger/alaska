@@ -24,6 +24,9 @@
               doCheck = false;
             })
 
+            valgrind
+            valgrind.dev
+
             coreutils # For our bash scripts
             python3 # For running bin/alaska-transform
             file
