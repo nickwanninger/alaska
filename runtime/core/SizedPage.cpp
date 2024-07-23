@@ -95,7 +95,10 @@ namespace alaska {
   }
 
 
-  void SizedPage::defragment(void) {}
+  void SizedPage::compact(void) {}
+
+
+
   void SizedPage::validate(void) {}
 
 }  // namespace alaska

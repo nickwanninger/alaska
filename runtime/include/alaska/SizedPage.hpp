@@ -39,7 +39,7 @@ namespace alaska {
     int get_size_class(void) const { return size_class; }
 
 
-    void defragment(void);
+    void compact(void);
 
     // Run through the page and validate as much info as possible w/ asserts.
     void validate(void);
