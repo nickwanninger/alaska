@@ -92,7 +92,7 @@ namespace alaska {
 
 
   static void *allocate_page_table(void) {
-    return calloc(1LU << bits_per_pt_level, sizeof(void *));
+    return alaska_internal_calloc(1LU << bits_per_pt_level, sizeof(void *));
   }
 
   HeapPageTable::HeapPageTable(void *heap_start)
