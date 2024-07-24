@@ -31,8 +31,8 @@ namespace alaska {
     bool release_remote(const alaska::Mapping &m, void *ptr) override;
     size_t size_of(void *ptr) override;
 
-    // How many free slots are there?
-    long available(void) { return capacity - live_objects; }
+    // How many free slots are there? (We return an estimate!)
+    inline long available(void) { return this->allocator.some_available(); }
 
 
     void set_size_class(int cls);

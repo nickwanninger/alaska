@@ -45,6 +45,11 @@ namespace alaska {
 
     void configure(void *objects, size_t object_size, long object_count);
 
+    inline bool some_available(void) {
+      return free_list.has_local_free() || free_list.has_remote_free() ||
+             (bump_next != objects_end);
+    }
+
     // return the index of the object
     inline long object_index(void *ob) {
       return ((uintptr_t)ob - (uintptr_t)this->objects_start) / this->object_size;
@@ -64,7 +69,7 @@ namespace alaska {
 
 
 
-  inline void *SizedAllocator::alloc(void) {
+  __attribute__((always_inline)) inline void *SizedAllocator::alloc(void) {
     void *object = free_list.pop();
 
     if (unlikely(object == nullptr)) {

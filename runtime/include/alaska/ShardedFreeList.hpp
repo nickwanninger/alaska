@@ -24,6 +24,8 @@ namespace alaska {
     // Pop from the local free list. Return null if the local free list is empty
     void *pop(void);
     inline bool has_local_free(void) const { return local_free != nullptr; }
+    // WEAK ORDERING!
+    inline bool has_remote_free(void) const { return remote_free != nullptr; }
 
     // Ask the free list to swap remote_free into the local_free list atomically.
     void swap(void);

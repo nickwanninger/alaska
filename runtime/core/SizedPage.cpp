@@ -22,7 +22,6 @@ namespace alaska {
   SizedPage::~SizedPage() { return; }
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
-    // printf("sized page alloc %zu bytes in %zu class\n", size, object_size);
     void *o = allocator.alloc();
     if (unlikely(o == nullptr)) return nullptr;
 
@@ -31,19 +30,14 @@ namespace alaska {
     Header *h = this->ind_to_header(oid);
     h->set_mapping(const_cast<alaska::Mapping *>(&m));
     h->size_slack = this->object_size - size;
-
-    atomic_inc(live_objects, 1);
     return o;
   }
 
 
   bool SizedPage::release_local(const alaska::Mapping &m, void *ptr) {
     long oid = object_to_ind(ptr);
-
     auto *h = ind_to_header(oid);
     h->set_mapping(nullptr);
-    atomic_dec(live_objects, 1);
-
     allocator.release_local(ptr);
     return true;
   }
@@ -54,9 +48,6 @@ namespace alaska {
     auto *h = ind_to_header(oid);
     h->set_mapping(nullptr);
     allocator.release_remote(ptr);
-
-    atomic_dec(live_objects, 1);
-
     return true;
   }
 

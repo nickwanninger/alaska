@@ -142,7 +142,7 @@ namespace alaska {
     // Grab the entry from the root page table.
     HeapPage **pt1 = root[ind1];
     // It is null, allocate a new entry and set it.
-    if (pt1 == nullptr) {
+    if (unlikely(pt1 == nullptr)) {
       // If the first level page table entry is null, we need to allocate a new page table.
       pt1 = (HeapPage **)allocate_page_table();
       root[ind1] = pt1;
