@@ -18,8 +18,6 @@
 #include <alaska.h>
 #include <alaska/utils.h>
 #include <alaska/alaska.hpp>
-#include <alaska/service.hpp>
-#include <alaska/table.hpp>
 #include <alaska/barrier.hpp>
 
 
@@ -126,9 +124,7 @@ static void clear_pending_signals(void);
 
 
 
-void alaska_remove_from_local_lock_list(void* ptr) {
-  return;
-}
+void alaska_remove_from_local_lock_list(void* ptr) { return; }
 static void alaska_dump_thread_states_r(void) {
   struct alaska_thread_info* pos;
   list_for_each_entry(pos, &all_threads, list_head) {
@@ -171,12 +167,13 @@ static void record_handle(void* possible_handle, bool marked) {
   if (m == NULL) return;
 
   // Was it well formed? Is it in the table?
-  if (m < alaska::table::begin() || m >= alaska::table::end()) {
-    return;
-  }
+  // if (m < alaska::table::begin() || m >= alaska::table::end()) {
+  //   return;
+  // }
 
   if (m->is_free()) return;
 
+  if (marked) printf("pinned %p\n", possible_handle);
   m->set_pinned(marked);
   // alaska::service::commit_lock_status(m, marked);
 }
@@ -367,7 +364,6 @@ void alaska::barrier::begin(void) {
   // Take locks so nobody else tries to signal a barrier.
   pthread_mutex_lock(&barrier_lock);
   pthread_mutex_lock(&all_threads_lock);
-  auto start = alaska_timestamp();
 
 
   // First, mark everyone as *not* in the barrier.
@@ -415,10 +411,9 @@ void alaska::barrier::begin(void) {
 
   (void)retries;
   (void)signals_sent;
-  auto end = alaska_timestamp();
   // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
-  // dump_thread_states();
-  // printf(" retries = %d, signals = %d\n", retries, signals_sent);
+  dump_thread_states();
+  printf(" retries = %d, signals = %d\n", retries, signals_sent);
 }
 
 
@@ -439,7 +434,7 @@ void alaska::barrier::end(void) {
 
 
 void alaska_barrier(void) {
-  alaska::service::barrier();
+  // alaska::service::barrier();
 }
 
 static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
@@ -678,7 +673,7 @@ void alaska_blob_init(struct alaska_blob_config* cfg) {
   size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
   mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
 
-  // printf("%p %p\n", cfg->code_start, cfg->code_end);
+  printf("%p %p\n", cfg->code_start, cfg->code_end);
 
   if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }

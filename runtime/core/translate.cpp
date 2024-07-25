@@ -69,8 +69,6 @@ void *alaska_translate_escape(void *ptr) {
 static __attribute_noinline__ void track(uintptr_t handle) { fprintf(stderr, "tr %p\n", handle); }
 
 void *alaska_translate(void *ptr) {
-  printf("translate %p\n", (uintptr_t)ptr);
-
   int64_t bits = (int64_t)ptr;
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;

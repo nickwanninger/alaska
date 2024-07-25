@@ -33,7 +33,7 @@ namespace alaska {
 
   void *ThreadCache::allocate_backing_data(const alaska::Mapping &m, size_t size) {
     int cls = alaska::size_to_class(size);
-    auto *page = size_classes[cls];
+    SizedPage *page = size_classes[cls];
     if (unlikely(page == nullptr)) page = new_sized_page(cls);
     void *ptr = page->alloc(m, size);
     if (unlikely(ptr == nullptr)) {

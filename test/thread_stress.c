@@ -6,14 +6,14 @@
 
 
 #define MAX_SIZE 512
-#define ARRAY_LENGTH (4096 * 128)
+#define ARRAY_LENGTH (4096 * 1024 * 2)
 void *objects[ARRAY_LENGTH];
 
 extern void alaska_dump(void);
 
 
 int main() {
-  for (int run = 0; run < 100; run++) {
+  for (int run = 0; run < 25; run++) {
     printf("Allocate...\n");
     unsigned int seed = 0;
 

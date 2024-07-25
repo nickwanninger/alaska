@@ -3,6 +3,7 @@
 #include <ck/template_lib.h>
 #include <ck/single_list.h>
 #include <ck/vec.h>
+#include <alaska/utils.h>
 #include <alaska/alaska.hpp>
 
 namespace ck {
@@ -314,7 +315,7 @@ namespace ck {
   void HashTable<T, TraitsForT>::clear() {
     TemporaryChange change(m_clearing, (bool)true);
     if (m_buckets) {
-      delete_object_array(m_buckets, m_capacity);
+      alaska::delete_object_array(m_buckets, m_capacity);
       m_buckets = nullptr;
     }
     m_capacity = 0;
