@@ -210,7 +210,9 @@ namespace alaska {
     auto m = handle_slab->alloc();
 
     if (unlikely(m == NULL)) {
-      handle_slab = runtime.handle_table.new_slab(this);
+      auto new_handle_slab = runtime.handle_table.new_slab(this);
+      this->handle_slab->set_owner(NULL);
+      this->handle_slab = new_handle_slab;
       // This BETTER work!
       m = handle_slab->alloc();
     }
