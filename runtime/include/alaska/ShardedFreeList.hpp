@@ -12,7 +12,7 @@
 #pragma once
 
 #include <alaska/utils.h>
-
+#include <stdio.h>
 
 namespace alaska {
 
@@ -26,6 +26,12 @@ namespace alaska {
     inline bool has_local_free(void) const { return local_free != nullptr; }
     // WEAK ORDERING!
     inline bool has_remote_free(void) const { return remote_free != nullptr; }
+
+
+    inline long num_free(void) const {
+      // atomics?
+      return num_local_free + num_remote_free;
+    }
 
     // Ask the free list to swap remote_free into the local_free list atomically.
     void swap(void);
@@ -42,6 +48,10 @@ namespace alaska {
 
     Block *local_free = nullptr;
     Block *remote_free = nullptr;
+
+
+    long num_local_free = 0;
+    long num_remote_free = 0;
   };
 
 
@@ -51,7 +61,11 @@ namespace alaska {
   inline void *
   ShardedFreeList::pop(void) {
     void *b = (void *)local_free;
-    if (unlikely(b != nullptr)) local_free = local_free->next;
+    if (unlikely(b != nullptr)) {
+      num_local_free--;
+      local_free = local_free->next;
+    }
+
     return b;
   }
 
@@ -65,6 +79,10 @@ namespace alaska {
       this->local_free = this->remote_free;
     } while (!__atomic_compare_exchange_n(
         &this->remote_free, &this->local_free, nullptr, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+    // ??? ATOMICS ???
+    num_local_free += num_remote_free;
+    atomic_set(num_remote_free, 0);
   }
 
 
@@ -76,6 +94,7 @@ namespace alaska {
     auto *b = (Block *)p;
     b->next = local_free;
     local_free = b;
+    num_local_free++;
   }
 
 
@@ -89,6 +108,9 @@ namespace alaska {
       block->next = *list;
     } while (!__atomic_compare_exchange_n(
         list, &block->next, block, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+    // num_remote_free ++;
+    atomic_inc(num_remote_free, 1);
   }
 
 }  // namespace alaska

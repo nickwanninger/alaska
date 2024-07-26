@@ -43,7 +43,6 @@ namespace alaska {
                             public alaska::InternalHeapAllocated {
     slabidx_t idx;                           // Which slab is this?
     HandleSlabState state = SlabStateEmpty;  // What is the state of this slab?
-    uint32_t nfree = 0;                      // how many free mappings are in this slab?
     HandleTable &table;                      // Which table does this belong to?
 
     HandleSlab *next = nullptr;                // The next slab in the queue

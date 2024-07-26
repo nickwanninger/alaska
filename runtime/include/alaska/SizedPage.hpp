@@ -32,7 +32,7 @@ namespace alaska {
     size_t size_of(void *ptr) override;
 
     // How many free slots are there? (We return an estimate!)
-    inline long available(void) { return this->allocator.some_available(); }
+    inline long available(void) { return this->allocator.num_free(); }
 
 
     void set_size_class(int cls);

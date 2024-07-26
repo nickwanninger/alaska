@@ -50,14 +50,27 @@ namespace alaska {
              (bump_next != objects_end);
     }
 
+
+    inline long num_free(void) const {
+      return num_free_in_free_list() + num_free_in_bump_allocator();
+    }
+
+    inline long num_free_in_free_list(void) const { return free_list.num_free(); }
+
+    inline long num_free_in_bump_allocator(void) const {
+      return (((uintptr_t)objects_end - (uintptr_t)bump_next) / object_size);
+    }
+
+
     // return the index of the object
     inline long object_index(void *ob) {
       return ((uintptr_t)ob - (uintptr_t)this->objects_start) / this->object_size;
     }
 
+    long extend(long count);
+
    private:
     void *alloc_slow(void);
-    long extend(long count);
 
     void *objects_start;                // The start of the object memory
     void *objects_end;                  // The end of the object memory (exclusive)
@@ -121,6 +134,5 @@ namespace alaska {
     // Re-construct the free list just in case
     this->free_list = ShardedFreeList();
   }
-
 
 };  // namespace alaska

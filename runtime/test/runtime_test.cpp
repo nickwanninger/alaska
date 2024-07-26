@@ -126,20 +126,20 @@ TEST_F(RuntimeTest, SlabNFreeDecreasesOnHandleGet) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
   // Get the initial nfree count
-  int initialNFree = slab->nfree;
+  int initialNFree = slab->allocator.num_free();
   // Get a handle from the slab
   auto handle = slab->alloc();
   // Check that the handle is valid
   ASSERT_NE(handle, nullptr);
   // Check that the nfree count has decreased by 1
-  ASSERT_EQ(slab->nfree, initialNFree - 1);
+  ASSERT_EQ(slab->allocator.num_free(), initialNFree - 1);
 }
 
 TEST_F(RuntimeTest, SlabNFreeOnInitialAllocation) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
   // Get the initial nfree count
-  int initialNFree = slab->nfree;
+  int initialNFree = slab->allocator.num_free();
   // Check that the nfree count is equal to the slab's capacity
   ASSERT_EQ(initialNFree, alaska::HandleTable::slab_capacity);
 }

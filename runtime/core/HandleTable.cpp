@@ -109,7 +109,7 @@ namespace alaska {
       // TODO: PERFORMANCE BAD HERE. POP FROM A LIST!
       for (auto *slab : m_slabs) {
         log_trace("Attempting to allocate from slab %p (idx %lu)", slab, slab->idx);
-        if (slab->get_owner() == nullptr && slab->nfree != 0) {
+        if (slab->get_owner() == nullptr && slab->allocator.num_free() > 0) {
           slab->set_owner(new_owner);
           return slab;
         }
@@ -229,7 +229,6 @@ namespace alaska {
       , idx(idx) {
     allocator.configure(
         table.get_slab_start(idx), sizeof(alaska::Mapping), HandleTable::slab_capacity);
-    nfree = HandleTable::slab_capacity;
   }
 
 
@@ -238,19 +237,16 @@ namespace alaska {
     auto *m = (Mapping *)allocator.alloc();
 
     if (unlikely(m == nullptr)) return nullptr;
-    nfree--;
     update_state();
     return m;
   }
 
   void HandleSlab::release_remote(Mapping *m) {
-    nfree++;  // TODO: ATOMICS
     allocator.release_remote(m);
     update_state();
   }
 
   void HandleSlab::release_local(Mapping *m) {
-    nfree++;  // TODO: ATOMICS
     allocator.release_local(m);
     update_state();
   }
