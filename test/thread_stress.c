@@ -6,25 +6,25 @@
 
 
 #define MAX_SIZE 512
-#define ARRAY_LENGTH (4096 * 1024 * 2)
+#define ARRAY_LENGTH (4096 * 1024)
 void *objects[ARRAY_LENGTH];
 
 extern void alaska_dump(void);
 
 
 int main() {
-  for (int run = 0; run < 25; run++) {
+  for (int run = 0; run < 5000; run++) {
     printf("Allocate...\n");
     unsigned int seed = 0;
 
 
 #pragma omp parallel for shared(objects) private(seed)
     for (int i = 0; i < ARRAY_LENGTH; i++) {
-      objects[i] = malloc(rand_r(&seed) % MAX_SIZE);
-      // objects[i] = malloc(256);
+      // objects[i] = malloc(rand_r(&seed) % MAX_SIZE);
+      objects[i] = malloc(32);
     }
 
-    // alaska_dump();
+    alaska_dump();
 
     printf("Free...\n");
 #pragma omp parallel for shared(objects)
@@ -35,6 +35,8 @@ int main() {
 
 
     memset(objects, 0, sizeof(objects));
+
+    alaska_dump();
   }
 
   return 0;
