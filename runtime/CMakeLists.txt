@@ -203,6 +203,7 @@ if (NOT ALASKA_DISABLE_TESTING)
 		test/magazine_test.cpp
 		test/threadcache_test.cpp
 		test/hugeobject_test.cpp
+    test/sizedalloc_test.cpp
 	)
 
 	target_link_libraries(

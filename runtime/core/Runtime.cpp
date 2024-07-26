@@ -104,6 +104,7 @@ namespace alaska {
   void Runtime::dump(FILE *stream) {
     //
     fprintf(stream, "Alaska Runtime Information:\n");
+    heap.dump(stream);
     handle_table.dump(stream);
   }
 

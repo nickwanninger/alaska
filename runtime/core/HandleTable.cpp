@@ -11,6 +11,7 @@
 
 
 #include <alaska/HandleTable.hpp>
+#include <alaska/ThreadCache.hpp>
 #include <alaska/Logger.hpp>
 #include <alaska/HeapPage.hpp>
 #include "ck/lock.h"
@@ -258,7 +259,9 @@ namespace alaska {
     fprintf(stream, "Slab %4d | ", idx);
     fprintf(stream, "st %d | ", state);
 
-    fprintf(stream, "free %4d | ", nfree);
+    auto owner = this->get_owner();
+    fprintf(stream, "owner: %4d | ", owner ? owner->get_id() : -1);
+    fprintf(stream, "free %4d | ", allocator.num_free());
 
     fprintf(stream, "\n");
   }

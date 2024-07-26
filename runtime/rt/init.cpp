@@ -23,18 +23,18 @@
 
 static alaska::Runtime *the_runtime = nullptr;
 
-extern "C" void alaska_dump(void) { the_runtime->heap.dump(stderr); }
+extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
 
-  while (1) {
-    usleep(50 * 1000);
-    alaska::barrier::begin();
-    printf("Barrier.\n");
-    alaska::barrier::end();
-  }
+  // while (1) {
+  //   usleep(250 * 1000);
+  //   alaska::barrier::begin();
+  //   printf("Barrier.\n");
+  //   alaska::barrier::end();
+  // }
 
   return NULL;
 }
