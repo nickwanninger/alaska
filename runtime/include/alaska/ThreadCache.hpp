@@ -65,9 +65,6 @@ namespace alaska {
     // it might allocate from. When a size class fills up, it is returned
     // to the global heap and another one is allocated.
     alaska::SizedPage *size_classes[alaska::num_size_classes] = {nullptr};
-
-
-    alaska::LocalityPage *locality_page;
   };
 
 
