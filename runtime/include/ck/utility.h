@@ -857,13 +857,13 @@ namespace ck {
         "template argument must be a complete class or an unbounded array");
   };
 
-  /// is_trivially_destructible
-  template <typename _Tp>
-  struct is_trivially_destructible
-      : public __and_<__is_destructible_safe<_Tp>, __bool_constant<__is_trivially_destructible(_Tp)>> {
-    static_assert(ck::__is_complete_or_unbounded(__type_identity<_Tp>{}),
-        "template argument must be a complete class or an unbounded array");
-  };
+  // /// is_trivially_destructible
+  // template <typename _Tp>
+  // struct is_trivially_destructible
+  //     : public __and_<__is_destructible_safe<_Tp>, __bool_constant<__is_trivially_destructible(_Tp)>> {
+  //   static_assert(ck::__is_complete_or_unbounded(__type_identity<_Tp>{}),
+  //       "template argument must be a complete class or an unbounded array");
+  // };
 
 
   /// has_virtual_destructor

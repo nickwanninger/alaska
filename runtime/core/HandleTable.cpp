@@ -125,7 +125,7 @@ namespace alaska {
     ck::scoped_lock lk(this->lock);
 
     log_trace("Getting slab %d", idx);
-    if (idx >= m_slabs.size()) {
+    if (idx >= (slabidx_t)m_slabs.size()) {
       log_trace("Invalid slab requeset!");
       return nullptr;
     }
@@ -154,8 +154,8 @@ namespace alaska {
   void HandleTable::put(Mapping *m, alaska::ThreadCache *owner) {
     log_trace("Putting handle %p", m);
     // Validate that the handle is in this table
-    ALASKA_ASSERT(
-        mapping_slab_idx(m) < m_slabs.size(), "attempted to put a handle into the wrong table")
+    ALASKA_ASSERT(mapping_slab_idx(m) < (slabidx_t)m_slabs.size(),
+        "attempted to put a handle into the wrong table")
 
     // Get the slab that the handle is in
     auto *slab = m_slabs[mapping_slab_idx(m)];
@@ -256,12 +256,12 @@ namespace alaska {
 
 
   void HandleSlab::dump(FILE *stream) {
-    fprintf(stream, "Slab %4d | ", idx);
+    fprintf(stream, "Slab %4zu | ", idx);
     fprintf(stream, "st %d | ", state);
 
     auto owner = this->get_owner();
     fprintf(stream, "owner: %4d | ", owner ? owner->get_id() : -1);
-    fprintf(stream, "free %4d | ", allocator.num_free());
+    fprintf(stream, "free %4zu | ", allocator.num_free());
 
     fprintf(stream, "\n");
   }

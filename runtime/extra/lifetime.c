@@ -122,7 +122,7 @@ void free(void *p) {
     md_t *m = (md_t *)p - 1;
     if (m->magic != MAGIC) return;
     ssize_t dur = timestamp() - m->time_allocated_ns;
-    fprintf(lifetime_output, "%zu,%zd\n", m->size, dur);
+    fprintf(lifetime_output, "%d,%zd\n", m->size, dur);
   }
 
   // real_free(m);

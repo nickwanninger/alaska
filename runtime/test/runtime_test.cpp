@@ -100,7 +100,7 @@ TEST_F(RuntimeTest, UniqueSlabAllocations) {
 
 TEST_F(RuntimeTest, CapacityGrowth) {
   // Allocate a large number of slabs
-  for (int i = 0; i < alaska::HandleTable::initial_capacity * 2; i++) {
+  for (size_t i = 0; i < alaska::HandleTable::initial_capacity * 2; i++) {
     auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
     ASSERT_NE(slab, nullptr);
   }
@@ -149,7 +149,7 @@ TEST_F(RuntimeTest, SlabNFreeOnInitialAllocation) {
 // Make sure that for many slabs, get_slab returns the right one
 TEST_F(RuntimeTest, SlabGetSlab) {
   // Allocate a large number of slabs
-  for (int i = 0; i < alaska::HandleTable::initial_capacity * 2; i++) {
+  for (size_t i = 0; i < alaska::HandleTable::initial_capacity * 2; i++) {
     auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
     ASSERT_NE(slab, nullptr);
     // Check that get_slab returns the right slab
@@ -162,7 +162,7 @@ TEST_F(RuntimeTest, SlabGetReturnsNullWhenOutOfCapacity) {
   // Allocate a fresh slab from the handle table
   auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
   // Fill up the slab with handles
-  for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+  for (size_t i = 0; i < alaska::HandleTable::slab_capacity; i++) {
     auto handle = slab->alloc();
     ASSERT_NE(handle, nullptr);
   }
@@ -180,7 +180,7 @@ TEST_F(RuntimeTest, SlabUniqueHandles) {
   // Create a set to store the handles
   std::set<alaska::Mapping*> handles;
   // Fill up the slab with handles
-  for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+  for (size_t i = 0; i < alaska::HandleTable::slab_capacity; i++) {
     auto handle = slab->alloc();
     ASSERT_NE(handle, nullptr);
     // Check that the handle is unique
@@ -215,7 +215,7 @@ TEST_F(RuntimeTest, SlabMappingIndex) {
     // Allocate a fresh slab from the handle table
     auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
     // Fill up the slab with handles
-    for (int i = 0; i < alaska::HandleTable::slab_capacity; i++) {
+    for (size_t i = 0; i < alaska::HandleTable::slab_capacity; i++) {
       auto handle = slab->alloc();
       ASSERT_NE(handle, nullptr);
       // Check that the handle is in the right index
@@ -238,7 +238,7 @@ TEST_F(RuntimeTest, HandleSlabQueuePop) {
   // Create a vector to store the slabs
   std::vector<alaska::HandleSlab*> slabs;
   // For a few iterations...
-  for (int i = 0; i < 10; i++) {
+  for (size_t i = 0; i < 10; i++) {
     // Allocate a fresh slab from the handle table
     auto* slab = runtime.handle_table.fresh_slab(DUMMY_THREADCACHE);
     // Push the slab to the queue
@@ -248,7 +248,7 @@ TEST_F(RuntimeTest, HandleSlabQueuePop) {
   }
 
   // Pop all the slabs from the queue
-  for (int i = 0; i < 10; i++) {
+  for (size_t i = 0; i < 10; i++) {
     auto* slab = queue.pop();
     // Check that the slab is the same as the one that was pushed
     ASSERT_EQ(slab, slabs[i]);

@@ -22,7 +22,7 @@
 
 namespace alaska {
 
-  using slabidx_t = uint64_t;
+  using slabidx_t = size_t;
 
   class HandleTable;
   class HandleSlabQueue;

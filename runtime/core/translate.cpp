@@ -66,7 +66,7 @@ void *alaska_translate_escape(void *ptr) {
 }
 
 
-static __attribute_noinline__ void track(uintptr_t handle) { fprintf(stderr, "tr %p\n", handle); }
+static __attribute_noinline__ void track(uintptr_t handle) { fprintf(stderr, "tr %016zx\n", handle); }
 
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;

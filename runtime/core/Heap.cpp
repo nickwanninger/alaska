@@ -216,7 +216,7 @@ namespace alaska {
       out("sc %d: %zu heaps\n", cls, mag.size());
 
 
-      int page_ind = 0;
+      unsigned long page_ind = 0;
       mag.foreach ([&](HeapPage *hp) {
         SizedPage *sp = static_cast<SizedPage *>(hp);
         int id = -1;
@@ -224,7 +224,7 @@ namespace alaska {
         if (owner != NULL) {
           id = owner->get_id();
         }
-        out("SizedPage %016p-%016p owner:%3d avail:%7zu\n", sp->start(), sp->end(), id, sp->available());
+        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(), (uintptr_t)sp->end(), id, sp->available());
         page_ind++;
         if (page_ind > mag.size()) return false;
         return true;

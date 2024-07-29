@@ -49,8 +49,8 @@ namespace alaska {
 
     inline alaska::Mapping *get_mapping(uint32_t offset) { return get_md(offset)->mapping; }
 
-    inline int64_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
-    inline int64_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
+    inline size_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
+    inline size_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
 
     void *data = nullptr;
     void *data_bump_next = nullptr;

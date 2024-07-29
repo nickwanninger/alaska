@@ -61,7 +61,6 @@ namespace alaska {
 
     // Grab the guess metadata
     auto guess_ptr = get_ptr(guess_off);
-    auto original_guess_off = guess_off;
 
     // Go left or right to find the right one.
     if (ptr > guess_ptr) {

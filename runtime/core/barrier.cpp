@@ -241,7 +241,7 @@ static bool in_might_block_function(uintptr_t start_addr) {
       msg = "\e[32m(managed)\e[0m";
     }
 
-    printf("%016lx %s\n", buffer[i], msg);
+    printf("%016lx %s\n", (uintptr_t)buffer[i], msg);
   }
   printf("\n");
 
@@ -566,7 +566,7 @@ void alaska::barrier::remove_self_thread(void) {
   }
 
   if (!found) {
-    fprintf(stderr, "Failed to remove non-added thread, %p\n", self);
+    fprintf(stderr, "Failed to remove non-added thread\n");
     abort();
   }
 
@@ -672,8 +672,6 @@ void alaska_blob_init(struct alaska_blob_config* cfg) {
   auto patch_page = (void*)((uintptr_t)cfg->code_start & ~0xFFF);
   size_t size = round_up(cfg->code_end - cfg->code_start, 4096);
   mprotect(patch_page, size + 4096, PROT_EXEC | PROT_READ | PROT_WRITE);
-
-  printf("%p %p\n", cfg->code_start, cfg->code_end);
 
   if (cfg->stackmap) parse_stack_map((uint8_t*)cfg->stackmap);
 }
