@@ -59,10 +59,10 @@ namespace alaska {
     ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
 
     if (page->is_owned_by(this)) {
-      log_trace("Free handle %p locally", handle);
+      log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
       page->release_local(m, ptr);
     } else {
-      log_trace("Free handle %p remotely", handle);
+      log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
       page->release_remote(m, ptr);
     }
   }

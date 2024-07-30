@@ -5,11 +5,6 @@ set(Red "${Esc}[31m")
 set(ColorReset "${Esc}[m")
 
 function(alaska_switch OPT DEFAULT)
-  if (${OPT})
-   message(STATUS "${OPT} DEFINED")
-  endif()
-
-
   set(${OPT} ${DEFAULT} CACHE BOOL "")
 
   if(${OPT} MATCHES "ON|On|on|TRUE|true|1")
@@ -44,6 +39,11 @@ set(ALASKA_VERSION 2)
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 
+
+# Check if the build type is Release
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_definitions(ALASKA_ENABLE_LOGGING=1)
+endif()
 
 
 # -------------------------------------------------------------------------------------------

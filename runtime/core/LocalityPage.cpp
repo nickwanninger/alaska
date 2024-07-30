@@ -34,7 +34,7 @@ namespace alaska {
     md_bump_next--;
 
 
-    log_trace("setting md to %08lx", m.to_compact());
+    log_trace("setting md to %p", &m);
     md->mapping = const_cast<alaska::Mapping *>(&m);
     log_trace("set md!");
 
