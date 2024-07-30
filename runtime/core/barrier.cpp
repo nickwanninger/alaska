@@ -19,7 +19,7 @@
 #include <alaska.h>
 #include <alaska/utils.h>
 #include <alaska/alaska.hpp>
-#include <alaska/barrier.hpp>
+#include <alaska/rt/barrier.hpp>
 
 
 #include <ck/lock.h>

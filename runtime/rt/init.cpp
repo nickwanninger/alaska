@@ -16,7 +16,7 @@
 #include <alaska/rt.hpp>
 #include <alaska/Runtime.hpp>
 #include <alaska/alaska.hpp>
-#include <alaska/barrier.hpp>
+#include <alaska/rt/barrier.hpp>
 #include <pthread.h>
 #include <stdio.h>
 #include <signal.h>
