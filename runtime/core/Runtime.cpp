@@ -33,6 +33,7 @@ namespace alaska {
   Runtime::Runtime() {
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
     g_runtime = this;
+    // Attach a default barrier manager
     this->barrier_manager = &global_nop_barrier_manager;
 
     log_debug("Created a new Alaska Runtime @ %p", this);

@@ -21,14 +21,24 @@
 #include <stdio.h>
 #include <signal.h>
 
+
+
 static alaska::Runtime *the_runtime = nullptr;
+
+
+struct CompilerRuntimeBarrierManager final : public alaska::BarrierManager {
+  ~CompilerRuntimeBarrierManager() override = default;
+  void begin(void) override { alaska::barrier::begin(); }
+  void end(void) override { alaska::barrier::end(); }
+};
+
+static CompilerRuntimeBarrierManager the_barrier_manager;
 
 extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
-
   // while (1) {
   //   usleep(250 * 1000);
   //   alaska::barrier::begin();
@@ -40,17 +50,17 @@ static void *barrier_thread_func(void *) {
 }
 
 void __attribute__((constructor(102))) alaska_init(void) {
-
   alaska::barrier::add_self_thread();
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
   the_runtime = new alaska::Runtime();
+  // Attach the runtime's barrier manager
+  the_runtime->barrier_manager = &the_barrier_manager;
 
   pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-
   pthread_kill(barrier_thread, SIGKILL);
   pthread_join(barrier_thread, NULL);
 
