@@ -11,6 +11,7 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 #include <alaska/StackMapParser.h>
+#include <alaska/config.h>
 
 
 #include <dlfcn.h>
@@ -73,6 +74,9 @@ using inst_t = uint16_t;
 #endif
 #ifdef __aarch64__
 using inst_t = uint32_t;
+#endif
+#ifdef __riscv
+using inst_t = uint16_t;
 #endif
 
 struct PatchPoint {
@@ -617,6 +621,12 @@ void parse_stack_map(uint8_t* t) {
 #ifdef __aarch64__
       p.inst_nop = 0xd503201f;  // nop
       p.inst_sig = 0x00000000;  // udf #0
+#endif
+
+
+#ifdef __riscv
+      p.inst_nop = 0x0001;  // nop
+      p.inst_sig = 0x0000;  // unimp
 #endif
 
       patchPoints.push(p);
