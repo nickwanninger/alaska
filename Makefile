@@ -1,4 +1,3 @@
-m.ONESHELL:
 .DEFAULT_GOAL := alaska
 
 MAKEFLAGS += --no-print-directory
