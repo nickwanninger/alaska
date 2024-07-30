@@ -13,6 +13,10 @@ namespace alaska {
   // core runtime's capabilities.
   //
   // This class also records some statistics about barrier events as they occur.
+  // The only requirement of this class is that when `::begin()` returns, all pinned handles must
+  // be marked as such, and when `::end()` returns they should be released. The core runtime relies
+  // on this to be the case for safe operation. If the user of the core runtime does not need to
+    // pin any handles, the barrier does not need to do anything.
   struct BarrierManager {
     virtual ~BarrierManager() = default;
     virtual void begin(void) = 0;
