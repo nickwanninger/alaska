@@ -43,8 +43,11 @@ unit: alaska FORCE
 docs:
 	@doxygen Doxyfile
 
+
+# Defer to CMake to clean itself, if the build folder exists
 clean:
-	rm -rf build .*.o*
+	[ -d $(BUILD) ] && make -C $(BUILD) clean
+	rm -f .*.o*
 
 docker:
 	docker build -t alaska .
