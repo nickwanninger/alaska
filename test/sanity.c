@@ -6,7 +6,7 @@ int main() {
 
 	x = (int *)hrealloc((void*)x, sizeof(int) * 400);
   *x = 42;
-  printf("It works! x=%p\n", x);
+  printf("It works! x=0x%zx\n", (uintptr_t)x);
 	hfree((void*)x);
   return 0;
 }

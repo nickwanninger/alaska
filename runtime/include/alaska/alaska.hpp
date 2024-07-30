@@ -16,10 +16,12 @@
 #include <stdint.h>
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
-#include <alaska/autoconf.h>
 #include <alaska/liballoc.h>
+#include <alaska/config.h>
 
 #include <ck/utility.h>
+
+
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
 

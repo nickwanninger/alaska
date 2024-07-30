@@ -73,9 +73,6 @@
               "-DCMAKE_C_COMPILER=clang"
               "-DCMAKE_CXX_COMPILER=clang++"
             ];
-            preConfigure = ''
-              make defconfig
-            '';
 
 
             inherit buildInputs;

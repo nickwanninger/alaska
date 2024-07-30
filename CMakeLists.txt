@@ -1,18 +1,51 @@
-cmake_minimum_required(VERSION 3.13)
-project(Alaska C CXX ASM)
 
 # set(CMAKE_CXX_STANDARD 14)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+string(ASCII 27 Esc)
+set(Purple "${Esc}[35m")
+set(Green "${Esc}[32m")
+set(Red "${Esc}[31m")
+set(ColorReset "${Esc}[m")
 
-set(ALASKA_ENABLE_COMPILER ON CACHE BOOL "Build the Alaska Compiler, binding to LLVM")
-set(ALASKA_DISABLE_TESTING OFF CACHE BOOL "Disable testing the core runtime with gtest")
+function(alaska_switch OPT DEFAULT)
+  set(${OPT} ${DEFAULT} CACHE BOOL "")
+
+  if(${OPT} MATCHES "ON|On|on|TRUE|true|1")
+    add_compile_definitions(${OPT}=1)
+    # set(${OPT} ON PARENT_SCOPE)
+    message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Green}ON${ColorReset}")
+  elseif(${OPT} MATCHES "OFF|Off|off|FALSE|false|0")
+    set(${OPT} OFF PARENT_SCOPE)
+    message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Red}OFF${ColorReset}")
+  else()
+    message(FATAL_ERROR "${OPT} must be either ON or OFF")
+  endif()
+endfunction()
 
 
+function(alaska_int_option OPT DEFAULT)
+  set(${OPT} ${DEFAULT} CACHE STRING "")
+  add_compile_definitions(${OPT}=${${OPT}})
+  message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Green}${${OPT}}${ColorReset}")
+endfunction()
+
+
+
+alaska_switch(ALASKA_ENABLE_COMPILER ON)
+alaska_switch(ALASKA_ENABLE_TESTING  ON)
+
+alaska_int_option(ALASKA_SIZE_BITS 24)
+
+# set(ALASKA_ENABLE_COMPILER ON CACHE BOOL "Build the Alaska Compiler, binding to LLVM")
+# set(ALASKA_DISABLE_TESTING OFF CACHE BOOL "Disable testing the core runtime with gtest")
 
 set(ALASKA_VERSION 2)
-# include(config.cmake OPTIONAL)
-# configure_file(config.h.in config.h)
+
+# -------------------------------------------------------------------------------------------
+
+cmake_minimum_required(VERSION 3.13)
+project(Alaska C CXX ASM)
 
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -73,4 +106,3 @@ if(ALASKA_ENABLE_COMPILER)
   include(AddLLVM)
   add_subdirectory(compiler)
 endif(ALASKA_ENABLE_COMPILER)
-

@@ -169,7 +169,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
 endif(NOT ALASKA_CORE_ONLY) # ---------------------------------------------------------------------------------
 
 
-if (NOT ALASKA_DISABLE_TESTING)
+if (ALASKA_ENABLE_TESTING)
 
 	find_package(GTest)
 
@@ -217,4 +217,4 @@ if (NOT ALASKA_DISABLE_TESTING)
 
 	gtest_discover_tests(alaska_test)
 
-endif(NOT ALASKA_DISABLE_TESTING)
+endif(ALASKA_ENABLE_TESTING)

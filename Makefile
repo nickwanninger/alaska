@@ -1,4 +1,4 @@
-#.ONESHELL:
+m.ONESHELL:
 .DEFAULT_GOAL := alaska
 
 MAKEFLAGS += --no-print-directory
@@ -9,18 +9,8 @@ ROOT=$(shell pwd)
 export PATH:=$(ROOT)/local/bin:$(PATH)
 export LD_LIBRARY_PATH:=$(ROOT)/local/lib:$(LD_LIBRARY_PATH)
 
--include .config
-
-
-ifdef ALASKA_ENABLE_COMPILER
-	CC=clang
-	CXX=clang++
-else
-	# default to use clang, but use whatever the user asked for otherwise
-	CC?=clang
-	CXX?=clang++
-endif
-
+CC=clang
+CXX=clang++
 export CC
 export CXX
 
@@ -30,11 +20,11 @@ BUILD=build
 BUILD_REQ=$(BUILD)/Makefile
 
 $(BUILD)/Makefile:
-	mkdir -p $(BUILD)
-	cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
+	@mkdir -p $(BUILD)
+	@cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
-alaska: .config $(BUILD_REQ)
-	@cd $(BUILD) && cmake --build . --target install --config Debug
+alaska: $(BUILD_REQ)
+	@cd $(BUILD) && cmake --build . --target install --config Release
 	@cp build/compile_commands.json .
 
 sanity: alaska
@@ -44,19 +34,7 @@ sanity: alaska
 test: alaska
 	@build/runtime/alaska_test
 
-.PHONY: alaska all bench bench/nas libc
-
-
-# Create a virtual environment in ./venv/ capable of
-# running our benchmarks with waterline. For Artifact evaluation
-venv: venv/touchfile
-venv/touchfile: requirements.txt
-	test -d venv || virtualenv venv
-	. venv/bin/activate; pip install -Ur requirements.txt
-	touch venv/touchfile
-
-bench: alaska venv FORCE
-	. venv/bin/activate; python3 test/bench.py
+.PHONY: alaska all 
 
 # Run compilation unit tests to validate that the compiler can
 # handle all the funky control flow in the GCC test suite
@@ -69,22 +47,9 @@ docs:
 clean:
 	rm -rf build .*.o*
 
-# Chose the default configuration
-defconfig:
-	@rm -f .config
-	@echo "Using default configuration"
-	@echo "q" | env TERM=xterm-256color python3 tools/menuconfig.py >/dev/null
-
-# Open the TUI menuconfig environment to chose your own configuration
-cfg: menuconfig
-menuconfig:
-	@python3 tools/menuconfig.py
-
 docker:
 	docker build -t alaska .
 	docker run -it --rm alaska bash
-
-
 
 deps: local/bin/gclang local/bin/clang
 
@@ -93,7 +58,6 @@ local/bin/gclang:
 
 local/bin/clang:
 	tools/get_llvm.sh
-
 
 
 redis: FORCE
