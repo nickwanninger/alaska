@@ -11,9 +11,6 @@ jobs:
     - uses: DeterminateSystems/magic-nix-cache-action@main
     - uses: DeterminateSystems/flake-checker-action@main
 
-    - name: Configure
-      run: nix develop --command make defconfig
-
     - name: Compile
       run: nix develop --command make
 
