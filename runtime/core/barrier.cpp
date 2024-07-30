@@ -449,6 +449,8 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   return_address = ucontext->uc_mcontext.gregs[REG_RIP];
 #elif defined(__aarch64__)
   return_address = ucontext->uc_mcontext.pc;
+#elif defined(__riscv__)
+  return_address = ucontext->uc_mcontext.__gregs[REG_PC];
 #endif
 
   auto state = get_stack_state(return_address);
