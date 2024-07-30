@@ -1,7 +1,3 @@
-
-# set(CMAKE_CXX_STANDARD 14)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 string(ASCII 27 Esc)
 set(Purple "${Esc}[35m")
 set(Green "${Esc}[32m")
@@ -9,6 +5,11 @@ set(Red "${Esc}[31m")
 set(ColorReset "${Esc}[m")
 
 function(alaska_switch OPT DEFAULT)
+  if (${OPT})
+   message(STATUS "${OPT} DEFINED")
+  endif()
+
+
   set(${OPT} ${DEFAULT} CACHE BOOL "")
 
   if(${OPT} MATCHES "ON|On|on|TRUE|true|1")
@@ -38,6 +39,11 @@ alaska_option(ALASKA_SIZE_BITS 24)
 alaska_option(CMAKE_BUILD_TYPE Release)
 
 set(ALASKA_VERSION 2)
+
+
+set(CMAKE_C_COMPILER_WORKS 1)
+set(CMAKE_CXX_COMPILER_WORKS 1)
+
 
 
 # -------------------------------------------------------------------------------------------

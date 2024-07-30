@@ -14,7 +14,7 @@
 #include <alaska/ThreadCache.hpp>
 #include <alaska/Logger.hpp>
 #include <alaska/HeapPage.hpp>
-#include "ck/lock.h"
+#include <ck/lock.h>
 #include <stdio.h>
 #include <sys/mman.h>
 

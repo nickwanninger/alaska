@@ -23,7 +23,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Do NOT link libc++ implicitly. This just makes it easier to port to new hardware or embedded environments
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
-add_definitions(-D_GNU_SOURCE -D_REENTRANT)
+add_definitions(-D_REENTRANT)
 
 
 

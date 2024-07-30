@@ -23,7 +23,7 @@ $(BUILD)/Makefile:
 	@cd $(BUILD) && cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(ROOT)/local
 
 alaska: $(BUILD_REQ)
-	@cd $(BUILD) && cmake --build . --target install --config Release
+	@$(MAKE) -C $(BUILD) install
 	@cp build/compile_commands.json .
 
 sanity: alaska
