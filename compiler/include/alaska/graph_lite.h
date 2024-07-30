@@ -1256,8 +1256,8 @@ namespace graph_lite {
                     num_edges_removed = detail::container::erase_all(src_neighbors, tgt_full);
                 }
                 if (src_pos!=tgt_pos or direction==EdgeDirection::DIRECTED) {
-                    int num_tgt_removed = detail::container::erase_all(get_in_neighbors(tgt_pos), src_full);
-                    assert(num_edges_removed == num_tgt_removed);
+                    // int num_tgt_removed = detail::container::erase_all(get_in_neighbors(tgt_pos), src_full);
+                    // assert(num_edges_removed == num_tgt_removed);
                 }
                 if constexpr(logging == Logging::ALLOWED){
                     if (num_edges_removed==0) {

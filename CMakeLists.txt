@@ -24,23 +24,21 @@ function(alaska_switch OPT DEFAULT)
 endfunction()
 
 
-function(alaska_int_option OPT DEFAULT)
+function(alaska_option OPT DEFAULT)
   set(${OPT} ${DEFAULT} CACHE STRING "")
   add_compile_definitions(${OPT}=${${OPT}})
   message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Green}${${OPT}}${ColorReset}")
 endfunction()
 
 
-
 alaska_switch(ALASKA_ENABLE_COMPILER ON)
 alaska_switch(ALASKA_ENABLE_TESTING  ON)
 
-alaska_int_option(ALASKA_SIZE_BITS 24)
-
-# set(ALASKA_ENABLE_COMPILER ON CACHE BOOL "Build the Alaska Compiler, binding to LLVM")
-# set(ALASKA_DISABLE_TESTING OFF CACHE BOOL "Disable testing the core runtime with gtest")
+alaska_option(ALASKA_SIZE_BITS 24)
+alaska_option(CMAKE_BUILD_TYPE Release)
 
 set(ALASKA_VERSION 2)
+
 
 # -------------------------------------------------------------------------------------------
 

@@ -3,9 +3,18 @@
 set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused-function -Wno-attributes ")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 ${WARNINGS} ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} ")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti ")
 
+
+
+set(CMAKE_C_FLAGS_DEBUG "-O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+
+
+
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
