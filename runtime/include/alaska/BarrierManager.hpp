@@ -1,5 +1,6 @@
 #pragma once
 
+#include <alaska/alaska.hpp>
 
 
 namespace alaska {
@@ -16,12 +17,12 @@ namespace alaska {
   // The only requirement of this class is that when `::begin()` returns, all pinned handles must
   // be marked as such, and when `::end()` returns they should be released. The core runtime relies
   // on this to be the case for safe operation. If the user of the core runtime does not need to
-    // pin any handles, the barrier does not need to do anything.
-  struct BarrierManager {
+  // pin any handles, the barrier does not need to do anything.
+  struct BarrierManager : public alaska::InternalHeapAllocated {
     virtual ~BarrierManager() = default;
-    virtual void begin(void) = 0;
-    virtual void end(void) = 0;
+    virtual void begin(void){};
+    virtual void end(void){};
 
     unsigned long barrier_count = 0;
   };
-}
+}  // namespace alaska

@@ -17,21 +17,16 @@
 #include <stdlib.h>
 
 namespace alaska {
-
-
-  struct NopBarrierManager final : public alaska::BarrierManager {
-    ~NopBarrierManager() override = default;
-    void begin(void) override {}
-    void end(void) override {}
-  };
-
-  static NopBarrierManager global_nop_barrier_manager;
-
+  // The default instance of a barrier manager.
+  static BarrierManager global_nop_barrier_manager;
+  // The current global instance of the runtime, since we can only have one at a time
   static Runtime *g_runtime = nullptr;
 
 
   Runtime::Runtime() {
+    // Validate that there is not already a runtime (TODO: atomics?)
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
+    // Assign the global runtime to be this instance
     g_runtime = this;
     // Attach a default barrier manager
     this->barrier_manager = &global_nop_barrier_manager;
@@ -41,6 +36,7 @@ namespace alaska {
 
   Runtime::~Runtime() {
     log_debug("Destroying Alaska Runtime");
+    // Unset the global instance so another runtime can be allocated
     g_runtime = nullptr;
   }
 

@@ -8,6 +8,9 @@
  * This is free software.  You are permitted to use, redistribute,
  * and modify it as specified in the file "LICENSE".
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
 
 #include <alaska/HandleTable.hpp>

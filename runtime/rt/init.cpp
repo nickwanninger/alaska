@@ -26,7 +26,7 @@
 static alaska::Runtime *the_runtime = nullptr;
 
 
-struct CompilerRuntimeBarrierManager final : public alaska::BarrierManager {
+struct CompilerRuntimeBarrierManager : public alaska::BarrierManager {
   ~CompilerRuntimeBarrierManager() override = default;
   void begin(void) override { alaska::barrier::begin(); }
   void end(void) override { alaska::barrier::end(); }
