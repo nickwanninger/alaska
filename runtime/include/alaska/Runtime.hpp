@@ -64,6 +64,15 @@ namespace alaska {
     void del_threadcache(ThreadCache *);
     void dump(FILE *stream);
 
+
+    template <typename Fn>
+    void with_barrier(Fn &&cb) {
+      barrier_manager->begin();
+      barrier_manager->barrier_count++;
+      cb();
+      barrier_manager->end();
+    }
+
    private:
     int next_thread_cache_id = 0;
   };
