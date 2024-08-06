@@ -75,14 +75,6 @@ void hfree(void *ptr) {
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
-  // Grab the Mapping
-  auto *m = alaska::Mapping::from_handle_safe(ptr);
-
-  // Not a handle? Pass it to the system allocator.
-  if (unlikely(m == NULL)) {
-    return ::free(ptr);
-  }
-
   // Simply ask the thread cache to free it!
   get_tc()->hfree(ptr);
 }
