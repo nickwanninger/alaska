@@ -135,7 +135,7 @@ namespace alaska {
     return m_slabs[idx];
   }
 
-  slabidx_t HandleTable::mapping_slab_idx(Mapping *m) {
+  slabidx_t HandleTable::mapping_slab_idx(Mapping *m) const {
     auto byte_distance = (uintptr_t)m - (uintptr_t)m_table;
     return byte_distance / HandleTable::slab_size;
   }
@@ -153,6 +153,10 @@ namespace alaska {
     }
   }
 
+
+  bool HandleTable::valid_handle(Mapping *m) const {
+    return mapping_slab_idx(m) < (slabidx_t)m_slabs.size();
+  }
 
   void HandleTable::put(Mapping *m, alaska::ThreadCache *owner) {
     log_trace("Putting handle %p", m);

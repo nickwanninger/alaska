@@ -99,12 +99,14 @@ namespace alaska {
     alaska::HandleSlab *new_slab(ThreadCache *new_owner);
     alaska::HandleSlab *get_slab(slabidx_t idx);
     // Given a mapping, return the index of the slab it belongs to.
-    slabidx_t mapping_slab_idx(Mapping *m);
+    slabidx_t mapping_slab_idx(Mapping *m) const;
 
     auto slab_count() const { return m_slabs.size(); }
     auto capacity() const { return m_capacity; }
 
     void dump(FILE *stream);
+
+    bool valid_handle(alaska::Mapping *m) const;
 
 
     // Free/release *some* mapping

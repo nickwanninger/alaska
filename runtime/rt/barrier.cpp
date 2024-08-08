@@ -20,6 +20,7 @@
 #include <alaska/utils.h>
 #include <alaska/alaska.hpp>
 #include <alaska/rt/barrier.hpp>
+#include <alaska/Runtime.hpp>
 
 
 #include <ck/lock.h>
@@ -174,6 +175,8 @@ static void record_handle(void* possible_handle, bool marked) {
   // if (m < alaska::table::begin() || m >= alaska::table::end()) {
   //   return;
   // }
+
+  if (not alaska::Runtime::get().handle_table.valid_handle(m)) return;
 
   if (m->is_free()) return;
 
