@@ -11,6 +11,7 @@
 
 #pragma once
 #include <alaska/HandleTable.hpp>
+#include <alaska/BarrierManager.hpp>
 #include <alaska/Logger.hpp>
 #include <alaska/ThreadCache.hpp>
 #include <alaska/Heap.hpp>
@@ -18,7 +19,6 @@
 #include <ck/set.h>
 
 namespace alaska {
-
   /**
    * @brief The Runtime class is a container for the global state of the Alaska runtime.
    *
@@ -47,6 +47,10 @@ namespace alaska {
     ck::set<alaska::ThreadCache *> tcs;
     ck::mutex tcs_lock;
 
+    // A pointer to the runtime's current barrier manager.
+    // This is defaulted to a "nop" manager which simply does nothing.
+    alaska::BarrierManager *barrier_manager;
+
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
     static Runtime &get();
@@ -58,9 +62,16 @@ namespace alaska {
     // Allocate and free thread caches.
     ThreadCache *new_threadcache(void);
     void del_threadcache(ThreadCache *);
-
-
     void dump(FILE *stream);
+
+
+    template <typename Fn>
+    void with_barrier(Fn &&cb) {
+      barrier_manager->begin();
+      barrier_manager->barrier_count++;
+      cb();
+      barrier_manager->end();
+    }
 
    private:
     int next_thread_cache_id = 0;

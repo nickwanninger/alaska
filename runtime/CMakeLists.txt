@@ -56,9 +56,6 @@ set(CORE_SOURCES
   core/SizedPage.cpp
   core/LocalityPage.cpp
 
-
-  core/barrier.cpp
-
   # liballoc is a simple, small, malloc implementation that we embed
   # so alaska can temporially allocate objects w/o implementing a non-handle
   # allocator as well
@@ -69,16 +66,14 @@ set(CORE_SOURCES
 )
 
 
-find_library(LIBUNWIND_LIBRARIES NAMES unwind )
-message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
-add_library(alaska_core STATIC ${CORE_SOURCES})
+add_library(alaska_core SHARED ${CORE_SOURCES})
 
 target_compile_options(alaska_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
 
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
-target_link_libraries(alaska_core ${LIBUNWIND_LIBRARIES})
+# target_link_libraries(alaska_core ${LIBUNWIND_LIBRARIES})
 
 set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
@@ -102,12 +97,15 @@ install(
 # This defines the runtime that compiled code is linked against
 if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------------------------------------
 
+  find_library(LIBUNWIND_LIBRARIES NAMES unwind )
+  message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
   add_library(alaska SHARED
     rt/init.cpp
     rt/halloc.cpp
     rt/threads.cpp
     rt/compat.c
+    rt/barrier.cpp
   )
 
   target_include_directories(alaska PUBLIC include/)

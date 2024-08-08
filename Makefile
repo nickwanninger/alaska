@@ -33,7 +33,7 @@ sanity: alaska
 test: alaska
 	@build/runtime/alaska_test
 
-.PHONY: alaska all 
+.PHONY: alaska all
 
 # Run compilation unit tests to validate that the compiler can
 # handle all the funky control flow in the GCC test suite
@@ -43,8 +43,15 @@ unit: alaska FORCE
 docs:
 	@doxygen Doxyfile
 
+
+# Defer to CMake to clean itself, if the build folder exists
 clean:
-	rm -rf build .*.o*
+	[ -d $(BUILD) ] && make -C $(BUILD) clean
+	rm -f .*.o*
+
+mrproper:
+	rm -rf $(BUILD) .*.o*
+
 
 docker:
 	docker build -t alaska .

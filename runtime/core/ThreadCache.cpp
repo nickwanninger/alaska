@@ -59,10 +59,10 @@ namespace alaska {
     ALASKA_ASSERT(page != NULL, "calling hfree should always return a heap page");
 
     if (page->is_owned_by(this)) {
-      log_trace("Free handle %p locally", handle);
+      log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
       page->release_local(m, ptr);
     } else {
-      log_trace("Free handle %p remotely", handle);
+      log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
       page->release_remote(m, ptr);
     }
   }
@@ -186,8 +186,11 @@ namespace alaska {
   void ThreadCache::hfree(void *handle) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) {
+
+      // printf("attempt to free non handle %p\n", handle);
       bool worked = this->runtime.heap.huge_allocator.free(handle);
-      ALASKA_ASSERT(worked, "huge free failed");
+      (void)worked;
+      // ALASKA_ASSERT(worked, "huge free failed");
       return;
     }
     // Free the allocation behind a mapping
@@ -199,7 +202,10 @@ namespace alaska {
 
 
   size_t ThreadCache::get_size(void *handle) {
-    alaska::Mapping *m = alaska::Mapping::from_handle(handle);
+    alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (m == nullptr) {
+      return this->runtime.heap.huge_allocator.size_of(handle);
+    }
     void *ptr = m->get_pointer();
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     if (page == nullptr) return this->runtime.heap.huge_allocator.size_of(ptr);

@@ -13,9 +13,10 @@
 #define ALASKA_PATCH_SIZE 4
 #endif
 
-
-// Now do other configuration!
-#define ALASKA_LOCK_TRACKING // By default, enable lock tracking as some services *require* it
-
+#ifdef __riscv
+// On riscv, we patch using the `unimp` instruction, a compressed
+// instruction which has the bytes `0x0000`
+#define ALASKA_PATCH_SIZE 2
+#endif
 
 #define ALASKA_SQUEEZE_BITS 3

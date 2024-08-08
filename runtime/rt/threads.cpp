@@ -11,7 +11,7 @@
 
 
 #include <alaska/rt.hpp>
-#include <alaska/barrier.hpp>
+#include <alaska/rt/barrier.hpp>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <pthread.h>

@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
 #include <alaska/liballoc.h>

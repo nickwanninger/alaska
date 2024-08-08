@@ -5,11 +5,6 @@ set(Red "${Esc}[31m")
 set(ColorReset "${Esc}[m")
 
 function(alaska_switch OPT DEFAULT)
-  if (${OPT})
-   message(STATUS "${OPT} DEFINED")
-  endif()
-
-
   set(${OPT} ${DEFAULT} CACHE BOOL "")
 
   if(${OPT} MATCHES "ON|On|on|TRUE|true|1")
@@ -31,12 +26,19 @@ function(alaska_option OPT DEFAULT)
   message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Green}${${OPT}}${ColorReset}")
 endfunction()
 
+function(alaska_option_nodef OPT DEFAULT)
+  set(${OPT} ${DEFAULT} CACHE STRING "")
+  message(STATUS "${Purple}OPTION${ColorReset} ${OPT} ${Green}${${OPT}}${ColorReset}")
+endfunction()
+
 
 alaska_switch(ALASKA_ENABLE_COMPILER ON)
 alaska_switch(ALASKA_ENABLE_TESTING  ON)
+alaska_switch(ALASKA_CORE_ONLY       OFF)
 
 alaska_option(ALASKA_SIZE_BITS 24)
 alaska_option(CMAKE_BUILD_TYPE Release)
+alaska_option_nodef(ALASKA_ENABLE_COMPONENTS "compiler;compiler-rts")
 
 set(ALASKA_VERSION 2)
 
@@ -44,6 +46,24 @@ set(ALASKA_VERSION 2)
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 
+
+# Check if the build type is Release
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_definitions(ALASKA_ENABLE_LOGGING=1)
+endif()
+
+
+
+list(FIND ALASKA_ENABLE_COMPONENTS "compiler" INDEX)
+if (NOT INDEX EQUAL -1)
+  message(STATUS "compiler")
+endif()
+
+
+list(FIND ALASKA_ENABLE_COMPONENTS "compiler-rts" INDEX)
+if (NOT INDEX EQUAL -1)
+  message(STATUS "compiler-rts")
+endif()
 
 
 # -------------------------------------------------------------------------------------------
@@ -56,12 +76,6 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
   message(STATUS "Using Clang")
 else()
   message(STATUS "Not using Clang. Disabling compilation of the Alaska Compiler because we cannot produce bitcode files with the current compiler")
-  set(ALASKA_ENABLE_COMPILER FALSE)
-endif()
-
-
-# If we are building the core only, don't enable the compiler!
-if(ALASKA_CORE_ONLY)
   set(ALASKA_ENABLE_COMPILER FALSE)
 endif()
 

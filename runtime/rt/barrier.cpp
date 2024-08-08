@@ -11,6 +11,7 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 #include <alaska/StackMapParser.h>
+#include <alaska/config.h>
 
 
 #include <dlfcn.h>
@@ -18,7 +19,8 @@
 #include <alaska.h>
 #include <alaska/utils.h>
 #include <alaska/alaska.hpp>
-#include <alaska/barrier.hpp>
+#include <alaska/rt/barrier.hpp>
+#include <alaska/Runtime.hpp>
 
 
 #include <ck/lock.h>
@@ -73,6 +75,9 @@ using inst_t = uint16_t;
 #endif
 #ifdef __aarch64__
 using inst_t = uint32_t;
+#endif
+#ifdef __riscv
+using inst_t = uint16_t;
 #endif
 
 struct PatchPoint {
@@ -170,6 +175,8 @@ static void record_handle(void* possible_handle, bool marked) {
   // if (m < alaska::table::begin() || m >= alaska::table::end()) {
   //   return;
   // }
+
+  if (not alaska::Runtime::get().handle_table.valid_handle(m)) return;
 
   if (m->is_free()) return;
 
@@ -445,6 +452,8 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   return_address = ucontext->uc_mcontext.gregs[REG_RIP];
 #elif defined(__aarch64__)
   return_address = ucontext->uc_mcontext.pc;
+#elif defined(__riscv)
+  return_address = ucontext->uc_mcontext.__gregs[REG_PC];
 #endif
 
   auto state = get_stack_state(return_address);
@@ -617,6 +626,12 @@ void parse_stack_map(uint8_t* t) {
 #ifdef __aarch64__
       p.inst_nop = 0xd503201f;  // nop
       p.inst_sig = 0x00000000;  // udf #0
+#endif
+
+
+#ifdef __riscv
+      p.inst_nop = 0x0001;  // nop
+      p.inst_sig = 0x0000;  // unimp
 #endif
 
       patchPoints.push(p);
