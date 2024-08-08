@@ -213,6 +213,7 @@ if (ALASKA_ENABLE_TESTING)
 		test/threadcache_test.cpp
 		test/hugeobject_test.cpp
     test/sizedalloc_test.cpp
+    test/object_allocator_test.cpp
 	)
 
 	target_link_libraries(
