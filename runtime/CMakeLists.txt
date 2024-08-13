@@ -148,6 +148,8 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
     )
 
     add_library(${name}_native STATIC ${SRC_SOURCES})
+
+    target_compile_options(${name}_native PRIVATE -O3)
     target_include_directories(${name}_native PUBLIC include/)
     set_target_properties(${name}_native
       PROPERTIES LINKER_LANGUAGE C
