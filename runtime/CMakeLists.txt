@@ -67,16 +67,23 @@ set(CORE_SOURCES
 
 
 
-add_library(alaska_core SHARED ${CORE_SOURCES})
+add_library(alaska_core_objects OBJECT ${CORE_SOURCES})
+set_property(TARGET alaska_core_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
 
-target_compile_options(alaska_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+
+
+add_library(alaska_core SHARED $<TARGET_OBJECTS:alaska_core_objects>)
+# add_library(alaska_core SHARED ${CORE_SOURCES})
+
 
 set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
-# target_link_libraries(alaska_core ${LIBUNWIND_LIBRARIES})
 
-set_property(TARGET alaska_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(alaska_core dl pthread)
+
+
 
 
 install(
@@ -87,8 +94,15 @@ install(
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
-
-
+# A static copy of the above library.
+add_library(alaska_core_static STATIC $<TARGET_OBJECTS:alaska_core_objects>)
+set_target_properties(alaska_core_static PROPERTIES OUTPUT_NAME "alaska_core")
+install(
+  TARGETS alaska_core_static
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 
@@ -220,7 +234,7 @@ if (ALASKA_ENABLE_TESTING)
 		alaska_test
 		GTest::gtest_main
     GTest::gmock
-		alaska_core dl pthread
+		alaska_core_static dl pthread
 	)
 
 	gtest_discover_tests(alaska_test)
