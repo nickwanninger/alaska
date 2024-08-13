@@ -47,13 +47,16 @@ extern "C" {
 extern int __LLVM_StackMaps __attribute__((weak));
 }
 
+#define APPLY_OFFSET(mapped, bits) \
+  (void *)((uint64_t)mapped + ((uint64_t)bits & ((1LU << ALASKA_SIZE_BITS) - 1)))
+
 extern "C" void *alaska_translate_uncond(void *ptr) {
   int64_t bits = (int64_t)ptr;
 
   auto m = alaska::Mapping::from_handle(ptr);
   // Pull the address from the mapping
   void *mapped = m->get_pointer();
-  ptr = (void *)((uint64_t)mapped + (uint32_t)bits);
+  ptr = APPLY_OFFSET(mapped, bits);
   return ptr;
 }
 
@@ -66,7 +69,9 @@ void *alaska_translate_escape(void *ptr) {
 }
 
 
-static __attribute_noinline__ void track(uintptr_t handle) { fprintf(stderr, "tr %016zx\n", handle); }
+static __attribute_noinline__ void track(uintptr_t handle) {
+  fprintf(stderr, "tr %016zx\n", handle);
+}
 
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
@@ -81,7 +86,7 @@ void *alaska_translate(void *ptr) {
   // Grab the pointer
   void *mapped = m->get_pointer();
   // Apply the offset from the pointer
-  ptr = (void *)((uint64_t)mapped + ((uint64_t)bits & ((1LU << ALASKA_SIZE_BITS) - 1)));
+  ptr = APPLY_OFFSET(mapped, bits);
   return ptr;
 }
 
