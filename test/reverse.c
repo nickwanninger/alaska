@@ -2,10 +2,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
 struct node {
   struct node* next;
   int val;
 };
+
+struct node *next_bump = NULL;
+static void initialize_bump(int count) {
+  next_bump = calloc(count, sizeof(struct node));
+}
+
+struct node* allocate_node() {
+  return next_bump++;
+
+  struct node* n = (struct node*)malloc(sizeof(struct node));
+
+  return n;
+}
 
 struct node* reverse_list(struct node* root) {
   // Initialize current, previous and next pointers
@@ -28,7 +43,7 @@ struct node* reverse_list(struct node* root) {
 
 struct node* alloc_list(int length) {
   if (length == 0) return NULL;
-  struct node* n = (struct node*)malloc(sizeof(struct node));
+  struct node* n = allocate_node();
   n->next = alloc_list(length - 1);
   n->val = length;
   return n;
@@ -40,18 +55,23 @@ uint64_t timestamp() {
   return (uint64_t)rdtsc_hi_ << 32 | rdtsc_lo_;
 }
 
-int main(int argc, char **argv) {
-  struct node* root = alloc_list(8192);
+int main(int argc, char** argv) {
+  int trials = 3000;
+  int count = 8192;
+  if (argc > 1) {
+    count = atoi(argv[1]);
+  }
+  initialize_bump(count);
+  struct node* root = alloc_list(count);
 
   uint64_t sum = 0;
-  int count = atoi(argv[1]);
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < trials; i++) {
     uint64_t start = timestamp();
     root = reverse_list(root);
     uint64_t end = timestamp();
     sum += (end - start);
   }
 
-  printf("average cycles: %f\n", sum / (float)count);
+  printf("average cycles: %f\n", sum / (float)trials);
   return 0;
 }
