@@ -107,6 +107,14 @@ install(
 
 
 
+add_library(alaska_sim SHARED
+  sim/HTLB.cpp
+  sim/TLB.cpp
+  sim/StatisticsManager.cpp
+)
+
+
+
 ##########################################################################################
 # This defines the runtime that compiled code is linked against
 if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------------------------------------
@@ -230,12 +238,15 @@ if (ALASKA_ENABLE_TESTING)
 		test/hugeobject_test.cpp
     test/sizedalloc_test.cpp
     test/object_allocator_test.cpp
+    test/handle_ptr_test.cpp
+    test/htlb_sim_test.cpp
 	)
 
 	target_link_libraries(
 		alaska_test
 		GTest::gtest_main
     GTest::gmock
+    alaska_sim
 		alaska_core_static dl pthread
 	)
 
