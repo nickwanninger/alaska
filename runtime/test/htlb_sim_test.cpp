@@ -157,9 +157,6 @@ TEST_F(HTLBSimTest, AllocAndSetTwo) {
   auto b = alloc<int>();
   *b = 2;
 
-  printf("%p %p\n", a.get(), b.get());
-
-  // ASSERT_EQ(*n, 42);
   release(a);
   release(b);
 }
@@ -199,7 +196,6 @@ TEST_F(HTLBSimTest, TreeAllocSearchFree) {
   // lookup 100 random entries
   for (int i = 1; i < 50000; i++) {
     int key = rand() % size;
-    printf("key is %d\n", key);
     int expected_value = key;
     int val = root->find(key);
     ASSERT_EQ(val, expected_value);

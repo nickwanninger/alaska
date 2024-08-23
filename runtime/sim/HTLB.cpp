@@ -273,8 +273,8 @@ HTLB::HTLB(int l1_num_sets, int l1_num_ways, int l2_num_sets, int l2_num_ways,
 }
 
 HTLB::~HTLB() {
-  sm.compute();
-  sm.dump();
+  // sm.compute();
+  // sm.dump();
   g_htlb = nullptr;
 }
 
