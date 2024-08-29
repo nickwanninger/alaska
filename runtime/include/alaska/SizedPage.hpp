@@ -50,7 +50,7 @@ namespace alaska {
       uint32_t size_slack : ALASKA_SIZE_BITS;
 
       inline void set_mapping(alaska::Mapping *m) { _mapping = (uint64_t)m / 8; }
-      inline auto get_mapping(void) { return (alaska::Mapping *)(_mapping * 8); }
+      inline auto get_mapping(void) { return (alaska::Mapping *)(uint64_t)(_mapping * 8); }
     };
 
     long header_to_ind(Header *h);
