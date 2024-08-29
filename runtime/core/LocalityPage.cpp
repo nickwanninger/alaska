@@ -48,6 +48,8 @@ namespace alaska {
     md->mapping = nullptr;
     return true;
   }
+
+
   LocalityPage::Metadata *LocalityPage::find_md(void *ptr) {
     if (ptr < data || ptr > data_bump_next) {
       log_warn("%p is not in this page.", ptr);
@@ -77,6 +79,13 @@ namespace alaska {
       }
     }
 
-    return nullptr;
+    return get_md(guess_off);
   }
+
+
+  size_t LocalityPage::size_of(void *data) {
+    abort();
+    return 0;
+  }
+
 }  // namespace alaska

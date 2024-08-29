@@ -25,7 +25,7 @@ namespace alaska {
   // of their expected access pattern in the future. It's optimized for moving objects into
   // this page, and the expected lifetimes of these objects is long enough that we don't really
   // care about freeing or re-using the memory occupied by them when they are gone.
-  class LocalityPage : public alaska::HeapPage {
+  class LocalityPage final : public alaska::HeapPage {
    public:
     struct Metadata {
       alaska::Mapping *mapping;
@@ -35,6 +35,7 @@ namespace alaska {
 
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
     bool release_local(const alaska::Mapping &m, void *ptr) override;
+    size_t size_of(void *) override;
 
 
    private:
