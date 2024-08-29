@@ -235,8 +235,9 @@ namespace alaska {
   HandleSlab::HandleSlab(HandleTable &table, slabidx_t idx)
       : table(table)
       , idx(idx) {
-    allocator.configure(
-        table.get_slab_start(idx), sizeof(alaska::Mapping), HandleTable::slab_capacity);
+    auto start = table.get_slab_start(idx);
+    mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
+    allocator.configure(start, sizeof(alaska::Mapping), HandleTable::slab_capacity);
   }
 
 
