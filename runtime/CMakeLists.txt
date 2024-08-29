@@ -1,6 +1,6 @@
 # add_link_options("-fuse-ld=lld")
 
-set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused-function -Wno-attributes ")
+set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused -Wno-unused-function -Wno-attributes ")
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} ")
