@@ -112,6 +112,8 @@ namespace alaska {
     // Free/release *some* mapping
     void put(alaska::Mapping *m, alaska::ThreadCache *owner = (alaska::ThreadCache *)0x1000UL);
 
+    void *get_base(void) const { return (void*)m_table; }
+
    protected:
     friend HandleSlab;
 

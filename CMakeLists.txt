@@ -37,6 +37,8 @@ alaska_switch(ALASKA_ENABLE_TESTING  ON)
 alaska_switch(ALASKA_CORE_ONLY       OFF)
 alaska_switch(ALASKA_HTLB_SIM        OFF)
 
+alaska_switch(ALASKA_YUKON           OFF)
+
 alaska_option(ALASKA_SIZE_BITS 24)
 alaska_option(CMAKE_BUILD_TYPE Release)
 alaska_option_nodef(ALASKA_ENABLE_COMPONENTS "compiler;compiler-rts")

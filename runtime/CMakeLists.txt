@@ -217,6 +217,29 @@ endif(ALASKA_HTLB_SIM)
 endif(NOT ALASKA_CORE_ONLY) # ---------------------------------------------------------------------------------
 
 
+
+if(ALASKA_YUKON)
+  add_library(yukon SHARED
+    yukon/yukon.cpp
+  )
+
+  target_include_directories(yukon PUBLIC include/)
+  set_target_properties(yukon PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(yukon PROPERTIES SOVERSION ${ALASKA_VERSION})
+  target_link_libraries(yukon alaska_core_static dl pthread ${LIBUNWIND_LIBRARIES})
+  target_compile_options(yukon PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+  install(
+    TARGETS yukon
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+endif(ALASKA_YUKON)
+
+
 if (ALASKA_ENABLE_TESTING)
 
 	find_package(GTest)
