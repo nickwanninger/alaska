@@ -52,19 +52,58 @@ namespace alaska::sim {
     T& operator*() const noexcept { return *translate(); }
 
 
+    bool operator==(const handle_ptr<T>& h) const { return m_handle == h.m_handle; }
+
     operator T*(void) const { return m_handle; }
     T* get(void) const { return m_handle; }
 
 
    private:
     T* translate(void) const {
-      auto m = alaska::Mapping::from_handle(m_handle);
+      auto m = alaska::Mapping::from_handle_safe(m_handle);
+      if (m == nullptr) return m_handle;
       if (alaska::sim::HTLB::get() != nullptr) {
         alaska::sim::HTLB::get()->access(*m);
       }
+      // printf("%lu\n", m->handle_id());
       return (T*)m->get_pointer();
     }
 
     T* m_handle = nullptr;
   };
+
+
+  template <typename T, typename... Args>
+  alaska::sim::handle_ptr<T> alloc(Args&&... args) {
+    if (alaska::sim::HTLB::get() == nullptr) {
+      abort();
+    }
+    alaska::sim::handle_ptr<T> ptr =
+        (T*)alaska::sim::HTLB::get()->thread_cache->halloc(sizeof(T), true);
+
+    new (&*ptr) T(std::forward<Args>(args)...);
+
+    return ptr;
+  }
+
+
+
+  template <typename T>
+  void release(alaska::sim::handle_ptr<T> h) {
+    if (alaska::sim::HTLB::get() == nullptr) {
+      abort();
+    }
+    alaska::sim::HTLB::get()->thread_cache->hfree(h);
+  }
 }  // namespace alaska::sim
+
+
+namespace std {
+  template <typename T>
+  struct hash<alaska::sim::handle_ptr<T>> {
+    std::size_t operator()(const alaska::sim::handle_ptr<T>& mc) const {
+      // its a pointer. just hash the pointer (return it)
+      return (size_t)mc.get();
+    }
+  };
+}  // namespace std

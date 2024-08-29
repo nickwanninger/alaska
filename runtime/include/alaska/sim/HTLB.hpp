@@ -2,10 +2,12 @@
 
 #include <alaska/sim/TLB.hpp>
 #include <alaska/sim/StatisticsManager.hpp>
+#include <alaska/ThreadCache.hpp>
 #include <cstdint>
 #include <fstream>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 namespace alaska::sim {
 
@@ -109,6 +111,8 @@ namespace alaska::sim {
     L2HTLB l2_htlb;
     L1HTLB l1_htlb;
 
+    std::vector<uint64_t> full_access_trace_;
+
    public:
     HTLB(int l1_num_sets, int l1_num_ways, int l2_num_sets, int l2_num_ways,
         CACHE_INCLUSION_POLICY policy = CACHE_INCLUSION_POLICY::EXCLUSIVE);
@@ -116,12 +120,37 @@ namespace alaska::sim {
 
     static HTLB *get();
 
+    uint64_t last_accessed = 0;
+    uint64_t access_ind = 0;
 
     void dump_entries(uint64_t *dest);
+    void reset(void) {
+      access_ind = 0;
+      last_accessed = 0;
+      l1_htlb.invalidateAll();
+      l2_htlb.invalidateAll();
+      l1_tlb.invalidateAll();
+      l2_tlb.invalidateAll();
+      full_access_trace_.clear();
+    }
 
     inline HTLBResp access(alaska::Mapping &m) {
-      // printf("access %p\n", m.to_handle());
+      auto h = m.encode();
+      full_access_trace_.push_back(h);
+      // if (last_accessed != 0 and last_accessed != h) {
+      //   printf("  x%lx -> x%lx [label=%lu, color=grey, constraint=false]\n", last_accessed, h,
+      //   access_ind++);
+      // }
+      // last_accessed = h;
       return l1_htlb.access(m);
     }
+
+
+    // return the access trace
+    std::vector<uint64_t> get_access_trace() { return full_access_trace_; }
+
+    // just a thread cache which is attached to the HTLB so that we can use it
+    // to allocate handles when simulating.
+    alaska::ThreadCache *thread_cache = nullptr;
   };
 }  // namespace alaska::sim

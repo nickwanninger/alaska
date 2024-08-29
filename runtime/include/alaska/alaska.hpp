@@ -117,6 +117,11 @@ namespace alaska {
       return out;
     }
 
+    ALASKA_INLINE uint64_t handle_id(void) const {
+      uint64_t out = ((uint64_t)encode() << ALASKA_SIZE_BITS);
+      return (out & ~(1UL << 63)) >> ALASKA_SIZE_BITS;
+    }
+
     // Encode a mapping into a handle that can be later translated by
     // compiler-inserted means.
     ALASKA_INLINE void *to_handle(uint32_t offset = 0) const {

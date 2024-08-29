@@ -106,7 +106,7 @@ class Graph {
 
       num_edges_++;
 
-      printf("node %lu -> %lu (%p -> %p)\n", u, v, getNode(u).get(), getNode(v).get());
+      // printf("node %lu -> %lu (%p -> %p)\n", u, v, getNode(u).get(), getNode(v).get());
 
       getNode(u)->out_neigh.insert(getNode(v));
       getNode(v)->in_neigh.insert(getNode(u));

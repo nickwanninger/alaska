@@ -20,6 +20,8 @@
 
 using namespace alaska::sim;
 
+#define printf(...)
+
 static uint64_t get_pn(uint64_t vaddr) { return (vaddr & 0x3FFFFFFFFFF000) >> 12; }
 
 void HTLBEntry::reset(const HTLBEntry &new_entry) {
@@ -207,9 +209,9 @@ HTLBResp L1HTLB::access(alaska::Mapping &m) {
     return It.hid == hid && It.valid;
   });
 
-  // printf("[L1HTLB] Searching hid: 0x%lx in way %d\n", hid, way);
+  printf("[L1HTLB] Searching hid: 0x%lx in way %d\n", hid, way);
   if (entry != sets[way].end()) {
-    // printf("[L1HTLB] Found hid: 0x%lx in way %d\n", hid, way);
+    printf("[L1HTLB] Found hid: 0x%lx in way %d\n", hid, way);
     entry->last_used = time;
     sm.incrementStatistic(L1_HTLB_HITS);
     return {entry->addr, entry->phys};
@@ -225,7 +227,7 @@ HTLBResp L1HTLB::access(alaska::Mapping &m) {
     auto new_entry = lookup(m);
     new_entry.last_used = time;
     oldest_line->reset(new_entry);
-    // printf("[L1HTLB] Inserted hid: 0x%lx in way %d\n", hid, way);
+    printf("[L1HTLB] Inserted hid: 0x%lx in way %d\n", hid, way);
     return {oldest_line->addr, oldest_line->phys};
   }
 }
@@ -281,14 +283,16 @@ HTLB::~HTLB() {
 
 void HTLB::dump_entries(uint64_t *dest) {
   auto l1e = l1_htlb.getAllEntriesSorted();
-  printf("L1 Entries: %ld\n", l1e.size());
+  // printf("L1 Entries: %ld\n", l1e.size());
   for (auto &entry : l1e) {
-    *dest++ = entry.hid;
+    auto value = entry.valid ? entry.hid : 0;
+    *dest++ = value;
   }
 
   auto l2e = l2_htlb.getAllEntriesSorted();
-  printf("L2 Entries: %ld\n", l2e.size());
+  // printf("L2 Entries: %ld\n", l2e.size());
   for (auto &entry : l2e) {
-    *dest++ = entry.hid;
+    auto value = entry.valid ? entry.hid : 0;
+    *dest++ = value;
   }
 }

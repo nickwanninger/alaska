@@ -17,6 +17,8 @@ void StatisticsManager::incrementStatistic(statistic metric, uint64_t value) {
   stats[metric] += value;
 }
 
+
+//
 void StatisticsManager::compute() {
   for (int metric = L1_TLB_HIT_RATE; metric < COUNT; metric++) {
     if (metric == L1_TLB_HIT_RATE) {
@@ -37,7 +39,6 @@ void StatisticsManager::compute() {
   }
 }
 
-
 void StatisticsManager::reset() {
   for (auto &stat : stats) {
     stat = 0;
@@ -55,6 +56,7 @@ void StatisticsManager::dump() {
   D(L1_TLB_EVICTIONS);
   D(L1_HT_TLB_EVICTIONS);
   printf("\n");
+
 
   D(L2_TLB_HITS);
   D(L2_TLB_ACCESSES);

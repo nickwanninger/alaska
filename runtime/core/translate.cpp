@@ -29,19 +29,7 @@
  * or duplciated needlessly. (Which can lead to linker errors)
  */
 
-static ALASKA_INLINE void alaska_track_hit(void) {
-#ifdef ALASKA_TRACK_TRANSLATION_HITRATE
-  alaska::record_translation_info(true);
-  // alaska::translation_hits++;
-#endif
-}
 
-static ALASKA_INLINE void alaska_track_miss(void) {
-#ifdef ALASKA_TRACK_TRANSLATION_HITRATE
-  alaska::record_translation_info(false);
-  // alaska::translation_misses++;
-#endif
-}
 
 extern "C" {
 extern int __LLVM_StackMaps __attribute__((weak));
@@ -69,15 +57,24 @@ void *alaska_translate_escape(void *ptr) {
 }
 
 
-static __attribute_noinline__ void track(uintptr_t handle) {
-  fprintf(stderr, "tr %016zx\n", handle);
-}
+
+#ifdef ALASKA_HTLB_SIM
+extern void alaska_htlb_sim_track(uintptr_t handle);
+#endif
+
+
+
 
 void *alaska_translate(void *ptr) {
   int64_t bits = (int64_t)ptr;
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;
   }
+
+#ifdef ALASKA_HTLB_SIM
+  alaska_htlb_sim_track((uintptr_t)ptr);
+#endif
+
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);

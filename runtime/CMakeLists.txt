@@ -112,6 +112,12 @@ add_library(alaska_sim SHARED
   sim/TLB.cpp
   sim/StatisticsManager.cpp
 )
+install(
+  TARGETS alaska_sim
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 
@@ -122,7 +128,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   find_library(LIBUNWIND_LIBRARIES NAMES unwind )
   message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
-  add_library(alaska SHARED
+  set(SOURCES
     rt/init.cpp
     rt/halloc.cpp
     rt/threads.cpp
@@ -130,12 +136,23 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
     rt/barrier.cpp
   )
 
+
+if(ALASKA_HTLB_SIM)
+  list(APPEND SOURCES rt/sim.cpp)
+endif(ALASKA_HTLB_SIM)
+
+  add_library(alaska SHARED ${SOURCES})
+
   target_include_directories(alaska PUBLIC include/)
   set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
   set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
   target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
   target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+if(ALASKA_HTLB_SIM)
+   target_link_libraries(alaska alaska_sim)
+endif(ALASKA_HTLB_SIM)
 
   install(
     TARGETS alaska
