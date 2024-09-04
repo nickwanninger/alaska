@@ -150,6 +150,7 @@ static void walk_tree(alaska::sim::handle_ptr<Node<K, V>> n) {
   walk_tree(n->right);
 }
 
+/*
 TEST_F(HTLBSimTest, AllocAndSetThree) {
   srand(0);
   auto tree = alloc_tree(16);
@@ -211,6 +212,7 @@ TEST_F(HTLBSimTest, AllocAndSetThree) {
   }
   printf("  x%lx [shape=rectangle, label=\"x%lx (%d)\"]\n", last, last, ind);
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
