@@ -56,6 +56,8 @@ set(CORE_SOURCES
   core/SizedPage.cpp
   core/LocalityPage.cpp
 
+  core/Utils.cpp
+
   # liballoc is a simple, small, malloc implementation that we embed
   # so alaska can temporially allocate objects w/o implementing a non-handle
   # allocator as well

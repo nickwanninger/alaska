@@ -14,6 +14,7 @@
 #include <alaska/SizeClass.hpp>
 #include <alaska/BarrierManager.hpp>
 #include "alaska/alaska.hpp"
+#include "alaska/utils.h"
 #include <stdlib.h>
 
 namespace alaska {
