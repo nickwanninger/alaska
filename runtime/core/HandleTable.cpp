@@ -74,6 +74,8 @@ namespace alaska {
     // Scale the capacity of the handle table
     log_debug("Growing handle table. New capacity: %lu, old: %lu", new_cap, m_capacity);
 
+    printf("growing handle table. old location = %p\n", m_table);
+
     // Grow the mmap region
     m_table = (alaska::Mapping *)mremap(
         m_table, m_capacity * HandleTable::slab_size, new_cap * HandleTable::slab_size, 0, m_table);
