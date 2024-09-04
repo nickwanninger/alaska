@@ -137,11 +137,6 @@ namespace alaska::sim {
     inline HTLBResp access(alaska::Mapping &m) {
       auto h = m.encode();
       full_access_trace_.push_back(h);
-      // if (last_accessed != 0 and last_accessed != h) {
-      //   printf("  x%lx -> x%lx [label=%lu, color=grey, constraint=false]\n", last_accessed, h,
-      //   access_ind++);
-      // }
-      // last_accessed = h;
       return l1_htlb.access(m);
     }
 
@@ -152,5 +147,9 @@ namespace alaska::sim {
     // just a thread cache which is attached to the HTLB so that we can use it
     // to allocate handles when simulating.
     alaska::ThreadCache *thread_cache = nullptr;
+
+    StatisticsManager get_stats() const {
+      return sm;
+    }
   };
 }  // namespace alaska::sim
