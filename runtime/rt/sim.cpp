@@ -16,7 +16,7 @@
 #define TOTAL_ENTRIES (L1_WAYS * L1_SETS + L2_WAYS * L2_SETS)
 
 
-#define RATE 100000
+#define RATE 100'000'000
 
 static long access_count = 0;
 static alaska::sim::HTLB *htlb;
@@ -30,10 +30,10 @@ static alaska::sim::HTLB &get_htlb() {
   return *htlb;
 }
 
-void alaska_htlb_sim_track(uintptr_t handle) {
-  auto m = alaska::Mapping::from_handle_safe((void *)handle);
+void alaska_htlb_sim_track(uintptr_t maybe_handle) {
+  ck::scoped_lock l(htlb_lock);
+  auto m = alaska::Mapping::from_handle_safe((void *)maybe_handle);
   if (m) {
-    ck::scoped_lock l(htlb_lock);
     auto &htlb = get_htlb();
     htlb.access(*m);
     access_count++;
@@ -41,20 +41,18 @@ void alaska_htlb_sim_track(uintptr_t handle) {
     if (access_count > RATE) {
       access_count = 0;
 
-      uint64_t *buf = (uint64_t *)calloc(TOTAL_ENTRIES, sizeof(uint64_t));
+      // uint64_t *buf = (uint64_t *)calloc(TOTAL_ENTRIES, sizeof(uint64_t));
+      // htlb.dump_entries(buf);
+      // free(buf);
 
       auto sm = htlb.get_stats();
       sm.compute();
       sm.dump();
-
-      htlb.dump_entries(buf);
+      // Reset the htlb for this run
       htlb.reset();
-
-      for (int i = 0; i < L1_ENTS; i++) {
-        printf("%lx ", buf[i]);
-      }
-      printf("\n");
-      free(buf);
     }
+  } else {
+    auto &htlb = get_htlb();
+    htlb.access_non_handle((void*)maybe_handle);
   }
 }

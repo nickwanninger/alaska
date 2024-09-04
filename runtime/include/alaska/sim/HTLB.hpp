@@ -132,12 +132,17 @@ namespace alaska::sim {
       l1_tlb.invalidateAll();
       l2_tlb.invalidateAll();
       full_access_trace_.clear();
+      sm.reset();
     }
 
-    inline HTLBResp access(alaska::Mapping &m) {
-      auto h = m.encode();
-      full_access_trace_.push_back(h);
-      return l1_htlb.access(m);
+    inline void access(alaska::Mapping &m) {
+      // auto h = m.encode();
+      // full_access_trace_.push_back(h);
+      auto resp = l1_htlb.access(m);
+      l1_tlb.access(resp.addr, false);
+    }
+    inline void access_non_handle(void *addr) {
+      l1_tlb.access((uint64_t)addr, false);
     }
 
 
@@ -148,7 +153,7 @@ namespace alaska::sim {
     // to allocate handles when simulating.
     alaska::ThreadCache *thread_cache = nullptr;
 
-    StatisticsManager get_stats() const {
+    StatisticsManager &get_stats() {
       return sm;
     }
   };

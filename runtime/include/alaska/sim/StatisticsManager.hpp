@@ -31,18 +31,18 @@ namespace alaska::sim {
     // EPOCH_COMPACTION_HANDLE_SPACE,
     // EPOCH_COMPACTION_MEM_SPACE,
     // EPOCH_MEM_MOVED,
-
-    L1_TLB_HIT_RATE,
-    L2_TLB_HIT_RATE,
-    L1_HTLB_HIT_RATE,
-    L2_HTLB_HIT_RATE,
     // UTILIZATION_RATIO,
 
     COUNT
   };
 
   class StatisticsManager {
-    std::array<float, statistic::COUNT> stats;
+    std::array<uint64_t, statistic::COUNT> stats;
+
+    float l1_tlb_hr = 0;
+    float l2_tlb_hr = 0;
+    float l1_htlb_hr = 0;
+    float l2_htlb_hr = 0;
 
    public:
     StatisticsManager(void);

@@ -66,14 +66,14 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 
 void *alaska_translate(void *ptr) {
+#ifdef ALASKA_HTLB_SIM
+  alaska_htlb_sim_track((uintptr_t)ptr);
+#endif
+
   int64_t bits = (int64_t)ptr;
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;
   }
-
-#ifdef ALASKA_HTLB_SIM
-  alaska_htlb_sim_track((uintptr_t)ptr);
-#endif
 
 
   // Grab the mapping from the runtime
