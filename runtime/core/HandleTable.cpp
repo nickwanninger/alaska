@@ -79,6 +79,10 @@ namespace alaska {
         m_table, m_capacity * HandleTable::slab_size, new_cap * HandleTable::slab_size, 0, m_table);
 
     m_capacity = new_cap;
+
+    if (m_table == MAP_FAILED) {
+      perror("failed to grow handle table.\n");
+    }
     // Validate that the table was reallocated
     ALASKA_ASSERT(m_table != MAP_FAILED, "failed to reallocate handle table during growth");
   }
