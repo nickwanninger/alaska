@@ -10,6 +10,7 @@
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include "alaska/utils.h"
 #endif
 
 
@@ -20,6 +21,7 @@
 #include <ck/lock.h>
 #include <stdio.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 
 
 
@@ -104,6 +106,7 @@ namespace alaska {
     // Allocate a new slab using the system allocator.
     // auto *sl = alaska::make_object<HandleSlab>(*this, idx);
     auto *sl = new HandleSlab(*this, idx);
+    if (do_mlock) sl->mlock();
     sl->set_owner(new_owner);
 
     // Add the slab to the list of slabs and return it
@@ -242,7 +245,6 @@ namespace alaska {
       : table(table)
       , idx(idx) {
     auto start = table.get_slab_start(idx);
-    mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
     allocator.configure(start, sizeof(alaska::Mapping), HandleTable::slab_capacity);
   }
 
@@ -264,6 +266,12 @@ namespace alaska {
   void HandleSlab::release_local(Mapping *m) {
     allocator.release_local(m);
     update_state();
+  }
+
+
+  void HandleSlab::mlock(void) {
+    auto start = table.get_slab_start(idx);
+    ::mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
   }
 
   void HandleSlab::update_state() {}

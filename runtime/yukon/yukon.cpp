@@ -92,6 +92,8 @@ static void init(void) {
   void *handle_table_base = the_runtime->handle_table.get_base();
   printf("Handle table at %p\n", handle_table_base);
   set_ht_addr(handle_table_base);
+  // Make sure the handle table performs mlocks
+  the_runtime->handle_table.enable_mlock();
 }
 
 
