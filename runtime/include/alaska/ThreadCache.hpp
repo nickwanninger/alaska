@@ -37,6 +37,9 @@ namespace alaska {
     int get_id(void) const { return this->id; }
     size_t get_size(void *handle);
 
+
+    bool localize(void *handle);
+
    private:
     // Allocate backing data for a handle, but don't assign it yet.
     void *allocate_backing_data(const alaska::Mapping &m, size_t size);
@@ -49,8 +52,7 @@ namespace alaska {
     // Swap to a new sized page owned by this thread cache
     alaska::SizedPage *new_sized_page(int cls);
     // Swap to a new locality page owned by this thread cache
-    alaska::LocalityPage *new_locality_page(void);
-
+    alaska::LocalityPage *new_locality_page(size_t required_size);
 
     // Just an id for this thread cache assigned by the runtime upon creation. It's mostly
     // meaningless, meant for debugging.

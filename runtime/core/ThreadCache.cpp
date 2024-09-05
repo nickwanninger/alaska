@@ -87,6 +87,20 @@ namespace alaska {
     return heap;
   }
 
+
+  LocalityPage *ThreadCache::new_locality_page(size_t required_size) {
+    // Get a new heap
+    auto *lp = runtime.heap.get_localitypage(required_size, this);
+
+    // Swap the heaps in the thread cache
+    if (this->locality_page != nullptr) runtime.heap.put_page(this->locality_page);
+    this->locality_page = lp;
+
+    ALASKA_ASSERT(lp->available() > 0, "New heap must have space");
+    log_info("new heaps avail = %lu", heap->available());
+    return lp;
+  }
+
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
     if (unlikely(size >= alaska::huge_object_thresh)) {
@@ -186,7 +200,6 @@ namespace alaska {
   void ThreadCache::hfree(void *handle) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) {
-
       // printf("attempt to free non handle %p\n", handle);
       bool worked = this->runtime.heap.huge_allocator.free(handle);
       (void)worked;
@@ -224,6 +237,42 @@ namespace alaska {
     }
 
     return m;
+  }
+
+
+
+  bool ThreadCache::localize(void *handle) {
+    alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (unlikely(m == nullptr)) return false;
+
+
+    void *ptr = m->get_pointer();
+    auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
+    // if there wasn't a page for some reason, we can't localize.
+    if (unlikely(source_page == nullptr)) return false;
+    auto size = source_page->size_of(ptr);
+
+
+    if (locality_page == nullptr || locality_page->available() < size) {
+      locality_page = new_locality_page(size);
+    }
+
+
+    void *d = locality_page->alloc(*m, size);
+    memcpy(d, ptr, size);
+
+    // TODO: invalidate!
+    m->set_pointer(d);
+
+    if (source_page->is_owned_by(this)) {
+      log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
+      source_page->release_local(*m, ptr);
+    } else {
+      log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
+      source_page->release_remote(*m, ptr);
+    }
+
+    return true;
   }
 
 }  // namespace alaska

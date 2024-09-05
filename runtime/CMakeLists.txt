@@ -282,6 +282,7 @@ if (ALASKA_ENABLE_TESTING)
     test/object_allocator_test.cpp
     test/handle_ptr_test.cpp
     test/htlb_sim_test.cpp
+    test/locality_page_test.cpp
 	)
 
 	target_link_libraries(
