@@ -79,7 +79,7 @@ namespace alaska {
     log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
     // Swap the heaps in the thread cache
-    if (size_classes[cls] != nullptr) runtime.heap.put_sizedpage(size_classes[cls]);
+    if (size_classes[cls] != nullptr) runtime.heap.put_page(size_classes[cls]);
     size_classes[cls] = heap;
 
     ALASKA_ASSERT(heap->available() > 0, "New heap must have space");

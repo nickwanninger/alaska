@@ -18,6 +18,7 @@
 #include <alaska/Magazine.hpp>
 #include <alaska/HugeObjectAllocator.hpp>
 #include <alaska/track.hpp>
+#include "alaska/LocalityPage.hpp"
 #include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
@@ -133,9 +134,13 @@ namespace alaska {
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
     alaska::SizedPage *get_sizedpage(size_t size, ThreadCache *owner = nullptr);
+    alaska::LocalityPage *get_localitypage(size_t size_requirement, ThreadCache *owner = nullptr);
 
 
-    void put_sizedpage(alaska::SizedPage *page);
+    void put_page(alaska::SizedPage *page);
+    void put_page(alaska::LocalityPage *page);
+
+
 
     // Run a "heap collection" phase. This basically just means
     // walking over the HeapPage instances, collecting statistics and
@@ -148,9 +153,13 @@ namespace alaska {
     void dump(FILE *stream);
 
    private:
+    template <typename T>
+    T *find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement);
+
     // This lock is taken whenever global state in the heap is changed by a thread cache.
     ck::mutex lock;
     alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
+    alaska::Magazine<alaska::LocalityPage> locality_pages;
 
 
     // Huge objects are managed independently of the size classes. They are allocated
@@ -163,4 +172,35 @@ namespace alaska {
       size_t size;
     };
   };
+
+
+
+  template <typename T>
+  T *Heap::find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement) {
+    ALASKA_SANITY(this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
+    if (mag.size() != 0) {
+      auto p = mag.find([=](T *p) {
+        printf("Looking at %p. avail = %zu, owner = %p\n", p, p->available(), p->get_owner());
+        if ((size_t)p->available() >= (size_t)avail_requirement and p->get_owner() == nullptr) return true;
+        return false;
+      });
+
+      if (p != NULL) {
+        p->set_owner(owner);
+        return p;
+      }
+    }
+
+
+    // Allocate a new sized page
+    void *memory = this->pm.alloc_page();
+    log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
+    T *p = new T(memory);
+    // Map it in the page table for fast lookup
+    pt.set(memory, p);
+    mag.add(p);
+    p->set_owner(owner);
+
+    return p;
+  }
 }  // namespace alaska

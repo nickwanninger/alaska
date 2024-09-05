@@ -48,6 +48,8 @@ namespace alaska {
     alaska::Mapping *new_mapping(void);
     // Swap to a new sized page owned by this thread cache
     alaska::SizedPage *new_sized_page(int cls);
+    // Swap to a new locality page owned by this thread cache
+    alaska::LocalityPage *new_locality_page(void);
 
 
     // Just an id for this thread cache assigned by the runtime upon creation. It's mostly
@@ -62,9 +64,14 @@ namespace alaska {
     alaska::HandleSlab *handle_slab;
 
     // Each thread cache has a private heap page for each size class
-    // it might allocate from. When a size class fills up, it is returned
-    // to the global heap and another one is allocated.
+    // it might allocate from. When a size class fills up, it is
+    // returned to the global heap and another one is allocated.
     alaska::SizedPage *size_classes[alaska::num_size_classes] = {nullptr};
+    // Each thread cache also has a private "Locality Page", which
+    // objects can be relocated to according to some external
+    // policy. This page is special because it can contain many
+    // objects of many different sizes.
+    alaska::LocalityPage *locality_page = nullptr;
   };
 
 

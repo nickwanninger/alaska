@@ -135,6 +135,10 @@ static void *_halloc(size_t sz, int zero) {
   return result;
 }
 
+#define malloc halloc
+#define calloc hcalloc
+#define realloc hrealloc
+#define free hfre:
 
 extern "C" void *malloc(size_t sz) noexcept { return _halloc(sz, 0); }
 

@@ -14,6 +14,7 @@
 #include <alaska/Logger.hpp>
 #include <alaska/Heap.hpp>
 #include "alaska/HeapPage.hpp"
+#include "alaska/LocalityPage.hpp"
 #include "alaska/SizeClass.hpp"
 #include "alaska/utils.h"
 #include <alaska/ThreadCache.hpp>
@@ -167,38 +168,30 @@ namespace alaska {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
-
-    if (mag.size() != 0) {
-      auto p = mag.find([](SizedPage *p) {
-        if (p->available() > 0 and p->get_owner() == nullptr) return true;
-        return false;
-      });
-
-      if (p != NULL) {
-        p->set_owner(owner);
-        return p;
-      }
-    }
-
-
-    // Allocate backing memory
-    void *memory = this->pm.alloc_page();
-    log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
-
-    // Allocate a new SizedPage for that memory
-    auto *p = new SizedPage(memory);
+    // Look for a sized page in the magazine with at least one allocation space available.
+    // TODO: it would be smart to adjust this requirement dynamically based on the allocation
+    // request.
+    auto *p = this->find_or_alloc_page<SizedPage>(mag, owner, 1);
     p->set_size_class(cls);
-
-
-    // Map it in the page table for fast lookup
-    pt.set(memory, p);
-    mag.add(p);
-    p->set_owner(owner);
     return p;
   }
 
 
-  void Heap::put_sizedpage(SizedPage *page) {
+  LocalityPage *Heap::get_localitypage(size_t size_requirement, ThreadCache *owner) {
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+    auto *p = this->find_or_alloc_page<LocalityPage>(locality_pages, owner, size_requirement);
+    return p;
+  }
+
+
+  void Heap::put_page(SizedPage *page) {
+    // Return a SizedPage back to the global (unowned) heap.
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+    page->set_owner(nullptr);
+  }
+
+
+  void Heap::put_page(LocalityPage *page) {
     // Return a SizedPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
@@ -224,7 +217,8 @@ namespace alaska {
         if (owner != NULL) {
           id = owner->get_id();
         }
-        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(), (uintptr_t)sp->end(), id, sp->available());
+        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(),
+            (uintptr_t)sp->end(), id, sp->available());
         page_ind++;
         if (page_ind > mag.size()) return false;
         return true;
