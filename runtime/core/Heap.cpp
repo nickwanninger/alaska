@@ -171,15 +171,18 @@ namespace alaska {
     // Look for a sized page in the magazine with at least one allocation space available.
     // TODO: it would be smart to adjust this requirement dynamically based on the allocation
     // request.
-    auto *p = this->find_or_alloc_page<SizedPage>(mag, owner, 1);
-    p->set_size_class(cls);
+    auto *p = this->find_or_alloc_page<SizedPage>(mag, owner, 1, [&](auto p) {
+      p->set_size_class(cls);
+    });
     return p;
   }
 
 
   LocalityPage *Heap::get_localitypage(size_t size_requirement, ThreadCache *owner) {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
-    auto *p = this->find_or_alloc_page<LocalityPage>(locality_pages, owner, size_requirement);
+    auto *p = this->find_or_alloc_page<LocalityPage>(
+        locality_pages, owner, size_requirement, [](auto *p) {
+        });
     return p;
   }
 

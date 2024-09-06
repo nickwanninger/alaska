@@ -153,8 +153,9 @@ namespace alaska {
     void dump(FILE *stream);
 
    private:
-    template <typename T>
-    T *find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement);
+    template <typename T, typename Fn>
+    T *find_or_alloc_page(
+        alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&init);
 
     // This lock is taken whenever global state in the heap is changed by a thread cache.
     ck::mutex lock;
@@ -175,12 +176,15 @@ namespace alaska {
 
 
 
-  template <typename T>
-  T *Heap::find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement) {
-    ALASKA_SANITY(this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
+  template <typename T, typename Fn>
+  T *Heap::find_or_alloc_page(
+                              alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&init_fn) {
+    ALASKA_SANITY(
+        this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
     if (mag.size() != 0) {
       auto p = mag.find([=](T *p) {
-        if ((size_t)p->available() >= (size_t)avail_requirement and p->get_owner() == nullptr) return true;
+        if ((size_t)p->available() >= (size_t)avail_requirement and p->get_owner() == nullptr)
+          return true;
         return false;
       });
 
@@ -199,6 +203,8 @@ namespace alaska {
     pt.set(memory, p);
     mag.add(p);
     p->set_owner(owner);
+
+    init_fn(p);
 
     return p;
   }
