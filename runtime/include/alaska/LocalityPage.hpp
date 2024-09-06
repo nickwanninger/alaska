@@ -31,7 +31,8 @@ namespace alaska {
       alaska::Mapping *mapping;
     };
 
-    LocalityPage(void *backing_memory) : alaska::HeapPage(backing_memory) {
+    LocalityPage(void *backing_memory)
+        : alaska::HeapPage(backing_memory) {
       data = backing_memory;
       data_bump_next = data;
       md_bump_next = get_md(0);
@@ -43,6 +44,10 @@ namespace alaska {
     bool release_local(const alaska::Mapping &m, void *ptr) override;
     size_t size_of(void *) override;
     inline size_t available() const { return get_free_space(); }
+
+    bool should_localize_from(uint64_t current_epoch) const override {
+      return current_epoch - last_localization_epoch > localization_epoch_hysteresis;
+    }
 
 
    private:
@@ -57,9 +62,7 @@ namespace alaska {
 
     inline alaska::Mapping *get_mapping(uint32_t offset) { return get_md(offset)->mapping; }
 
-    inline size_t get_free_space() const {
-      return (off_t)md_bump_next - (off_t)data_bump_next;
-    }
+    inline size_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
     inline size_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
 
 
@@ -67,5 +70,9 @@ namespace alaska {
     void *data = nullptr;
     void *data_bump_next = nullptr;
     Metadata *md_bump_next = nullptr;
+
+   public:
+    uint64_t last_localization_epoch = 0;
+    uint64_t localization_epoch_hysteresis = 1;
   };
 };  // namespace alaska

@@ -180,7 +180,6 @@ namespace alaska {
     ALASKA_SANITY(this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
     if (mag.size() != 0) {
       auto p = mag.find([=](T *p) {
-        printf("Looking at %p. avail = %zu, owner = %p\n", p, p->available(), p->get_owner());
         if ((size_t)p->available() >= (size_t)avail_requirement and p->get_owner() == nullptr) return true;
         return false;
       });

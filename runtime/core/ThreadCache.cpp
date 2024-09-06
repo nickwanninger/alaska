@@ -241,7 +241,7 @@ namespace alaska {
 
 
 
-  bool ThreadCache::localize(void *handle) {
+  bool ThreadCache::localize(void *handle, uint64_t epoch) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) return false;
 
@@ -250,15 +250,21 @@ namespace alaska {
     auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
     // if there wasn't a page for some reason, we can't localize.
     if (unlikely(source_page == nullptr)) return false;
+    // if the page has recently been localized into, don't try again
+    if (unlikely(!source_page->should_localize_from(epoch))) return false;
+
+
     auto size = source_page->size_of(ptr);
-
-
-    if (locality_page == nullptr || locality_page->available() < size) {
+    if (locality_page == nullptr || locality_page->available() < size * 2) {
       locality_page = new_locality_page(size);
     }
 
+    // If we are moving an object within the locality page, don't.
+    if (unlikely(source_page == locality_page)) return false;
+
 
     void *d = locality_page->alloc(*m, size);
+    locality_page->last_localization_epoch = epoch;
     memcpy(d, ptr, size);
 
     // TODO: invalidate!

@@ -38,7 +38,7 @@ namespace alaska {
     size_t get_size(void *handle);
 
 
-    bool localize(void *handle);
+    bool localize(void *handle, uint64_t epoch);
 
    private:
     // Allocate backing data for a handle, but don't assign it yet.

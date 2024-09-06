@@ -56,6 +56,12 @@ namespace alaska {
     static Runtime &get();
 
 
+    // Localization logic is broken down into "epochs", and objects
+    // can only be re-localized after a certain number of epochs.
+    // These are of an arbitrary unit.
+    uint64_t localization_epoch = 0;
+
+
     Runtime();
     ~Runtime();
 
