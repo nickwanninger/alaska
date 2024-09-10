@@ -19,7 +19,7 @@
 // TODO: don't have this be global!
 static __thread alaska::ThreadCache *g_tc = nullptr;
 
-static auto get_tc(void) {
+alaska::ThreadCache *get_tc(void) {
   if (unlikely(g_tc == nullptr)) {
     g_tc = alaska::Runtime::get().new_threadcache();
   }

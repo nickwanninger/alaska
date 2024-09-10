@@ -39,12 +39,12 @@ namespace alaska::sim {
   class StatisticsManager {
     std::array<uint64_t, statistic::COUNT> stats;
 
+   public:
     float l1_tlb_hr = 0;
     float l2_tlb_hr = 0;
     float l1_htlb_hr = 0;
     float l2_htlb_hr = 0;
 
-   public:
     StatisticsManager(void);
     ~StatisticsManager();
 

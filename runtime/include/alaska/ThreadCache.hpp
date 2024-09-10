@@ -38,6 +38,7 @@ namespace alaska {
     size_t get_size(void *handle);
 
 
+    bool localize(alaska::Mapping &m, uint64_t epoch);
     bool localize(void *handle, uint64_t epoch);
 
    private:

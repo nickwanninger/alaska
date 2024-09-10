@@ -152,6 +152,8 @@ namespace alaska {
     // Dump the state of the global heap to some file stream.
     void dump(FILE *stream);
 
+    long jumble();
+
    private:
     template <typename T, typename Fn>
     T *find_or_alloc_page(
@@ -197,7 +199,6 @@ namespace alaska {
 
     // Allocate a new sized page
     void *memory = this->pm.alloc_page();
-    log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
     T *p = new T(memory);
     // Map it in the page table for fast lookup
     pt.set(memory, p);

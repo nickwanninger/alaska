@@ -28,7 +28,17 @@ namespace alaska {
   class LocalityPage final : public alaska::HeapPage {
    public:
     struct Metadata {
-      alaska::Mapping *mapping;
+      union {
+        alaska::Mapping *mapping;
+        void *data_raw;
+      };
+      bool allocated;
+      uint32_t size;
+
+      void *get_data(void) const {
+        if (not allocated) return data_raw;
+        return mapping->get_pointer();
+      }
     };
 
     LocalityPage(void *backing_memory)
@@ -43,9 +53,10 @@ namespace alaska {
     void *alloc(const alaska::Mapping &m, alaska::AlignedSize size) override;
     bool release_local(const alaska::Mapping &m, void *ptr) override;
     size_t size_of(void *) override;
-    inline size_t available() const { return get_free_space(); }
+    inline size_t available() const { return get_free_space() - sizeof(Metadata); }
 
     bool should_localize_from(uint64_t current_epoch) const override {
+      return false;
       return current_epoch - last_localization_epoch > localization_epoch_hysteresis;
     }
 
@@ -56,11 +67,9 @@ namespace alaska {
       return (Metadata *)((uintptr_t)data + page_size) - (offset + 1);
     }
 
-    inline void *get_ptr(uint32_t index) { return get_mapping(index)->get_pointer(); }
+    inline void *get_ptr(uint32_t index) { return get_md(index)->get_data(); }
 
     inline int num_allocated(void) { return get_md(0) - (md_bump_next); }
-
-    inline alaska::Mapping *get_mapping(uint32_t offset) { return get_md(offset)->mapping; }
 
     inline size_t get_free_space() const { return (off_t)md_bump_next - (off_t)data_bump_next; }
     inline size_t used_space() const { return (off_t)data_bump_next - (off_t)data; }
@@ -73,6 +82,6 @@ namespace alaska {
 
    public:
     uint64_t last_localization_epoch = 0;
-    uint64_t localization_epoch_hysteresis = 1;
+    uint64_t localization_epoch_hysteresis = 10;
   };
 };  // namespace alaska

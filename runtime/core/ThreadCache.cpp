@@ -76,14 +76,12 @@ namespace alaska {
 
     // And set the owner
     heap->set_owner(this);
-    log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
     // Swap the heaps in the thread cache
     if (size_classes[cls] != nullptr) runtime.heap.put_page(size_classes[cls]);
     size_classes[cls] = heap;
 
     ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
-    log_info("new heaps avail = %lu", heap->available());
     return heap;
   }
 
@@ -97,7 +95,6 @@ namespace alaska {
     this->locality_page = lp;
 
     ALASKA_ASSERT(lp->available() > 0, "New heap must have space");
-    log_info("new heaps avail = %lu", heap->available());
     return lp;
   }
 
@@ -240,43 +237,65 @@ namespace alaska {
   }
 
 
-
   bool ThreadCache::localize(void *handle, uint64_t epoch) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
-    if (unlikely(m == nullptr)) return false;
+    if (unlikely(m == nullptr)) {
+      printf("%p No because not handle\n", handle);
+      return false;
+    }
+
+    return localize(*m, epoch);
+  }
 
 
-    void *ptr = m->get_pointer();
+  bool ThreadCache::localize(alaska::Mapping &m, uint64_t epoch) {
+    if (m.is_pinned() or m.is_free()) {
+      return false;
+    }
+    void *ptr = m.get_pointer();
     auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
     // if there wasn't a page for some reason, we can't localize.
-    if (unlikely(source_page == nullptr)) return false;
+    if (unlikely(source_page == nullptr)) {
+      // printf("no because no page for %p\n", (void*)m.encode());
+      return false;
+    }
     // if the page has recently been localized into, don't try again
-    if (unlikely(!source_page->should_localize_from(epoch))) return false;
+    if (unlikely(!source_page->should_localize_from(epoch))) {
+      // printf("no because shouldnt localize\n");
+      return false;
+    }
 
-
-    auto size = source_page->size_of(ptr);
-    if (locality_page == nullptr || locality_page->available() < size * 2) {
-      locality_page = new_locality_page(size);
+   auto size = source_page->size_of(ptr);
+    if (locality_page == nullptr or locality_page->available() < size * 2) {
+      locality_page = new_locality_page(size + 32);
     }
 
     // If we are moving an object within the locality page, don't.
     if (unlikely(source_page == locality_page)) return false;
 
+  //   void *dst = NULL;
 
-    void *d = locality_page->alloc(*m, size);
+  //   while (dst == NULL) {
+  //   dst = locality_page->alloc(m, size);
+  //   if (dst == nullptr) locality_page = new_locality_page(size);
+  // }
+
+    void *d = locality_page->alloc(m, size);
     locality_page->last_localization_epoch = epoch;
     memcpy(d, ptr, size);
+    memset(ptr, 0xFA, size);
 
     // TODO: invalidate!
-    m->set_pointer(d);
+    m.set_pointer(d);
 
-    if (source_page->is_owned_by(this)) {
-      log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
-      source_page->release_local(*m, ptr);
-    } else {
-      log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
-      source_page->release_remote(*m, ptr);
-    }
+    // if (source_page->is_owned_by(this)) {
+    //   log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
+    //   source_page->release_local(m, ptr);
+    // } else {
+    //   log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
+    //   source_page->release_remote(m, ptr);
+    // }
+    source_page->release_remote(m, ptr);
 
     return true;
   }

@@ -36,6 +36,8 @@ namespace alaska {
 
     log_trace("setting md to %p", &m);
     md->mapping = const_cast<alaska::Mapping *>(&m);
+    md->size = size;
+    md->allocated = true;
     log_trace("set md!");
 
     return data;
@@ -46,6 +48,8 @@ namespace alaska {
     // Don't do anything other than
     auto md = find_md(ptr);
     md->mapping = nullptr;
+    md->data_raw = ptr;
+    md->allocated = false;
     return true;
   }
 
@@ -84,8 +88,8 @@ namespace alaska {
 
 
   size_t LocalityPage::size_of(void *data) {
-    abort();
-    return 0;
+    auto md = find_md(data);
+    return md->size;
   }
 
 }  // namespace alaska

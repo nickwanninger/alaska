@@ -61,6 +61,8 @@ namespace alaska {
     // These are of an arbitrary unit.
     uint64_t localization_epoch = 0;
 
+    bool in_barrier = false;
+
 
     Runtime();
     ~Runtime();
@@ -74,12 +76,20 @@ namespace alaska {
     template <typename Fn>
     void with_barrier(Fn &&cb) {
       barrier_manager->begin();
+      in_barrier = true;
       barrier_manager->barrier_count++;
       cb();
+      in_barrier = false;
       barrier_manager->end();
     }
 
    private:
     int next_thread_cache_id = 0;
   };
+
+
+  // Spin until the runtime has been initialized somehow
+  void wait_for_initialization(void);
+  // Has the runtime been initialized?
+  bool is_initialized(void);
 }  // namespace alaska

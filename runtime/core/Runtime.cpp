@@ -16,12 +16,14 @@
 #include "alaska/alaska.hpp"
 #include "alaska/utils.h"
 #include <stdlib.h>
+#include <alaska/utils.h>
 
 namespace alaska {
   // The default instance of a barrier manager.
   static BarrierManager global_nop_barrier_manager;
   // The current global instance of the runtime, since we can only have one at a time
   static Runtime *g_runtime = nullptr;
+  static volatile bool runtime_initialized = false;
 
 
   Runtime::Runtime() {
@@ -33,6 +35,7 @@ namespace alaska {
     this->barrier_manager = &global_nop_barrier_manager;
 
     log_debug("Created a new Alaska Runtime @ %p", this);
+    atomic_set(runtime_initialized, true);
   }
 
   Runtime::~Runtime() {
@@ -72,5 +75,18 @@ namespace alaska {
     tcs_lock.unlock();
   }
 
+
+  void wait_for_initialization(void) {
+    printf("waiting for initialization!\n");
+    while (not is_initialized()) {
+      sched_yield();
+    }
+    printf("Initialized!\n");
+  }
+
+
+  bool is_initialized(void) {
+    return atomic_get(runtime_initialized);
+  }
 
 }  // namespace alaska

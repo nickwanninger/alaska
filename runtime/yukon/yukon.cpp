@@ -73,7 +73,7 @@ void segfault_handler(int sig) {
 
   for (size_t i = 0; i < size; i++) {
     print_hex("bt:", (uint64_t)array[i]);
-    print_words((unsigned*)array[i], 4);
+    print_words((unsigned *)array[i], 4);
   }
   exit(0);
 
@@ -83,7 +83,6 @@ void segfault_handler(int sig) {
   // for (int i = 0; i < size; i++) {
   //   write_int(
   // }
-
 }
 
 static void init(void) {
@@ -185,3 +184,6 @@ extern "C" void free(void *ptr) {
   // Simply ask the thread cache to free it!
   get_tc()->hfree(ptr);
 }
+
+
+extern "C" size_t malloc_usable_size(void *ptr) { return get_tc()->get_size(ptr); }

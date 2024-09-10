@@ -39,12 +39,18 @@ extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
-  // while (1) {
-  //   usleep(250 * 1000);
-  //   alaska::barrier::begin();
-  //   printf("Barrier.\n");
-  //   alaska::barrier::end();
-  // }
+  return NULL;
+  while (1) {
+    usleep(50 * 1000);
+
+    alaska::Runtime::get().with_barrier([]() {
+      long swapped = alaska::Runtime::get().heap.jumble();
+      printf("Swapped %ld\n", swapped);
+    });
+    // alaska::barrier::begin();
+    // printf("Barrier.\n");
+    // alaska::barrier::end();
+  }
 
   return NULL;
 }
@@ -57,7 +63,7 @@ void __attribute__((constructor(102))) alaska_init(void) {
   // Attach the runtime's barrier manager
   the_runtime->barrier_manager = &the_barrier_manager;
 
-  pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
+  // pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
