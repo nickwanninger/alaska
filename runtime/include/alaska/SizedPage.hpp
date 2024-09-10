@@ -44,6 +44,8 @@ namespace alaska {
     // Run through the page and validate as much info as possible w/ asserts.
     void validate(void);
 
+    long jumble(void);
+
    private:
     struct Header {
       uint64_t _mapping : (64 - ALASKA_SIZE_BITS);

@@ -238,6 +238,16 @@ namespace alaska {
   }
 
 
+  long Heap::jumble(void) {
+    long c = 0;
+    for (auto &mag : size_classes) {
+      mag.foreach ([&](SizedPage *sp) {
+        c += sp->jumble();
+        return true;
+      });
+    }
+    return c;
+  }
 
 
   void *mmap_alloc(size_t bytes) {
@@ -255,5 +265,7 @@ namespace alaska {
     bytes = (bytes + 4095) & ~4095;
     munmap(ptr, bytes);
   }
+
+
 
 }  // namespace alaska
