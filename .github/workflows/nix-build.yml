@@ -11,8 +11,20 @@ jobs:
     - uses: DeterminateSystems/magic-nix-cache-action@main
     - uses: DeterminateSystems/flake-checker-action@main
 
-    - name: Compile
-      run: nix develop --command make
+    - name: Configure
+      shell: nix develop --command {0}
+      run: |
+         mkdir -p build
+         cd build && cmake ../ -DALASKA_ENABLE_COMPILER=OFF          \
+                               -DALASKA_ENABLE_TESTING=ON            \
+                               -DCMAKE_INSTALL_PREFIX:PATH=../local
 
-    - name: Run Tests
-      run: nix develop --command make test
+    - name: Compile
+      shell: nix develop --command {0}
+      run: |
+        make -C build install
+
+    - name: Test
+      shell: nix develop --command {0}
+      run: |
+        build/runtime/alaska_test

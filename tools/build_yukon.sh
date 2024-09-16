@@ -17,7 +17,6 @@ cmake ../ \
       -DALASKA_CORE_ONLY=ON \
       -DALASKA_YUKON=ON \
       -DALASKA_SIZE_BITS=32 \
-      -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_SYSROOT=$ROOT/sysroot
 
 make -j
