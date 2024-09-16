@@ -183,7 +183,7 @@ namespace alaska {
 
   template <typename T, typename Fn>
   T *Heap::find_or_alloc_page(
-      alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&INIt_fn) {
+      alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&init_fn) {
     ALASKA_SANITY(
         this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
     if (mag.size() != 0) {
