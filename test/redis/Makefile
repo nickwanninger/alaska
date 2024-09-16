@@ -20,7 +20,7 @@ bin/redis-server-alaska: bin/redis-server.bc
 	cp bin/redis-server.bc bin/alaska.bc
 	opt -strip-debug bin/alaska.bc -o bin/alaska.bc
 	opt -O3 bin/alaska.bc -o bin/alaska.bc
-	alaska-transform bin/alaska.bc -o bin/alaska-transformed.bc
+	ALASKA_NO_STRICT_ALIAS=YES alaska-transform bin/alaska.bc -o bin/alaska-transformed.bc
 	llc -O3 bin/alaska-transformed.bc --relocation-model=pic --filetype=obj -o bin/alaska.o
 	clang bin/alaska.o $(shell alaska-config --ldflags --cflags) -lm -ldl -o bin/redis-server-alaska
 

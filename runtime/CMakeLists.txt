@@ -71,7 +71,8 @@ set(CORE_SOURCES
 
 add_library(alaska_core_objects OBJECT ${CORE_SOURCES})
 set_property(TARGET alaska_core_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
+# target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
 
 
 

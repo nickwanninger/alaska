@@ -56,6 +56,12 @@ static void *sim_background_thread_func(void *) {
     auto &rt = alaska::Runtime::get();
 
     rt.with_barrier([&]() {
+      unsigned long c = rt.heap.jumble();
+      printf("jumbled %lu objects\n", c);
+      // rt.heap.compact_sizedpages();
+      return;
+
+
       unsigned long moved_objects = 0;
       for (int i = 0; i < TOTAL_ENTRIES; i++) {
         if (dump_buf[i] == 0) continue;
