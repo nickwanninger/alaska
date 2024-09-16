@@ -14,10 +14,9 @@ jobs:
     - name: Configure
       shell: nix develop --command {0}
       run: |
-         mkdir -p build
-         cd build && cmake ../ -DALASKA_ENABLE_COMPILER=OFF          \
-                               -DALASKA_ENABLE_TESTING=ON            \
-                               -DCMAKE_INSTALL_PREFIX:PATH=../local
+         mkdir -p build && cd build && cmake ../ -DALASKA_ENABLE_COMPILER=OFF          \
+                                                 -DALASKA_ENABLE_TESTING=ON            \
+                                                 -DCMAKE_INSTALL_PREFIX:PATH=../local
 
     - name: Compile
       shell: nix develop --command {0}
