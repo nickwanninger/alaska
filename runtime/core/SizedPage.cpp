@@ -90,15 +90,167 @@ namespace alaska {
   }
 
 
-  void SizedPage::compact(void) {}
+  // The goal of this function is to take a fragmented heap, and
+  // apply a simple two-finger compaction algorithm.  We start with
+  // a heap that looks like this (# is allocated, _ is free)
+  //  [###_##_#_#__#_#_#__#]
+  // and have pointers to the start and end like this:
+  //  [###_##_#_#__#_#_#__#]
+  //   ^                  ^
+  // We iterate until those pointers are the same. If the left
+  // pointer points to an allocated object, we increment it. If the
+  // right pointer points to a free object (or a pinned), it is
+  // decremented.  If neither pointer changes, the left points to a
+  // free object and the right to an allocated one, we swap their
+  // locations then inc right and dec left.
+  //
+  // When this process is done you should have a heap that looks
+  // like this:
+  //  [###########_________]
+  // The last step in this process is to "reset" the free list to be
+  // empty and for "expansion" to begin at the end of the allocated
+  // objects. Then, if deemed beneficial, you can use MADV_DONTNEED
+  // to free memory back to the kernel.
+  //
+  // This function then returns how many objects it moved
+  long SizedPage::compact(void) {
+    // If there's nothing to do, early return.
+    // TODO: threshold this.
+    if (live_objects == capacity) return 0;
+
+    // The first step is to clear the free list so that we don't have any
+    // corruption problems. Later we will update it to point at the end of
+    // the allocated objects.
+    allocator.reset_free_list();
+
+    // The return value - how many objects this function has moved.
+    long moved_objects = 0;
+
+    // A pointer which tracks the last object in the heap. We have this
+    // in the event of a pinned object, P:
+    //  [###########_____P___]
+    //                   ^ last_object points here.
+    // If this is not null, whenever we swap an object such that the right
+    // pointer points to a free slot, we add that location to the local free
+    // list of the allocator.
+    // NOTE: this actually is a pointer to the header, not the object.
+    Header *last_object = nullptr;
+
+    Header *left = headers;  // the first object
+    Header *right = headers + capacity - 1;
+
+
+    auto dump = [&]() {
+      if (capacity > 32) return;
+      printf("[");
+      for (int i = 0; i < capacity; i++) {
+        auto *cur = &headers[i];
+
+        if (cur->is_free()) {
+          printf("_");
+        } else {
+          printf("#");
+        }
+      }
+      printf("]\n");
+
+      printf(" ");
+      for (int i = 0; i < capacity; i++) {
+        auto *cur = &headers[i];
+        if (cur == left or cur == right) {
+          printf("^");
+        } else if (cur == last_object) {
+          printf("X");
+        } else {
+          printf(" ");
+        }
+      }
+      printf("\n");
+    };
+
+
+    while (right > left) {
+      // if left points to an allocated object, we can't do anything so
+      // walk it forward (towards the right)
+      if (not left->is_free()) {
+        left++;
+        continue;
+      }
+
+      // if the right points to a free slot, we can't do anything so
+      // similarly walk it forward (toward the left)
+      if (right->is_free()) {
+        // but, if the last object is set, we need to add this to the
+        // free list because it constitutes a gap in the heap which
+        // would not be allocated in the future by the
+        if (last_object != nullptr) {
+          void *free_slot = ind_to_object(header_to_ind(right));
+          allocator.release_local(free_slot);
+        }
+
+        right--;
+        continue;
+      }
+
+      auto handle_mapping = right->get_mapping();
+      // At this point, we have the setup we want: the left pointer
+      // points to a free slot where the object pointed to by the
+      // right pointer can be moved. The one situation that could
+      // block us from doing this is if the object we want to move is
+      // pinned. If it is we maybe update `last_object` and tick
+      // the right pointer.
+      if (handle_mapping->is_pinned()) {
+        if (last_object == nullptr) last_object = right;
+        right--;
+        continue;
+      }
+
+
+      // Now, we are free to apply the compaction!
+      void *object_to_move = ind_to_object(header_to_ind(right));
+      void *free_slot = ind_to_object(header_to_ind(left));
+
+      // Move the memory of the object to the free slot
+      memmove(free_slot, object_to_move, object_size);
+      // And poison the old location.
+      memset(object_to_move, 0xF0, object_size);
+
+      // Update the mapping so the handle points to the right location.
+      handle_mapping->set_pointer(free_slot);
+      // make sure the headers make sense
+      *left = *right;
+      dump();
+
+      ALASKA_ASSERT(left->get_mapping() == right->get_mapping(), ".");
+      right->set_mapping(0);
+      right->size_slack = 0;
+      moved_objects++;
+
+      // Note that we don't ight along here. We deal with that on the
+      // next iteration of the loop to handle edge cases.
+      // left++;
+    }
+
+    dump();
+    // If we were lucky, and no pinned object were found, we need to
+    // point last_object to the end of the heap, which at this point
+    // is `right`
+    if (last_object == nullptr) last_object = right;
+
+    // Reset the bump pointer of the free list to right after the
+    // last object in the heap.
+    void *after_heap = ind_to_object(header_to_ind(last_object + 1));
+    allocator.reset_bump_allocator(after_heap);
+
+
+    return moved_objects;
+  }
 
 
 
   void SizedPage::validate(void) {}
 
   long SizedPage::jumble(void) {
-    // printf("Jumble sized page\n");
-
     char buf[this->object_size];  // BAD
 
     // Simple two finger walk to swap every allocation

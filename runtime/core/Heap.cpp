@@ -238,6 +238,22 @@ namespace alaska {
   }
 
 
+  long Heap::compact_sizedpages(void) {
+    size_t bytes_saved = 0;
+    long c = 0;
+    for (auto &mag : size_classes) {
+      mag.foreach ([&](SizedPage *sp) {
+        long moved = sp->compact();
+        c += moved;
+        bytes_saved += moved * sp->get_object_size();
+        return true;
+      });
+    }
+    printf("Heap compaction moved %ld objects, recovering %zu bytes\n", c, bytes_saved);
+    return c;
+  }
+
+
   long Heap::jumble(void) {
     long c = 0;
     for (auto &mag : size_classes) {

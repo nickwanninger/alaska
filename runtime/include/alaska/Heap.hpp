@@ -152,6 +152,9 @@ namespace alaska {
     // Dump the state of the global heap to some file stream.
     void dump(FILE *stream);
 
+    // Run a compaction on sized pages.
+    long compact_sizedpages(void);
+
     long jumble();
 
    private:
@@ -180,7 +183,7 @@ namespace alaska {
 
   template <typename T, typename Fn>
   T *Heap::find_or_alloc_page(
-                              alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&init_fn) {
+      alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement, Fn &&INIt_fn) {
     ALASKA_SANITY(
         this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
     if (mag.size() != 0) {

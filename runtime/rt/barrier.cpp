@@ -180,9 +180,8 @@ static void record_handle(void* possible_handle, bool marked) {
 
   if (m->is_free()) return;
 
-  if (marked) printf("pinned %p\n", possible_handle);
+  // if (marked) printf("pinned %p\n", possible_handle);
   m->set_pinned(marked);
-  // alaska::service::commit_lock_status(m, marked);
 }
 
 
@@ -194,32 +193,6 @@ static bool might_be_handle(void* possible_handle) {
 
 
 static ck::mutex dump_lock;
-
-// static Transition most_recent_transition(void) {
-//   unw_cursor_t cursor;
-//   unw_context_t uc;
-//   unw_word_t pc;
-//
-//   unw_getcontext(&uc);
-//   unw_init_local(&cursor, &uc);
-//   while (1) {
-//     int res = unw_step(&cursor);
-//     if (res == 0) {
-//       break;
-//     }
-//     if (res < 0) {
-//       printf("unknown libunwind error! %d\n", res);
-//       abort();
-//     }
-//     unw_get_reg(&cursor, UNW_REG_IP, &pc);
-//
-//     if (pin_map.contains(pc)) return Transition::Managed;
-//     if (block_rets.contains(pc)) return Transition::Unmanaged;
-//   }
-//
-//   return Transition::Managed;
-// }
-
 
 static bool in_might_block_function(uintptr_t start_addr) {
   void* buffer[512];
@@ -419,8 +392,8 @@ void alaska::barrier::begin(void) {
   (void)retries;
   (void)signals_sent;
   // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
-  dump_thread_states();
-  printf(" retries = %d, signals = %d\n", retries, signals_sent);
+  // dump_thread_states();
+  // printf(" retries = %d, signals = %d\n", retries, signals_sent);
 }
 
 

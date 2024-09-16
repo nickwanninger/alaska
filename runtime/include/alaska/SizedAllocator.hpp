@@ -69,6 +69,10 @@ namespace alaska {
 
     long extend(long count);
 
+
+    void reset_free_list(void) { free_list.reset(); }
+    void reset_bump_allocator(void *next) { bump_next = next; }
+
    private:
     void *alloc_slow(void);
 
