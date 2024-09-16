@@ -17,6 +17,7 @@
 #include <alaska/Heap.hpp>
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
+#include <alaska/Configuration.hpp>
 
 namespace alaska {
   /**
@@ -64,7 +65,7 @@ namespace alaska {
     bool in_barrier = false;
 
 
-    Runtime();
+    Runtime(alaska::Configuration config = {});
     ~Runtime();
 
     // Allocate and free thread caches.

@@ -265,20 +265,15 @@ namespace alaska {
       return false;
     }
 
-   auto size = source_page->size_of(ptr);
+    auto size = source_page->size_of(ptr);
+
+    if (size > 512) return false;
     if (locality_page == nullptr or locality_page->available() < size * 2) {
       locality_page = new_locality_page(size + 32);
     }
 
     // If we are moving an object within the locality page, don't.
     if (unlikely(source_page == locality_page)) return false;
-
-  //   void *dst = NULL;
-
-  //   while (dst == NULL) {
-  //   dst = locality_page->alloc(m, size);
-  //   if (dst == nullptr) locality_page = new_locality_page(size);
-  // }
 
     void *d = locality_page->alloc(m, size);
     locality_page->last_localization_epoch = epoch;

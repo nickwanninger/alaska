@@ -31,15 +31,14 @@ namespace alaska {
   //////////////////////
   // Handle Table
   //////////////////////
-  HandleTable::HandleTable() {
+  HandleTable::HandleTable(const alaska::Configuration &config) {
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
     // don't have exceptions in this runtime we will just abort.
 
-    constexpr uintptr_t table_start =
-        (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS));
-
+    uintptr_t table_start = config.handle_table_location;
     m_capacity = HandleTable::initial_capacity;
+    printf("Allocate handle table to %zx\n", table_start);
 
     // Attempt to allocate the initial memory for the table.
     m_table = (Mapping *)mmap((void *)table_start, m_capacity * HandleTable::slab_size,

@@ -18,7 +18,7 @@
 #include <ck/vec.h>
 #include <ck/lock.h>
 #include <alaska/SizedAllocator.hpp>
-
+#include <alaska/Configuration.hpp>
 
 namespace alaska {
 
@@ -91,7 +91,7 @@ namespace alaska {
     static constexpr size_t initial_capacity = 16;
 
 
-    HandleTable(void);
+    HandleTable(const alaska::Configuration &config);
     ~HandleTable(void);
 
     // Allocate a fresh slab, resizing the table if necessary.

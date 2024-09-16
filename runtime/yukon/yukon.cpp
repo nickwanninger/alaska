@@ -14,12 +14,15 @@
 #include <alaska/alaska.hpp>
 #include <alaska/utils.h>
 #include <alaska/Runtime.hpp>
+#include "alaska/Configuration.hpp"
 #include "alaska/liballoc.h"
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
 #include <execinfo.h>
 #include <assert.h>
+#include <execinfo.h>
+#include <unistd.h>
 
 #ifdef __riscv
 #define write_csr(reg, val) \
@@ -33,14 +36,12 @@ static alaska::ThreadCache *tc = NULL;
 
 static void set_ht_addr(void *addr) {
   printf("set htaddr to %p\n", addr);
-  // write_csr(0xc2, addr);
+  write_csr(0xc2, addr);
 }
 
 static alaska::Runtime *the_runtime = NULL;
 
 
-#include <execinfo.h>
-#include <unistd.h>
 
 #define BACKTRACE_SIZE 100
 
@@ -77,17 +78,14 @@ void segfault_handler(int sig) {
   }
   exit(0);
 
-  // // Print the backtrace to stderr
+  // Print the backtrace to stderr
   char **ns = backtrace_symbols(array, size);
-
-  // for (int i = 0; i < size; i++) {
-  //   write_int(
-  // }
 }
 
 static void init(void) {
-  // signal(SIGSEGV, segfault_handler);
-  the_runtime = new alaska::Runtime();
+  alaska::Configuration config;
+
+  the_runtime = new alaska::Runtime(config);
   void *handle_table_base = the_runtime->handle_table.get_base();
   printf("Handle table at %p\n", handle_table_base);
   set_ht_addr(handle_table_base);
@@ -121,9 +119,13 @@ void __attribute__((destructor)) alaska_deinit(void) {
 }
 
 
+#define malloc halloc
+#define calloc hcalloc
+#define realloc hrealloc
+#define free hfree
 
 static void *_halloc(size_t sz, int zero) {
-  print_hex("_halloc", sz);
+  // print_hex("_halloc", sz);
   if (dead) {
     return alaska_internal_malloc(sz);
   }
@@ -134,10 +136,6 @@ static void *_halloc(size_t sz, int zero) {
   return result;
 }
 
-#define malloc halloc
-#define calloc hcalloc
-#define realloc hrealloc
-#define free hfree
 
 extern "C" void *malloc(size_t sz) noexcept { return _halloc(sz, 0); }
 
@@ -147,8 +145,8 @@ extern "C" void *calloc(size_t nmemb, size_t size) { return _halloc(nmemb * size
 extern "C" void *realloc(void *handle, size_t new_size) {
   auto *tc = get_tc();
 
-  print_hex("realloc", (uint64_t)handle);
-  print_hex("  newsz", (uint64_t)new_size);
+  // print_hex("realloc", (uint64_t)handle);
+  // print_hex("  newsz", (uint64_t)new_size);
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) {
     return malloc(new_size);
@@ -177,7 +175,7 @@ extern "C" void *realloc(void *handle, size_t new_size) {
 
 
 extern "C" void free(void *ptr) {
-  print_hex("free", (uint64_t)ptr);
+  // print_hex("free", (uint64_t)ptr);
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 

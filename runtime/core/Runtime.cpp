@@ -26,11 +26,12 @@ namespace alaska {
   static volatile bool runtime_initialized = false;
 
 
-  Runtime::Runtime() {
+  Runtime::Runtime(alaska::Configuration config) : handle_table(config) {
     // Validate that there is not already a runtime (TODO: atomics?)
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
+
     // Assign the global runtime to be this instance
-    g_runtime = this;
+    atomic_set(g_runtime, this);
     // Attach a default barrier manager
     this->barrier_manager = &global_nop_barrier_manager;
 
@@ -41,7 +42,7 @@ namespace alaska {
   Runtime::~Runtime() {
     log_debug("Destroying Alaska Runtime");
     // Unset the global instance so another runtime can be allocated
-    g_runtime = nullptr;
+    atomic_set(g_runtime, nullptr);
   }
 
 
