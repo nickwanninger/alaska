@@ -140,33 +140,6 @@ namespace alaska {
     Header *right = headers + capacity - 1;
 
 
-    auto dump = [&]() {
-      if (capacity > 32) return;
-      printf("[");
-      for (int i = 0; i < capacity; i++) {
-        auto *cur = &headers[i];
-
-        if (cur->is_free()) {
-          printf("_");
-        } else {
-          printf("#");
-        }
-      }
-      printf("]\n");
-
-      printf(" ");
-      for (int i = 0; i < capacity; i++) {
-        auto *cur = &headers[i];
-        if (cur == left or cur == right) {
-          printf("^");
-        } else if (cur == last_object) {
-          printf("X");
-        } else {
-          printf(" ");
-        }
-      }
-      printf("\n");
-    };
 
 
     while (right > left) {
@@ -219,7 +192,6 @@ namespace alaska {
       handle_mapping->set_pointer(free_slot);
       // make sure the headers make sense
       *left = *right;
-      dump();
 
       ALASKA_ASSERT(left->get_mapping() == right->get_mapping(), ".");
       right->set_mapping(0);
@@ -231,7 +203,6 @@ namespace alaska {
       // left++;
     }
 
-    dump();
     // If we were lucky, and no pinned object were found, we need to
     // point last_object to the end of the heap, which at this point
     // is `right`
@@ -261,8 +232,6 @@ namespace alaska {
     while (right > left) {
       auto *lo = ind_to_header(left);
       auto *ro = ind_to_header(right);
-
-      // printf("%ld %ld   %p %p\n", left, right, lo->get_mapping(), ro->get_mapping());
 
       auto *rm = ro->get_mapping();
       auto *lm = lo->get_mapping();

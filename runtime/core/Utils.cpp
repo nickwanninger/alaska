@@ -11,14 +11,14 @@
 
 
 #include <alaska/utils.h>
+#include <alaska/Logger.hpp>
 #include <stdio.h>
 #include <string.h>
 
 void alaska_dump_backtrace() {
   FILE *stream = fopen("/proc/self/maps", "r");
 
-
-  printf("Memory Map:\n");
+  alaska::printf("Memory Map:\n");
   char line[1024];
   while (fgets(line, sizeof(line), stream) != NULL) {
     fwrite(line, strlen(line), 1, stderr);

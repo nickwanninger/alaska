@@ -16,7 +16,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <string.h>
 
 static const char *level_strings[] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
 
@@ -54,6 +54,43 @@ static void __attribute__((constructor(102))) alaska_logger_init(void) {
 
 
 
+#define BUFFER_SIZE 1024
+
+static int log_vemitf(const char *format, va_list args) {
+  char buffer[BUFFER_SIZE];
+  int printed_length;
+  // Format the string into the buffer using snprintf
+  printed_length = vsnprintf(buffer, BUFFER_SIZE, format, args);
+
+  // Clean up variadic arguments
+  va_end(args);
+
+  // Check for truncation
+  if (printed_length < 0 || printed_length >= BUFFER_SIZE) {
+    // Handle buffer overflow or other snprintf errors if needed
+    return -1;
+  }
+
+  // Write the formatted string to stdout
+  if (write(STDOUT_FILENO, buffer, printed_length) != printed_length) {
+    // Handle write error
+    return -1;
+  }
+
+  return printed_length;  // Return the number of characters written
+}
+
+static int log_emitf(const char *format, ...) {
+  va_list args;
+
+  // Initialize variadic arguments
+  va_start(args, format);
+
+  return log_vemitf(format, args);
+}
+
+
+
 
 namespace alaska {
   void log(int level, const char *file, int line, const char *fmt, ...) {
@@ -61,9 +98,9 @@ namespace alaska {
       va_list args;
       va_start(args, fmt);
 
+
       // Grab the lock
       pthread_mutex_lock(&log_mutex);
-
 
       time_t t = time(NULL);
       auto time = localtime(&t);
@@ -72,13 +109,14 @@ namespace alaska {
       buf[strftime(buf, sizeof(buf), "%H:%M:%S", time)] = '\0';
 
       if (enable_colors) {
-        fprintf(stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d\x1b[0m | ", buf, level_colors[level],
+        log_emitf("%s %s%-5s\x1b[0m \x1b[90m%s:%d\x1b[0m | ", buf, level_colors[level],
             level_strings[level], file, line);
       } else {
-        fprintf(stderr, "%s %-5s %s:%d | ", buf, level_strings[level], file, line);
+        log_emitf("%s %-5s %s:%d | ", buf, level_strings[level], file, line);
       }
-      vfprintf(stderr, fmt, args);
-      fprintf(stderr, "\n");
+
+      log_vemitf(fmt, args);
+      log_emitf("\n");
 
       // release the lock
       pthread_mutex_unlock(&log_mutex);
@@ -91,5 +129,13 @@ namespace alaska {
     if (!log_level_locked) {
       log_level = level;
     }
+  }
+
+
+  int printf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    log_vemitf(fmt, args);
+    return 0;
   }
 }  // namespace alaska

@@ -67,8 +67,8 @@ void __attribute__((constructor(102))) alaska_init(void) {
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-  pthread_kill(barrier_thread, SIGKILL);
-  pthread_join(barrier_thread, NULL);
+  // pthread_kill(barrier_thread, SIGKILL);
+  // pthread_join(barrier_thread, NULL);
 
   // Note: we don't currently care about deinitializing the runtime for now, since the application
   // is about to die and all it's memory is going to be cleaned up.

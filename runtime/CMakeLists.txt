@@ -151,7 +151,8 @@ endif(ALASKA_HTLB_SIM)
   set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
   target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
-  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+  # target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
 if(ALASKA_HTLB_SIM)
    target_link_libraries(alaska alaska_sim)

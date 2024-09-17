@@ -21,6 +21,7 @@
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
 #include <alaska/utils.h>
+#include <alaska/Logger.hpp>
 #include <dlfcn.h>
 
 /**
@@ -104,7 +105,7 @@ void print_backtrace() {
     if (end > base_start) base_start = end;
     rbp = *(void **)rbp;  // Follow the chain of rbp values
   }
-  printf(" (%zd)\n", end - start);
+  alaska::printf(" (%zd)\n", end - start);
 }
 
 extern bool alaska_should_safepoint;

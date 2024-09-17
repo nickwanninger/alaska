@@ -35,8 +35,8 @@
 static alaska::ThreadCache *tc = NULL;
 
 static void set_ht_addr(void *addr) {
-  printf("set htaddr to %p\n", addr);
-  write_csr(0xc2, addr);
+  // printf("set htaddr to %p\n", addr);
+  // write_csr(0xc2, addr);
 }
 
 static alaska::Runtime *the_runtime = NULL;
@@ -82,12 +82,20 @@ void segfault_handler(int sig) {
   char **ns = backtrace_symbols(array, size);
 }
 
+
+static char stdout_buf[BUFSIZ];
+static char stderr_buf[BUFSIZ];
+
+
 static void init(void) {
+  setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
+  setvbuf(stderr, stderr_buf, _IOLBF, BUFSIZ);
+
   alaska::Configuration config;
 
   the_runtime = new alaska::Runtime(config);
   void *handle_table_base = the_runtime->handle_table.get_base();
-  printf("Handle table at %p\n", handle_table_base);
+  // printf("Handle table at %p\n", handle_table_base);
   set_ht_addr(handle_table_base);
   // Make sure the handle table performs mlocks
   the_runtime->handle_table.enable_mlock();
@@ -106,7 +114,9 @@ static alaska::ThreadCache *get_tc() {
   return tc;
 }
 
-void __attribute__((constructor(102))) alaska_init(void) {}
+void __attribute__((constructor(102))) alaska_init(void) {
+  init();
+}
 
 void __attribute__((destructor)) alaska_deinit(void) {
   if (the_runtime != NULL) {
@@ -119,13 +129,13 @@ void __attribute__((destructor)) alaska_deinit(void) {
 }
 
 
-#define malloc halloc
-#define calloc hcalloc
-#define realloc hrealloc
-#define free hfree
+// #define malloc halloc
+// #define calloc hcalloc
+// #define realloc hrealloc
+// #define free hfree
 
 static void *_halloc(size_t sz, int zero) {
-  // print_hex("_halloc", sz);
+  print_hex("_halloc", sz);
   if (dead) {
     return alaska_internal_malloc(sz);
   }

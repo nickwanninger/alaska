@@ -22,6 +22,8 @@ namespace alaska {
 
 
   void set_log_level(int level);
+
+  int printf(const char *format, ...);
 };  // namespace alaska
 
 

@@ -54,7 +54,7 @@ namespace alaska {
 
   void Runtime::dump(FILE *stream) {
     //
-    fprintf(stream, "Alaska Runtime Information:\n");
+    alaska::printf("Alaska Runtime Information:\n");
     heap.dump(stream);
     handle_table.dump(stream);
   }
@@ -78,11 +78,11 @@ namespace alaska {
 
 
   void wait_for_initialization(void) {
-    printf("waiting for initialization!\n");
+    log_debug("waiting for initialization!\n");
     while (not is_initialized()) {
       sched_yield();
     }
-    printf("Initialized!\n");
+    log_debug("Initialized!\n");
   }
 
 

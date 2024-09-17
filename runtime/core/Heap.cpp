@@ -249,7 +249,7 @@ namespace alaska {
         return true;
       });
     }
-    printf("Heap compaction moved %ld objects, recovering %zu bytes\n", c, bytes_saved);
+    alaska::printf("Heap compaction moved %ld objects, recovering %zu bytes\n", c, bytes_saved);
     return c;
   }
 

@@ -187,9 +187,6 @@ namespace alaska {
       return_value = m->to_handle();
     }
 
-    // printf("hrealloc %p %p %8zu -> %p %p %8zu\n", handle, original_data, original_size,
-    //     return_value, new_data, new_size);
-
     return return_value;
   }
 
@@ -197,7 +194,6 @@ namespace alaska {
   void ThreadCache::hfree(void *handle) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) {
-      // printf("attempt to free non handle %p\n", handle);
       bool worked = this->runtime.heap.huge_allocator.free(handle);
       (void)worked;
       // ALASKA_ASSERT(worked, "huge free failed");
@@ -240,7 +236,6 @@ namespace alaska {
   bool ThreadCache::localize(void *handle, uint64_t epoch) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) {
-      printf("%p No because not handle\n", handle);
       return false;
     }
 
@@ -256,12 +251,10 @@ namespace alaska {
     auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
     // if there wasn't a page for some reason, we can't localize.
     if (unlikely(source_page == nullptr)) {
-      // printf("no because no page for %p\n", (void*)m.encode());
       return false;
     }
     // if the page has recently been localized into, don't try again
     if (unlikely(!source_page->should_localize_from(epoch))) {
-      // printf("no because shouldnt localize\n");
       return false;
     }
 
