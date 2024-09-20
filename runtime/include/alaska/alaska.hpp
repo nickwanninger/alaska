@@ -78,6 +78,9 @@ namespace alaska {
       reset();
       this->ptr = ptr;
       alt.invl = 0;
+#ifdef __riscv
+      __asm__ volatile("fence" ::: "memory");
+#endif
     }
 
 
