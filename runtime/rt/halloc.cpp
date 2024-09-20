@@ -19,11 +19,11 @@
 // TODO: don't have this be global!
 static __thread alaska::ThreadCache *g_tc = nullptr;
 
-alaska::ThreadCache *get_tc(void) {
+alaska::LockedThreadCache get_tc(void) {
   if (unlikely(g_tc == nullptr)) {
     g_tc = alaska::Runtime::get().new_threadcache();
   }
-  return g_tc;
+  return *g_tc;
 }
 
 
@@ -44,11 +44,10 @@ void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
-  auto *tc = get_tc();
   // If the handle is null, then this call is equivalent to malloc(size)
-  if (handle == NULL) {
-    return halloc(new_size);
-  }
+  if (handle == NULL) return halloc(new_size);
+
+
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     if (!alaska::Runtime::get().heap.huge_allocator.owns(handle)) {
@@ -65,7 +64,7 @@ void *hrealloc(void *handle, size_t new_size) {
     return NULL;
   }
 
-  handle = tc->hrealloc(handle, new_size);
+  handle = get_tc()->hrealloc(handle, new_size);
   return handle;
 }
 

@@ -26,7 +26,8 @@ namespace alaska {
   static volatile bool runtime_initialized = false;
 
 
-  Runtime::Runtime(alaska::Configuration config) : handle_table(config) {
+  Runtime::Runtime(alaska::Configuration config)
+      : handle_table(config) {
     // Validate that there is not already a runtime (TODO: atomics?)
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
 
@@ -77,6 +78,19 @@ namespace alaska {
   }
 
 
+  void Runtime::lock_all_thread_caches(void) {
+    tcs_lock.lock();
+
+    for (auto *tc : tcs)
+      tc->lock.lock();
+  }
+  void Runtime::unlock_all_thread_caches(void) {
+    for (auto *tc : tcs)
+      tc->lock.unlock();
+    tcs_lock.unlock();
+  }
+
+
   void wait_for_initialization(void) {
     log_debug("waiting for initialization!\n");
     while (not is_initialized()) {
@@ -86,8 +100,6 @@ namespace alaska {
   }
 
 
-  bool is_initialized(void) {
-    return atomic_get(runtime_initialized);
-  }
+  bool is_initialized(void) { return atomic_get(runtime_initialized); }
 
 }  // namespace alaska

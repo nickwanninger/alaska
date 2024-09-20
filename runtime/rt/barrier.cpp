@@ -328,7 +328,7 @@ void dump_thread_states(void) {
 
 
 
-void alaska::barrier::begin(void) {
+bool alaska::barrier::begin(void) {
   // Pseudocode:
   //
   // function begin():
@@ -369,9 +369,15 @@ void alaska::barrier::begin(void) {
   int retries = 0;
   int signals_sent = 0;
 
-  // printf("\n");
+  bool success = true;
+
   // Make sure the threads that are in unmanaged (library) code get signalled.
   while (true) {
+    if (retries >= 1000) {
+      success = false;
+      break;
+    }
+    retries++;
     bool sent_signal = false;
     list_for_each_entry(pos, &all_threads, list_head) {
       if (pos->state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
@@ -391,6 +397,9 @@ void alaska::barrier::begin(void) {
 
   (void)retries;
   (void)signals_sent;
+
+
+  return success;
   // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
   // dump_thread_states();
   // printf(" retries = %d, signals = %d\n", retries, signals_sent);
@@ -437,14 +446,14 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       // we need to return back to the thread so it can hit a poll.
 
 
-      // // First, though, we need to wait for the patches to be done.
+      // First, though, we need to wait for the patches to be done.
       // while (!patches_done) {
       // }
-      //
-      // for (auto [start, end] : managed_blob_text_regions) {
-      //   __builtin___clear_cache((char*)start, (char*)end);
-      // }
-      // printf("ManagedUntracked!\n");
+
+      for (auto [start, end] : managed_blob_text_regions) {
+        __builtin___clear_cache((char*)start, (char*)end);
+      }
+      printf("ManagedUntracked!\n");
       // printf("EEP %p %d!\n", return_address, sig);
       return;
 

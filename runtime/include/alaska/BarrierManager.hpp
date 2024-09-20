@@ -20,7 +20,7 @@ namespace alaska {
   // pin any handles, the barrier does not need to do anything.
   struct BarrierManager : public alaska::InternalHeapAllocated {
     virtual ~BarrierManager() = default;
-    virtual void begin(void){};
+    virtual bool begin(void) { return true; };
     virtual void end(void){};
 
     unsigned long barrier_count = 0;

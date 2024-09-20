@@ -19,7 +19,7 @@
 #define L2_SETS 32
 #define TOTAL_ENTRIES (L1_WAYS * L1_SETS + L2_WAYS * L2_SETS)
 
-#define RATE 10'000
+#define RATE 1'000'000
 
 static long access_count = 0;
 static alaska::sim::HTLB *g_htlb = NULL;
@@ -56,9 +56,10 @@ static void *sim_background_thread_func(void *) {
     auto &rt = alaska::Runtime::get();
 
     rt.with_barrier([&]() {
-      unsigned long c = rt.heap.jumble();
-      printf("jumbled %lu objects\n", c);
-      // rt.heap.compact_sizedpages();
+      // unsigned long c = rt.heap.jumble();
+      // printf("jumbled %lu objects\n", c);
+      unsigned long c = rt.heap.compact_sizedpages();
+      printf("compacted %lu\n", c);
       return;
 
 

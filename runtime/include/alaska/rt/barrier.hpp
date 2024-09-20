@@ -44,7 +44,7 @@ namespace alaska {
 
     // Barrier operational lifetime. It is not recommended to use this interface, and
     // instead use `with_barrier` interface below:
-    void begin();
+    bool begin();
     void end();
 
     // struct BarrierInfo {};

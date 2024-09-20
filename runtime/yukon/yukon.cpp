@@ -35,8 +35,8 @@
 static alaska::ThreadCache *tc = NULL;
 
 static void set_ht_addr(void *addr) {
-  // printf("set htaddr to %p\n", addr);
-  // write_csr(0xc2, addr);
+  // alaska::printf("set htaddr to %p\n", addr);
+  write_csr(0xc2, addr);
 }
 
 static alaska::Runtime *the_runtime = NULL;
@@ -135,7 +135,7 @@ void __attribute__((destructor)) alaska_deinit(void) {
 // #define free hfree
 
 static void *_halloc(size_t sz, int zero) {
-  print_hex("_halloc", sz);
+  // print_hex("_halloc", sz);
   if (dead) {
     return alaska_internal_malloc(sz);
   }

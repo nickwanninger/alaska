@@ -28,7 +28,7 @@ static alaska::Runtime *the_runtime = nullptr;
 
 struct CompilerRuntimeBarrierManager : public alaska::BarrierManager {
   ~CompilerRuntimeBarrierManager() override = default;
-  void begin(void) override { alaska::barrier::begin(); }
+  bool begin(void) override { return alaska::barrier::begin(); }
   void end(void) override { alaska::barrier::end(); }
 };
 
@@ -44,8 +44,9 @@ static void *barrier_thread_func(void *) {
     usleep(50 * 1000);
 
     alaska::Runtime::get().with_barrier([]() {
-      long swapped = alaska::Runtime::get().heap.jumble();
-      printf("Swapped %ld\n", swapped);
+      alaska::Runtime::get().heap.compact_sizedpages();
+      // long swapped = alaska::Runtime::get().heap.jumble();
+      // printf("Swapped %ld\n", swapped);
     });
     // alaska::barrier::begin();
     // printf("Barrier.\n");

@@ -76,16 +76,25 @@ namespace alaska {
 
     template <typename Fn>
     void with_barrier(Fn &&cb) {
-      barrier_manager->begin();
-      in_barrier = true;
-      barrier_manager->barrier_count++;
-      cb();
-      in_barrier = false;
-      barrier_manager->end();
+      lock_all_thread_caches();
+      if (barrier_manager->begin()) {
+        in_barrier = true;
+        barrier_manager->barrier_count++;
+        cb();
+        in_barrier = false;
+        barrier_manager->end();
+      } else {
+        alaska::printf("Barrier failed\n");
+      }
+      unlock_all_thread_caches();
     }
 
    private:
     int next_thread_cache_id = 0;
+
+
+    void lock_all_thread_caches(void);
+    void unlock_all_thread_caches(void);
   };
 
 

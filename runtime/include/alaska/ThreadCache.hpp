@@ -16,6 +16,7 @@
 #include <alaska/HandleTable.hpp>
 #include <alaska/LocalityPage.hpp>
 #include <alaska/alaska.hpp>
+#include "ck/lock.h"
 
 namespace alaska {
 
@@ -40,6 +41,13 @@ namespace alaska {
 
     bool localize(alaska::Mapping &m, uint64_t epoch);
     bool localize(void *handle, uint64_t epoch);
+
+
+   protected:
+    friend class LockedThreadCache;
+    friend alaska::Runtime;
+
+    ck::mutex lock;
 
    private:
     // Allocate backing data for a handle, but don't assign it yet.
@@ -75,6 +83,38 @@ namespace alaska {
     // policy. This page is special because it can contain many
     // objects of many different sizes.
     alaska::LocalityPage *locality_page = nullptr;
+  };
+
+
+
+  class LockedThreadCache final {
+   public:
+    LockedThreadCache(ThreadCache &tc)
+        : tc(tc) {
+      tc.lock.lock();
+    }
+
+
+    ~LockedThreadCache(void) {
+      tc.lock.unlock();
+    }
+
+    // Delete copy constructor and copy assignment operator
+    LockedThreadCache(const LockedThreadCache &) = delete;
+    LockedThreadCache &operator=(const LockedThreadCache &) = delete;
+
+    // Delete move constructor and move assignment operator
+    LockedThreadCache(LockedThreadCache &&) = delete;
+    LockedThreadCache &operator=(LockedThreadCache &&) = delete;
+
+
+
+
+    ThreadCache &operator*(void) { return tc; }
+    ThreadCache *operator->(void) { return &tc; }
+
+   private:
+    ThreadCache &tc;
   };
 
 
