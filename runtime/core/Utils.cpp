@@ -18,7 +18,7 @@
 void alaska_dump_backtrace() {
   FILE *stream = fopen("/proc/self/maps", "r");
 
-  alaska::printf("Memory Map:\n");
+  fprintf(stderr, "Memory Map:\n");
   char line[1024];
   while (fgets(line, sizeof(line), stream) != NULL) {
     fwrite(line, strlen(line), 1, stderr);
