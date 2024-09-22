@@ -1,0 +1,6 @@
+build-essential
+cmake
+libgmock-dev
+libgtest-dev
+libunwind-dev
+ninja-build

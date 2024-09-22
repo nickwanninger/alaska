@@ -1,0 +1,34 @@
+name: Continuous Integration
+
+
+on:
+  pull_request:
+  push:
+
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Update APT
+        run: sudo apt-get update
+
+      - name: Install Dependencies
+        run: sudo xargs apt install -y < .github/workflows/apt-packages.txt
+
+      - run: |
+          mkdir -p build
+          cd build && cmake ../ -G Ninja \
+                              -DALASKA_ENABLE_COMPILER=OFF \
+                              -DALASKA_ENABLE_TESTING=ON \
+                              -DCMAKE_INSTALL_PREFIX:PATH=../local
+
+      - name: Compile
+        run: cd build && ninja
+
+      - name: Run Tests
+        run: build/runtime/alaska_test
