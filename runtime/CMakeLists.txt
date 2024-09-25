@@ -122,6 +122,12 @@ install(
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+install(FILES
+  include/alaska/sim/HTLB.hpp
+  include/alaska/sim/TLB.hpp
+  include/alaska/sim/StatisticsManager.hpp
+  DESTINATION include/alaska/sim)
+
 
 
 ##########################################################################################
