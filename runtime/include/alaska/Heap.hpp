@@ -33,10 +33,14 @@ namespace alaska {
   // we will split it up into different mmap regions, but that's
   // just a problem solved by another layer of allocators.
 
+
+#ifndef HEAP_SIZE_SHIFT_FACTOR
+#define HEAP_SIZE_SHIFT_FACTOR 33
+#endif
 #ifdef ALASKA_TRACK_VALGRIND
   static constexpr uint64_t heap_size_shift_factor = 33;
 #else
-  static constexpr uint64_t heap_size_shift_factor = 37;
+  static constexpr uint64_t heap_size_shift_factor = HEAP_SIZE_SHIFT_FACTOR;
 #endif
 
   static constexpr size_t heap_size = 1LU << heap_size_shift_factor;
@@ -58,6 +62,11 @@ namespace alaska {
     void *alloc_page(void);
     void free_page(void *page);
     void *get_start(void) const { return heap; }
+
+
+    double get_usage_frac(void) const {
+      return 100.0 * (alloc_count / (double)(heap_size / page_size));
+    }
 
 
     inline uint64_t get_allocated_page_count(void) const { return alloc_count; }
