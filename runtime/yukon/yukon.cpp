@@ -14,8 +14,8 @@
 #include <alaska/alaska.hpp>
 #include <alaska/utils.h>
 #include <alaska/Runtime.hpp>
-#include "alaska/Configuration.hpp"
-#include "alaska/liballoc.h"
+#include <alaska/Configuration.hpp>
+#include <alaska/liballoc.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
@@ -47,6 +47,8 @@ static alaska::Runtime *the_runtime = NULL;
 
 static bool dead = false;
 
+static bool is_initialized() { return the_runtime != NULL; }
+
 
 static void print_hex(const char *msg, uint64_t val) {
   char buf[512];
@@ -63,25 +65,8 @@ static void print_words(unsigned *words, int n) {
   write(STDOUT_FILENO, "\n", 1);
 }
 
-void segfault_handler(int sig) {
-  dead = true;
-  write(STDOUT_FILENO, "segfault\n", 4);
-  void *array[BACKTRACE_SIZE];
-  size_t size;
 
-  // Get the backtrace
-  size = backtrace(array, BACKTRACE_SIZE);
-
-  for (size_t i = 0; i < size; i++) {
-    print_hex("bt:", (uint64_t)array[i]);
-    print_words((unsigned *)array[i], 4);
-  }
-  exit(0);
-
-  // Print the backtrace to stderr
-  char **ns = backtrace_symbols(array, size);
-}
-
+static void print_string(const char *msg) { write(STDOUT_FILENO, msg, strlen(msg)); }
 
 static char stdout_buf[BUFSIZ];
 static char stderr_buf[BUFSIZ];
@@ -115,17 +100,18 @@ static alaska::ThreadCache *get_tc() {
 }
 
 void __attribute__((constructor(102))) alaska_init(void) {
-  init();
+  unsetenv("LD_PRELOAD"); // make it so we don't run alaska in subprocesses!
+  get_tc();
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-  if (the_runtime != NULL) {
-    if (tc != NULL) {
-      the_runtime->del_threadcache(tc);
-    }
-    delete the_runtime;
-  }
-  set_ht_addr(NULL);
+  // if (the_runtime != NULL) {
+  //   if (tc != NULL) {
+  //     the_runtime->del_threadcache(tc);
+  //   }
+  //   delete the_runtime;
+  // }
+  // set_ht_addr(NULL);
 }
 
 

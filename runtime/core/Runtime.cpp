@@ -27,7 +27,8 @@ namespace alaska {
 
 
   Runtime::Runtime(alaska::Configuration config)
-      : handle_table(config) {
+      : handle_table(config)
+      , heap(config) {
     // Validate that there is not already a runtime (TODO: atomics?)
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
 

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
+#include "alaska/Configuration.hpp"
 #include "alaska/Logger.hpp"
 #include "alaska/SizeClass.hpp"
 #include "gtest/gtest.h"
@@ -8,6 +9,8 @@
 
 #include <alaska/Runtime.hpp>
 
+
+static alaska::Configuration g_config;
 class HeapTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -16,7 +19,7 @@ class HeapTest : public ::testing::Test {
   }
   void TearDown() override {}
 
-  alaska::Heap heap;
+  alaska::Heap heap {g_config};
 };
 
 

@@ -18,6 +18,7 @@
 #include <alaska/Magazine.hpp>
 #include <alaska/HugeObjectAllocator.hpp>
 #include <alaska/track.hpp>
+#include "alaska/Configuration.hpp"
 #include "alaska/LocalityPage.hpp"
 #include <ck/vec.h>
 #include <stdlib.h>
@@ -137,7 +138,7 @@ namespace alaska {
 
     HugeObjectAllocator huge_allocator;
 
-    Heap(void);
+    Heap(alaska::Configuration &config);
     ~Heap(void);
 
     // Get an unowned sized page given a certain size request.
@@ -175,17 +176,6 @@ namespace alaska {
     ck::mutex lock;
     alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
     alaska::Magazine<alaska::LocalityPage> locality_pages;
-
-
-    // Huge objects are managed independently of the size classes. They are allocated
-    // directly from the kernel and are *not handles*
-    ck::mutex huge_lock;
-    struct list_head huge_allocations;
-
-    struct HugeHeader {
-      struct list_head list;
-      size_t size;
-    };
   };
 
 

@@ -8,7 +8,13 @@
 
 class HugeObjectTest : public ::testing::Test {
  public:
-  alaska::HugeObjectAllocator allocator;
+  alaska::HugeObjectAllocator allocator{alaska::HugeAllocationStrategy::CUSTOM_MMAP_BACKED};
+};
+
+
+class HugeObjectMallocTest : public ::testing::Test {
+ public:
+  alaska::HugeObjectAllocator allocator{alaska::HugeAllocationStrategy::MALLOC_BACKED};
 };
 
 TEST_F(HugeObjectTest, AllocateAndDeallocate) {
@@ -96,4 +102,48 @@ TEST_F(HugeObjectTest, FreeNonOwnedPointer) {
 
   // Deallocate the owned pointer
   allocator.free(ptr);
+}
+
+
+
+TEST_F(HugeObjectMallocTest, ValidMalloc) {
+  // Allocate a huge object
+  void* ptr = allocator.allocate(1024);
+
+  // Verify that the allocation was successful
+  ASSERT_NE(ptr, nullptr);
+
+  EXPECT_EXIT(
+      {
+        // Code that might crash.
+        ::free(ptr);
+        fprintf(stderr, "Free worked!\n");
+        exit(0);  // Prevents the test from failing due to lack of exit
+      },
+      ::testing::ExitedWithCode(0), "Free worked");
+}
+
+TEST_F(HugeObjectMallocTest, FreeWorks) {
+  // Allocate a huge object
+  void* ptr = ::malloc(1024);
+
+  // Verify that the allocation was successful
+  ASSERT_NE(ptr, nullptr);
+
+  EXPECT_EXIT(
+      {
+        // Code that might crash.
+        ASSERT_TRUE(allocator.free(ptr));
+        fprintf(stderr, "Free worked!\n");
+        exit(0);  // Prevents the test from failing due to lack of exit
+      },
+      ::testing::ExitedWithCode(0), "Free worked");
+}
+
+
+
+TEST_F(HugeObjectMallocTest, SizeofWorks) {
+  // Allocate a huge object
+  void* ptr = ::malloc(1024);
+  ASSERT_GE(allocator.size_of(ptr), 1024);
 }

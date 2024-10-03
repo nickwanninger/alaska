@@ -100,13 +100,14 @@ namespace alaska {
 
 
       // Grab the lock
-      pthread_mutex_lock(&log_mutex);
+      // pthread_mutex_lock(&log_mutex);
 
-      time_t t = time(NULL);
-      auto time = localtime(&t);
+      // time_t t = time(NULL);
+      // auto time = localtime(&t);
 
       char buf[16];
-      buf[strftime(buf, sizeof(buf), "%H:%M:%S", time)] = '\0';
+      buf[0] = '\0';
+      // buf[strftime(buf, sizeof(buf), "%H:%M:%S", time)] = '\0';
 
       if (enable_colors) {
         log_emitf("%s %s%-5s\x1b[0m \x1b[90m%s:%d\x1b[0m | ", buf, level_colors[level],
@@ -119,7 +120,7 @@ namespace alaska {
       log_emitf("\n");
 
       // release the lock
-      pthread_mutex_unlock(&log_mutex);
+      // pthread_mutex_unlock(&log_mutex);
       va_end(args);
     }
   }

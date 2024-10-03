@@ -14,6 +14,7 @@
 #include <alaska/Logger.hpp>
 #include <alaska/Heap.hpp>
 #include "alaska/HeapPage.hpp"
+#include "alaska/HugeObjectAllocator.hpp"
 #include "alaska/LocalityPage.hpp"
 #include "alaska/SizeClass.hpp"
 #include "alaska/utils.h"
@@ -156,9 +157,10 @@ namespace alaska {
 
 
   ////////////////////////////////////
-  Heap::Heap(void)
+  Heap::Heap(alaska::Configuration &config)
       : pm()
-      , pt(pm.get_start()) {
+      , pt(pm.get_start())
+      , huge_allocator(config.huge_strategy) {
     log_debug("Heap: Initialized heap");
   }
 
