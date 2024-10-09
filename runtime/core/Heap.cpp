@@ -132,6 +132,10 @@ namespace alaska {
     // Extrac the page number (just an index into the page table structure)
     off_t page_number = page_off >> alaska::page_shift_factor;
 
+    if (unlikely((uint64_t)page_number > (uint64_t)(1LU << (bits_per_pt_level * 2)))) {
+      return NULL;
+    }
+
     // Gross math here. Can't avoid it.
     // Effectively, we are using the bits in the page number to index into two-level page table
     // structure in the exact same way that we would on a real x86_64 system's page table.
