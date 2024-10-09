@@ -80,6 +80,8 @@ namespace alaska::sim {
     bool insert(const HTLBEntry &entry);
     virtual void invalidateAll();
 
+    void invalidate(alaska::Mapping &m);
+
     std::vector<HTLBEntry> getAllEntriesSorted();
 
     virtual std::vector<uint64_t> getHandles();
@@ -129,10 +131,15 @@ namespace alaska::sim {
       last_accessed = 0;
       l1_htlb.invalidateAll();
       l2_htlb.invalidateAll();
-      l1_tlb.invalidateAll();
-      l2_tlb.invalidateAll();
+      // l1_tlb.invalidateAll();
+      // l2_tlb.invalidateAll();
       full_access_trace_.clear();
       sm.reset();
+    }
+
+    void invalidate_htlb(alaska::Mapping &m) {
+      l1_htlb.invalidate(m);
+      l2_htlb.invalidate(m);
     }
 
     inline void access(alaska::Mapping &m) {

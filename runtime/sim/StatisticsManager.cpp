@@ -18,6 +18,11 @@ void StatisticsManager::incrementStatistic(statistic metric, uint64_t value) {
 }
 
 
+
+uint64_t StatisticsManager::getStatistic(statistic s) {
+  return stats[s];
+}
+
 //
 void StatisticsManager::compute() {
   l1_tlb_hr = 100 * (double)stats[L1_TLB_HITS] / stats[L1_TLB_ACCESSES];

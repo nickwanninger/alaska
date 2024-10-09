@@ -49,6 +49,7 @@ namespace alaska::sim {
     ~StatisticsManager();
 
     void incrementStatistic(statistic metric, uint64_t value = 1);
+    uint64_t getStatistic(statistic s);
 
     void compute();
     void reset();

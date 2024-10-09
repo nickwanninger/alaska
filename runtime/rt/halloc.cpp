@@ -74,6 +74,11 @@ void hfree(void *ptr) {
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
+#ifdef ALASKA_HTLB_SIM
+  extern void alaska_htlb_sim_invalidate(uintptr_t handle);
+  alaska_htlb_sim_invalidate((uintptr_t)ptr);
+#endif
+
   // Simply ask the thread cache to free it!
   get_tc()->hfree(ptr);
 }

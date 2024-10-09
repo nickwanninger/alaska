@@ -152,6 +152,17 @@ void L2HTLB::invalidateAll() {
   }
 }
 
+void L2HTLB::invalidate(alaska::Mapping &m) {
+  printf("invalidate %x\b", m.handle_id());
+  for (auto &set : sets) {
+    for (auto &entry : set) {
+      if (entry.hid == m.encode()) {
+        entry.valid = false;
+      }
+    }
+  }
+}
+
 std::vector<uint64_t> L2HTLB::getHandles() {
   std::vector<uint64_t> handles;
   for (auto &set : sets) {
