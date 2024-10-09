@@ -47,6 +47,7 @@ namespace alaska {
   bool LocalityPage::release_local(const alaska::Mapping &m, void *ptr) {
     // Don't do anything other than
     auto md = find_md(ptr);
+    bytes_freed += md->size;
     md->mapping = nullptr;
     md->data_raw = ptr;
     md->allocated = false;

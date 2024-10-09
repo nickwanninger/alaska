@@ -61,6 +61,16 @@ namespace alaska {
     }
 
 
+    inline size_t heap_size(void) const {
+      return (uint64_t)data_bump_next - (uint64_t)data;
+    }
+
+    inline float utilization(void) const {
+      auto heap_bytes = heap_size();
+      return (heap_bytes - bytes_freed) / (float)heap_bytes;
+    }
+
+
    private:
     Metadata *find_md(void *ptr);
     inline Metadata *get_md(uint32_t offset) {
@@ -79,6 +89,8 @@ namespace alaska {
     void *data = nullptr;
     void *data_bump_next = nullptr;
     Metadata *md_bump_next = nullptr;
+
+    uint64_t bytes_freed = 0;
 
    public:
     uint64_t last_localization_epoch = 0;

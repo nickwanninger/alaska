@@ -212,6 +212,8 @@ namespace alaska {
     if (m == nullptr) {
       return this->runtime.heap.huge_allocator.size_of(handle);
     }
+
+    if (m->is_free()) return 0;
     void *ptr = m->get_pointer();
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     if (page == nullptr) return this->runtime.heap.huge_allocator.size_of(ptr);
@@ -244,23 +246,20 @@ namespace alaska {
 
 
   bool ThreadCache::localize(alaska::Mapping &m, uint64_t epoch) {
-    if (m.is_pinned() or m.is_free()) {
-      return false;
-    }
+    if (m.is_pinned() or m.is_free()) return false;
+
     void *ptr = m.get_pointer();
     auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
-    // if there wasn't a page for some reason, we can't localize.
-    if (unlikely(source_page == nullptr)) {
-      return false;
-    }
-    // if the page has recently been localized into, don't try again
-    if (unlikely(!source_page->should_localize_from(epoch))) {
-      return false;
-    }
 
+    // Validate that we can indeed move this object from the page.
+    if (source_page == nullptr or not source_page->should_localize_from(epoch)) return false;
+
+    // Ask the page for the size of the pointer
     auto size = source_page->size_of(ptr);
 
+    // Arbitrarially block objects larger than 512 from being moved.
     if (size > 512) return false;
+
     if (locality_page == nullptr or locality_page->available() < size * 2) {
       locality_page = new_locality_page(size + 32);
     }
@@ -275,14 +274,6 @@ namespace alaska {
 
     // TODO: invalidate!
     m.set_pointer(d);
-
-    // if (source_page->is_owned_by(this)) {
-    //   log_trace("Free handle %p locally (ptr = %p)", &m, ptr);
-    //   source_page->release_local(m, ptr);
-    // } else {
-    //   log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
-    //   source_page->release_remote(m, ptr);
-    // }
     source_page->release_remote(m, ptr);
 
     return true;

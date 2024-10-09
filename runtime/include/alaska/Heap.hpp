@@ -164,6 +164,7 @@ namespace alaska {
 
     // Run a compaction on sized pages.
     long compact_sizedpages(void);
+    long compact_locality_pages(void);
 
     long jumble();
 

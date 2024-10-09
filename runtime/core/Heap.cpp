@@ -258,6 +258,21 @@ namespace alaska {
     return c;
   }
 
+  long Heap::compact_locality_pages(void) {
+    long c = 0;
+    printf("Utilizations:\n");
+    long total_wasted = 0;
+    locality_pages.foreach ([&](LocalityPage *lp) {
+      float u = lp->utilization();
+      size_t wasted = lp->heap_size() * (1 - u);
+      total_wasted += wasted;
+      printf("%p - %8f   waste: %5lukb\n", lp, u, wasted / 1024);
+      return true;
+    });
+    printf("Total wastage: %lukb\n", total_wasted / 1024);
+    return c;
+  }
+
 
   long Heap::jumble(void) {
     long c = 0;
