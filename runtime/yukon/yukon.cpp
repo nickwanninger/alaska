@@ -15,6 +15,7 @@
 #include <alaska/utils.h>
 #include <alaska/Runtime.hpp>
 #include <alaska/Configuration.hpp>
+#include "alaska/HugeObjectAllocator.hpp"
 #include <alaska/liballoc.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -35,7 +36,7 @@
 static alaska::ThreadCache *tc = NULL;
 
 static void set_ht_addr(void *addr) {
-  // alaska::printf("set htaddr to %p\n", addr);
+  alaska::printf("set htbase to %p\n", addr);
   write_csr(0xc2, addr);
 }
 
@@ -72,36 +73,83 @@ static char stdout_buf[BUFSIZ];
 static char stderr_buf[BUFSIZ];
 
 
+
+static void wait_for_csr_zero(void) {
+  volatile uint32_t csr_value = 0x1;
+  do {
+    __asm__ volatile("csrr %0, 0xc3\n\t" : "=r"(csr_value) : : "memory");
+  } while (csr_value != 0);
+}
+
+
+#define BACKTRACE_SIZE 100
+
+
+extern "C" void abort(void) {
+  void *addr = __builtin_extract_return_addr(__builtin_return_address(0));
+
+  printf("Abort from %p!\n", addr);
+  printf("going to sleep!\n");
+
+  sleep(5000000);
+  exit(-1);
+}
+
+
+static void handle_sig(int sig) {
+  printf("Caught signal %d (%s)\n", sig, strsignal(sig));
+  void *buffer[BACKTRACE_SIZE];
+  // Get the backtrace
+  int nptrs = backtrace(buffer, BACKTRACE_SIZE);
+  // Print the backtrace symbols
+  backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+  exit(0);
+}
+
+
+
 static void init(void) {
   setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
   setvbuf(stderr, stderr_buf, _IOLBF, BUFSIZ);
 
   alaska::Configuration config;
+  // Use the "malloc" backend to operate cleanly w/ libc's malloc
+  config.huge_strategy = alaska::HugeAllocationStrategy::MALLOC_BACKED;
 
   the_runtime = new alaska::Runtime(config);
   void *handle_table_base = the_runtime->handle_table.get_base();
   // printf("Handle table at %p\n", handle_table_base);
-  set_ht_addr(handle_table_base);
   // Make sure the handle table performs mlocks
   the_runtime->handle_table.enable_mlock();
+
+  asm volatile("fence" ::: "memory");
+  set_ht_addr(handle_table_base);
+
+
+  signal(SIGABRT, handle_sig);
+  signal(SIGSEGV, handle_sig);
+  signal(SIGBUS, handle_sig);
+  signal(SIGILL, handle_sig);
 }
 
 
 
 
 static alaska::ThreadCache *get_tc() {
-  if (the_runtime == NULL) {
-    init();
-  }
-  if (tc == NULL) {
-    tc = the_runtime->new_threadcache();
-  }
+  if (the_runtime == NULL) init();
+  if (tc == NULL) tc = the_runtime->new_threadcache();
   return tc;
 }
 
 void __attribute__((constructor(102))) alaska_init(void) {
-  unsetenv("LD_PRELOAD"); // make it so we don't run alaska in subprocesses!
+  unsetenv("LD_PRELOAD");  // make it so we don't run alaska in subprocesses!
   get_tc();
+
+  atexit([]() {
+    printf("Setting ht addr to zero!\n");
+    set_ht_addr(0);
+    printf("set!\n");
+  });
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
@@ -111,38 +159,34 @@ void __attribute__((destructor)) alaska_deinit(void) {
   //   }
   //   delete the_runtime;
   // }
-  // set_ht_addr(NULL);
+  // set_ht_addr(0);
 }
 
-
-// #define malloc halloc
-// #define calloc hcalloc
-// #define realloc hrealloc
-// #define free hfree
-
 static void *_halloc(size_t sz, int zero) {
-  // print_hex("_halloc", sz);
-  if (dead) {
-    return alaska_internal_malloc(sz);
-  }
-  void *result = get_tc()->halloc(sz, zero);
+  void *result = NULL;
 
-  // This seems right...
+  result = get_tc()->halloc(sz, zero);
+  auto m = (uintptr_t)alaska::Mapping::translate(result);
+  printf("halloc(%zu) -> %p  (%zx-%zx)\n", sz, result, m, m + sz);
   if (result == NULL) errno = ENOMEM;
+
   return result;
 }
 
 
-extern "C" void *malloc(size_t sz) noexcept { return _halloc(sz, 0); }
+// #define halloc malloc
+// #define hcalloc calloc
+// #define hrealloc realloc
+// #define hfree free
 
-extern "C" void *calloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
+extern "C" void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
+
+extern "C" void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
 
 // Reallocate a handle
-extern "C" void *realloc(void *handle, size_t new_size) {
+extern "C" void *hrealloc(void *handle, size_t new_size) {
   auto *tc = get_tc();
 
-  // print_hex("realloc", (uint64_t)handle);
-  // print_hex("  newsz", (uint64_t)new_size);
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) {
     return malloc(new_size);
@@ -150,9 +194,8 @@ extern "C" void *realloc(void *handle, size_t new_size) {
   auto *m = alaska::Mapping::from_handle_safe(handle);
   if (m == NULL) {
     if (!alaska::Runtime::get().heap.huge_allocator.owns(handle)) {
-      log_debug("realloc edge case: not a handle %p!", handle);
+      log_fatal("realloc edge case: not a handle %p!", handle);
       exit(-1);
-      // return ::realloc(handle, new_size);
     }
   }
 
@@ -170,8 +213,8 @@ extern "C" void *realloc(void *handle, size_t new_size) {
 
 
 
-extern "C" void free(void *ptr) {
-  // print_hex("free", (uint64_t)ptr);
+extern "C" void hfree(void *ptr) {
+  printf("hfree %p\n", ptr);
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
@@ -180,4 +223,15 @@ extern "C" void free(void *ptr) {
 }
 
 
-extern "C" size_t malloc_usable_size(void *ptr) { return get_tc()->get_size(ptr); }
+extern "C" size_t halloc_usable_size(void *ptr) { return get_tc()->get_size(ptr); }
+
+
+
+void *operator new(size_t size) { return halloc(size); }
+
+void *operator new[](size_t size) { return halloc(size); }
+
+
+void operator delete(void *ptr) { hfree(ptr); }
+
+void operator delete[](void *ptr) { hfree(ptr); }

@@ -19,9 +19,16 @@
 #include <alaska/list_head.h>
 #include <alaska/liballoc.h>
 #include <alaska/config.h>
+#include <alaska/Logger.hpp>
 
 #include <ck/utility.h>
 
+
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+static void show_string(const char *msg) { write(1, msg, strlen(msg)); }
 
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
@@ -61,26 +68,23 @@ namespace alaska {
     };
 
    public:
-    // Return the pointer. If it is free, return NULL
     ALASKA_INLINE void *get_pointer(void) const {
-#ifdef ALASKA_SWAP_SUPPORT
-      // If swapping is enabled, the top bit will be set, so we need to check that
-      if (unlikely(alt.swap)) {
-        // Ask the runtime to "swap" the object back in. We blindly assume that
-        // this will succeed for performance reasons.
-        return alaska_ensure_present(this);
-      }
+      return (void*)(uint64_t)alt.misc;
+      // return ptr;
+    }
+
+    inline void invalidate(void) {
+#ifdef __riscv
+      __asm__ volatile("csrw 0xc4, %0" ::"rK"((uint64_t)handle_id()) : "memory");
+      __asm__ volatile("fence" ::: "memory");
 #endif
-      return ptr;
     }
 
     void set_pointer(void *ptr) {
       reset();
       this->ptr = ptr;
       alt.invl = 0;
-#ifdef __riscv
-      __asm__ volatile("fence" ::: "memory");
-#endif
+      invalidate();
     }
 
 
@@ -110,6 +114,7 @@ namespace alaska {
       ptr = NULL;
       alt.invl = 0;
       alt.swap = 0;
+      invalidate();
     }
 
 
@@ -136,7 +141,7 @@ namespace alaska {
     }
 
     static void *translate(void *handle) {
-      return alaska::Mapping::from_handle(handle)->get_pointer();
+      return alaska::Mapping::from_handle(handle)->ptr;
     }
 
     // Extract an encoded mapping out of the bits of a handle. WARNING: this function does not
