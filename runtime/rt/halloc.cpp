@@ -9,11 +9,17 @@
  * and modify it as specified in the file "LICENSE".
  */
 
+// #define MALLOC_BYPASS
+
+#ifdef MALLOC_BYPASS
+#include <malloc.h>
+#endif
 
 #include <alaska/Runtime.hpp>
 #include <alaska/ThreadCache.hpp>
 #include <alaska.h>
 #include <errno.h>
+
 
 
 // TODO: don't have this be global!
@@ -38,12 +44,25 @@ static void *_halloc(size_t sz, int zero) {
 }
 
 
-void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
+void *halloc(size_t sz) noexcept {
+#ifdef MALLOC_BYPASS
+  return ::malloc(sz);
+#endif
+  return _halloc(sz, 0);
+}
 
-void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
+void *hcalloc(size_t nmemb, size_t size) {
+#ifdef MALLOC_BYPASS
+  return ::calloc(nmemb, size);
+#endif
+  return _halloc(nmemb * size, 1);
+}
 
 // Reallocate a handle
 void *hrealloc(void *handle, size_t new_size) {
+#ifdef MALLOC_BYPASS
+  return ::realloc(handle, new_size);
+#endif
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) return halloc(new_size);
 
@@ -71,6 +90,9 @@ void *hrealloc(void *handle, size_t new_size) {
 
 
 void hfree(void *ptr) {
+#ifdef MALLOC_BYPASS
+  return ::free(ptr);
+#endif
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
@@ -86,4 +108,9 @@ void hfree(void *ptr) {
 
 
 
-size_t alaska_usable_size(void *ptr) { return get_tc()->get_size(ptr); }
+size_t alaska_usable_size(void *ptr) {
+#ifdef MALLOC_BYPASS
+  return ::malloc_usable_size(ptr);
+#endif
+  return get_tc()->get_size(ptr);
+}

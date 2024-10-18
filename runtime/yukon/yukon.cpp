@@ -37,6 +37,10 @@ static alaska::ThreadCache *tc = NULL;
 
 static void set_ht_addr(void *addr) {
   alaska::printf("set htbase to %p\n", addr);
+  uint64_t value = (uint64_t)addr;
+  if (value != 0 and getenv("YUKON_PHYS") != nullptr) {
+    value |= (1LU << 63);
+  }
   write_csr(0xc2, addr);
 }
 
@@ -107,6 +111,16 @@ static void handle_sig(int sig) {
 }
 
 
+static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
+  printf("Caught segfault to address %p\n", info->si_addr);
+  void *buffer[BACKTRACE_SIZE];
+  // Get the backtrace
+  int nptrs = backtrace(buffer, BACKTRACE_SIZE);
+  // Print the backtrace symbols
+  backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+  exit(0);
+}
+
 
 static void init(void) {
   setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
@@ -125,9 +139,14 @@ static void init(void) {
   asm volatile("fence" ::: "memory");
   set_ht_addr(handle_table_base);
 
+  struct sigaction act = {0};
+  act.sa_sigaction = segv_handler;
+  act.sa_flags = SA_SIGINFO;
+  sigaction(SIGSEGV, &act, NULL);
+
 
   signal(SIGABRT, handle_sig);
-  signal(SIGSEGV, handle_sig);
+  // signal(SIGSEGV, handle_sig);
   signal(SIGBUS, handle_sig);
   signal(SIGILL, handle_sig);
 }
