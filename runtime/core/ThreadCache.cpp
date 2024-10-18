@@ -231,6 +231,10 @@ namespace alaska {
       m = handle_slab->alloc();
     }
 
+    if (unlikely(m->handle_id() == 0)) {
+      return new_mapping();
+    }
+
     return m;
   }
 

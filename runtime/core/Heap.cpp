@@ -293,14 +293,27 @@ namespace alaska {
     long c = 0;
     printf("Utilizations:\n");
     long total_wasted = 0;
+    long total_time = 0;
     locality_pages.foreach ([&](LocalityPage *lp) {
+      int compaction_iterations = 0;
+      auto start = alaska_timestamp();
+      if (lp->utilization() < 0.8) {
+        while (lp->compact() != 0) {
+          compaction_iterations++;
+        }
+      }
+      auto end = alaska_timestamp();
+      total_time += (end - start);
+
       float u = lp->utilization();
       size_t wasted = lp->heap_size() * (1 - u);
       total_wasted += wasted;
-      printf("%p - %8f   waste: %5lukb\n", lp, u, wasted / 1024);
+
+      printf("%p - %8f   waste: %5lukb   %4d iters in %9luns\n", lp, u, wasted / 1024, compaction_iterations, (end - start));
       return true;
     });
     printf("Total wastage: %lukb\n", total_wasted / 1024);
+    printf("Tool %fms\n", total_time / 1000.0 / 1000.0);
     return c;
   }
 

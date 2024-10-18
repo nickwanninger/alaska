@@ -73,6 +73,8 @@ namespace alaska {
     }
 
 
+    size_t compact(void);
+
    private:
     Metadata *find_md(void *ptr);
     inline Metadata *get_md(uint32_t offset) {
@@ -91,7 +93,6 @@ namespace alaska {
     void *data = nullptr;
     void *data_bump_next = nullptr;
     Metadata *md_bump_next = nullptr;
-
     uint64_t bytes_freed = 0;
 
    public:
