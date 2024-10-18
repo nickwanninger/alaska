@@ -81,7 +81,6 @@ PTEntry L2TLB::pull(uint64_t vaddr, bool is_ht) {
   if (entry != sets[way].end()) {
     entry->last_used = time;
     sm.incrementStatistic(L2_TLB_HITS);
-    // (*PageTable)[vpn].l2_hits++;
     return *entry;
   } else {
     auto oldest_line =
@@ -93,8 +92,6 @@ PTEntry L2TLB::pull(uint64_t vaddr, bool is_ht) {
     eviction_matrix[way][oldest_line_idx]++;
 
     auto new_entry = lookup(vpn);
-    // printf("[L2TLB] Pulled entry from PageTable\n");
-    // new_entry.dump();
     oldest_line->reset(new_entry);
     if (is_ht) {
       sm.incrementStatistic(L2_HT_TLB_EVICTIONS);

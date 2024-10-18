@@ -21,12 +21,17 @@
 #define L2_SETS 32
 #define TOTAL_ENTRIES (L1_WAYS * L1_SETS + L2_WAYS * L2_SETS)
 
+// #define RATE 100'000UL
 #define RATE 10'000'000UL
+// #define RATE 100'000UL
 
 static long access_count = 0;
 static alaska::sim::HTLB *g_htlb = NULL;
 static ck::mutex htlb_lock;
 static thread_local volatile bool track_on_this_thread = true;
+
+
+static char sim_name[512];
 
 
 static pthread_mutex_t dump_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -58,8 +63,13 @@ static void *sim_background_thread_func(void *) {
   auto &rt = alaska::Runtime::get();
   auto *tc = rt.new_threadcache();
 
-  FILE *log = fopen("out.csv", "w");
-  fprintf(log, "trial,hitrate_baseline\n");
+
+  char log_file[512];
+  snprintf(log_file, 256, "%s.csv", sim_name);
+  FILE *log = fopen(log_file, "w");
+
+  auto &sm = get_htlb().get_stats();
+  sm.dump_csv_header(log);
 
 
 
@@ -70,47 +80,62 @@ static void *sim_background_thread_func(void *) {
     unsigned long moved_objects = 0;
     unsigned long unmoved_objects = 0;
     unsigned long bytes_in_dump = 0;
-    // ck::set<uint64_t> pages;
 
-    // rt.with_barrier([&]() {
-    //   rt.heap.compact_locality_pages();
-    //   // unsigned long c = rt.heap.compact_sizedpages();
-    //   // printf("compacted %lu\n", c);
-
-
-    //   for (int i = 0; i < TOTAL_ENTRIES; i++) {
-    //     if (dump_buf[i] == 0) continue;
-    //     auto handle = (void *)(dump_buf[i] << ALASKA_SIZE_BITS);
-    //     auto *m = alaska::Mapping::from_handle_safe(handle);
+#if 0
+    rt.with_barrier([&]() {
+      for (int i = 0; i < TOTAL_ENTRIES; i++) {
+        if (dump_buf[i] == 0) continue;
+        auto handle = (void *)(dump_buf[i] << ALASKA_SIZE_BITS);
+        auto *m = alaska::Mapping::from_handle_safe(handle);
 
 
-    //     bool moved = false;
-    //     if (m == NULL or m->is_free() or m->is_pinned()) {
-    //       moved = false;
-    //     } else {
-    //       void *ptr = m->get_pointer();
-    //       // pages.add((uint64_t)ptr >> 12);
-    //       auto *source_page = rt.heap.pt.get_unaligned(m->get_pointer());
-    //       moved = tc->localize(*m, rt.localization_epoch);
-    //     }
+        bool moved = false;
+        if (m == NULL or m->is_free() or m->is_pinned()) {
+          moved = false;
+        } else {
+          void *ptr = m->get_pointer();
+          // pages.add((uint64_t)ptr >> 12);
+          auto *source_page = rt.heap.pt.get_unaligned(m->get_pointer());
+          moved = tc->localize(*m, rt.localization_epoch);
+        }
 
-    //     if (moved) {
-    //       moved_objects++;
-    //       bytes_in_dump += tc->get_size(handle);
-    //     } else {
-    //       unmoved_objects++;
-    //     }
-    //   }
-    // });
+        if (moved) {
+          moved_objects++;
+          bytes_in_dump += tc->get_size(handle);
+        } else {
+          unmoved_objects++;
+        }
+      }
+
+
+      rt.heap.compact_locality_pages();
+      rt.heap.compact_sizedpages();
+
+      // FILE *log = fopen("html/out.html", "w");
+      // rt.dump_html(log);
+      // fclose(log);
+
+
+      // {
+      //   FILE *out = fopen("html/.out.html", "w");
+      //   rt.dump_html(out);
+      //   fclose(out);
+      //   system("mv html/.out.html html/out.html");
+      // }
+
+      // {
+      //   FILE *json = fopen("html/.out.json", "w");
+      //   rt.heap.dump_json(json);
+      //   fclose(json);
+      //   system("mv html/.out.json html/out.json");
+      // }
+    });
+#endif
 
     rt.localization_epoch++;
 
-    auto &sm = get_htlb().get_stats();
     sm.compute();
-    auto hr = sm.l1_tlb_hr;
-    sm.reset();
-
-    fprintf(log, "%lu,%f\n", trial, hr);
+    sm.dump_csv_row(log);
 
     fflush(log);
     pthread_mutex_unlock(&dump_mutex);
@@ -121,6 +146,14 @@ static void *sim_background_thread_func(void *) {
 }
 
 static void __attribute__((constructor)) sim_init(void) {
+  printf("Simulation name: ");
+  fflush(stdout);
+  fgets(sim_name, sizeof(sim_name), stdin);
+  size_t len = strlen(sim_name);
+  if (len > 0 && sim_name[len - 1] == '\n') {
+    sim_name[len - 1] = '\0';
+  }
+
   pthread_create(&sim_background_thread, NULL, sim_background_thread_func, NULL);
 }
 
@@ -143,7 +176,8 @@ void alaska_htlb_sim_track(uintptr_t maybe_handle) {
   auto &htlb = get_htlb();
   access_count++;
   if (m) {
-    htlb.access(*m);
+    uint32_t offset = maybe_handle & ((1LU << ALASKA_SIZE_BITS) - 1);
+    htlb.access(*m, offset);
   } else {
     htlb.access_non_handle((void *)maybe_handle);
   }

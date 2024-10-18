@@ -10,28 +10,9 @@
 
 namespace alaska::sim {
   enum statistic {
-    L1_TLB_HITS,
-    L1_TLB_ACCESSES,
-    L1_TLB_EVICTIONS,
-    L1_HT_TLB_EVICTIONS,
-    L2_TLB_HITS,
-    L2_TLB_ACCESSES,
-    L2_TLB_EVICTIONS,
-    L2_HT_TLB_EVICTIONS,
-    L1_HTLB_HITS,
-    L1_HTLB_ACCESSES,
-    L2_HTLB_HITS,
-    L2_HTLB_ACCESSES,
-    HT_TLB_LOOKUPS,
-
-    // EDGES,
-    // EPOCH_MAX_VPAGE,
-    // EPOCH_MIN_VPAGE,
-    // EPOCH_PAGES,
-    // EPOCH_COMPACTION_HANDLE_SPACE,
-    // EPOCH_COMPACTION_MEM_SPACE,
-    // EPOCH_MEM_MOVED,
-    // UTILIZATION_RATIO,
+#define STAT(S) S,
+#include "./stats.inc"
+#undef STAT
 
     COUNT
   };
@@ -50,6 +31,9 @@ namespace alaska::sim {
 
     void incrementStatistic(statistic metric, uint64_t value = 1);
     uint64_t getStatistic(statistic s);
+
+    void dump_csv_header(FILE *out);
+    void dump_csv_row(FILE *out);
 
     void compute();
     void reset();

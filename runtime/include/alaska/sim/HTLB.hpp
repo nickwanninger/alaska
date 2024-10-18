@@ -60,7 +60,7 @@ namespace alaska::sim {
   };
 
   class L2HTLB {
-   protected:
+   public:
     StatisticsManager &sm;
     L1TLB *tlb;
     uint32_t num_sets, num_ways;
@@ -69,7 +69,6 @@ namespace alaska::sim {
 
     std::vector<std::vector<HTLBEntry>> sets;
 
-   public:
     L2HTLB(StatisticsManager &sm, int num_sets, int num_ways, L1TLB *tlb,
         CACHE_INCLUSION_POLICY policy = CACHE_INCLUSION_POLICY::EXCLUSIVE);
     ~L2HTLB() = default;
@@ -95,7 +94,7 @@ namespace alaska::sim {
         CACHE_INCLUSION_POLICY policy = CACHE_INCLUSION_POLICY::EXCLUSIVE);
     ~L1HTLB() = default;
 
-    HTLBResp access(alaska::Mapping &m);
+    HTLBResp access(alaska::Mapping &m, uint32_t offset);
     HTLBEntry lookup(alaska::Mapping &m) override;
 
     void invalidateAll() override;
@@ -142,13 +141,12 @@ namespace alaska::sim {
       l2_htlb.invalidate(m);
     }
 
-    inline void access(alaska::Mapping &m) {
-      // auto h = m.encode();
-      // full_access_trace_.push_back(h);
-      auto resp = l1_htlb.access(m);
-      l1_tlb.access(resp.addr, false);
+    inline void access(alaska::Mapping &m, uint32_t offset) {
+      sm.incrementStatistic(statistic::REFERENCES);
+      l1_htlb.access(m, offset);
     }
     inline void access_non_handle(void *addr) {
+      sm.incrementStatistic(statistic::REFERENCES);
       l1_tlb.access((uint64_t)addr, false);
     }
 
@@ -160,8 +158,6 @@ namespace alaska::sim {
     // to allocate handles when simulating.
     alaska::ThreadCache *thread_cache = nullptr;
 
-    StatisticsManager &get_stats() {
-      return sm;
-    }
+    StatisticsManager &get_stats() { return sm; }
   };
 }  // namespace alaska::sim

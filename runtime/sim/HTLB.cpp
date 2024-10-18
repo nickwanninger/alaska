@@ -109,7 +109,9 @@ HTLBEntry L2HTLB::lookup(alaska::Mapping &m) {
 
   // simulated TLB access for lookup in handle table
   sm.incrementStatistic(HT_TLB_LOOKUPS);
-  tlb->access(get_pn((uint64_t)&m), true);
+  tlb->access((uint64_t)&m, true);
+
+
 
   HTE.hid = m.encode();
   HTE.addr = (uint64_t)m.get_pointer();
@@ -117,6 +119,13 @@ HTLBEntry L2HTLB::lookup(alaska::Mapping &m) {
   HTE.valid = not m.is_free();
   HTE.last_used = 0;
   HTE.recently_moved = false;  // TODO
+
+  if (HTE.phys) {
+    // Physical optimization:
+    // the first time we lookup an entry, we also access
+    // the tlb at the location of the handle's data.
+    tlb->access(HTE.addr, false);
+  }
 
   return HTE;
 }
@@ -210,7 +219,7 @@ L1HTLB::L1HTLB(StatisticsManager &sm, L2HTLB &l2_htlb, int num_sets, int num_way
   }
 }
 
-HTLBResp L1HTLB::access(alaska::Mapping &m) {
+HTLBResp L1HTLB::access(alaska::Mapping &m, uint32_t offset) {
   time++;
   sm.incrementStatistic(L1_HTLB_ACCESSES);
 
@@ -220,12 +229,14 @@ HTLBResp L1HTLB::access(alaska::Mapping &m) {
     return It.hid == hid && It.valid;
   });
 
+  HTLBResp resp(0, false);
+
   printf("[L1HTLB] Searching hid: 0x%lx in way %d\n", hid, way);
   if (entry != sets[way].end()) {
     printf("[L1HTLB] Found hid: 0x%lx in way %d\n", hid, way);
     entry->last_used = time;
     sm.incrementStatistic(L1_HTLB_HITS);
-    return {entry->addr, entry->phys};
+    resp = {entry->addr, entry->phys};
   } else {
     auto oldest_line =
         std::min_element(sets[way].begin(), sets[way].end(), [](auto &ItA, auto &ItB) {
@@ -239,8 +250,21 @@ HTLBResp L1HTLB::access(alaska::Mapping &m) {
     new_entry.last_used = time;
     oldest_line->reset(new_entry);
     printf("[L1HTLB] Inserted hid: 0x%lx in way %d\n", hid, way);
-    return {oldest_line->addr, oldest_line->phys};
+    resp = {oldest_line->addr, oldest_line->phys};
   }
+
+
+  auto resp_page = resp.addr >> 12;
+  auto acc_page = (resp.addr + offset) >> 12;
+
+  if (not resp.phys or resp_page != acc_page) {
+    // fprintf(stdout, "access %p at %u. %lx %lx\n", &m, offset, resp_page, acc_page);
+    l2_htlb.tlb->access(resp.addr + offset, false);
+  } else {
+    // fprintf(stdout, "dont access %p at %u. %lx %lx\n", &m, offset, resp_page, acc_page);
+  }
+
+  return resp;
 }
 
 HTLBEntry L1HTLB::lookup(alaska::Mapping &m) { return l2_htlb.pull(m); }

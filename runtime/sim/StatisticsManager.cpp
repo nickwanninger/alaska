@@ -19,9 +19,7 @@ void StatisticsManager::incrementStatistic(statistic metric, uint64_t value) {
 
 
 
-uint64_t StatisticsManager::getStatistic(statistic s) {
-  return stats[s];
-}
+uint64_t StatisticsManager::getStatistic(statistic s) { return stats[s]; }
 
 //
 void StatisticsManager::compute() {
@@ -97,4 +95,34 @@ void StatisticsManager::dump() {
   //     stats_file << (size_t)stats[metric] << "\n";
   //   }
   // }
+}
+
+
+
+void StatisticsManager::dump_csv_header(FILE *out) {
+  int ind = 0;
+
+#define STAT(s)        \
+  if (ind++) {         \
+    fprintf(out, ","); \
+  }                    \
+  fprintf(out, #s);
+#include <alaska/sim/stats.inc>
+#undef STAT
+  fprintf(out, "\n");
+}
+
+
+
+void StatisticsManager::dump_csv_row(FILE *out) {
+  int ind = 0;
+
+#define STAT(s)        \
+  if (ind++) {         \
+    fprintf(out, ","); \
+  }                    \
+  fprintf(out, "%lu", getStatistic(s));
+#include <alaska/sim/stats.inc>
+#undef STAT
+  fprintf(out, "\n");
 }
