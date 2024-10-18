@@ -27,7 +27,8 @@ typedef struct {
 #define ALASKA_JOIN_REASON_NOT_JOINED -1        // This thread has not joined the barrier.
 #define ALASKA_JOIN_REASON_SIGNAL 0        // This thread was signalled.
 #define ALASKA_JOIN_REASON_SAFEPOINT 1     // This thread was at a safepoint
-#define ALASKA_JOIN_REASON_ORCHESTRATOR 2  // THis thread was the orchestrator
+#define ALASKA_JOIN_REASON_ORCHESTRATOR 2  // This thread was the orchestrator
+#define ALASKA_JOIN_REASON_ABORT 3  // This thread requires the barrier abort (invalid state, for some reason)
 
   // ...
 } alaska_thread_state_t;

@@ -379,11 +379,17 @@ bool alaska::barrier::begin(void) {
     }
     retries++;
     bool sent_signal = false;
+    bool aborted = false;
     list_for_each_entry(pos, &all_threads, list_head) {
       if (pos->state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
         pthread_kill(pos->thread, SIGUSR2);
         sent_signal = true;
         signals_sent++;
+      }
+
+      if (pos->state->join_status == ALASKA_JOIN_REASON_ABORT) {
+        success = false;
+        printf("Abort barrier. Could not join all threads for some reason!\n");
       }
     }
     if (!sent_signal) break;
@@ -400,9 +406,6 @@ bool alaska::barrier::begin(void) {
 
 
   return success;
-  // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
-  // dump_thread_states();
-  // printf(" retries = %d, signals = %d\n", retries, signals_sent);
 }
 
 
@@ -425,6 +428,9 @@ void alaska::barrier::end(void) {
 void alaska_barrier(void) {
   // alaska::service::barrier();
 }
+
+
+thread_local bool invalid_state_abort = false;
 
 static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
@@ -453,9 +459,20 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       for (auto [start, end] : managed_blob_text_regions) {
         __builtin___clear_cache((char*)start, (char*)end);
       }
-      printf("ManagedUntracked!\n");
-      // printf("EEP %p %d!\n", return_address, sig);
-      return;
+
+      printf(
+          "ManagedUntracked: pc:0x%zx sig:%d invl:%d!\n", return_address, sig, invalid_state_abort);
+      if (sig == SIGILL) {
+        alaska_thread_state.join_status = ALASKA_JOIN_REASON_ABORT;
+        break;
+      }
+      if (not invalid_state_abort) {
+        invalid_state_abort = true;
+        return;
+      }
+      alaska_thread_state.join_status = ALASKA_JOIN_REASON_ABORT;
+      invalid_state_abort = false;
+      break;
 
     case StackState::ManagedTracked:
       // it's possible to be at a managed poll point *and* get interrupted
@@ -468,6 +485,8 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       alaska_thread_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
       break;
   }
+
+  invalid_state_abort = false;
 
   ck::set<void*> ps;
   alaska::barrier::get_locked(ps);  // TODO: slow!

@@ -88,6 +88,7 @@ namespace alaska {
         barrier_manager->end();
       } else {
         alaska::printf("Barrier failed\n");
+        barrier_manager->end();
       }
       unlock_all_thread_caches();
     }
