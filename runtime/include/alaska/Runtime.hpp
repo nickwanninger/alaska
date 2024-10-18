@@ -74,6 +74,9 @@ namespace alaska {
     void dump(FILE *stream);
 
 
+    void dump_html(FILE *stream);
+
+
     template <typename Fn>
     void with_barrier(Fn &&cb) {
       lock_all_thread_caches();

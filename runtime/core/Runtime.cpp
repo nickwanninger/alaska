@@ -62,6 +62,43 @@ namespace alaska {
   }
 
 
+  void Runtime::dump_html(FILE *stream) {
+    fprintf(stream, "<!DOCTYPE html>\n");
+    fprintf(stream, "<html>\n");
+
+    fprintf(stream, R"HEAD(
+       <head>
+         <style>
+            :root { --p0-color: #ff00ff; --p1-color: #9C27B0; }
+            body { box-sizing: border-box; color: white; background-color: black; text-wrap: nowrap; font-family: monospace; }
+            /* td { text-wrap: nowrap; } */
+            /* td { line-height: 0; } */
+            .el { height: 15px; background-color: #2f2f2f; display: inline-block; /* border-right: 1px solid black; */ }
+            .al { background-color: #2fff2f; color: black; }
+            .fr { background-color: black !important; }
+            .localitydata .al { background-color: white; }
+            .p0 { border-bottom: 2px solid var(--p0-color); border-top: 2px solid var(--p0-color); }
+            .p1 { border-bottom: 2px solid var(--p1-color); border-top: 2px solid var(--p1-color); }
+            .localitydata .p0 { background-color: var(--p0-color); }
+            .localitydata .p1 { background-color: var(--p1-color); }
+            .pin { background-color: red !important; }
+
+
+         </style>
+       </head>
+    )HEAD");
+    fprintf(stream, "<body>\n");
+
+    fprintf(stream, "<h1>Heap Pages:</h1>");
+
+    fprintf(stream, "<table>");
+    heap.dump_html(stream);
+    fprintf(stream, "</table>");
+
+
+    fprintf(stream, "</body><html>\n");
+  }
+
 
   ThreadCache *Runtime::new_threadcache(void) {
     auto tc = new ThreadCache(next_thread_cache_id++, *this);

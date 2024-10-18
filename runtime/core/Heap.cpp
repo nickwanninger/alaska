@@ -238,8 +238,39 @@ namespace alaska {
 
 #undef O
 
+
+  void Heap::dump_html(FILE *stream) {
+    auto dump_page = [&](auto page) {
+      if (page == NULL) return true;
+      fprintf(stream, "<tr>");
+      fprintf(stream, "<td>%p</td>", page);
+      fprintf(stream, "<td>");
+      page->dump_html(stream);
+      fprintf(stream, "</tr>\n");
+      return true;
+    };
+
+    locality_pages.foreach (dump_page);
+    // for (auto &mag : size_classes)
+    //   mag.foreach (dump_page);
+  }
+
+
+  void Heap::dump_json(FILE *stream) {
+    fprintf(stream, "{\"pages\": [");
+    for (off_t i = 0; true; i++) {
+      auto page = pt.get(pm.get_page(i));
+      if (page == NULL) break;
+      if (i != 0) fprintf(stream, ",");
+      page->dump_json(stream);
+    }
+    fprintf(stream, "]}");
+  }
+
   void Heap::collect() {
     ck::scoped_lock lk(this->lock);
+
+
     // TODO:
   }
 

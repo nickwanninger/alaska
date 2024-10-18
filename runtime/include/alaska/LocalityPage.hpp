@@ -55,15 +55,17 @@ namespace alaska {
     size_t size_of(void *) override;
     inline size_t available() const { return get_free_space() - sizeof(Metadata); }
 
+
+    void dump_html(FILE *stream) override;
+    void dump_json(FILE *stream) override;
+
     bool should_localize_from(uint64_t current_epoch) const override {
       return false;
       return current_epoch - last_localization_epoch > localization_epoch_hysteresis;
     }
 
 
-    inline size_t heap_size(void) const {
-      return (uint64_t)data_bump_next - (uint64_t)data;
-    }
+    inline size_t heap_size(void) const { return (uint64_t)data_bump_next - (uint64_t)data; }
 
     inline float utilization(void) const {
       auto heap_bytes = heap_size();

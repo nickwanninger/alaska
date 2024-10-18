@@ -39,6 +39,9 @@ namespace alaska {
     int get_size_class(void) const { return size_class; }
     size_t get_object_size(void) const { return object_size; }
 
+    void dump_html(FILE *stream) override;
+    void dump_json(FILE *stream) override;
+
 
     // Compact the page.
     long compact(void);

@@ -76,6 +76,14 @@ namespace alaska {
     void* start(void) const { return memory; }
     void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
 
+    virtual void dump_html(FILE *stream) {
+      fprintf(stream, "TODO");
+    }
+
+    virtual void dump_json(FILE *stream) {
+      fprintf(stream, "{\"name\": \"HeapPage\", \"objs\": \"\"}");
+    }
+
    protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.
     void* memory = nullptr;

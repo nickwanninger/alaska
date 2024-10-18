@@ -281,4 +281,53 @@ namespace alaska {
     return swapped;
   }
 
+
+  void SizedPage::dump_html(FILE *stream) {
+    fprintf(stream, "<td>SizedPage(%zu)</td>", this->object_size);
+
+    fprintf(stream, "<td class='heapdata'>");
+    enum state {
+      unknown,
+      allocated,
+      freed,
+    };
+    state last_state = unknown;
+    size_t objects = 0;
+    for (long i = 0; true; i++) {
+      auto *h = ind_to_header(i);
+      state curstate = h->is_free() ? freed : allocated;
+      bool print = false;
+
+      if (last_state != unknown and curstate != last_state) print = true;
+      if (i == capacity - 1) print = true;
+
+      if (print) {
+        fprintf(stream, "<div class='el %s' style='width: %lupx'>",
+            last_state == freed ? "fr" : "al", objects);
+        fprintf(stream, "</div>");
+        objects = 0;
+      }
+
+      last_state = curstate;
+      objects++;
+
+      if (i == capacity - 1) {
+        break;
+      }
+    }
+
+    fprintf(stream, "</td>");
+  }
+
+
+  void SizedPage::dump_json(FILE *stream) {
+    fprintf(stream, "{\"name\": \"SizedPage\", \"object_size\": %zu, \"objs\": \"", object_size);
+    for (long i = 0; i < capacity; i++) {
+      auto *h = ind_to_header(i);
+      fprintf(stream, "%s%zu", h->is_free() ? "f" : "a", this->object_size);
+    }
+    fprintf(stream, "\"}");
+
+  }
+
 }  // namespace alaska

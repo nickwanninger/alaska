@@ -69,6 +69,10 @@ namespace alaska {
       return 100.0 * (alloc_count / (double)(heap_size / page_size));
     }
 
+    inline void *get_page(off_t i) {
+      return(void*)((off_t)heap + (i * page_size));
+    }
+
 
     inline uint64_t get_allocated_page_count(void) const { return alloc_count; }
 
@@ -161,6 +165,8 @@ namespace alaska {
 
     // Dump the state of the global heap to some file stream.
     void dump(FILE *stream);
+    void dump_html(FILE *stream);
+    void dump_json(FILE *stream);
 
     // Run a compaction on sized pages.
     long compact_sizedpages(void);
