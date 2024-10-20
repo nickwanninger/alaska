@@ -309,7 +309,8 @@ namespace alaska {
       size_t wasted = lp->heap_size() * (1 - u);
       total_wasted += wasted;
 
-      printf("%p - %8f   waste: %5lukb   %4d iters in %9luns\n", lp, u, wasted / 1024, compaction_iterations, (end - start));
+      printf("%p - %8f   waste: %5lukb   %4d iters in %9luns\n", lp, u, wasted / 1024,
+          compaction_iterations, (end - start));
       return true;
     });
     printf("Total wastage: %lukb\n", total_wasted / 1024);

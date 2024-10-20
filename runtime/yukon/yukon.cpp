@@ -135,10 +135,10 @@ static void init(void) {
   sigaction(SIGSEGV, &act, NULL);
 
 
-  signal(SIGABRT, handle_sig);
+  // signal(SIGABRT, handle_sig);
   // signal(SIGSEGV, handle_sig);
-  signal(SIGBUS, handle_sig);
-  signal(SIGILL, handle_sig);
+  // signal(SIGBUS, handle_sig);
+  // signal(SIGILL, handle_sig);
 }
 
 
@@ -162,21 +162,16 @@ void __attribute__((constructor(102))) alaska_init(void) {
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-  // if (the_runtime != NULL) {
-  //   if (tc != NULL) {
-  //     the_runtime->del_threadcache(tc);
-  //   }
-  //   delete the_runtime;
-  // }
-  // set_ht_addr(0);
 }
 
 static void *_halloc(size_t sz, int zero) {
+  // HACK: make it so we *always* zero the data to avoid pagefaults
+  //       *this is slow*
+  zero = 1;
   void *result = NULL;
 
   result = get_tc()->halloc(sz, zero);
   auto m = (uintptr_t)alaska::Mapping::translate(result);
-  printf("halloc(%zu) -> %p  (%zx-%zx)\n", sz, result, m, m + sz);
   if (result == NULL) errno = ENOMEM;
 
   return result;
@@ -223,7 +218,6 @@ extern "C" void *hrealloc(void *handle, size_t new_size) {
 
 
 extern "C" void hfree(void *ptr) {
-  printf("hfree %p\n", ptr);
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
 
