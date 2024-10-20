@@ -89,16 +89,6 @@ static void wait_for_csr_zero(void) {
 #define BACKTRACE_SIZE 100
 
 
-extern "C" void abort(void) {
-  void *addr = __builtin_extract_return_addr(__builtin_return_address(0));
-
-  printf("Abort from %p!\n", addr);
-  printf("going to sleep!\n");
-
-  sleep(5000000);
-  exit(-1);
-}
-
 
 static void handle_sig(int sig) {
   printf("Caught signal %d (%s)\n", sig, strsignal(sig));
