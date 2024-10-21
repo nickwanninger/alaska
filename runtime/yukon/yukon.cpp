@@ -41,7 +41,7 @@ static void set_ht_addr(void *addr) {
   if (value != 0 and getenv("YUKON_PHYS") != nullptr) {
     value |= (1LU << 63);
   }
-  write_csr(0xc2, addr);
+  write_csr(0xc2, value);
 }
 
 static alaska::Runtime *the_runtime = NULL;
