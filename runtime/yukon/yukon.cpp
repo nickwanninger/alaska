@@ -118,7 +118,7 @@ static void init(void) {
 
   alaska::Configuration config;
   // Use the "malloc" backend to operate cleanly w/ libc's malloc
-  config.huge_strategy = alaska::HugeAllocationStrategy::MALLOC_BACKED;
+  config.huge_strategy = alaska::HugeAllocationStrategy::CUSTOM_MMAP_BACKED;
 
   the_runtime = new alaska::Runtime(config);
   void *handle_table_base = the_runtime->handle_table.get_base();
