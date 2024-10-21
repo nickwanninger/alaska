@@ -26,6 +26,11 @@ namespace alaska {
 
    public:
     Localizer(alaska::Configuration &config, alaska::Runtime &rt);
-    void feed_hotness_data(size_t count, handle_id_t *handle_ids);
+
+    // Get a hotness buffer that can fit `count` handle_ids.
+    handle_id_t *get_hotness_buffer(size_t count);
+
+    // Give a hotness buffer back to the localizer, filled with `count` handle ids
+    void feed_hotness_buffer(size_t count, handle_id_t *handle_ids);
   };
 }  // namespace alaska

@@ -86,6 +86,21 @@ static void wait_for_csr_zero(void) {
 }
 
 
+static void dump_htlb() {
+  auto &rt = alaska::Runtime::get();
+  auto size = 576;
+  auto *space = rt.locality_manager.get_hotness_buffer(size);
+  memset(space, 0, size * sizeof(alaska::handle_id_t));
+
+  asm volatile("fence" ::: "memory");
+
+  write_csr(0xc3, (uint64_t)space);
+  wait_for_csr_zero();
+  asm volatile("fence" ::: "memory");
+
+  rt.locality_manager.feed_hotness_buffer(size, space);
+}
+
 #define BACKTRACE_SIZE 100
 
 
@@ -108,6 +123,7 @@ static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
   int nptrs = backtrace(buffer, BACKTRACE_SIZE);
   // Print the backtrace symbols
   backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+  alaska_dump_backtrace();
   exit(0);
 }
 
@@ -161,8 +177,7 @@ void __attribute__((constructor(102))) alaska_init(void) {
   });
 }
 
-void __attribute__((destructor)) alaska_deinit(void) {
-}
+void __attribute__((destructor)) alaska_deinit(void) {}
 
 static void *_halloc(size_t sz, int zero) {
   // HACK: make it so we *always* zero the data to avoid pagefaults
@@ -173,6 +188,9 @@ static void *_halloc(size_t sz, int zero) {
   result = get_tc()->halloc(sz, zero);
   auto m = (uintptr_t)alaska::Mapping::translate(result);
   if (result == NULL) errno = ENOMEM;
+
+  // dump_htlb();
+
 
   return result;
 }

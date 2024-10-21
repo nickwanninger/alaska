@@ -7,6 +7,7 @@
 
 #include <alaska/Runtime.hpp>
 #include <alaska/sim/HTLB.hpp>
+#include "alaska/alaska.hpp"
 #include "alaska/config.h"
 #include "alaska/sim/StatisticsManager.hpp"
 #include <sys/time.h>
@@ -71,6 +72,11 @@ static void *sim_background_thread_func(void *) {
   auto &sm = get_htlb().get_stats();
   sm.dump_csv_header(log);
 
+
+
+  alaska::handle_id_t *buf = rt.locality_manager.get_hotness_buffer(TOTAL_ENTRIES);
+  memcpy(buf, dump_buf, sizeof(dump_buf));
+  rt.locality_manager.feed_hotness_buffer(TOTAL_ENTRIES, dump_buf);
 
 
   for (long trial = 0; true; trial++) {
@@ -188,10 +194,15 @@ void alaska_htlb_sim_track(uintptr_t maybe_handle) {
     // dump, and notify the movement thread!
     pthread_mutex_lock(&dump_mutex);
 
-    htlb.dump_entries(dump_buf);
-    // htlb.reset();
 
-    pthread_cond_signal(&dump_cond);
+    auto &rt = alaska::Runtime::get();
+
+    alaska::handle_id_t *buf = rt.locality_manager.get_hotness_buffer(TOTAL_ENTRIES);
+    htlb.dump_entries(buf);
+    // rt.locality_manager.feed_hotness_buffer(TOTAL_ENTRIES, buf);
+    rt.locality_manager.feed_hotness_buffer(L1_WAYS * L1_SETS, buf);
+
+    // pthread_cond_signal(&dump_cond);
     pthread_mutex_unlock(&dump_mutex);
   }
 }
