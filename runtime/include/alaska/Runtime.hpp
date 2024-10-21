@@ -18,6 +18,7 @@
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
 #include <alaska/Configuration.hpp>
+#include <alaska/Localizer.hpp>
 
 namespace alaska {
   /**
@@ -51,6 +52,8 @@ namespace alaska {
     // A pointer to the runtime's current barrier manager.
     // This is defaulted to a "nop" manager which simply does nothing.
     alaska::BarrierManager *barrier_manager;
+
+    alaska::Localizer locality_manager;
 
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.

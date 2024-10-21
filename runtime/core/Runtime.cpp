@@ -1,3 +1,4 @@
+
 /*
  * This file is part of the Alaska Handle-Based Memory Management System
  *
@@ -13,6 +14,7 @@
 #include <alaska/Runtime.hpp>
 #include <alaska/SizeClass.hpp>
 #include <alaska/BarrierManager.hpp>
+#include <alaska/Localizer.hpp>
 #include "alaska/alaska.hpp"
 #include "alaska/utils.h"
 #include <stdlib.h>
@@ -28,7 +30,8 @@ namespace alaska {
 
   Runtime::Runtime(alaska::Configuration config)
       : handle_table(config)
-      , heap(config) {
+      , heap(config)
+      , locality_manager(config, *this) {
     // Validate that there is not already a runtime (TODO: atomics?)
     ALASKA_ASSERT(g_runtime == nullptr, "Cannot create more than one runtime");
 

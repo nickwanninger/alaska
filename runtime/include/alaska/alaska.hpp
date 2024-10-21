@@ -52,6 +52,8 @@ namespace alaska {
   extern long translation_hits;
   extern long translation_misses;
 
+  using handle_id_t = uint64_t;
+
 
   class Mapping {
    private:
@@ -125,7 +127,7 @@ namespace alaska {
       return out;
     }
 
-    ALASKA_INLINE uint64_t handle_id(void) const {
+    ALASKA_INLINE handle_id_t handle_id(void) const {
       uint64_t out = ((uint64_t)encode() << ALASKA_SIZE_BITS);
       return (out & ~(1UL << 63)) >> ALASKA_SIZE_BITS;
     }
