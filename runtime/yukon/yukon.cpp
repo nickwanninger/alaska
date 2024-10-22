@@ -116,15 +116,25 @@ static void handle_sig(int sig) {
 }
 
 
+
+// If a pagefault occurs while handle table walking, we will throw the
+// exception back up and even if you handle the page fault, the HTLB
+// stores the fact that it will cause an exception until you
+// invalidate the entry.
 static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
   printf("Caught segfault to address %p\n", info->si_addr);
-  void *buffer[BACKTRACE_SIZE];
-  // Get the backtrace
-  int nptrs = backtrace(buffer, BACKTRACE_SIZE);
-  // Print the backtrace symbols
-  backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-  alaska_dump_backtrace();
-  exit(0);
+
+  // void *buffer[BACKTRACE_SIZE];
+  // // Get the backtrace
+  // int nptrs = backtrace(buffer, BACKTRACE_SIZE);
+  // // Print the backtrace symbols
+  // backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+  // alaska_dump_backtrace();
+
+  __asm__ volatile("csrw 0xc4, %0" ::"rK"((1LU << (64 - ALASKA_SIZE_BITS)) - 1) : "memory");
+  __asm__ volatile("fence" ::: "memory");
+  // exit(0);
+  return;
 }
 
 
