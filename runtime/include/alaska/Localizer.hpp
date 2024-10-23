@@ -18,14 +18,14 @@ namespace alaska {
 
 
   // fwd decl
-  struct Runtime;
+  class ThreadCache;
 
 
   class Localizer {
-    alaska::Runtime &rt;
+    alaska::ThreadCache &tc;
 
    public:
-    Localizer(alaska::Configuration &config, alaska::Runtime &rt);
+    Localizer(alaska::Configuration &config, alaska::ThreadCache &tc);
 
     // Get a hotness buffer that can fit `count` handle_ids.
     handle_id_t *get_hotness_buffer(size_t count);

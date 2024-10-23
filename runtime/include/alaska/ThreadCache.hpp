@@ -16,6 +16,7 @@
 #include <alaska/HandleTable.hpp>
 #include <alaska/LocalityPage.hpp>
 #include <alaska/alaska.hpp>
+#include <alaska/Localizer.hpp>
 #include "ck/lock.h"
 
 namespace alaska {
@@ -46,10 +47,10 @@ namespace alaska {
    protected:
     friend class LockedThreadCache;
     friend alaska::Runtime;
+    friend alaska::Localizer;
 
     ck::mutex lock;
 
-   private:
     // Allocate backing data for a handle, but don't assign it yet.
     void *allocate_backing_data(const alaska::Mapping &m, size_t size);
 
@@ -83,6 +84,11 @@ namespace alaska {
     // policy. This page is special because it can contain many
     // objects of many different sizes.
     alaska::LocalityPage *locality_page = nullptr;
+
+   public:
+    // Each thread cache has a localizer, which can be fed with
+    // "localization data" to improve object locality
+    alaska::Localizer localizer;
   };
 
 
@@ -95,9 +101,7 @@ namespace alaska {
     }
 
 
-    ~LockedThreadCache(void) {
-      tc.lock.unlock();
-    }
+    ~LockedThreadCache(void) { tc.lock.unlock(); }
 
     // Delete copy constructor and copy assignment operator
     LockedThreadCache(const LockedThreadCache &) = delete;

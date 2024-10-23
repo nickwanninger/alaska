@@ -26,7 +26,8 @@ namespace alaska {
 
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
       : id(id)
-      , runtime(rt) {
+      , runtime(rt)
+      , localizer(rt.config, *this) {
     handle_slab = runtime.handle_table.new_slab(this);
   }
 
