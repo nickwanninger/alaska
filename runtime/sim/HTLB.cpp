@@ -20,12 +20,9 @@
 
 using namespace alaska::sim;
 
-#define printf(...)
-
 static uint64_t get_pn(uint64_t vaddr) { return (vaddr & 0x3FFFFFFFFFF000) >> 12; }
 
 void HTLBEntry::reset(const HTLBEntry &new_entry) {
-  // printf("unordered_mapping: 0x%x to 0x%x\n", this->hid, new_entry.hid);
   this->hid = new_entry.hid;
   this->addr = new_entry.addr;
   this->phys = new_entry.phys;
@@ -68,7 +65,7 @@ HTLBEntry L2HTLB::pull(alaska::Mapping &m) {
   time++;
   sm.incrementStatistic(L2_HTLB_ACCESSES);
 
-  uint64_t hid = m.encode();
+  uint64_t hid = m.handle_id();
   // uint64_t offset = haddr & 0xffffffff;
 
   uint32_t way = hid % num_sets;
@@ -76,7 +73,6 @@ HTLBEntry L2HTLB::pull(alaska::Mapping &m) {
     return It.hid == hid && It.valid;
   });
 
-  // printf("[L2HTLB] Searching hid: 0x%lx in way %d\n", hid, way);
   if (entry != sets[way].end()) {
     sm.incrementStatistic(L2_HTLB_HITS);
     if (policy == CACHE_INCLUSION_POLICY::EXCLUSIVE) {
@@ -113,7 +109,7 @@ HTLBEntry L2HTLB::lookup(alaska::Mapping &m) {
 
 
 
-  HTE.hid = m.encode();
+  HTE.hid = m.handle_id();
   HTE.addr = (uint64_t)m.get_pointer();
   HTE.phys = false;
   HTE.valid = not m.is_free();
@@ -157,16 +153,19 @@ void L2HTLB::invalidateAll() {
   for (auto &set : sets) {
     for (auto &entry : set) {
       entry.valid = false;
+      entry.hid = 0;
+      entry.last_used = 0;
     }
   }
 }
 
 void L2HTLB::invalidate(alaska::Mapping &m) {
-  printf("invalidate %x\b", m.handle_id());
   for (auto &set : sets) {
     for (auto &entry : set) {
-      if (entry.hid == m.encode()) {
+      if (entry.hid == m.handle_id()) {
         entry.valid = false;
+        entry.hid = 0;
+        entry.last_used = 0;
       }
     }
   }
@@ -208,6 +207,16 @@ std::vector<HTLBEntry> L2HTLB::getAllEntriesSorted() {
 }
 
 
+std::vector<HTLBEntry> L2HTLB::getAllEntries() {
+  std::vector<HTLBEntry> entries;
+  for (auto &set : sets) {
+    for (auto &entry : set) {
+      entries.push_back(entry);
+    }
+  }
+  return entries;
+}
+
 
 L1HTLB::L1HTLB(StatisticsManager &sm, L2HTLB &l2_htlb, int num_sets, int num_ways,
     CACHE_INCLUSION_POLICY policy)
@@ -223,7 +232,7 @@ HTLBResp L1HTLB::access(alaska::Mapping &m, uint32_t offset) {
   time++;
   sm.incrementStatistic(L1_HTLB_ACCESSES);
 
-  auto hid = m.encode();
+  auto hid = m.handle_id();
   uint32_t way = hid % num_sets;
   auto entry = std::find_if(sets[way].begin(), sets[way].end(), [&](auto &It) {
     return It.hid == hid && It.valid;
@@ -231,9 +240,7 @@ HTLBResp L1HTLB::access(alaska::Mapping &m, uint32_t offset) {
 
   HTLBResp resp(0, false);
 
-  printf("[L1HTLB] Searching hid: 0x%lx in way %d\n", hid, way);
   if (entry != sets[way].end()) {
-    printf("[L1HTLB] Found hid: 0x%lx in way %d\n", hid, way);
     entry->last_used = time;
     sm.incrementStatistic(L1_HTLB_HITS);
     resp = {entry->addr, entry->phys};
@@ -243,13 +250,14 @@ HTLBResp L1HTLB::access(alaska::Mapping &m, uint32_t offset) {
           return ItA.last_used < ItB.last_used;
         });
 
+    auto new_entry = l2_htlb.pull(m);
+    new_entry.last_used = time;
+    oldest_line->reset(new_entry);
+
     if (policy == CACHE_INCLUSION_POLICY::EXCLUSIVE && oldest_line->valid) {
       l2_htlb.insert(*oldest_line);
     }
-    auto new_entry = lookup(m);
-    new_entry.last_used = time;
-    oldest_line->reset(new_entry);
-    printf("[L1HTLB] Inserted hid: 0x%lx in way %d\n", hid, way);
+
     resp = {oldest_line->addr, oldest_line->phys};
   }
 
@@ -258,10 +266,8 @@ HTLBResp L1HTLB::access(alaska::Mapping &m, uint32_t offset) {
   auto acc_page = (resp.addr + offset) >> 12;
 
   if (not resp.phys or resp_page != acc_page) {
-    // fprintf(stdout, "access %p at %u. %lx %lx\n", &m, offset, resp_page, acc_page);
     l2_htlb.tlb->access(resp.addr + offset, false);
   } else {
-    // fprintf(stdout, "dont access %p at %u. %lx %lx\n", &m, offset, resp_page, acc_page);
   }
 
   return resp;
@@ -318,16 +324,45 @@ HTLB::~HTLB() {
 
 void HTLB::dump_entries(uint64_t *dest) {
   auto l1e = l1_htlb.getAllEntriesSorted();
-  // printf("L1 Entries: %ld\n", l1e.size());
+  int makeup_count = 0;
+
   for (auto &entry : l1e) {
-    auto value = entry.valid ? entry.hid : 0;
-    *dest++ = value;
+    if (entry.valid) {
+      *dest++ = entry.hid;
+    } else {
+      makeup_count++;
+    }
   }
 
   auto l2e = l2_htlb.getAllEntriesSorted();
-  // printf("L2 Entries: %ld\n", l2e.size());
   for (auto &entry : l2e) {
-    auto value = entry.valid ? entry.hid : 0;
-    *dest++ = value;
+    if (entry.valid) {
+      *dest++ = entry.hid;
+    } else {
+      makeup_count++;
+    }
+  }
+
+  for (int i = 0; i < makeup_count; i++) {
+    *dest++ = 0;
   }
 }
+
+
+void HTLB::dump_debug() {
+  auto print_ents = [](auto ents) {
+    fprintf(stderr, "[");
+    for (auto &entry : ents) {
+      auto val = entry.valid ? entry.hid : 0;
+      fprintf(stderr, " %12lx", val);
+    }
+    fprintf(stderr, " ]");
+  };
+
+  print_ents(l1_htlb.getAllEntries());
+  print_ents(l2_htlb.getAllEntries());
+  fprintf(stderr, "\n");
+}
+
+
+#undef MASK

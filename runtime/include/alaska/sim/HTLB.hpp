@@ -82,6 +82,7 @@ namespace alaska::sim {
     void invalidate(alaska::Mapping &m);
 
     std::vector<HTLBEntry> getAllEntriesSorted();
+    std::vector<HTLBEntry> getAllEntries();
 
     virtual std::vector<uint64_t> getHandles();
   };
@@ -125,6 +126,7 @@ namespace alaska::sim {
     uint64_t access_ind = 0;
 
     void dump_entries(uint64_t *dest);
+    void dump_debug();
     void reset(void) {
       access_ind = 0;
       last_accessed = 0;
