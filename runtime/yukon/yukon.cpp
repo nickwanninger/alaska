@@ -86,20 +86,6 @@ static void wait_for_csr_zero(void) {
 }
 
 
-static void dump_htlb() {
-  auto &rt = alaska::Runtime::get();
-  auto size = 576;
-  auto *space = rt.locality_manager.get_hotness_buffer(size);
-  memset(space, 0, size * sizeof(alaska::handle_id_t));
-
-  asm volatile("fence" ::: "memory");
-
-  write_csr(0xc3, (uint64_t)space);
-  wait_for_csr_zero();
-  asm volatile("fence" ::: "memory");
-
-  rt.locality_manager.feed_hotness_buffer(size, space);
-}
 
 #define BACKTRACE_SIZE 100
 
@@ -175,6 +161,23 @@ static alaska::ThreadCache *get_tc() {
   if (tc == NULL) tc = the_runtime->new_threadcache();
   return tc;
 }
+
+
+static void dump_htlb() {
+  auto tc = get_tc();
+  auto size = 576;
+  auto *space = tc->localizer.get_hotness_buffer(size);
+  memset(space, 0, size * sizeof(alaska::handle_id_t));
+
+  asm volatile("fence" ::: "memory");
+
+  write_csr(0xc3, (uint64_t)space);
+  wait_for_csr_zero();
+  asm volatile("fence" ::: "memory");
+  tc->localizer.feed_hotness_buffer(size, space);
+  asm volatile("fence" ::: "memory");
+}
+
 
 void __attribute__((constructor(102))) alaska_init(void) {
   unsetenv("LD_PRELOAD");  // make it so we don't run alaska in subprocesses!
