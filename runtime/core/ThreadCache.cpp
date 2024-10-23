@@ -232,6 +232,7 @@ namespace alaska {
       m = handle_slab->alloc();
     }
 
+    // Handle 0 is disallowed on yukon hardware because it cannot be invalidated
     if (unlikely(m->handle_id() == 0)) {
       return new_mapping();
     }
