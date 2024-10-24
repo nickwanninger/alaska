@@ -25,80 +25,38 @@
 #include <execinfo.h>
 #include <unistd.h>
 
-#ifdef __riscv
+#include <yukon/yukon.hpp>
+
+
 #define write_csr(reg, val) \
-  ({ asm volatile("csrw " #reg ", %0" ::"rK"((uint64_t)val) : "memory"); })
-#else
-#define write_csr(reg, val)
-// #warning YUKON expects riscv
-#endif
+  ({ asm volatile("csrw %0, %1" ::"i"(reg), "rK"((uint64_t)val) : "memory"); })
+
+
+#define read_csr(csr, val) \
+  __asm__ __volatile__("csrr %0, %1" : "=r"(val) : "n"(csr) : /* clobbers: none */);
+
+
+#define wait_for_csr_zero(reg)         \
+  do {                                 \
+    volatile uint32_t csr_value = 0x1; \
+    do {                               \
+      read_csr(reg, csr_value);        \
+    } while (csr_value != 0);          \
+  } while (0);
+
+
+#define CSR_HTBASE 0xc2
+#define CSR_HTDUMP 0xc3
+#define CSR_HTINVAL 0xc4
 
 static alaska::ThreadCache *tc = NULL;
-
-static void set_ht_addr(void *addr) {
-  alaska::printf("set htbase to %p\n", addr);
-  uint64_t value = (uint64_t)addr;
-  if (value != 0 and getenv("YUKON_PHYS") != nullptr) {
-    value |= (1LU << 63);
-  }
-  write_csr(0xc2, value);
-}
-
 static alaska::Runtime *the_runtime = NULL;
 
 
-
-#define BACKTRACE_SIZE 100
-
-static bool dead = false;
-
-static bool is_initialized() { return the_runtime != NULL; }
-
-
-static void print_hex(const char *msg, uint64_t val) {
-  char buf[512];
-  snprintf(buf, 512, "%s 0x%zx\n", msg, val);
-  write(STDOUT_FILENO, buf, strlen(buf));
-}
-
-static void print_words(unsigned *words, int n) {
-  char buf[512];
-  for (int i = 0; i < n; i++) {
-    snprintf(buf, 512, "%08x \n", words[i]);
-    write(STDOUT_FILENO, buf, strlen(buf));
-  }
-  write(STDOUT_FILENO, "\n", 1);
-}
-
-
-static void print_string(const char *msg) { write(STDOUT_FILENO, msg, strlen(msg)); }
-
-static char stdout_buf[BUFSIZ];
-static char stderr_buf[BUFSIZ];
-
-
-
-static void wait_for_csr_zero(void) {
-  volatile uint32_t csr_value = 0x1;
-  do {
-    __asm__ volatile("csrr %0, 0xc3\n\t" : "=r"(csr_value) : : "memory");
-  } while (csr_value != 0);
-}
-
-
-
-#define BACKTRACE_SIZE 100
-
-
-
-static void handle_sig(int sig) {
-  printf("Caught signal %d (%s)\n", sig, strsignal(sig));
-  void *buffer[BACKTRACE_SIZE];
-  // Get the backtrace
-  int nptrs = backtrace(buffer, BACKTRACE_SIZE);
-  // Print the backtrace symbols
-  backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-  exit(0);
+static inline uint64_t read_cycle_counter() {
+  uint64_t cycles;
+  asm volatile("rdcycle %0" : "=r"(cycles));
+  return cycles;
 }
 
 
@@ -108,84 +66,108 @@ static void handle_sig(int sig) {
 // stores the fact that it will cause an exception until you
 // invalidate the entry.
 static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
-  printf("Caught segfault to address %p\n", info->si_addr);
+  printf("Caught segfault to address %p. Clearing htlb and trying again!\n", info->si_addr);
 
-  // void *buffer[BACKTRACE_SIZE];
-  // // Get the backtrace
-  // int nptrs = backtrace(buffer, BACKTRACE_SIZE);
-  // // Print the backtrace symbols
-  // backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-  // alaska_dump_backtrace();
-
-  __asm__ volatile("csrw 0xc4, %0" ::"rK"((1LU << (64 - ALASKA_SIZE_BITS)) - 1) : "memory");
+  write_csr(CSR_HTINVAL, ((1LU << (64 - ALASKA_SIZE_BITS)) - 1));
   __asm__ volatile("fence" ::: "memory");
   // exit(0);
   return;
 }
 
 
-static void init(void) {
-  setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
-  setvbuf(stderr, stderr_buf, _IOLBF, BUFSIZ);
+static pthread_t yukon_dump_daemon_thread;
+static void *yukon_dump_daemon(void *) {
+  auto *tc = yukon::get_tc();
+  while (1) {
+    // Sleep
 
-  alaska::Configuration config;
-  // Use the "malloc" backend to operate cleanly w/ libc's malloc
-  config.huge_strategy = alaska::HugeAllocationStrategy::CUSTOM_MMAP_BACKED;
+    auto start = read_cycle_counter();
+    usleep(10 * 1000);
+    auto end = read_cycle_counter();
+    printf("Slept for %lu cycles\n", end - start);
+    yukon::dump_htlb(tc);
+  }
 
-  the_runtime = new alaska::Runtime(config);
-  void *handle_table_base = the_runtime->handle_table.get_base();
-  // printf("Handle table at %p\n", handle_table_base);
-  // Make sure the handle table performs mlocks
-  the_runtime->handle_table.enable_mlock();
-
-  asm volatile("fence" ::: "memory");
-  set_ht_addr(handle_table_base);
-
-  struct sigaction act = {0};
-  act.sa_sigaction = segv_handler;
-  act.sa_flags = SA_SIGINFO;
-  sigaction(SIGSEGV, &act, NULL);
-
-
-  // signal(SIGABRT, handle_sig);
-  // signal(SIGSEGV, handle_sig);
-  // signal(SIGBUS, handle_sig);
-  // signal(SIGILL, handle_sig);
+  return NULL;
 }
 
 
 
 
-static alaska::ThreadCache *get_tc() {
-  if (the_runtime == NULL) init();
-  if (tc == NULL) tc = the_runtime->new_threadcache();
-  return tc;
-}
+namespace yukon {
+  void set_handle_table_base(void *addr) {
+    alaska::printf("set htbase to %p\n", addr);
+    uint64_t value = (uint64_t)addr;
+    if (value != 0 and getenv("YUKON_PHYS") != nullptr) {
+      value |= (1LU << 63);
+    }
+    write_csr(CSR_HTBASE, value);
+  }
 
 
-static void dump_htlb() {
-  auto tc = get_tc();
-  auto size = 576;
-  auto *space = tc->localizer.get_hotness_buffer(size);
-  memset(space, 0, size * sizeof(alaska::handle_id_t));
 
-  asm volatile("fence" ::: "memory");
 
-  write_csr(0xc3, (uint64_t)space);
-  wait_for_csr_zero();
-  asm volatile("fence" ::: "memory");
-  tc->localizer.feed_hotness_buffer(size, space);
-  asm volatile("fence" ::: "memory");
-}
+  void dump_htlb(alaska::ThreadCache *tc) {
+    auto size = 576;
+    auto *space = tc->localizer.get_hotness_buffer(size);
+    memset(space, 0, size * sizeof(alaska::handle_id_t));
+
+    asm volatile("fence" ::: "memory");
+
+    auto start = read_cycle_counter();
+    write_csr(CSR_HTDUMP, (uint64_t)space);
+    wait_for_csr_zero(CSR_HTDUMP);
+    auto end = read_cycle_counter();
+    asm volatile("fence" ::: "memory");
+    tc->localizer.feed_hotness_buffer(size, space);
+    asm volatile("fence" ::: "memory");
+    printf("Dumping htlb took %lu cycles\n", end - start);
+  }
+
+  alaska::ThreadCache *get_tc() {
+    if (the_runtime == NULL) init();
+    if (tc == NULL) tc = the_runtime->new_threadcache();
+    return tc;
+  }
+
+
+  static char stdout_buf[BUFSIZ];
+  static char stderr_buf[BUFSIZ];
+  void init(void) {
+    setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
+    setvbuf(stderr, stderr_buf, _IOLBF, BUFSIZ);
+
+    alaska::Configuration config;
+    // Use the "malloc" backend to operate cleanly w/ libc's malloc
+    config.huge_strategy = alaska::HugeAllocationStrategy::CUSTOM_MMAP_BACKED;
+
+    the_runtime = new alaska::Runtime(config);
+    void *handle_table_base = the_runtime->handle_table.get_base();
+    // printf("Handle table at %p\n", handle_table_base);
+    // Make sure the handle table performs mlocks
+    the_runtime->handle_table.enable_mlock();
+
+    asm volatile("fence" ::: "memory");
+    yukon::set_handle_table_base(handle_table_base);
+
+    struct sigaction act = {0};
+    act.sa_sigaction = segv_handler;
+    act.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &act, NULL);
+
+    pthread_create(&yukon_dump_daemon_thread, NULL, yukon_dump_daemon, NULL);
+  }
+}  // namespace yukon
+
 
 
 void __attribute__((constructor(102))) alaska_init(void) {
   unsetenv("LD_PRELOAD");  // make it so we don't run alaska in subprocesses!
-  get_tc();
+  yukon::get_tc();
 
   atexit([]() {
     printf("Setting ht addr to zero!\n");
-    set_ht_addr(0);
+    yukon::set_handle_table_base(NULL);
     printf("set!\n");
   });
 }
@@ -195,32 +177,22 @@ void __attribute__((destructor)) alaska_deinit(void) {}
 static void *_halloc(size_t sz, int zero) {
   // HACK: make it so we *always* zero the data to avoid pagefaults
   //       *this is slow*
-  zero = 1;
+  // zero = 1;
   void *result = NULL;
 
-  result = get_tc()->halloc(sz, zero);
+  result = yukon::get_tc()->halloc(sz, zero);
   auto m = (uintptr_t)alaska::Mapping::translate(result);
   if (result == NULL) errno = ENOMEM;
-
-  // dump_htlb();
-
 
   return result;
 }
 
-
-// #define halloc malloc
-// #define hcalloc calloc
-// #define hrealloc realloc
-// #define hfree free
-
 extern "C" void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
-
 extern "C" void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
 
 // Reallocate a handle
 extern "C" void *hrealloc(void *handle, size_t new_size) {
-  auto *tc = get_tc();
+  auto *tc = yukon::get_tc();
 
   // If the handle is null, then this call is equivalent to malloc(size)
   if (handle == NULL) {
@@ -251,13 +223,11 @@ extern "C" void *hrealloc(void *handle, size_t new_size) {
 extern "C" void hfree(void *ptr) {
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
-
-  // Simply ask the thread cache to free it!
-  get_tc()->hfree(ptr);
+  yukon::get_tc()->hfree(ptr);
 }
 
 
-extern "C" size_t halloc_usable_size(void *ptr) { return get_tc()->get_size(ptr); }
+extern "C" size_t halloc_usable_size(void *ptr) { return yukon::get_tc()->get_size(ptr); }
 
 
 
