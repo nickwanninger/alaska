@@ -66,6 +66,9 @@ static inline uint64_t read_cycle_counter() {
 // stores the fact that it will cause an exception until you
 // invalidate the entry.
 static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
+  // TODO: if the faulting address has the top bit set  (sv39) then we need to
+  //       treat that as a page fault to the *handle table*. Basically, we need
+  //       to read/write that handle entry.
   printf("Caught segfault to address %p. Clearing htlb and trying again!\n", info->si_addr);
 
   write_csr(CSR_HTINVAL, ((1LU << (64 - ALASKA_SIZE_BITS)) - 1));
