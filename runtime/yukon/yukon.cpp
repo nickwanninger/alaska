@@ -84,11 +84,12 @@ static void *yukon_dump_daemon(void *) {
   while (1) {
     // Sleep
 
-    auto start = read_cycle_counter();
+    // auto start = read_cycle_counter();
     usleep(10 * 1000);
-    auto end = read_cycle_counter();
-    printf("Slept for %lu cycles\n", end - start);
-    yukon::dump_htlb(tc);
+    // auto end = read_cycle_counter();
+    // printf("Slept for %lu cycles\n", end - start);
+    // yukon::dump_htlb(tc);
+    yukon::print_htlb();
   }
 
   return NULL;
@@ -125,6 +126,33 @@ namespace yukon {
     tc->localizer.feed_hotness_buffer(size, space);
     asm volatile("fence" ::: "memory");
     printf("Dumping htlb took %lu cycles\n", end - start);
+  }
+
+
+  void print_htlb(void) {
+    size_t size = 576;
+    uint64_t handle_ids[size];
+    memset(handle_ids, 0, size * sizeof(alaska::handle_id_t));
+
+    asm volatile("fence" ::: "memory");
+    write_csr(CSR_HTDUMP, (uint64_t)handle_ids);
+    wait_for_csr_zero(CSR_HTDUMP);
+    asm volatile("fence" ::: "memory");
+
+    printf("========================\n");
+
+    int cols = 0;
+    for (size_t i = 0; i < size; i++) {
+      printf("%16lx ", handle_ids[i]);
+      cols++;
+      if (cols >= 8) {
+        cols = 0;
+        printf("\n");
+      }
+    }
+    if (cols != 0) {
+      printf("\n");
+    }
   }
 
   alaska::ThreadCache *get_tc() {

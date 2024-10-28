@@ -23,6 +23,9 @@ namespace yukon {
 
   // Set the handle table base register in hardware to enable handle translation
   void set_handle_table_base(void *base);
+
+  // Dump the htlb, and only print it
+  void print_htlb(void);
   // Trigger an HTLB dump
   void dump_htlb(alaska::ThreadCache *tc);
 
