@@ -27,6 +27,7 @@ namespace alaska {
   }
 
   void Localizer::feed_hotness_buffer(size_t count, handle_id_t *handle_ids) {
+#if 1
     auto &rt = alaska::Runtime::get();
 
     unsigned long moved_objects = 0;
@@ -63,12 +64,14 @@ namespace alaska {
       }
 
 
+
       // rt.heap.compact_locality_pages();
-      // rt.heap.compact_sizedpages();
+      rt.heap.compact_sizedpages();
     });
 
     printf("moved:%5lu unmoved:%5lu bytes:%12lu reach:%12lu\n", moved_objects, unmoved_objects,
         bytes_in_dump, bytes_reach);
+#endif
 
     alaska_internal_free(reinterpret_cast<void *>(handle_ids));
   }

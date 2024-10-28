@@ -107,13 +107,14 @@ static void *sim_background_thread_func(void *) {
 }
 
 static void __attribute__((constructor)) sim_init(void) {
-  printf("Simulation name: ");
-  fflush(stdout);
-  fgets(sim_name, sizeof(sim_name), stdin);
-  size_t len = strlen(sim_name);
-  if (len > 0 && sim_name[len - 1] == '\n') {
-    sim_name[len - 1] = '\0';
-  }
+  // printf("Simulation name: ");
+  // fflush(stdout);
+  // fgets(sim_name, sizeof(sim_name), stdin);
+  // size_t len = strlen(sim_name);
+  // if (len > 0 && sim_name[len - 1] == '\n') {
+  //   sim_name[len - 1] = '\0';
+  // }
+  strncpy(sim_name, "sim", sizeof(sim_name) - 1);
 
   pthread_create(&sim_background_thread, NULL, sim_background_thread_func, NULL);
 }
