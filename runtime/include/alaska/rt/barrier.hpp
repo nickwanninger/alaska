@@ -57,7 +57,7 @@ namespace alaska {
 
 
 
-    void get_locked(ck::set<void *> &out);
+    void get_pinned_handles(ck::set<void *> &out);
 
   }  // namespace barrier
 }  // namespace alaska
