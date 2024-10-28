@@ -34,8 +34,4 @@ namespace ck {
     inline ~scoped_lock(void) { lck.unlock(); }
   };
 
-    inline void unlock(void) {
-      if (locked) lck.unlock();
-    }
-  };
 }  // namespace ck
