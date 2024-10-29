@@ -141,7 +141,6 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   set(SOURCES
     rt/init.cpp
     rt/halloc.cpp
-    rt/threads.cpp
     rt/compat.c
     rt/barrier.cpp
   )

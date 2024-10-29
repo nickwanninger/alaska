@@ -39,41 +39,25 @@ extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
-  return NULL;
+  // return NULL;
   while (1) {
     usleep(50 * 1000);
-
     alaska::Runtime::get().with_barrier([]() {
       alaska::Runtime::get().heap.compact_sizedpages();
-      // long swapped = alaska::Runtime::get().heap.jumble();
-      // printf("Swapped %ld\n", swapped);
     });
-    // alaska::barrier::begin();
-    // printf("Barrier.\n");
-    // alaska::barrier::end();
   }
 
   return NULL;
 }
 
 void __attribute__((constructor(102))) alaska_init(void) {
-  alaska::barrier::add_self_thread();
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
   the_runtime = new alaska::Runtime();
   // Attach the runtime's barrier manager
   the_runtime->barrier_manager = &the_barrier_manager;
-
-  // pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
+  pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {
-  // pthread_kill(barrier_thread, SIGKILL);
-  // pthread_join(barrier_thread, NULL);
-
-  // Note: we don't currently care about deinitializing the runtime for now, since the application
-  // is about to die and all it's memory is going to be cleaned up.
-  delete the_runtime;
-
-  alaska::barrier::remove_self_thread();
 }

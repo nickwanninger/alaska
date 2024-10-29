@@ -103,35 +103,33 @@ static void patchNop(void) {
   }
 }
 
-
-
-
-enum class JoinReason { Signal, Safepoint };
-
-static alaska::ThreadRegistry<alaska_thread_state_t*>* g_threads;
-static auto& threads(void) {
-  if (g_threads == NULL) g_threads = new alaska::ThreadRegistry<alaska_thread_state_t*>();
-  return *g_threads;
-}
-
-
-
-__thread alaska_thread_state_t alaska_thread_state;
-static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
-
-// This is *the* barrier used in alaska_barrier to make sure threads are stopped correctly.
-static pthread_barrier_t the_barrier;
-static long barrier_last_num_threads = 0;
-
 static void setup_signal_handlers(void);
 static void clear_pending_signals(void);
 
 
 
+enum class JoinReason { Signal, Safepoint };
+
+
+#define ALASKA_THREAD_TRACK_STATE_T AlaskaThreadState
+#define ALASKA_THREAD_TRACK_INIT setup_signal_handlers();
+#include <alaska/thread_tracking.in.hpp>
+
+
+
+
+// This is *the* barrier used in alaska_barrier to make sure threads are stopped correctly.
+static pthread_barrier_t the_barrier;
+static long barrier_last_num_threads = 0;
+static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
+
+
+
+
 void alaska_remove_from_local_lock_list(void* ptr) { return; }
 static void alaska_dump_thread_states_r(void) {
-  struct alaska_thread_info* pos;
-  threads().for_each_locked([&](auto thread, alaska_thread_state_t* state) {
+  struct info* pos;
+  alaska::thread_tracking::threads().for_each_locked([&](auto thread, AlaskaThreadState* state) {
     if (state->escaped == 0) {
       printf("\e[0m. ");  // a thread will join a barrier (not out to lunch)
     } else {
@@ -142,7 +140,7 @@ static void alaska_dump_thread_states_r(void) {
 }
 
 void alaska_dump_thread_states(void) {
-  auto lk = threads().take_lock();
+  auto lk = alaska::thread_tracking::threads().take_lock();
   alaska_dump_thread_states_r();
 }
 
@@ -266,13 +264,11 @@ void alaska::barrier::get_pinned_handles(ck::set<void*>& out) {
 
 
 static void participant_join(bool leader, const ck::set<void*>& ps) {
-  printf("join from %lx with state %p%s\n", pthread_self(), &alaska_thread_state,
-      leader ? " as leader" : "");
   for (auto* p : ps) {
     record_handle(p, true);
   }
   // Wait on the barrier so everyone's state has been commited.
-  if (threads().num_threads() > 1) {
+  if (alaska::thread_tracking::threads().num_threads() > 1) {
     pthread_barrier_wait(&the_barrier);
   }
 }
@@ -282,7 +278,7 @@ static void participant_join(bool leader, const ck::set<void*>& ps) {
 
 static void participant_leave(bool leader, const ck::set<void*>& ps) {
   // wait for the the leader (and everyone else to catch up)
-  if (threads().num_threads() > 1) {
+  if (alaska::thread_tracking::threads().num_threads() > 1) {
     pthread_barrier_wait(&the_barrier);
   }
 
@@ -294,8 +290,8 @@ static void participant_leave(bool leader, const ck::set<void*>& ps) {
 
 
 void dump_thread_states(void) {
-  struct alaska_thread_info* pos;
-  threads().for_each_locked([&](auto thread, alaska_thread_state_t* state) {
+  struct info* pos;
+  alaska::thread_tracking::threads().for_each_locked([&](auto thread, AlaskaThreadState* state) {
     switch (state->join_status) {
       case ALASKA_JOIN_REASON_NOT_JOINED:
         printf("\e[41m! ");  // a thread will need to be interrupted (out to lunch)
@@ -334,27 +330,27 @@ bool alaska::barrier::begin(void) {
 
   // Take locks so nobody else tries to signal a barrier.
   pthread_mutex_lock(&barrier_lock);
-  threads().lock_thread_creation();
+  alaska::thread_tracking::threads().lock_thread_creation();
 
 
 
-  auto num_threads = threads().num_threads();
+  auto num_threads = alaska::thread_tracking::threads().num_threads();
   alaska::printf("Barrier begin from %lx:\n", pthread_self());
   alaska::printf("  num threads: %lu\n", num_threads);
 
   printf("  threads:\n");
-  threads().for_each_locked([](auto thread, alaska_thread_state_t* state) {
+  alaska::thread_tracking::threads().for_each_locked([](auto thread, AlaskaThreadState* state) {
     alaska::printf("  - %lx %p %d\n", thread, state, state->join_status);
   });
 
 
   // First, mark everyone as *not* in the barrier.
-  threads().for_each_locked([](auto thread, alaska_thread_state_t* state) {
+  alaska::thread_tracking::threads().for_each_locked([](auto thread, AlaskaThreadState* state) {
     state->join_status = ALASKA_JOIN_REASON_NOT_JOINED;
   });
 
   // Mark the orch thread (us) as joined
-  alaska_thread_state.join_status = ALASKA_JOIN_REASON_ORCHESTRATOR;
+  alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ORCHESTRATOR;
 
   // If the barrier needs resizing, do so.
   if (barrier_last_num_threads != num_threads) {
@@ -382,9 +378,8 @@ bool alaska::barrier::begin(void) {
     bool sent_signal = false;
     bool aborted = false;
 
-    threads().for_each_locked([&](auto thread, auto* state) {
+    alaska::thread_tracking::threads().for_each_locked([&](auto thread, auto* state) {
       if (state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
-        printf("killing %lu\n", thread);
         pthread_kill(thread, SIGUSR2);
         sent_signal = true;
         signals_sent++;
@@ -422,7 +417,7 @@ void alaska::barrier::end(void) {
   participant_leave(true, locked);
 
   // Unlock all the locks we took.
-  threads().unlock_thread_creation();
+  alaska::thread_tracking::threads().unlock_thread_creation();
   pthread_mutex_unlock(&barrier_lock);
 }
 
@@ -467,26 +462,26 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       printf(
           "ManagedUntracked: pc:0x%zx sig:%d invl:%d!\n", return_address, sig, invalid_state_abort);
       if (sig == SIGILL) {
-        alaska_thread_state.join_status = ALASKA_JOIN_REASON_ABORT;
+        alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ABORT;
         break;
       }
       if (not invalid_state_abort) {
         invalid_state_abort = true;
         return;
       }
-      alaska_thread_state.join_status = ALASKA_JOIN_REASON_ABORT;
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ABORT;
       invalid_state_abort = false;
       break;
 
     case StackState::ManagedTracked:
       // it's possible to be at a managed poll point *and* get interrupted
       // through SIGUSR2
-      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SAFEPOINT;
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_SAFEPOINT;
       break;
 
     case StackState::Unmanaged:
       assert(sig == SIGUSR2 && "Unmanaged code got into the barrier handler w/ the wrong signal");
-      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
       break;
   }
 
@@ -544,13 +539,13 @@ static void clear_pending_signals(void) {
 }
 
 
-void alaska::barrier::add_self_thread(void) {
-  setup_signal_handlers();
-  alaska_thread_state.escaped = 0;
-  threads().join(&alaska_thread_state);
-}
+// void alaska::barrier::add_self_thread(void) {
+//   setup_signal_handlers();
+//   alaska::thread_tracking::join();
+//   alaska::thread_tracking::my_state.escaped = 0;
+// }
 
-void alaska::barrier::remove_self_thread(void) { threads().leave(); }
+// void alaska::barrier::remove_self_thread(void) { alaska::thread_tracking::leave(); }
 
 /**
  * This function parses a stackmap emitted from LLVM and pushes all
