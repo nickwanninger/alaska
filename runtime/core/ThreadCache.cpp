@@ -233,7 +233,9 @@ namespace alaska {
     }
 
     // Handle 0 is disallowed on yukon hardware because it cannot be invalidated
-    if (unlikely(m->handle_id() == 0)) {
+    // Also, 10 is cursed so we skip it too
+    auto hid = m->handle_id();
+    if (unlikely(hid == 0 || hid == 10)) {
       return new_mapping();
     }
 
