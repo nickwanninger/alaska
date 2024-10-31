@@ -115,10 +115,10 @@ extern "C" int pthread_create(pthread_t* __restrict thread, const pthread_attr_t
   return rc;
 }
 
-static void __attribute__((constructor(102))) thread_tracking_init(void) {
+static void __attribute__((constructor(102))) __thread_tracking_init(void) {
   alaska::thread_tracking::join();
 }
 
-static void __attribute__((destructor)) alaska_deinit(void) {
+static void __attribute__((destructor)) __alaska_tracking_deinit(void) {
   alaska::thread_tracking::leave();
 }
