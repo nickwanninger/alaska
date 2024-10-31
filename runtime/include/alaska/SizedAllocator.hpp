@@ -122,12 +122,18 @@ namespace alaska {
 
 
   inline long SizedAllocator::extend(long count) {
-    long e = 0;
-    for (; e < count && bump_next != objects_end; e++) {
-      free_list.free_local(bump_next);
-      bump_next = (void *)((uintptr_t)bump_next + object_size);
+    long extended_count = 0;
+    off_t start = (off_t)bump_next;
+    off_t end = start + object_size * count;
+    if (end > (off_t)objects_end) end = (off_t)objects_end;
+    bump_next = (void *)end;
+
+    for (off_t o = end - object_size; o >= start; o -= object_size) {
+      free_list.free_local((void *)o);
+      extended_count++;
     }
-    return e;
+
+    return extended_count;
   }
 
 
