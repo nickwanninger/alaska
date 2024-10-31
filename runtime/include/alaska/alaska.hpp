@@ -77,8 +77,9 @@ namespace alaska {
 
     inline void invalidate(void) {
 #ifdef __riscv
-      __asm__ volatile("csrw 0xc4, %0" ::"rK"((uint64_t)handle_id()) : "memory");
+      // Fence *before* the handle invalidation.
       __asm__ volatile("fence" ::: "memory");
+      __asm__ volatile("csrw 0xc4, %0" ::"rK"((uint64_t)handle_id()) : "memory");
 #endif
     }
 
