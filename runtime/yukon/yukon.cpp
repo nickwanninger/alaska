@@ -49,7 +49,58 @@
 #define CSR_HTDUMP 0xc3
 #define CSR_HTINVAL 0xc4
 
-static alaska::ThreadCache *tc = NULL;
+
+
+static void yukon_signal_handler(int sig, siginfo_t *info, void *ucontext) {
+  // If a pagefault occurs while handle table walking, we will throw the
+  // exception back up and even if you handle the page fault, the HTLB
+  // stores the fact that it will cause an exception until you
+  // invalidate the entry.
+  if (sig == SIGSEGV) {
+    // TODO: if the faulting address has the top bit set  (sv39) then we need to
+    //       treat that as a page fault to the *handle table*. Basically, we need
+    //       to read/write that handle entry.
+    printf("Caught segfault to address %p. Clearing htlb and trying again!\n", info->si_addr);
+    write_csr(CSR_HTINVAL, ((1LU << (64 - ALASKA_SIZE_BITS)) - 1));
+    __asm__ volatile("fence" ::: "memory");
+    return;
+  }
+
+
+  // Pause requested.
+  if (sig == SIGUSR2) {
+    return;
+  }
+}
+
+
+static void segv_handler(int sig, siginfo_t *info, void *ucontext) {}
+
+static void setup_signal_handlers(void) {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+
+  // Block signals while we are in these signal handlers.
+  sigemptyset(&sa.sa_mask);
+  sigaddset(&sa.sa_mask, SIGUSR2);
+
+  // Store siginfo (ucontext) on the stack of the signal
+  // handlers (so we can grab the return address)
+  sa.sa_flags = SA_SIGINFO;
+  // Go to the `barrier_signal_handler`
+  sa.sa_sigaction = yukon_signal_handler;
+  // Attach this action on two signals:
+  assert(sigaction(SIGSEGV, &sa, NULL) == 0);
+  assert(sigaction(SIGUSR2, &sa, NULL) == 0);
+}
+
+
+
+#define ALASKA_THREAD_TRACK_STATE_T int
+#define ALASKA_THREAD_TRACK_INIT setup_signal_handlers();
+#include <alaska/thread_tracking.in.hpp>
+
+static thread_local alaska::ThreadCache *tc = NULL;
 static alaska::Runtime *the_runtime = NULL;
 
 
@@ -59,23 +110,6 @@ static inline uint64_t read_cycle_counter() {
   return cycles;
 }
 
-
-
-// If a pagefault occurs while handle table walking, we will throw the
-// exception back up and even if you handle the page fault, the HTLB
-// stores the fact that it will cause an exception until you
-// invalidate the entry.
-static void segv_handler(int sig, siginfo_t *info, void *ucontext) {
-  // TODO: if the faulting address has the top bit set  (sv39) then we need to
-  //       treat that as a page fault to the *handle table*. Basically, we need
-  //       to read/write that handle entry.
-  printf("Caught segfault to address %p. Clearing htlb and trying again!\n", info->si_addr);
-
-  write_csr(CSR_HTINVAL, ((1LU << (64 - ALASKA_SIZE_BITS)) - 1));
-  __asm__ volatile("fence" ::: "memory");
-  // exit(0);
-  return;
-}
 
 
 static pthread_t yukon_dump_daemon_thread;
@@ -100,11 +134,11 @@ static void *yukon_dump_daemon(void *) {
 
 namespace yukon {
   void set_handle_table_base(void *addr) {
-    alaska::printf("set htbase to %p\n", addr);
     uint64_t value = (uint64_t)addr;
     if (value != 0 and getenv("YUKON_PHYS") != nullptr) {
       value |= (1LU << 63);
     }
+    alaska::printf("set htbase to 0x%zx\n", value);
     write_csr(CSR_HTBASE, value);
   }
 
@@ -180,13 +214,9 @@ namespace yukon {
 
     asm volatile("fence" ::: "memory");
     yukon::set_handle_table_base(handle_table_base);
+    asm volatile("fence" ::: "memory");
 
-    struct sigaction act = {0};
-    act.sa_sigaction = segv_handler;
-    act.sa_flags = SA_SIGINFO;
-    sigaction(SIGSEGV, &act, NULL);
-
-    pthread_create(&yukon_dump_daemon_thread, NULL, yukon_dump_daemon, NULL);
+    // pthread_create(&yukon_dump_daemon_thread, NULL, yukon_dump_daemon, NULL);
   }
 }  // namespace yukon
 
