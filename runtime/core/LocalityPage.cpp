@@ -166,7 +166,7 @@ namespace alaska {
     }
     if (prune_count > 0) {
       auto &m = md_bump_next[1];
-      data_bump_next = reinterpret_cast<void*>((off_t)m.get_data() + m.size);
+      data_bump_next = reinterpret_cast<void *>((off_t)m.get_data() + m.size);
     }
     return moved_count;
   }
@@ -197,13 +197,6 @@ namespace alaska {
 
 
   void LocalityPage::dump_json(FILE *stream) {
-    fprintf(stream, "{\"name\": \"LocalityPage\", \"utilization\": %f, \"objs\": \"",
-        this->utilization());
-    for (size_t i = 0; true; i++) {
-      auto *h = get_md(i);
-      if (h == md_bump_next) break;
-      fprintf(stream, "%s%d", h->allocated ? "a" : "f", h->size);
-    }
-    fprintf(stream, "\"}");
+    fprintf(stream, "{\"name\": \"LocalityPage\", \"utilization\": %f}", this->utilization());
   }
 }  // namespace alaska
