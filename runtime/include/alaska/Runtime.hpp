@@ -56,6 +56,7 @@ namespace alaska {
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
     static Runtime &get();
+    static Runtime *get_ptr();
 
 
     // Localization logic is broken down into "epochs", and objects
