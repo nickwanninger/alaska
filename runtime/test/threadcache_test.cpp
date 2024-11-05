@@ -45,6 +45,12 @@ TEST_F(ThreadCacheTest, Halloc) {
   ASSERT_NE(h, nullptr);
 }
 
+
+TEST_F(ThreadCacheTest, HallocZeroIsNull) {
+  void *h = t1->halloc(0);
+  ASSERT_EQ(h, nullptr);
+}
+
 TEST_F(ThreadCacheTest, HallocUnique) {
   void *h1 = t1->halloc(16);
   void *h2 = t1->halloc(16);
