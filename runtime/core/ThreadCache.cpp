@@ -101,8 +101,11 @@ namespace alaska {
 
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
-    if (unlikely(size >= alaska::huge_object_thresh)) {
-      log_info("ThreadCache::halloc huge size=%zu", size);
+
+    if (unlikely(size == 0)) return NULL;
+
+    if (unlikely(alaska::should_be_huge_object(size))) {
+      printf("ThreadCache::halloc huge size=%zu\n", size);
       // Allocate the huge allocation.
       return this->runtime.heap.huge_allocator.allocate(size);
     }
@@ -134,7 +137,7 @@ namespace alaska {
     size_t original_size = 0;
 
     bool old_was_handle = m != nullptr;
-    bool new_data_is_huge = new_size >= alaska::huge_object_thresh;
+    bool new_data_is_huge = alaska::should_be_huge_object(new_size);
     void *new_data = NULL;
     void *return_value = handle;
 
