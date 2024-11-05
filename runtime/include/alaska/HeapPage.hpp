@@ -23,7 +23,7 @@ namespace alaska {
   // due to details about how the page table is implemented.
   static constexpr uint64_t page_shift_factor = 21;
   static constexpr size_t page_size = 1LU << page_shift_factor;
-  static constexpr size_t huge_object_thresh = page_size / 4;
+  static constexpr size_t huge_object_thresh = 0xFFFF;
 
   // Forward Declaration
   template <typename T>
@@ -76,11 +76,8 @@ namespace alaska {
     void* start(void) const { return memory; }
     void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
 
-    virtual void dump_html(FILE *stream) {
-      fprintf(stream, "TODO");
-    }
-
-    virtual void dump_json(FILE *stream) {
+    virtual void dump_html(FILE* stream) { fprintf(stream, "TODO"); }
+    virtual void dump_json(FILE* stream) {
       fprintf(stream, "{\"name\": \"HeapPage\", \"objs\": \"\"}");
     }
 
