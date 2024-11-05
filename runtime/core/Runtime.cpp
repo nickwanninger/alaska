@@ -55,6 +55,9 @@ namespace alaska {
     ALASKA_ASSERT(g_runtime != nullptr, "Runtime not initialized");
     return *g_runtime;
   }
+  Runtime *Runtime::get_ptr() {
+    return g_runtime;
+  }
 
 
   void Runtime::dump(FILE *stream) {

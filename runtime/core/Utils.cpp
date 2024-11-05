@@ -14,6 +14,7 @@
 #include <alaska/Logger.hpp>
 #include <stdio.h>
 #include <string.h>
+#include <alaska/Runtime.hpp>
 
 void alaska_dump_backtrace() {
   FILE *stream = fopen("/proc/self/maps", "r");
@@ -25,4 +26,12 @@ void alaska_dump_backtrace() {
   }
 
   fclose(stream);
+
+
+  auto *rt = alaska::Runtime::get_ptr();
+  if (rt) {
+    fprintf(stderr, "Heap dump:\n");
+    rt->heap.dump_json(stderr);
+  }
+
 }
