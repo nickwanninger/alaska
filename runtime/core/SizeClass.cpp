@@ -159,11 +159,7 @@ namespace alaska {
   }
 
   bool should_be_huge_object(size_t size) {
-    // int cls = size_to_class(size);
-
-    // cls = 1;
-
-    if (size > alaska::huge_object_thresh) {
+    if (size >= alaska::huge_object_thresh) {
       return true;
     }
     return false;
