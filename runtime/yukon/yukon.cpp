@@ -36,6 +36,11 @@
   __asm__ __volatile__("csrr %0, %1" : "=r"(val) : "n"(csr) : /* clobbers: none */);
 
 
+
+struct AutoFencer {
+  ~AutoFencer() { __asm__ volatile("fence" ::: "memory"); }
+};
+
 #define wait_for_csr_zero(reg)         \
   do {                                 \
     volatile uint32_t csr_value = 0x1; \
@@ -52,6 +57,7 @@
 
 
 static void yukon_signal_handler(int sig, siginfo_t *info, void *ucontext) {
+  AutoFencer fencer;
   // If a pagefault occurs while handle table walking, we will throw the
   // exception back up and even if you handle the page fault, the HTLB
   // stores the fact that it will cause an exception until you
@@ -62,7 +68,6 @@ static void yukon_signal_handler(int sig, siginfo_t *info, void *ucontext) {
     //       to read/write that handle entry.
     printf("Caught segfault to address %p. Clearing htlb and trying again!\n", info->si_addr);
     write_csr(CSR_HTINVAL, ((1LU << (64 - ALASKA_SIZE_BITS)) - 1));
-    __asm__ volatile("fence" ::: "memory");
     return;
   }
 
@@ -248,11 +253,19 @@ static void *_halloc(size_t sz, int zero) {
   return result;
 }
 
-extern "C" void *halloc(size_t sz) noexcept { return _halloc(sz, 0); }
-extern "C" void *hcalloc(size_t nmemb, size_t size) { return _halloc(nmemb * size, 1); }
+extern "C" void *halloc(size_t sz) noexcept {
+  AutoFencer fencer;
+  return _halloc(sz, 0);
+}
+extern "C" void *hcalloc(size_t nmemb, size_t size) {
+  AutoFencer fencer;
+  return _halloc(nmemb * size, 1);
+}
 
 // Reallocate a handle
 extern "C" void *hrealloc(void *handle, size_t new_size) {
+  AutoFencer fencer;
+
   auto *tc = yukon::get_tc();
 
   // If the handle is null, then this call is equivalent to malloc(size)
@@ -282,6 +295,7 @@ extern "C" void *hrealloc(void *handle, size_t new_size) {
 
 
 extern "C" void hfree(void *ptr) {
+  AutoFencer fencer;
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
   yukon::get_tc()->hfree(ptr);
