@@ -240,14 +240,34 @@ void __attribute__((constructor(102))) alaska_init(void) {
 
 void __attribute__((destructor)) alaska_deinit(void) {}
 
+
+static void touch_pages(uintptr_t start, uintptr_t end) {
+  constexpr uintptr_t page_size = 4096;
+  // Align the start to the beginning of the first 4KB page in the range
+  uintptr_t current_page = start & ~(page_size - 1);
+  if (current_page < start) {
+    current_page += page_size;
+  }
+
+  // Loop through each page until we exceed the end
+  while (current_page < end) {
+    volatile uint8_t *p = (volatile uint8_t *)current_page;
+    *p = 0;
+    // Move to the next page
+    current_page += page_size;
+  }
+}
+
 static void *_halloc(size_t sz, int zero) {
-  // HACK: make it so we *always* zero the data to avoid pagefaults
-  //       *this is slow*
-  // zero = 1;
   void *result = NULL;
 
   result = yukon::get_tc()->halloc(sz, zero);
-  auto m = (uintptr_t)alaska::Mapping::translate(result);
+
+  auto m = alaska::Mapping::from_handle_safe(result);
+  if (m) {
+    auto backing_data = (uintptr_t)m->get_pointer();
+    touch_pages(backing_data, backing_data + sz);
+  }
   if (result == NULL) errno = ENOMEM;
 
   return result;
