@@ -321,7 +321,7 @@ namespace alaska {
 
 
   void SizedPage::dump_json(FILE *stream) {
-    fprintf(stream, "{\"name\": \"SizedPage\", \"object_size\": %zu, \"avail\": %zu}"
+    fprintf(stream, "{\"name\": \"SizedPage\", \"object_size\": %zu, \"avail\": %zu}",
         object_size, this->available());
   }
 
