@@ -81,7 +81,10 @@ static void yukon_signal_handler(int sig, siginfo_t *info, void *ucontext) {
 
 
 void alarm_handler(int sig) {
-  // Do nothing yet
+  // Grab the thread cache
+  auto *tc = yukon::get_tc();
+  // And trigger an HTLB dump
+  yukon::dump_htlb(tc);
 }
 
 
@@ -130,25 +133,6 @@ static inline uint64_t read_cycle_counter() {
   uint64_t cycles;
   asm volatile("rdcycle %0" : "=r"(cycles));
   return cycles;
-}
-
-
-
-static pthread_t yukon_dump_daemon_thread;
-static void *yukon_dump_daemon(void *) {
-  auto *tc = yukon::get_tc();
-  while (1) {
-    // Sleep
-
-    // auto start = read_cycle_counter();
-    usleep(10 * 1000);
-    // auto end = read_cycle_counter();
-    // printf("Slept for %lu cycles\n", end - start);
-    // yukon::dump_htlb(tc);
-    yukon::print_htlb();
-  }
-
-  return NULL;
 }
 
 
@@ -237,8 +221,6 @@ namespace yukon {
     asm volatile("fence" ::: "memory");
     yukon::set_handle_table_base(handle_table_base);
     asm volatile("fence" ::: "memory");
-
-    // pthread_create(&yukon_dump_daemon_thread, NULL, yukon_dump_daemon, NULL);
   }
 }  // namespace yukon
 
