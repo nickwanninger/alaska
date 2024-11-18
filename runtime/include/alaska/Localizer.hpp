@@ -23,6 +23,14 @@ namespace alaska {
 
   class Localizer {
     alaska::ThreadCache &tc;
+    size_t expected_count = 0;
+
+
+    struct buffer {
+      struct buffer *next;
+    };
+
+    struct buffer *buffers = nullptr;
 
    public:
     Localizer(alaska::Configuration &config, alaska::ThreadCache &tc);
