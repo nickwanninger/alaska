@@ -6,8 +6,8 @@
 #define COUNT 10000000
 
 __attribute__((noinline)) static volatile int *inc(volatile int *x) {
-  // *x += 1;
-  *x = 4;
+  *x += 1;
+  // *x = 4;
   return x;
 }
 
