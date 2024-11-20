@@ -44,7 +44,7 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
 
   auto m = alaska::Mapping::from_handle(ptr);
   // Pull the address from the mapping
-  void *mapped = m->get_pointer();
+  void *mapped = m->get_pointer_fast();
   ptr = APPLY_OFFSET(mapped, bits);
   return ptr;
 }
@@ -82,10 +82,19 @@ void *alaska_translate(void *ptr) {
 
 
   // Grab the pointer
-  void *mapped = m->get_pointer();
+  void *mapped = m->get_pointer_fast();
+
+
+  uint64_t mapped_bits = (int64_t)mapped;
+  if (unlikely(mapped_bits < 0)) {
+    abort();
+  }
+  // load from the address for some reason
+  // uint8_t _ = *(volatile uint8_t *)mapped;
+  // if (unlikely(mapped == NULL)) abort();
   // Apply the offset from the pointer
-  ptr = APPLY_OFFSET(mapped, bits);
-  return ptr;
+  void *result = APPLY_OFFSET(mapped, bits);
+  return result;
 }
 
 void alaska_release(void *ptr) {

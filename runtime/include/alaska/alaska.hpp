@@ -72,7 +72,10 @@ namespace alaska {
    public:
     ALASKA_INLINE void *get_pointer(void) const {
       return (void*)(uint64_t)alt.misc;
-      // return ptr;
+    }
+
+    ALASKA_INLINE void *get_pointer_fast(void) const {
+      return ptr;
     }
 
     inline void invalidate(void) {
