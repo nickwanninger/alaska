@@ -47,53 +47,35 @@ namespace alaska {
     unsigned long bytes_in_dump = 0;
     unsigned long bytes_reach = 0;
 
+    rt.with_barrier([&]() {
+      for (size_t i = 0; i < count; i++) {
+        auto hid = handle_ids[i];
+        if (hid == 0) continue;
+        auto handle = reinterpret_cast<void *>((1LU << 63) | (hid << ALASKA_SIZE_BITS));
+        auto *m = alaska::Mapping::from_handle_safe(handle);
+        bool moved = false;
+        if (m == NULL or m->is_free() or m->is_pinned()) {
+          moved = false;
+        } else {
+          void *ptr = m->get_pointer();
+          auto *source_page = rt.heap.pt.get_unaligned(m->get_pointer());
+          moved = tc.localize(*m, rt.localization_epoch);
+        }
+        auto size = tc.get_size(handle);
+        bytes_reach += size;
+        if (moved) {
+          moved_objects++;
+          bytes_in_dump += size;
+        } else {
+          unmoved_objects++;
+        }
+      }
+      rt.heap.compact_locality_pages();
+      rt.heap.compact_sizedpages();
+    });
 
-    if (count > 16) count = 16;
-
-    printf("Handles: ");
-    for (size_t i = 0; i < count; i++) {
-      auto hid = handle_ids[i];
-      if (hid == 0) continue;
-      printf("%7x ", hid);
-    }
-    printf("\n");
-
-    // rt.with_barrier([&]() {
-    //   for (size_t i = 0; i < count; i++) {
-    //     auto hid = handle_ids[i];
-    //     if (hid == 0) continue;
-    //     auto handle = reinterpret_cast<void *>((1LU << 63) | (hid << ALASKA_SIZE_BITS));
-    //     auto *m = alaska::Mapping::from_handle_safe(handle);
-
-    //     bool moved = false;
-    //     if (m == NULL or m->is_free() or m->is_pinned()) {
-    //       moved = false;
-    //     } else {
-    //       void *ptr = m->get_pointer();
-    //       auto *source_page = rt.heap.pt.get_unaligned(m->get_pointer());
-    //       moved = tc.localize(*m, rt.localization_epoch);
-    //     }
-
-    //     auto size = tc.get_size(handle);
-
-    //     bytes_reach += size;
-
-    //     if (moved) {
-    //       moved_objects++;
-    //       bytes_in_dump += size;
-    //     } else {
-    //       unmoved_objects++;
-    //     }
-    //   }
-
-
-
-    //   // rt.heap.compact_locality_pages();
-    //   rt.heap.compact_sizedpages();
-    // });
-
-    // printf("moved:%5lu unmoved:%5lu bytes:%12lu reach:%12lu\n", moved_objects, unmoved_objects,
-    //     bytes_in_dump, bytes_reach);
+    printf("moved:%5lu unmoved:%5lu bytes:%12lu reach:%12lu\n", moved_objects, unmoved_objects,
+        bytes_in_dump, bytes_reach);
 
     // Push the buffer back to the queue of buffers
     struct buffer *buf = reinterpret_cast<struct buffer *>(handle_ids);
