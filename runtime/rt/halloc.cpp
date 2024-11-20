@@ -125,50 +125,75 @@ size_t alaska_usable_size(void *ptr) {
 
 
 
+template <typename Fn>
+static void walk_structure(void *ptr, size_t max_depth, Fn fn) {
+  auto &rt = alaska::Runtime::get();
+  auto *tc = get_tc_r();
+  ck::queue<void *> todo(max_depth);
+
+  auto schedule_pointer = [&](void *h, alaska::Mapping *m) {
+    if (m == NULL or not rt.handle_table.valid_handle(m) or m->is_free()) return;
+    fn(m);
+    if (todo.size() >= max_depth) return;
+    todo.push(h);
+  };
+
+  auto *m = alaska::Mapping::from_handle_safe(ptr);
+  // Fire off a check of the first pointer to bootstrap the localization
+  schedule_pointer(ptr, m);
+
+  while (not todo.is_empty()) {
+    auto *h = todo.pop().unwrap();
+    auto *m = alaska::Mapping::from_handle_safe(h);
+    if (m == nullptr) continue;
+    long size = tc->get_size(h);
+    long elements = size / 8;
+
+    void **cursor = (void **)m->get_pointer();
+    for (long e = 0; e < elements; e++) {
+      void *c = cursor[e];
+      auto *m = alaska::Mapping::from_handle_safe(c);
+      if (m) {
+        schedule_pointer(c, m);
+      }
+    }
+  }
+}
+
+static size_t get_page_count_for_structure(void *ptr, size_t max_depth) {
+  max_depth = 256;
+  ck::set<off_t> pages;
+  walk_structure(ptr, max_depth, [&](alaska::Mapping *m) {
+    pages.add((off_t)m->get_pointer() >> 12);
+  });
+
+  return pages.size();
+}
+
+
 extern "C" bool localize_structure(void *ptr) {
   auto *m = alaska::Mapping::from_handle_safe(ptr);
   if (m == nullptr) return false;
+  auto *tc = get_tc_r();
   auto &rt = alaska::Runtime::get();
 
-  // Trigger a barrier so we can move stuff
-  return rt.with_barrier([&]() {
-    auto *tc = get_tc_r();
-    size_t max_depth = 17;
-    ck::queue<void *> todo(max_depth);
+  size_t max_depth = 26;
 
-    auto schedule_pointer = [&](void *h, alaska::Mapping *m) {
-      if (m == NULL or not rt.handle_table.valid_handle(m) or m->is_free()) return;
+  auto pages_before = get_page_count_for_structure(ptr, max_depth * 2);
+
+  // Trigger a barrier so we can move stuff
+  bool localized = rt.with_barrier([&]() {
+    walk_structure(ptr, max_depth, [&](alaska::Mapping *m) {
       if (not m->is_pinned()) {
         tc->localize(*m, rt.localization_epoch);
       }
-
-      if (todo.size() >= max_depth) {
-        return;
-      }
-      todo.push(h);
-    };
-
-    // Fire off a check of the first pointer to bootstrap the localization
-    schedule_pointer(ptr, m);
-
-    while (not todo.is_empty()) {
-      auto *h = todo.popo().unwrap();
-      auto *m = alaska::Mapping::from_handle_safe(h);
-      if (m == nullptr) continue;
-
-      long size = tc->get_size(h);
-      // printf("%p, %zu\n", h, size / 8);
-
-      long elements = size / 8;
-
-      void **cursor = (void **)m->get_pointer();
-      for (long e = 0; e < elements; e++) {
-        void *c = cursor[e];
-        auto *m = alaska::Mapping::from_handle_safe(c);
-        if (m) {
-          schedule_pointer(c, m);
-        }
-      }
-    }
+    });
   });
+
+  auto pages_after = get_page_count_for_structure(ptr, max_depth * 2);
+
+  if (localized)
+    printf("pages: %zu, %zu (%f%%)\n", pages_before, pages_after,
+        pages_after / (float)pages_before * 100.0);
+  return localized;
 }

@@ -59,13 +59,7 @@ namespace ck {
       backing[off(front++)] = value;
     }
 
-
-    T pop() {
-      if (is_empty()) abort();
-      return backing[off(back++)];
-    }
-
-    ck::opt<T> popo() {
+    ck::opt<T> pop() {
       if (is_empty()) return None;
       return Some(backing[off(back++)]);
     }
