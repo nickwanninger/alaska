@@ -80,7 +80,13 @@ namespace alaska {
 
 
     template <typename Fn>
-    void with_barrier(Fn &&cb) {
+    bool with_barrier(Fn &&cb) {
+      auto now = alaska_timestamp();
+      if (now - last_barrier_time < min_barrier_interval) {
+        return false;
+      }
+      last_barrier_time = now;
+
       lock_all_thread_caches();
       if (barrier_manager->begin()) {
         in_barrier = true;
@@ -93,10 +99,15 @@ namespace alaska {
         barrier_manager->end();
       }
       unlock_all_thread_caches();
+      return true;
     }
 
    private:
     int next_thread_cache_id = 0;
+
+
+    unsigned long last_barrier_time = 0;
+    unsigned long min_barrier_interval = 250 * 1000 * 1000;
 
 
     void lock_all_thread_caches(void);

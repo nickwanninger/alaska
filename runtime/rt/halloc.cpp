@@ -15,6 +15,10 @@
 #include <malloc.h>
 #endif
 
+#include <ck/stack.h>
+#include <ck/queue.h>
+#include <ck/vec.h>
+#include <ck/set.h>
 #include <alaska/Runtime.hpp>
 #include <alaska/ThreadCache.hpp>
 #include <alaska.h>
@@ -25,12 +29,15 @@
 // TODO: don't have this be global!
 static __thread alaska::ThreadCache *g_tc = nullptr;
 
-alaska::LockedThreadCache get_tc(void) {
+
+
+alaska::ThreadCache *get_tc_r(void) {
   if (unlikely(g_tc == nullptr)) {
     g_tc = alaska::Runtime::get().new_threadcache();
   }
-  return *g_tc;
+  return g_tc;
 }
+alaska::LockedThreadCache get_tc(void) { return *get_tc_r(); }
 
 
 
@@ -113,4 +120,55 @@ size_t alaska_usable_size(void *ptr) {
   return ::malloc_usable_size(ptr);
 #endif
   return get_tc()->get_size(ptr);
+}
+
+
+
+
+extern "C" bool localize_structure(void *ptr) {
+  auto *m = alaska::Mapping::from_handle_safe(ptr);
+  if (m == nullptr) return false;
+  auto &rt = alaska::Runtime::get();
+
+  // Trigger a barrier so we can move stuff
+  return rt.with_barrier([&]() {
+    auto *tc = get_tc_r();
+    long max_depth = 17;
+    ck::queue<void *> todo(max_depth);
+
+    auto schedule_pointer = [&](void *h, alaska::Mapping *m) {
+      if (m == NULL or not rt.handle_table.valid_handle(m) or m->is_free()) return;
+      if (not m->is_pinned()) {
+        tc->localize(*m, rt.localization_epoch);
+      }
+
+      if (todo.size() >= max_depth) {
+        return;
+      }
+      todo.push(h);
+    };
+
+    // Fire off a check of the first pointer to bootstrap the localization
+    schedule_pointer(ptr, m);
+
+    while (not todo.is_empty()) {
+      auto *h = todo.popo().unwrap();
+      auto *m = alaska::Mapping::from_handle_safe(h);
+      if (m == nullptr) continue;
+
+      auto size = tc->get_size(h);
+      // printf("%p, %zu\n", h, size / 8);
+
+      size_t elements = size / 8;
+
+      void **cursor = (void **)m->get_pointer();
+      for (off_t e = 0; e < elements; e++) {
+        void *c = cursor[e];
+        auto *m = alaska::Mapping::from_handle_safe(c);
+        if (m) {
+          schedule_pointer(c, m);
+        }
+      }
+    }
+  });
 }
