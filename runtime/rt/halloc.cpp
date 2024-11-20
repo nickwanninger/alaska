@@ -133,7 +133,7 @@ extern "C" bool localize_structure(void *ptr) {
   // Trigger a barrier so we can move stuff
   return rt.with_barrier([&]() {
     auto *tc = get_tc_r();
-    long max_depth = 17;
+    size_t max_depth = 17;
     ck::queue<void *> todo(max_depth);
 
     auto schedule_pointer = [&](void *h, alaska::Mapping *m) {
@@ -156,13 +156,13 @@ extern "C" bool localize_structure(void *ptr) {
       auto *m = alaska::Mapping::from_handle_safe(h);
       if (m == nullptr) continue;
 
-      auto size = tc->get_size(h);
+      long size = tc->get_size(h);
       // printf("%p, %zu\n", h, size / 8);
 
-      size_t elements = size / 8;
+      long elements = size / 8;
 
       void **cursor = (void **)m->get_pointer();
-      for (off_t e = 0; e < elements; e++) {
+      for (long e = 0; e < elements; e++) {
         void *c = cursor[e];
         auto *m = alaska::Mapping::from_handle_safe(c);
         if (m) {

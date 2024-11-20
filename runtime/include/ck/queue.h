@@ -51,7 +51,7 @@ namespace ck {
 
 
 
-    bool is_full(void) { return (front - back) == capacity; }
+    bool is_full(void) { return (size_t)(front - back) == capacity; }
     bool is_empty(void) { return front == back; }
 
     void push(const T& value) {
