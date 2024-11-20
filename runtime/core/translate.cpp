@@ -93,24 +93,7 @@ void alaska_release(void *ptr) {
   // and should not have any real meaning in the runtime
 }
 
-uint64_t base_start = 0;
-
-void print_backtrace() {
-  void *rbp = (void *)__builtin_frame_address(0);
-  uint64_t start, end;
-  start = end = 0;
-  start = (uint64_t)rbp;
-  while ((uint64_t)rbp > 0x1000) {
-    end = (uint64_t)rbp;
-    if (end > base_start) base_start = end;
-    rbp = *(void **)rbp;  // Follow the chain of rbp values
-  }
-  alaska::printf(" (%zd)\n", end - start);
-}
-
-extern bool alaska_should_safepoint;
 extern "C" uint64_t alaska_barrier_poll();
-
 extern "C" void alaska_safepoint(void) { alaska_barrier_poll(); }
 
 // TODO:
