@@ -26,18 +26,18 @@ namespace alaska {
   template <typename T>
   class ThreadRegistry final : public alaska::InternalHeapAllocated {
    public:
-    ThreadRegistry(void) { printf("Construct thread registry!\n"); }
+    ThreadRegistry(void) {}
     using ThreadData = T;
 
     // Join with the current thread
     void join(ThreadData init_data = {}) {
-      alaska::printf("thread join %lx\n", pthread_self());
+      log_debug("thread join %lx\n", pthread_self());
       auto l = take_lock();
       m_registry[pthread_self()] = init_data;
     }
 
     ThreadData leave(void) {
-      alaska::printf("thread leave %lx\n", pthread_self());
+      log_debug("thread leave %lx\n", pthread_self());
       auto l = take_lock();
       auto self = pthread_self();
       auto td = m_registry[self];

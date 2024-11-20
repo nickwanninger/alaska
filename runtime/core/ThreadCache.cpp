@@ -105,7 +105,7 @@ namespace alaska {
     if (unlikely(size == 0)) return NULL;
 
     if (unlikely(alaska::should_be_huge_object(size))) {
-      printf("ThreadCache::halloc huge size=%zu\n", size);
+      log_debug("ThreadCache::halloc huge size=%zu\n", size);
       // Allocate the huge allocation.
       return this->runtime.heap.huge_allocator.allocate(size);
     }
