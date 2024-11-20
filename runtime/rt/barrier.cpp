@@ -335,6 +335,7 @@ bool alaska::barrier::begin(void) {
 
 
   auto num_threads = alaska::thread_tracking::threads().num_threads();
+#if 0
   alaska::printf("Barrier begin from %lx:\n", pthread_self());
   alaska::printf("  num threads: %lu\n", num_threads);
 
@@ -342,6 +343,7 @@ bool alaska::barrier::begin(void) {
   alaska::thread_tracking::threads().for_each_locked([](auto thread, AlaskaThreadState* state) {
     alaska::printf("  - %lx %p %d\n", thread, state, state->join_status);
   });
+#endif
 
 
   // First, mark everyone as *not* in the barrier.
