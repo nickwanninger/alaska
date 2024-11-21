@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <alaska/alaska.hpp>
 #include "./template_lib.h"
-#include <new>
 #include <string.h>
 
 // No clue if this requires the library be linked.

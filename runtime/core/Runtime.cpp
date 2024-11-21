@@ -55,9 +55,8 @@ namespace alaska {
     ALASKA_ASSERT(g_runtime != nullptr, "Runtime not initialized");
     return *g_runtime;
   }
-  Runtime *Runtime::get_ptr() {
-    return g_runtime;
-  }
+  Runtime *Runtime::get_ptr() { return g_runtime; }
+
 
 
   void Runtime::dump(FILE *stream) {
@@ -141,6 +140,18 @@ namespace alaska {
       sched_yield();
     }
     log_debug("Initialized!\n");
+  }
+
+
+  int do_handle_fault(uint64_t handle) {
+    auto &rt = alaska::Runtime::get();
+    return rt.handle_fault(handle);
+  }
+
+
+  int Runtime::handle_fault(uint64_t handle) {
+    printf("Handle fault to handle %lx\n", handle);
+    abort();
   }
 
 

@@ -78,6 +78,8 @@ namespace alaska {
 
     void dump_html(FILE *stream);
 
+    int handle_fault(uint64_t handle);
+
 
     template <typename Fn>
     bool with_barrier(Fn &&cb) {
@@ -119,4 +121,8 @@ namespace alaska {
   void wait_for_initialization(void);
   // Has the runtime been initialized?
   bool is_initialized(void);
+
+
+  // called from translate.cpp
+  int do_handle_fault(uint64_t handle);
 }  // namespace alaska
