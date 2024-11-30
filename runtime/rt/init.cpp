@@ -20,7 +20,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <signal.h>
-
+#include <ck/queue.h>
 
 
 static alaska::Runtime *the_runtime = nullptr;
@@ -39,7 +39,6 @@ extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
-  // return NULL;
   while (1) {
     usleep(50 * 1000);
     alaska::Runtime::get().with_barrier([]() {
@@ -59,5 +58,4 @@ void __attribute__((constructor(102))) alaska_init(void) {
   pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
 }
 
-void __attribute__((destructor)) alaska_deinit(void) {
-}
+void __attribute__((destructor)) alaska_deinit(void) {}
