@@ -38,7 +38,7 @@
       fprintf(stderr, "%s line %d\n", __FILE__, __LINE__);                                      \
       fprintf(stderr, "Check, `%s`, failed\n", #c, ##__VA_ARGS__);                              \
       fprintf(stderr, "Reason: \e[33m" msg "\e[0m\n", ##__VA_ARGS__);                           \
-      /*alaska_dump_backtrace();*/                                                              \
+      alaska_dump_backtrace();                                                                  \
       fprintf(stderr, "\x1b[31mExiting.\x1b[0m\n");                                             \
       abort();                                                                                  \
       fprintf(stderr, "\x1b[31m----------------------------------------------------\x1b[0m\n"); \
@@ -68,10 +68,9 @@ extern void alaska_dump_backtrace(void);
     oldvalue_var = __atomic_fetch_add(&var, (count), __ATOMIC_RELAXED); \
   } while (0)
 #define atomic_dec(var, count) __atomic_sub_fetch(&var, (count), __ATOMIC_SEQ_CST)
-#define atomic_get(var, dstvar)                       \
-  do {                                                \
-    dstvar = __atomic_load_n(&var, __ATOMIC_RELAXED); \
-  } while (0)
+#define atomic_get(var) __atomic_load_n(&(var), __ATOMIC_RELAXED)
+
+
 #define atomic_set(var, value) __atomic_store_n(&var, value, __ATOMIC_RELAXED)
 #define atomic_get_sync(var, dstvar)                  \
   do {                                                \

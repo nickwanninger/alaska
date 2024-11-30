@@ -40,6 +40,12 @@ namespace alaska {
     void free_local(void *);
     void free_remote(void *);
 
+    // Wipe out the free lists.
+    void reset() {
+      local_free = remote_free = NULL;
+      num_local_free = num_remote_free = 0;
+    }
+
    private:
     // A simple `Block` structure to give us nicer linked-list style access
     struct Block {
@@ -112,5 +118,7 @@ namespace alaska {
     // num_remote_free ++;
     atomic_inc(num_remote_free, 1);
   }
+
+
 
 }  // namespace alaska

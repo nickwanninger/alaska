@@ -17,6 +17,8 @@
 #include <alaska/Heap.hpp>
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
+#include <alaska/Configuration.hpp>
+#include <alaska/Localizer.hpp>
 
 namespace alaska {
   /**
@@ -36,6 +38,7 @@ namespace alaska {
    *  - ThreadCaches: a list of the thread caches currently alive in the system.
    */
   struct Runtime final : public alaska::InternalHeapAllocated {
+    alaska::Configuration config;
     // The handle table is a global table that maps handles to their corresponding memory blocks.
     alaska::HandleTable handle_table;
 
@@ -51,12 +54,20 @@ namespace alaska {
     // This is defaulted to a "nop" manager which simply does nothing.
     alaska::BarrierManager *barrier_manager;
 
-
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
     static Runtime &get();
+    static Runtime *get_ptr();
 
 
-    Runtime();
+    // Localization logic is broken down into "epochs", and objects
+    // can only be re-localized after a certain number of epochs.
+    // These are of an arbitrary unit.
+    uint64_t localization_epoch = 0;
+
+    bool in_barrier = false;
+
+
+    Runtime(alaska::Configuration config = {});
     ~Runtime();
 
     // Allocate and free thread caches.
@@ -65,15 +76,53 @@ namespace alaska {
     void dump(FILE *stream);
 
 
+    void dump_html(FILE *stream);
+
+    int handle_fault(uint64_t handle);
+
+
     template <typename Fn>
-    void with_barrier(Fn &&cb) {
-      barrier_manager->begin();
-      barrier_manager->barrier_count++;
-      cb();
-      barrier_manager->end();
+    bool with_barrier(Fn &&cb) {
+      auto now = alaska_timestamp();
+      if (now - last_barrier_time < min_barrier_interval) {
+        return false;
+      }
+      last_barrier_time = now;
+
+      lock_all_thread_caches();
+      if (barrier_manager->begin()) {
+        in_barrier = true;
+        barrier_manager->barrier_count++;
+        cb();
+        in_barrier = false;
+        barrier_manager->end();
+      } else {
+        alaska::printf("Barrier failed\n");
+        barrier_manager->end();
+      }
+      unlock_all_thread_caches();
+      return true;
     }
 
    private:
     int next_thread_cache_id = 0;
+
+
+    unsigned long last_barrier_time = 0;
+    unsigned long min_barrier_interval = 250 * 1000 * 1000;
+
+
+    void lock_all_thread_caches(void);
+    void unlock_all_thread_caches(void);
   };
+
+
+  // Spin until the runtime has been initialized somehow
+  void wait_for_initialization(void);
+  // Has the runtime been initialized?
+  bool is_initialized(void);
+
+
+  // called from translate.cpp
+  int do_handle_fault(uint64_t handle);
 }  // namespace alaska

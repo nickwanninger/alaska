@@ -54,4 +54,6 @@ namespace alaska {
   int size_to_class(size_t sz);
   size_t class_to_size(int cls);
 
+  bool should_be_huge_object(size_t size);
+
 }  // namespace alaska

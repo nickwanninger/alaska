@@ -14,9 +14,7 @@ struct FunctionEscapeInfo {
 };
 
 
-static bool relax_vararg_escape(void) {
-  return getenv("ALASKA_RELAX_VARARG") != NULL;
-}
+static bool relax_vararg_escape(void) { return getenv("ALASKA_RELAX_VARARG") != NULL; }
 
 
 
@@ -168,6 +166,7 @@ static bool mightBlock(llvm::Function &F) {
       "fputs",
       "vfprintf",
       "dcgettext",
+      "alaska_do_handle_fault_check",
   };
 
   if (not F.empty()) return false;
@@ -327,7 +326,6 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   std::set<llvm::Function *> blockingFunctions;
   std::set<llvm::CallInst *> blockingSites;
 
-  std::set<llvm::Function *> escapedFunctions;
 
   for (auto &F : M) {
     if (F.empty()) {
@@ -362,8 +360,16 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
 
           if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
-            escapedFunctions.insert(func);
+            llvm::errs() << "escape to argument " << i << " at call to \e[31m\"" << func->getName() << "\e[0m";
+            if (llvm::DILocation *Loc = I.getDebugLoc()) {
+              unsigned Line = Loc->getLine();
+              unsigned Column = Loc->getColumn();  // Optional: Get column number
+              llvm::errs() << " Line: " << Line << ", Column: " << Column << "\n";
+            }
+            llvm::errs() << "\n";
           }
+
+
 
           IRBuilder<> b(call);
 
@@ -376,10 +382,6 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
     }
   }
 
-
-  for (auto *f : escapedFunctions) {
-    alaska::println("escape to \e[31m\"", f->getName(), "\",\e[0m");
-  }
 
 
   return PreservedAnalyses::none();

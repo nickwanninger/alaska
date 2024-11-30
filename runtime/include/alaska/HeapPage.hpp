@@ -23,7 +23,7 @@ namespace alaska {
   // due to details about how the page table is implemented.
   static constexpr uint64_t page_shift_factor = 21;
   static constexpr size_t page_size = 1LU << page_shift_factor;
-  static constexpr size_t huge_object_thresh = page_size / 4;
+  static constexpr size_t huge_object_thresh = 0xFFFF;
 
   // Forward Declaration
   template <typename T>
@@ -69,11 +69,17 @@ namespace alaska {
     virtual bool release_remote(const Mapping& m, void* ptr) { return release_local(m, ptr); }
     // return the size of an object
     virtual size_t size_of(void* ptr) = 0;
+    virtual bool should_localize_from(uint64_t current_epoch) const { return true; }
     inline bool contains(void* ptr) const;
 
 
     void* start(void) const { return memory; }
     void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
+
+    virtual void dump_html(FILE* stream) { fprintf(stream, "TODO"); }
+    virtual void dump_json(FILE* stream) {
+      fprintf(stream, "{\"name\": \"HeapPage\", \"objs\": \"\"}");
+    }
 
    protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.

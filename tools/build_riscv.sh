@@ -14,6 +14,7 @@ cmake ../ \
       -DALASKA_ENABLE_COMPILER=OFF \
       -DALASKA_ENABLE_TESTING=OFF \
       -DALASKA_CORE_ONLY=ON \
+      -DALASKA_SIZE_BITS=32 \
       -DCMAKE_SYSROOT=/opt/riscv/sysroot
 
 make -j

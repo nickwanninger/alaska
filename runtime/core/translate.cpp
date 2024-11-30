@@ -21,6 +21,8 @@
 #include <alaska/alaska.hpp>
 #include <alaska/config.h>
 #include <alaska/utils.h>
+#include <alaska/Logger.hpp>
+#include "alaska/Runtime.hpp"
 #include <dlfcn.h>
 
 /**
@@ -43,7 +45,7 @@ extern "C" void *alaska_translate_uncond(void *ptr) {
 
   auto m = alaska::Mapping::from_handle(ptr);
   // Pull the address from the mapping
-  void *mapped = m->get_pointer();
+  void *mapped = m->get_pointer_fast();
   ptr = APPLY_OFFSET(mapped, bits);
   return ptr;
 }
@@ -64,27 +66,56 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 
 
+extern "C" void do_handle_fault(void) { return; }
+
+
+// This function is a marker, and just gets removed
+// after the compiler does some magic to merge them.
+__attribute__((noinline)) extern "C" void alaska_do_handle_fault_check(
+    void *ptr, void *handle, void *retry);
 
 void *alaska_translate(void *ptr) {
-  int64_t bits = (int64_t)ptr;
-  if (unlikely(bits >= 0 || bits == -1)) {
-    return ptr;
-  }
-
 #ifdef ALASKA_HTLB_SIM
   alaska_htlb_sim_track((uintptr_t)ptr);
 #endif
+
+  int64_t bits = (int64_t)ptr;
+  int64_t mapped_bits;
+  if (unlikely(bits >= 0 || bits == -1)) {
+    return ptr;
+  }
 
 
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
 
 
+retry_translation:
+
   // Grab the pointer
-  void *mapped = m->get_pointer();
+  void *mapped = m->get_pointer_fast();
+
+  // alaska_do_handle_fault_check(mapped, ptr, &&retry_translation);
+  // mapped_bits = (int64_t)mapped;
+  // if (unlikely(mapped_bits < 0)) {
+  //   // asm volatile(
+  //   //     "mov %0, %%rax\n"     // Move the label address into the RAX register
+  //   //     "mov %%rax, 0(%0)\n"  // Move the label address into the RAX register
+  //   //     :
+  //   //     : "r"(&&retry_translation), "r"(mapped)  // Input operand
+  //   //     : "%rax"                                 // Clobbers RAX
+  //   // );
+  //   alaska::do_handle_fault(bits);
+  //   goto retry_translation;
+  // }
+
+  // load from the address for some reason
+  uint8_t v;
+  v = *(volatile uint8_t *)mapped;
+
   // Apply the offset from the pointer
-  ptr = APPLY_OFFSET(mapped, bits);
-  return ptr;
+  void *result = APPLY_OFFSET(mapped, bits);
+  return result;
 }
 
 void alaska_release(void *ptr) {
@@ -92,24 +123,7 @@ void alaska_release(void *ptr) {
   // and should not have any real meaning in the runtime
 }
 
-uint64_t base_start = 0;
-
-void print_backtrace() {
-  void *rbp = (void *)__builtin_frame_address(0);
-  uint64_t start, end;
-  start = end = 0;
-  start = (uint64_t)rbp;
-  while ((uint64_t)rbp > 0x1000) {
-    end = (uint64_t)rbp;
-    if (end > base_start) base_start = end;
-    rbp = *(void **)rbp;  // Follow the chain of rbp values
-  }
-  printf(" (%zd)\n", end - start);
-}
-
-extern bool alaska_should_safepoint;
 extern "C" uint64_t alaska_barrier_poll();
-
 extern "C" void alaska_safepoint(void) { alaska_barrier_poll(); }
 
 // TODO:

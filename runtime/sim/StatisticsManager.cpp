@@ -18,35 +18,30 @@ void StatisticsManager::incrementStatistic(statistic metric, uint64_t value) {
 }
 
 
+
+uint64_t StatisticsManager::getStatistic(statistic s) { return stats[s]; }
+
 //
 void StatisticsManager::compute() {
-  for (int metric = L1_TLB_HIT_RATE; metric < COUNT; metric++) {
-    if (metric == L1_TLB_HIT_RATE) {
-      stats[L1_TLB_HIT_RATE] = 100 * (double)stats[L1_TLB_HITS] / stats[L1_TLB_ACCESSES];
-    } else if (metric == L2_TLB_HIT_RATE) {
-      stats[L2_TLB_HIT_RATE] = 100 * (double)stats[L2_TLB_HITS] / stats[L2_TLB_ACCESSES];
-    } else if (metric == L1_HTLB_HIT_RATE) {
-      stats[L1_HTLB_HIT_RATE] = 100 * (double)stats[L1_HTLB_HITS] / stats[L1_HTLB_ACCESSES];
-    } else if (metric == L2_HTLB_HIT_RATE) {
-      stats[L2_HTLB_HIT_RATE] = 100 * (double)stats[L2_HTLB_HITS] / stats[L2_HTLB_ACCESSES];
-      // } else if (metric == UTILIZATION_RATIO) {
-      //   stats[UTILIZATION_RATIO] =
-      //       100 * (((stats[EPOCH_PAGES] * 4096) - (double)stats[EPOCH_COMPACTION_MEM_SPACE]) /
-      //                 (stats[EPOCH_PAGES] * 4096));
-    } else {
-      abort();
-    }
-  }
+  l1_tlb_hr = 100 * (double)stats[L1_TLB_HITS] / stats[L1_TLB_ACCESSES];
+  l2_tlb_hr = 100 * (double)stats[L2_TLB_HITS] / stats[L2_TLB_ACCESSES];
+  l1_htlb_hr = 100 * (double)stats[L1_HTLB_HITS] / stats[L1_HTLB_ACCESSES];
+  l2_htlb_hr = 100 * (double)stats[L2_HTLB_HITS] / stats[L2_HTLB_ACCESSES];
 }
 
 void StatisticsManager::reset() {
   for (auto &stat : stats) {
     stat = 0;
   }
+
+  l1_tlb_hr = 0;
+  l2_tlb_hr = 0;
+  l1_htlb_hr = 0;
+  l2_htlb_hr = 0;
 }
 
 void StatisticsManager::dump() {
-#define D(x) printf("%20s: %f\n", #x, stats[x])
+#define D(x) printf("%20s: %lu\n", #x, stats[x])
   printf("==== Statistics ====\n");
 
 
@@ -79,10 +74,16 @@ void StatisticsManager::dump() {
   // D(EPOCH_COMPACTION_MEM_SPACE);
   // D(EPOCH_MEM_MOVED);
   printf("Hit Rates:\n");
-  D(L1_TLB_HIT_RATE);
-  D(L2_TLB_HIT_RATE);
-  D(L1_HTLB_HIT_RATE);
-  D(L2_HTLB_HIT_RATE);
+#undef D
+#define D(x, n) printf("%20s: %f%%\n", n, x)
+  D(l1_tlb_hr, "L1 TLB");
+  D(l2_tlb_hr, "L2 TLB");
+  D(l1_htlb_hr, "L1 HTLB");
+  D(l2_htlb_hr, "L2 HTLB");
+  // D(L1_TLB_HIT_RATE);
+  // D(L2_TLB_HIT_RATE);
+  // D(L1_HTLB_HIT_RATE);
+  // D(L2_HTLB_HIT_RATE);
   printf("\n");
 #undef D
 
@@ -94,4 +95,34 @@ void StatisticsManager::dump() {
   //     stats_file << (size_t)stats[metric] << "\n";
   //   }
   // }
+}
+
+
+
+void StatisticsManager::dump_csv_header(FILE *out) {
+  int ind = 0;
+
+#define STAT(s)        \
+  if (ind++) {         \
+    fprintf(out, ","); \
+  }                    \
+  fprintf(out, #s);
+#include <alaska/sim/stats.inc>
+#undef STAT
+  fprintf(out, "\n");
+}
+
+
+
+void StatisticsManager::dump_csv_row(FILE *out) {
+  int ind = 0;
+
+#define STAT(s)        \
+  if (ind++) {         \
+    fprintf(out, ","); \
+  }                    \
+  fprintf(out, "%lu", getStatistic(s));
+#include <alaska/sim/stats.inc>
+#undef STAT
+  fprintf(out, "\n");
 }

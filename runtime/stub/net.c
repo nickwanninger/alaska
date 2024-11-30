@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <alaska.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -28,6 +29,7 @@ ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
     vecs[i] = msg->msg_iov[i];
     vecs[i].iov_base = __alaska_leak(vecs[i].iov_base);
   }
+
 
   return real_sendmsg(fd, &fixed_msg, flags);
 }

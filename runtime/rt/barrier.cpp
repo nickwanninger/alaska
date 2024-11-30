@@ -21,12 +21,13 @@
 #include <alaska/alaska.hpp>
 #include <alaska/rt/barrier.hpp>
 #include <alaska/Runtime.hpp>
-
+#include <alaska/ThreadRegistry.hpp>
 
 #include <ck/lock.h>
 #include <ck/map.h>
 #include <ck/set.h>
 #include <ck/vec.h>
+#include <ck/func.h>
 
 #include <ucontext.h>
 #include <execinfo.h>
@@ -102,50 +103,45 @@ static void patchNop(void) {
   }
 }
 
-
-
-
-enum class JoinReason { Signal, Safepoint };
-
-// We track all threads w/ a simple linked list
-struct alaska_thread_info {
-  pthread_t thread;
-  alaska_thread_state_t* state;
-  struct list_head list_head;
-};
-
-__thread alaska_thread_state_t alaska_thread_state;
-static pthread_mutex_t all_threads_lock = PTHREAD_MUTEX_INITIALIZER;
-static long num_threads = 0;
-static struct list_head all_threads = LIST_HEAD_INIT(all_threads);
-static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
-
-// This is *the* barrier used in alaska_barrier to make sure threads are stopped correctly.
-static pthread_barrier_t the_barrier;
-static long barrier_last_num_threads = 0;
-
 static void setup_signal_handlers(void);
 static void clear_pending_signals(void);
 
 
 
+enum class JoinReason { Signal, Safepoint };
+
+
+#define ALASKA_THREAD_TRACK_STATE_T AlaskaThreadState
+#define ALASKA_THREAD_TRACK_INIT setup_signal_handlers();
+#include <alaska/thread_tracking.in.hpp>
+
+
+
+
+// This is *the* barrier used in alaska_barrier to make sure threads are stopped correctly.
+static pthread_barrier_t the_barrier;
+static long barrier_last_num_threads = 0;
+static pthread_mutex_t barrier_lock = PTHREAD_MUTEX_INITIALIZER;
+
+
+
+
 void alaska_remove_from_local_lock_list(void* ptr) { return; }
 static void alaska_dump_thread_states_r(void) {
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->state->escaped == 0) {
+  struct info* pos;
+  alaska::thread_tracking::threads().for_each_locked([&](auto thread, AlaskaThreadState* state) {
+    if (state->escaped == 0) {
       printf("\e[0m. ");  // a thread will join a barrier (not out to lunch)
     } else {
       printf("\e[41m. ");  // a thread will need to be interrupted (out to lunch)
     }
-  }
+  });
   printf("\e[0m\n");
 }
 
 void alaska_dump_thread_states(void) {
-  pthread_mutex_lock(&all_threads_lock);
+  auto lk = alaska::thread_tracking::threads().take_lock();
   alaska_dump_thread_states_r();
-  pthread_mutex_unlock(&all_threads_lock);
 }
 
 
@@ -170,19 +166,9 @@ static void record_handle(void* possible_handle, bool marked) {
 
   // It wasn't a handle, don't consider it.
   if (m == NULL) return;
-
-  // Was it well formed? Is it in the table?
-  // if (m < alaska::table::begin() || m >= alaska::table::end()) {
-  //   return;
-  // }
-
   if (not alaska::Runtime::get().handle_table.valid_handle(m)) return;
-
   if (m->is_free()) return;
-
-  if (marked) printf("pinned %p\n", possible_handle);
   m->set_pinned(marked);
-  // alaska::service::commit_lock_status(m, marked);
 }
 
 
@@ -194,32 +180,6 @@ static bool might_be_handle(void* possible_handle) {
 
 
 static ck::mutex dump_lock;
-
-// static Transition most_recent_transition(void) {
-//   unw_cursor_t cursor;
-//   unw_context_t uc;
-//   unw_word_t pc;
-//
-//   unw_getcontext(&uc);
-//   unw_init_local(&cursor, &uc);
-//   while (1) {
-//     int res = unw_step(&cursor);
-//     if (res == 0) {
-//       break;
-//     }
-//     if (res < 0) {
-//       printf("unknown libunwind error! %d\n", res);
-//       abort();
-//     }
-//     unw_get_reg(&cursor, UNW_REG_IP, &pc);
-//
-//     if (pin_map.contains(pc)) return Transition::Managed;
-//     if (block_rets.contains(pc)) return Transition::Unmanaged;
-//   }
-//
-//   return Transition::Managed;
-// }
-
 
 static bool in_might_block_function(uintptr_t start_addr) {
   void* buffer[512];
@@ -264,7 +224,7 @@ static bool in_might_block_function(uintptr_t start_addr) {
   return false;
 }
 
-void alaska::barrier::get_locked(ck::set<void*>& out) {
+void alaska::barrier::get_pinned_handles(ck::set<void*>& out) {
   unw_cursor_t cursor;
   unw_context_t uc;
   unw_word_t pc, sp, reg;
@@ -308,7 +268,7 @@ static void participant_join(bool leader, const ck::set<void*>& ps) {
     record_handle(p, true);
   }
   // Wait on the barrier so everyone's state has been commited.
-  if (num_threads > 1) {
+  if (alaska::thread_tracking::threads().num_threads() > 1) {
     pthread_barrier_wait(&the_barrier);
   }
 }
@@ -318,7 +278,7 @@ static void participant_join(bool leader, const ck::set<void*>& ps) {
 
 static void participant_leave(bool leader, const ck::set<void*>& ps) {
   // wait for the the leader (and everyone else to catch up)
-  if (num_threads > 1) {
+  if (alaska::thread_tracking::threads().num_threads() > 1) {
     pthread_barrier_wait(&the_barrier);
   }
 
@@ -330,9 +290,9 @@ static void participant_leave(bool leader, const ck::set<void*>& ps) {
 
 
 void dump_thread_states(void) {
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    switch (pos->state->join_status) {
+  struct info* pos;
+  alaska::thread_tracking::threads().for_each_locked([&](auto thread, AlaskaThreadState* state) {
+    switch (state->join_status) {
       case ALASKA_JOIN_REASON_NOT_JOINED:
         printf("\e[41m! ");  // a thread will need to be interrupted (out to lunch)
         break;
@@ -349,13 +309,13 @@ void dump_thread_states(void) {
         printf("\e[44m. ");  // a thread will join a barrier (not out to lunch)
         break;
     }
-  }
+  });
   printf("\e[0m");
 }
 
 
 
-void alaska::barrier::begin(void) {
+bool alaska::barrier::begin(void) {
   // Pseudocode:
   //
   // function begin():
@@ -370,17 +330,29 @@ void alaska::barrier::begin(void) {
 
   // Take locks so nobody else tries to signal a barrier.
   pthread_mutex_lock(&barrier_lock);
-  pthread_mutex_lock(&all_threads_lock);
+  alaska::thread_tracking::threads().lock_thread_creation();
+
+
+
+  auto num_threads = alaska::thread_tracking::threads().num_threads();
+#if 0
+  alaska::printf("Barrier begin from %lx:\n", pthread_self());
+  alaska::printf("  num threads: %lu\n", num_threads);
+
+  printf("  threads:\n");
+  alaska::thread_tracking::threads().for_each_locked([](auto thread, AlaskaThreadState* state) {
+    alaska::printf("  - %lx %p %d\n", thread, state, state->join_status);
+  });
+#endif
 
 
   // First, mark everyone as *not* in the barrier.
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    pos->state->join_status = ALASKA_JOIN_REASON_NOT_JOINED;
-  }
-  // Mark the orch thread (us) as joined (
-  alaska_thread_state.join_status = ALASKA_JOIN_REASON_ORCHESTRATOR;
+  alaska::thread_tracking::threads().for_each_locked([](auto thread, AlaskaThreadState* state) {
+    state->join_status = ALASKA_JOIN_REASON_NOT_JOINED;
+  });
 
+  // Mark the orch thread (us) as joined
+  alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ORCHESTRATOR;
 
   // If the barrier needs resizing, do so.
   if (barrier_last_num_threads != num_threads) {
@@ -396,31 +368,44 @@ void alaska::barrier::begin(void) {
   int retries = 0;
   int signals_sent = 0;
 
-  // printf("\n");
+  bool success = true;
+
   // Make sure the threads that are in unmanaged (library) code get signalled.
   while (true) {
+    if (retries >= 1000) {
+      success = false;
+      break;
+    }
+    retries++;
     bool sent_signal = false;
-    list_for_each_entry(pos, &all_threads, list_head) {
-      if (pos->state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
-        pthread_kill(pos->thread, SIGUSR2);
+    bool aborted = false;
+
+    alaska::thread_tracking::threads().for_each_locked([&](auto thread, auto* state) {
+      if (state->join_status == ALASKA_JOIN_REASON_NOT_JOINED) {
+        pthread_kill(thread, SIGUSR2);
         sent_signal = true;
         signals_sent++;
       }
-    }
+
+      if (state->join_status == ALASKA_JOIN_REASON_ABORT) {
+        success = false;
+        printf("Abort barrier. Could not join all threads for some reason!\n");
+      }
+    });
     if (!sent_signal) break;
     usleep(1000);  // lazy optimization
   }
 
 
   ck::set<void*> locked;
-  alaska::barrier::get_locked(locked);  // TODO: slow!
+  alaska::barrier::get_pinned_handles(locked);  // TODO: slow!
   participant_join(true, locked);
 
   (void)retries;
   (void)signals_sent;
-  // printf("%10f ", (end - start) / 1000.0 / 1000.0 / 1000.0);
-  dump_thread_states();
-  printf(" retries = %d, signals = %d\n", retries, signals_sent);
+
+
+  return success;
 }
 
 
@@ -429,11 +414,12 @@ void alaska::barrier::begin(void) {
 void alaska::barrier::end(void) {
   patchNop();
   ck::set<void*> locked;
-  alaska::barrier::get_locked(locked);  // TODO: slow!
+  alaska::barrier::get_pinned_handles(locked);  // TODO: slow!
   // Join the barrier to signal everyone we are done.
   participant_leave(true, locked);
+
   // Unlock all the locks we took.
-  pthread_mutex_unlock(&all_threads_lock);
+  alaska::thread_tracking::threads().unlock_thread_creation();
   pthread_mutex_unlock(&barrier_lock);
 }
 
@@ -443,6 +429,9 @@ void alaska::barrier::end(void) {
 void alaska_barrier(void) {
   // alaska::service::barrier();
 }
+
+
+thread_local bool invalid_state_abort = false;
 
 static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
   ucontext_t* ucontext = (ucontext_t*)ptr;
@@ -464,31 +453,44 @@ static void alaska_barrier_signal_handler(int sig, siginfo_t* info, void* ptr) {
       // we need to return back to the thread so it can hit a poll.
 
 
-      // // First, though, we need to wait for the patches to be done.
+      // First, though, we need to wait for the patches to be done.
       // while (!patches_done) {
       // }
-      //
-      // for (auto [start, end] : managed_blob_text_regions) {
-      //   __builtin___clear_cache((char*)start, (char*)end);
-      // }
-      // printf("ManagedUntracked!\n");
-      // printf("EEP %p %d!\n", return_address, sig);
-      return;
+
+      for (auto [start, end] : managed_blob_text_regions) {
+        __builtin___clear_cache((char*)start, (char*)end);
+      }
+
+      printf(
+          "ManagedUntracked: pc:0x%zx sig:%d invl:%d!\n", return_address, sig, invalid_state_abort);
+      if (sig == SIGILL) {
+        alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ABORT;
+        break;
+      }
+      if (not invalid_state_abort) {
+        invalid_state_abort = true;
+        return;
+      }
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_ABORT;
+      invalid_state_abort = false;
+      break;
 
     case StackState::ManagedTracked:
       // it's possible to be at a managed poll point *and* get interrupted
       // through SIGUSR2
-      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SAFEPOINT;
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_SAFEPOINT;
       break;
 
     case StackState::Unmanaged:
       assert(sig == SIGUSR2 && "Unmanaged code got into the barrier handler w/ the wrong signal");
-      alaska_thread_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
+      alaska::thread_tracking::my_state.join_status = ALASKA_JOIN_REASON_SIGNAL;
       break;
   }
 
+  invalid_state_abort = false;
+
   ck::set<void*> ps;
-  alaska::barrier::get_locked(ps);  // TODO: slow!
+  alaska::barrier::get_pinned_handles(ps);  // TODO: slow!
 
   // Simply join the barrier, then leave immediately. This
   // will deal with all the synchronization that needs done.
@@ -539,50 +541,15 @@ static void clear_pending_signals(void) {
 }
 
 
-void alaska::barrier::add_self_thread(void) {
-  auto self = pthread_self();
-  num_threads++;
 
 
-  setup_signal_handlers();
+// void alaska::barrier::add_self_thread(void) {
+//   setup_signal_handlers();
+//   alaska::thread_tracking::join();
+//   alaska::thread_tracking::my_state.escaped = 0;
+// }
 
-  pthread_mutex_lock(&all_threads_lock);
-  // Alocate and add a thread
-  auto* tinfo = (alaska_thread_info*)calloc(1, sizeof(alaska_thread_info));
-  tinfo->thread = self;
-  tinfo->state = &alaska_thread_state;
-
-  alaska_thread_state.escaped = 0;
-  list_add(&tinfo->list_head, &all_threads);
-
-  pthread_mutex_unlock(&all_threads_lock);
-}
-
-
-
-void alaska::barrier::remove_self_thread(void) {
-  auto self = pthread_self();
-  pthread_mutex_lock(&all_threads_lock);
-  num_threads--;
-
-  bool found = false;
-  struct alaska_thread_info* pos;
-  list_for_each_entry(pos, &all_threads, list_head) {
-    if (pos->thread == self) {
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
-    fprintf(stderr, "Failed to remove non-added thread\n");
-    abort();
-  }
-
-  list_del(&pos->list_head);
-  free(pos);
-  pthread_mutex_unlock(&all_threads_lock);
-}
+// void alaska::barrier::remove_self_thread(void) { alaska::thread_tracking::leave(); }
 
 /**
  * This function parses a stackmap emitted from LLVM and pushes all
@@ -661,7 +628,42 @@ void parse_stack_map(uint8_t* t) {
       }
     }
 
-    if (true || psi.count != 0) {
+
+    if (record.getID() == 'HFLT') {
+      printf("handle fault at 0x%lx lo:%d, loc:%d\n", addr, record.getNumLiveOuts(),
+          record.getNumLocations());
+      for (std::uint16_t i = 0; i < record.getNumLocations(); i++) {
+        auto l = record.getLocation(i);
+
+        switch (l.getKind()) {
+          case alaska::StackMapParser::LocationKind::Direct: {
+            auto regNum = l.getDwarfRegNum();
+            auto offset = l.getOffset();
+            printf(" direct: regnum = %d, offset = %d\n", regNum, offset);
+            break;
+          }
+
+          case alaska::StackMapParser::LocationKind::Indirect: {
+            auto regNum = l.getDwarfRegNum();
+            auto offset = l.getOffset();
+            printf(" indirect: regnum = %d, offset = %d\n", regNum, offset);
+            break;
+          }
+
+          case alaska::StackMapParser::LocationKind::Constant: {
+            auto constant = l.getSmallConstant();
+            printf(" constant = %d\n", constant);
+            break;
+          }
+
+          default:
+            printf(" other\n");
+            break;
+        }
+      }
+    }
+
+    if (record.getID() == 'PATC') {
       pin_map[addr] = psi;
       //       if (record.getID() == 'BLOK') {
       // #ifdef __amd64__

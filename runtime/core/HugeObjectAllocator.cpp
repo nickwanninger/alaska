@@ -10,12 +10,19 @@
  */
 
 
+#include <malloc.h>
+#include <stdlib.h>
+
 #include <alaska/Heap.hpp>
 #include <alaska/HugeObjectAllocator.hpp>
+#include <alaska/liballoc.h>
 #include <alaska/list_head.h>
 
 namespace alaska {
-  HugeObjectAllocator::HugeObjectAllocator() { INIT_LIST_HEAD(&this->allocations); }
+  HugeObjectAllocator::HugeObjectAllocator(HugeAllocationStrategy strat)
+      : strat(strat) {
+    INIT_LIST_HEAD(&this->allocations);
+  }
 
   HugeObjectAllocator::~HugeObjectAllocator() {
     HugeHeader *entry, *temp;
@@ -30,6 +37,11 @@ namespace alaska {
 
 
   void* HugeObjectAllocator::allocate(size_t size) {
+    if (strat == HugeAllocationStrategy::MALLOC_BACKED) {
+      return ::malloc(size);
+    }
+    ALASKA_ASSERT(strat == HugeAllocationStrategy::CUSTOM_MMAP_BACKED, "Invalid huge strat");
+
     ck::scoped_lock l(m_lock);
 
     size_t mapping_size = ((size + sizeof(HugeHeader)) + 4095) & ~4095;
@@ -54,6 +66,11 @@ namespace alaska {
 
 
   bool HugeObjectAllocator::free(void* ptr) {
+    if (strat == HugeAllocationStrategy::MALLOC_BACKED) {
+      ::free(ptr);
+      return true;
+    }
+    ALASKA_ASSERT(strat == HugeAllocationStrategy::CUSTOM_MMAP_BACKED, "Invalid huge strat");
     ck::scoped_lock l(m_lock);
 
     // Get the HugeHeader object from the user pointer
@@ -70,6 +87,8 @@ namespace alaska {
 
 
   size_t HugeObjectAllocator::size_of(void* ptr) {
+    if (strat == HugeAllocationStrategy::MALLOC_BACKED) return ::malloc_usable_size(ptr);
+
     ck::scoped_lock l(m_lock);
     HugeHeader* header = find_header(ptr);
     if (header != nullptr) {
@@ -80,6 +99,8 @@ namespace alaska {
 
 
   bool HugeObjectAllocator::owns(void* ptr) {
+    if (strat == HugeAllocationStrategy::MALLOC_BACKED) return true;
+
     ck::scoped_lock l(m_lock);
     // If the header is null, this allocator doesn't own it.
     return find_header(ptr) != nullptr;
@@ -97,4 +118,4 @@ namespace alaska {
     // If no matching header is found, return nullptr
     return nullptr;
   }
-}  // namespace alaska}  // namespace alaska
+}  // namespace alaska

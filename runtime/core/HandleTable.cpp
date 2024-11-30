@@ -10,6 +10,7 @@
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include "alaska/utils.h"
 #endif
 
 
@@ -20,6 +21,7 @@
 #include <ck/lock.h>
 #include <stdio.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 
 
 
@@ -29,14 +31,12 @@ namespace alaska {
   //////////////////////
   // Handle Table
   //////////////////////
-  HandleTable::HandleTable() {
+  HandleTable::HandleTable(const alaska::Configuration &config) {
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
     // don't have exceptions in this runtime we will just abort.
 
-    constexpr uintptr_t table_start =
-        (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS));
-
+    uintptr_t table_start = config.handle_table_location;
     m_capacity = HandleTable::initial_capacity;
 
     // Attempt to allocate the initial memory for the table.
@@ -79,6 +79,10 @@ namespace alaska {
         m_table, m_capacity * HandleTable::slab_size, new_cap * HandleTable::slab_size, 0, m_table);
 
     m_capacity = new_cap;
+
+    if (m_table == MAP_FAILED) {
+      perror("failed to grow handle table.\n");
+    }
     // Validate that the table was reallocated
     ALASKA_ASSERT(m_table != MAP_FAILED, "failed to reallocate handle table during growth");
   }
@@ -98,10 +102,17 @@ namespace alaska {
     // Allocate a new slab using the system allocator.
     // auto *sl = alaska::make_object<HandleSlab>(*this, idx);
     auto *sl = new HandleSlab(*this, idx);
+    if (do_mlock) sl->mlock();
     sl->set_owner(new_owner);
 
     // Add the slab to the list of slabs and return it
     m_slabs.push(sl);
+
+#ifdef __riscv
+    auto max_handle = (uint64_t)m_slabs.size() * HandleTable::slab_capacity;
+    __asm__ volatile("csrw 0xc5, %0" ::"rK"(max_handle) : "memory");
+#endif
+
     return sl;
   }
 
@@ -146,8 +157,8 @@ namespace alaska {
     ck::scoped_lock lk(this->lock);
 
     // Dump the handle table in a nice debug output
-    fprintf(stream, "Handle Table:\n");
-    fprintf(stream, " - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
+    log_info("Handle Table:\n");
+    log_info(" - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
     for (auto *slab : m_slabs) {
       slab->dump(stream);
     }
@@ -236,7 +247,6 @@ namespace alaska {
       : table(table)
       , idx(idx) {
     auto start = table.get_slab_start(idx);
-    mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
     allocator.configure(start, sizeof(alaska::Mapping), HandleTable::slab_capacity);
   }
 
@@ -260,17 +270,22 @@ namespace alaska {
     update_state();
   }
 
+
+  void HandleSlab::mlock(void) {
+    auto start = table.get_slab_start(idx);
+    ::mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
+  }
+
   void HandleSlab::update_state() {}
 
 
   void HandleSlab::dump(FILE *stream) {
-    fprintf(stream, "Slab %4zu | ", idx);
-    fprintf(stream, "st %d | ", state);
+    log_info("Slab %4zu | ", idx);
+    log_info("st %d | ", state);
 
     auto owner = this->get_owner();
-    fprintf(stream, "owner: %4d | ", owner ? owner->get_id() : -1);
-    fprintf(stream, "free %4zu | ", allocator.num_free());
-
-    fprintf(stream, "\n");
+    log_info("owner: %4d | ", owner ? owner->get_id() : -1);
+    log_info("free %4zu | ", allocator.num_free());
+    log_info("\n");
   }
 }  // namespace alaska

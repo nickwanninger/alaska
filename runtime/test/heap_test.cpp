@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <alaska.h>
+#include "alaska/Configuration.hpp"
 #include "alaska/Logger.hpp"
 #include "alaska/SizeClass.hpp"
 #include "gtest/gtest.h"
@@ -8,6 +9,8 @@
 
 #include <alaska/Runtime.hpp>
 
+
+static alaska::Configuration g_config;
 class HeapTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -16,7 +19,7 @@ class HeapTest : public ::testing::Test {
   }
   void TearDown() override {}
 
-  alaska::Heap heap;
+  alaska::Heap heap {g_config};
 };
 
 
@@ -55,19 +58,38 @@ TEST_F(HeapTest, SizedPageGet) {
 
 
 TEST_F(HeapTest, SizedPageGetPutGet) {
-  // Allocating a heap page, then putting it back should return it again.
+  // Allocating a locality page then putting it back should return it
+  // again to promote reuse. Asserting this might be restrictive on
+  // future policy, but for now it's good enough.
   auto sp = heap.get_sizedpage(16);
   ASSERT_NE(sp, nullptr);
-  heap.put_sizedpage(sp);
+  heap.put_page(sp);
   auto sp2 = heap.get_sizedpage(16);
   ASSERT_EQ(sp, sp2);
 }
 
 
+TEST_F(HeapTest, LocalityPageGet) {
+  size_t size_req = 32;
+  auto lp = heap.get_localitypage(size_req);
+  ASSERT_NE(lp, nullptr);
+  alaska::Mapping m;
+  ASSERT_NE(lp->alloc(m, 32), nullptr);
 
-// TEST_F(HeapTest, SizedPageMany) {
-//   for (int i = 0; i < alaska::num_size_classes - 1; i++) {
-//     printf("cls = %d\n", i);
-//     heap.get_sizedpage(alaska::class_to_size(i));
-//   }
-// }
+}
+
+
+
+TEST_F(HeapTest, LocalityGetPutGet) {
+  size_t size_req = 32;
+  // Allocating a locality page then putting it back should return it
+  // again to promote reuse. Asserting this might be restrictive on
+  // future policy, but for now it's good enough.
+  auto lp = heap.get_localitypage(size_req);
+  ASSERT_NE(lp, nullptr);
+  heap.put_page(lp);
+
+  auto lp2 = heap.get_localitypage(size_req);
+  ASSERT_NE(lp2, nullptr);
+  ASSERT_EQ(lp, lp2);
+}

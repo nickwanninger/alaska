@@ -4,7 +4,7 @@ set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused -Wno-unused-function -Wno
 
 # Compile the runtime with some special flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti ")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wsign-compare -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti -Wno-invalid-offsetof ")
 
 
 
@@ -55,6 +55,9 @@ set(CORE_SOURCES
   core/HeapPage.cpp
   core/SizedPage.cpp
   core/LocalityPage.cpp
+  core/Localizer.cpp
+
+  core/Utils.cpp
 
   # liballoc is a simple, small, malloc implementation that we embed
   # so alaska can temporially allocate objects w/o implementing a non-handle
@@ -69,7 +72,8 @@ set(CORE_SOURCES
 
 add_library(alaska_core_objects OBJECT ${CORE_SOURCES})
 set_property(TARGET alaska_core_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
+# target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
 
 
 
@@ -119,6 +123,12 @@ install(
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+install(FILES
+  include/alaska/sim/HTLB.hpp
+  include/alaska/sim/TLB.hpp
+  include/alaska/sim/StatisticsManager.hpp
+  DESTINATION include/alaska/sim)
+
 
 
 ##########################################################################################
@@ -131,7 +141,6 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   set(SOURCES
     rt/init.cpp
     rt/halloc.cpp
-    rt/threads.cpp
     rt/compat.c
     rt/barrier.cpp
   )
@@ -148,7 +157,8 @@ endif(ALASKA_HTLB_SIM)
   set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
   target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
 
-  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+  # target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
 if(ALASKA_HTLB_SIM)
    target_link_libraries(alaska alaska_sim)
@@ -217,6 +227,29 @@ endif(ALASKA_HTLB_SIM)
 endif(NOT ALASKA_CORE_ONLY) # ---------------------------------------------------------------------------------
 
 
+
+if(ALASKA_YUKON)
+  add_library(yukon SHARED
+    yukon/yukon.cpp
+  )
+
+  target_include_directories(yukon PUBLIC include/)
+  set_target_properties(yukon PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(yukon PROPERTIES SOVERSION ${ALASKA_VERSION})
+  target_link_libraries(yukon alaska_core_static dl pthread ${LIBUNWIND_LIBRARIES})
+  target_compile_options(yukon PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+  install(
+    TARGETS yukon
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+endif(ALASKA_YUKON)
+
+
 if (ALASKA_ENABLE_TESTING)
 
 	find_package(GTest)
@@ -257,6 +290,7 @@ if (ALASKA_ENABLE_TESTING)
     test/object_allocator_test.cpp
     test/handle_ptr_test.cpp
     test/htlb_sim_test.cpp
+    test/locality_page_test.cpp
 	)
 
 	target_link_libraries(

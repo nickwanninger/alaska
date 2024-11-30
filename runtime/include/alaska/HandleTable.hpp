@@ -18,7 +18,7 @@
 #include <ck/vec.h>
 #include <ck/lock.h>
 #include <alaska/SizedAllocator.hpp>
-
+#include <alaska/Configuration.hpp>
 
 namespace alaska {
 
@@ -58,6 +58,7 @@ namespace alaska {
     alaska::Mapping *alloc(void);             // Allocate a mapping from this slab
     void release_remote(alaska::Mapping *m);  // Return a mapping back to this slab (remote)
     void release_local(alaska::Mapping *m);   // Return a mapping back to this slab (local)
+    void mlock(void);                         // `mlock` the memory behind this slab
 
     SizedAllocator allocator;
   };
@@ -90,7 +91,7 @@ namespace alaska {
     static constexpr size_t initial_capacity = 16;
 
 
-    HandleTable(void);
+    HandleTable(const alaska::Configuration &config);
     ~HandleTable(void);
 
     // Allocate a fresh slab, resizing the table if necessary.
@@ -112,6 +113,11 @@ namespace alaska {
     // Free/release *some* mapping
     void put(alaska::Mapping *m, alaska::ThreadCache *owner = (alaska::ThreadCache *)0x1000UL);
 
+    void *get_base(void) const { return (void *)m_table; }
+
+
+    void enable_mlock() { do_mlock = true; }
+
    protected:
     friend HandleSlab;
 
@@ -126,7 +132,7 @@ namespace alaska {
 
    private:
     void grow();
-
+    bool do_mlock = false;
 
     // A lock for the handle table
     ck::mutex lock;

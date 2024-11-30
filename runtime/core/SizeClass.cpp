@@ -126,9 +126,9 @@ namespace alaska {
 
 
   int size_to_class(size_t sz) {
-    if (sz >= alaska::huge_object_thresh) {
-      return alaska::class_huge;
-    }
+    // if (sz >= alaska::huge_object_thresh) {
+    //   return alaska::class_huge;
+    // }
     size_t wsize = _mi_wsize_from_size(sz);
     if (wsize == 0) wsize = 1;
     uint8_t cls;
@@ -156,6 +156,13 @@ namespace alaska {
   size_t round_up_size(size_t sz) {
     // Simply ask for the size
     return class_to_size(size_to_class(sz));
+  }
+
+  bool should_be_huge_object(size_t size) {
+    if (size >= alaska::huge_object_thresh) {
+      return true;
+    }
+    return false;
   }
 
 }  // namespace alaska

@@ -58,17 +58,16 @@ namespace alaska::sim {
     T* get(void) const { return m_handle; }
 
 
-   private:
     T* translate(void) const {
       auto m = alaska::Mapping::from_handle_safe(m_handle);
       if (m == nullptr) return m_handle;
       if (alaska::sim::HTLB::get() != nullptr) {
-        alaska::sim::HTLB::get()->access(*m);
+        alaska::sim::HTLB::get()->access(*m, 0);
       }
-      // printf("%lu\n", m->handle_id());
       return (T*)m->get_pointer();
     }
 
+   private:
     T* m_handle = nullptr;
   };
 

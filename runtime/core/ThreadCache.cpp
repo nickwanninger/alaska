@@ -26,7 +26,8 @@ namespace alaska {
 
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
       : id(id)
-      , runtime(rt) {
+      , runtime(rt)
+      , localizer(rt.config, *this) {
     handle_slab = runtime.handle_table.new_slab(this);
   }
 
@@ -76,21 +77,35 @@ namespace alaska {
 
     // And set the owner
     heap->set_owner(this);
-    log_info("ThreadCache::halloc got new heap: %p. Avail = %lu", heap, heap->available());
 
     // Swap the heaps in the thread cache
-    if (size_classes[cls] != nullptr) runtime.heap.put_sizedpage(size_classes[cls]);
+    if (size_classes[cls] != nullptr) runtime.heap.put_page(size_classes[cls]);
     size_classes[cls] = heap;
 
     ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
-    log_info("new heaps avail = %lu", heap->available());
     return heap;
+  }
+
+
+  LocalityPage *ThreadCache::new_locality_page(size_t required_size) {
+    // Get a new heap
+    auto *lp = runtime.heap.get_localitypage(required_size, this);
+
+    // Swap the heaps in the thread cache
+    if (this->locality_page != nullptr) runtime.heap.put_page(this->locality_page);
+    this->locality_page = lp;
+
+    ALASKA_ASSERT(lp->available() > 0, "New heap must have space");
+    return lp;
   }
 
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
-    if (unlikely(size >= alaska::huge_object_thresh)) {
-      log_info("ThreadCache::halloc huge size=%zu", size);
+
+    if (unlikely(size == 0)) return NULL;
+
+    if (unlikely(alaska::should_be_huge_object(size))) {
+      log_debug("ThreadCache::halloc huge size=%zu\n", size);
       // Allocate the huge allocation.
       return this->runtime.heap.huge_allocator.allocate(size);
     }
@@ -122,7 +137,7 @@ namespace alaska {
     size_t original_size = 0;
 
     bool old_was_handle = m != nullptr;
-    bool new_data_is_huge = new_size >= alaska::huge_object_thresh;
+    bool new_data_is_huge = alaska::should_be_huge_object(new_size);
     void *new_data = NULL;
     void *return_value = handle;
 
@@ -176,9 +191,6 @@ namespace alaska {
       return_value = m->to_handle();
     }
 
-    // printf("hrealloc %p %p %8zu -> %p %p %8zu\n", handle, original_data, original_size,
-    //     return_value, new_data, new_size);
-
     return return_value;
   }
 
@@ -186,8 +198,6 @@ namespace alaska {
   void ThreadCache::hfree(void *handle) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
     if (unlikely(m == nullptr)) {
-
-      // printf("attempt to free non handle %p\n", handle);
       bool worked = this->runtime.heap.huge_allocator.free(handle);
       (void)worked;
       // ALASKA_ASSERT(worked, "huge free failed");
@@ -206,6 +216,8 @@ namespace alaska {
     if (m == nullptr) {
       return this->runtime.heap.huge_allocator.size_of(handle);
     }
+
+    if (m->is_free()) return 0;
     void *ptr = m->get_pointer();
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     if (page == nullptr) return this->runtime.heap.huge_allocator.size_of(ptr);
@@ -223,7 +235,59 @@ namespace alaska {
       m = handle_slab->alloc();
     }
 
+    // Handle 0 is disallowed on yukon hardware because it cannot be invalidated
+    // Also, 10 is cursed so we skip it too
+    auto hid = m->handle_id();
+    if (unlikely(hid == 0 || hid == 10)) {
+      return new_mapping();
+    }
+
     return m;
+  }
+
+
+  bool ThreadCache::localize(void *handle, uint64_t epoch) {
+    alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (unlikely(m == nullptr)) {
+      return false;
+    }
+
+    return localize(*m, epoch);
+  }
+
+
+  bool ThreadCache::localize(alaska::Mapping &m, uint64_t epoch) {
+    if (m.is_pinned() or m.is_free()) return false;
+
+    void *ptr = m.get_pointer();
+    auto *source_page = this->runtime.heap.pt.get_unaligned(ptr);
+
+    // Validate that we can indeed move this object from the page.
+    if (source_page == nullptr or not source_page->should_localize_from(epoch)) return false;
+
+    // Ask the page for the size of the pointer
+    auto size = source_page->size_of(ptr);
+
+    // Arbitrarially block objects larger than 512 from being moved.
+    if (size > 512) return false;
+
+    if (locality_page == nullptr or locality_page->available() < size * 2) {
+      locality_page = new_locality_page(size + 32);
+    }
+
+    // If we are moving an object within the locality page, don't.
+    if (unlikely(source_page == locality_page)) return false;
+
+    void *d = locality_page->alloc(m, size);
+    locality_page->last_localization_epoch = epoch;
+    memcpy(d, ptr, size);
+    memset(ptr, 0xFA, size);
+
+    // TODO: invalidate!
+    m.set_pointer(d);
+    source_page->release_remote(m, ptr);
+
+    return true;
   }
 
 }  // namespace alaska

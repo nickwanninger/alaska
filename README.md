@@ -69,3 +69,17 @@ local/bin/alaska -O3 test/sanity.c -o build/sanity && build/sanity
 You can also run `make sanity`, which will do it for you.
 
 ## Developing
+
+
+# Compilation for RISCV under a yukon-capable core
+
+The runtime can be compiled for our yukon core easily.
+First, you must compile the [riscv-gnu-toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) with `make linux` and install it somewhere (`/opt/riscv` is prefered).
+Then, compilation for yukon can be done using a provided script:
+```bash
+$ mkdir -p build-yukon
+$ cd build-yukon
+$ RISCV=/opt/riscv ../tools/build_yukon.sh
+```
+
+This produces `runtime/libyukon.so.2`, which can be used as a `LD_PRELOAD` library.

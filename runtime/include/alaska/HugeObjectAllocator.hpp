@@ -16,9 +16,18 @@
 #include <ck/lock.h>
 
 namespace alaska {
+
+
+  // The HugeObjectAllocator can be configured with different strategies. The main one
+  // uses a custom mmap based strategy to track large objects. The other option is one
+  // which is backed by libc's malloc, instead
+  enum class HugeAllocationStrategy {
+    CUSTOM_MMAP_BACKED,
+    MALLOC_BACKED,
+  };
   class HugeObjectAllocator final {
    public:
-    HugeObjectAllocator();
+    HugeObjectAllocator(HugeAllocationStrategy strat);
     ~HugeObjectAllocator();
 
     void* allocate(size_t size);
@@ -32,6 +41,7 @@ namespace alaska {
     bool owns(void* ptr);
 
    private:
+    HugeAllocationStrategy strat;
     ck::mutex m_lock;
     struct list_head allocations = LIST_HEAD_INIT(allocations);
 

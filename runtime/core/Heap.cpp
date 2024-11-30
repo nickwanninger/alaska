@@ -14,6 +14,8 @@
 #include <alaska/Logger.hpp>
 #include <alaska/Heap.hpp>
 #include "alaska/HeapPage.hpp"
+#include "alaska/HugeObjectAllocator.hpp"
+#include "alaska/LocalityPage.hpp"
 #include "alaska/SizeClass.hpp"
 #include "alaska/utils.h"
 #include <alaska/ThreadCache.hpp>
@@ -130,6 +132,10 @@ namespace alaska {
     // Extrac the page number (just an index into the page table structure)
     off_t page_number = page_off >> alaska::page_shift_factor;
 
+    if (unlikely((uint64_t)page_number > (uint64_t)(1LU << (bits_per_pt_level * 2)))) {
+      return NULL;
+    }
+
     // Gross math here. Can't avoid it.
     // Effectively, we are using the bits in the page number to index into two-level page table
     // structure in the exact same way that we would on a real x86_64 system's page table.
@@ -155,9 +161,10 @@ namespace alaska {
 
 
   ////////////////////////////////////
-  Heap::Heap(void)
+  Heap::Heap(alaska::Configuration &config)
       : pm()
-      , pt(pm.get_start()) {
+      , pt(pm.get_start())
+      , huge_allocator(config.huge_strategy) {
     log_debug("Heap: Initialized heap");
   }
 
@@ -167,38 +174,33 @@ namespace alaska {
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
-
-    if (mag.size() != 0) {
-      auto p = mag.find([](SizedPage *p) {
-        if (p->available() > 0 and p->get_owner() == nullptr) return true;
-        return false;
-      });
-
-      if (p != NULL) {
-        p->set_owner(owner);
-        return p;
-      }
-    }
-
-
-    // Allocate backing memory
-    void *memory = this->pm.alloc_page();
-    log_trace("Heap::get(%zu) :: allocating new SizedPage to manage %p", size, memory);
-
-    // Allocate a new SizedPage for that memory
-    auto *p = new SizedPage(memory);
-    p->set_size_class(cls);
-
-
-    // Map it in the page table for fast lookup
-    pt.set(memory, p);
-    mag.add(p);
-    p->set_owner(owner);
+    // Look for a sized page in the magazine with at least one allocation space available.
+    // TODO: it would be smart to adjust this requirement dynamically based on the allocation
+    // request.
+    auto *p = this->find_or_alloc_page<SizedPage>(mag, owner, 1, [&](auto p) {
+      p->set_size_class(cls);
+    });
     return p;
   }
 
 
-  void Heap::put_sizedpage(SizedPage *page) {
+  LocalityPage *Heap::get_localitypage(size_t size_requirement, ThreadCache *owner) {
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+    auto *p = this->find_or_alloc_page<LocalityPage>(
+        locality_pages, owner, size_requirement, [](auto *p) {
+        });
+    return p;
+  }
+
+
+  void Heap::put_page(SizedPage *page) {
+    // Return a SizedPage back to the global (unowned) heap.
+    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
+    page->set_owner(nullptr);
+  }
+
+
+  void Heap::put_page(LocalityPage *page) {
     // Return a SizedPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
@@ -224,7 +226,8 @@ namespace alaska {
         if (owner != NULL) {
           id = owner->get_id();
         }
-        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(), (uintptr_t)sp->end(), id, sp->available());
+        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(),
+            (uintptr_t)sp->end(), id, sp->available());
         page_ind++;
         if (page_ind > mag.size()) return false;
         return true;
@@ -235,12 +238,97 @@ namespace alaska {
 
 #undef O
 
+
+  void Heap::dump_html(FILE *stream) {
+    auto dump_page = [&](auto page) {
+      if (page == NULL) return true;
+      fprintf(stream, "<tr>");
+      fprintf(stream, "<td>%p</td>", page);
+      fprintf(stream, "<td>");
+      page->dump_html(stream);
+      fprintf(stream, "</tr>\n");
+      return true;
+    };
+
+    locality_pages.foreach (dump_page);
+    // for (auto &mag : size_classes)
+    //   mag.foreach (dump_page);
+  }
+
+
+  void Heap::dump_json(FILE *stream) {
+    fprintf(stream, "{\"pages\": [");
+    for (off_t i = 0; true; i++) {
+      auto page = pt.get(pm.get_page(i));
+      if (page == NULL) break;
+      if (i != 0) fprintf(stream, ",");
+      page->dump_json(stream);
+    }
+    fprintf(stream, "]}");
+  }
+
   void Heap::collect() {
     ck::scoped_lock lk(this->lock);
+
+
     // TODO:
   }
 
 
+  long Heap::compact_sizedpages(void) {
+    size_t bytes_saved = 0;
+    long c = 0;
+    for (auto &mag : size_classes) {
+      mag.foreach ([&](SizedPage *sp) {
+        long moved = sp->compact();
+        c += moved;
+        bytes_saved += moved * sp->get_object_size();
+        return true;
+      });
+    }
+    return c;
+  }
+
+  long Heap::compact_locality_pages(void) {
+    long c = 0;
+    printf("Utilizations:\n");
+    long total_wasted = 0;
+    long total_time = 0;
+    locality_pages.foreach ([&](LocalityPage *lp) {
+      int compaction_iterations = 0;
+      auto start = alaska_timestamp();
+      if (lp->utilization() < 0.8) {
+        while (lp->compact() != 0) {
+          compaction_iterations++;
+        }
+      }
+      auto end = alaska_timestamp();
+      total_time += (end - start);
+
+      float u = lp->utilization();
+      size_t wasted = lp->heap_size() * (1 - u);
+      total_wasted += wasted;
+
+      printf("%p - %8f   waste: %5lukb   %4d iters in %9luns\n", lp, u, wasted / 1024,
+          compaction_iterations, (end - start));
+      return true;
+    });
+    printf("Total wastage: %lukb\n", total_wasted / 1024);
+    printf("Tool %fms\n", total_time / 1000.0 / 1000.0);
+    return c;
+  }
+
+
+  long Heap::jumble(void) {
+    long c = 0;
+    for (auto &mag : size_classes) {
+      mag.foreach ([&](SizedPage *sp) {
+        c += sp->jumble();
+        return true;
+      });
+    }
+    return c;
+  }
 
 
   void *mmap_alloc(size_t bytes) {
@@ -258,5 +346,7 @@ namespace alaska {
     bytes = (bytes + 4095) & ~4095;
     munmap(ptr, bytes);
   }
+
+
 
 }  // namespace alaska
