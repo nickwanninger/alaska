@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 20; i++) {
     int *p = malloc(sizeof(*p));
     *p = 4;
-    printf("handle = 0x%zx\n", (uintptr_t)p);
+    printf("handle = 0x%zx, esc = %p\n", (uintptr_t)p, p);
     inc(p);
     // free(p);
   }

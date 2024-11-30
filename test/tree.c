@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <alaska.h>
+#include <stdbool.h>
 
 typedef struct node {
   struct node *left, *right;
@@ -34,16 +37,33 @@ int tree_count_nodes(node_t *n) {
   return 1 + tree_count_nodes(n->left) + tree_count_nodes(n->right);
 }
 
+bool localize_structure(uint64_t ptr);
+
 int main() {
+  long start, end;
+  printf("localized,walk_time\n");
+  for (int trial = 0; trial < 400; trial++) {
+    node_t *n = make_tree(18);
+
+    bool localized = false;
 
 
-  while (1) {
-    node_t *n = make_tree(23);
+    if (trial & 1) {
+      start = alaska_timestamp();
+      localized = localize_structure((uint64_t)n);
+      end = alaska_timestamp();
+    }
+    // uint64_t localize_time = end - start;
+
     int c = 0;
-    for (int i = 0; i < 512; i++) {
+    start = alaska_timestamp();
+    for (int i = 0; i < 200; i++) {
       c += tree_count_nodes(n);
     }
-    printf("Node count: %d\n", c);
+    end = alaska_timestamp();
+    uint64_t walk_time = end - start;
+    printf("%d,%zu\n", localized, walk_time);
+    // printf("Node count: %d\n", c);
     free_tree(n);
   }
 
