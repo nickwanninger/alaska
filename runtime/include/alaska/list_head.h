@@ -5,19 +5,19 @@
 
 #ifdef __cplusplus
 template <class T>
-struct __remove_reference {
+struct remove_reference_internal {
   typedef T type;
 };
 template <class T>
-struct __remove_reference<T &> {
+struct remove_reference_internal<T &> {
   typedef T type;
 };
 template <class T>
-struct __remove_reference<T &&> {
+struct remove_reference_internal<T &&> {
   typedef T type;
 };
 
-#define __decltype(t) typename __remove_reference<decltype(t)>::type
+#define __decltype(t) typename remove_reference_internal<decltype(t)>::type
 #endif
 
 #ifndef __decltype

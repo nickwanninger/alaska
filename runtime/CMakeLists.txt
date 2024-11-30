@@ -1,222 +1,306 @@
 # add_link_options("-fuse-ld=lld")
 
-set(WARNINGS "-Wall -Wextra -Wno-ctad-maybe-unsupported -Wno-cast-qual -Wno-reorder -Wno-format -Wno-unused-function -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable -fno-omit-frame-pointer -Wno-sign-compare -Wno-implicit-fallthrough")
+set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused -Wno-unused-function -Wno-attributes ")
 
 # Compile the runtime with some special flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -gdwarf-4 -fdeclspec ${WARNINGS} ")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wno-deprecated -fno-exceptions -fno-rtti ") 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} ")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wsign-compare -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti -Wno-invalid-offsetof ")
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nodefaultlibs -nostdlib++ -nostdlib ") 
-set(CMAKE_C_COMPILER_ID "Clang")
-set(CMAKE_CXX_COMPILER_ID "Clang")
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-# Do NOT link libc++ implicitly
+
+set(CMAKE_C_FLAGS_DEBUG "-O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+
+
+
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+
+
+# Do NOT link libc++ implicitly. This just makes it easier to port to new hardware or embedded environments
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
+add_definitions(-D_REENTRANT)
 
-add_definitions(-D_GNU_SOURCE -D_REENTRANT)
+
+
 include_directories(
 	include/
 )
 
-find_library(LIBUNWIND_LIBRARIES NAMES unwind )
-message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
-
-
-
-# Alaska and it's services are written in no-std c++. This is to
-# enable some of the nice compile-time features that c++ has,
-# without the runtime overheads of things like RTTI or exceptions.
-# As such, the entire runtime is written in a "C with classes"
-# style, and attempts to avoid things like virtual functions
-# wherever possible.
-
-set(SRC_FILES
-	# The core of the runtime
-	core/runtime.cpp
-	core/table.cpp
-  # core/translate.cpp
-	core/halloc.cpp
-	core/barrier.cpp
-	core/glue.cpp # Stuff to support a nostdlibc++ environment
-
-	# libc functions that we reimplement to avoid
-	# glibc doing terrible things with AVX512
-	core/compat.c
-)
-
-
-
-if (ALASKA_SERVICE_ANCHORAGE)
-	# Anchorage's allocator relies on a modified version of
-	# Heap-Layers, which we have vendored here:
-	set(SRC_FILES ${SRC_FILES}
-		services/anchorage/Anchorage.cpp
-		services/anchorage/Block.cpp
-    services/anchorage/SubHeap.cpp
-		services/anchorage/Swapper.cpp
-	)
-endif(ALASKA_SERVICE_ANCHORAGE)
-
-if (ALASKA_SERVICE_NONE)
-	# If the configuration calls for "no service", then we
-	# need to compile simple stubs so the program will work.
-	# These stubs will just use the system allocator to make
-	# everything work fine.
-	set(SRC_FILES ${SRC_FILES} services/none/none.cpp)
-endif(ALASKA_SERVICE_NONE)
-
-
-if (ALASKA_SERVICE_CORDOVA)
-	set(SRC_FILES ${SRC_FILES} services/cordova/service.cpp)
-endif(ALASKA_SERVICE_CORDOVA)
-
-
-if (ALASKA_SERVICE_JEMALLOC)
-	set(SRC_FILES ${SRC_FILES}
-		services/jemalloc/service.cpp
-		services/jemalloc/src/jemalloc.c
-		services/jemalloc/src/arena.c
-		services/jemalloc/src/background_thread.c
-		services/jemalloc/src/base.c
-		services/jemalloc/src/bin.c
-		services/jemalloc/src/bin_info.c
-		services/jemalloc/src/bitmap.c
-		services/jemalloc/src/buf_writer.c
-		services/jemalloc/src/cache_bin.c
-		services/jemalloc/src/ckh.c
-		services/jemalloc/src/counter.c
-		services/jemalloc/src/ctl.c
-		services/jemalloc/src/decay.c
-		services/jemalloc/src/div.c
-		services/jemalloc/src/ecache.c
-		services/jemalloc/src/edata.c
-		services/jemalloc/src/edata_cache.c
-		services/jemalloc/src/ehooks.c
-		services/jemalloc/src/emap.c
-		services/jemalloc/src/eset.c
-		services/jemalloc/src/exp_grow.c
-		services/jemalloc/src/extent.c
-		services/jemalloc/src/extent_dss.c
-		services/jemalloc/src/extent_mmap.c
-		services/jemalloc/src/fxp.c
-		services/jemalloc/src/san.c
-		services/jemalloc/src/san_bump.c
-		services/jemalloc/src/hook.c
-		services/jemalloc/src/hpa.c
-		services/jemalloc/src/hpa_hooks.c
-		services/jemalloc/src/hpdata.c
-		services/jemalloc/src/inspect.c
-		services/jemalloc/src/large.c
-		services/jemalloc/src/log.c
-		services/jemalloc/src/malloc_io.c
-		services/jemalloc/src/mutex.c
-		services/jemalloc/src/nstime.c
-		services/jemalloc/src/pa.c
-		services/jemalloc/src/pa_extra.c
-		services/jemalloc/src/pai.c
-		services/jemalloc/src/pac.c
-		services/jemalloc/src/pages.c
-		services/jemalloc/src/peak_event.c
-		services/jemalloc/src/prof.c
-		services/jemalloc/src/prof_data.c
-		services/jemalloc/src/prof_log.c
-		services/jemalloc/src/prof_recent.c
-		services/jemalloc/src/prof_stats.c
-		services/jemalloc/src/prof_sys.c
-		services/jemalloc/src/psset.c
-		services/jemalloc/src/rtree.c
-		services/jemalloc/src/safety_check.c
-		services/jemalloc/src/sc.c
-		services/jemalloc/src/sec.c
-		services/jemalloc/src/stats.c
-		services/jemalloc/src/sz.c
-		services/jemalloc/src/tcache.c
-		services/jemalloc/src/test_hooks.c
-		services/jemalloc/src/thread_event.c
-		services/jemalloc/src/ticker.c
-		services/jemalloc/src/tsd.c
-		services/jemalloc/src/witness.c
-)
-endif(ALASKA_SERVICE_JEMALLOC)
-
-add_library(alaska SHARED ${SRC_FILES})
-# add_library(alaska STATIC ${SRC_FILES})
-target_include_directories(alaska PUBLIC include/)
-set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
-
-target_link_libraries(alaska dl pthread ${LIBUNWIND_LIBRARIES})
-
-
-function(add_bitcode name)
-	cmake_parse_arguments(
-		SRC        # prefix of output variables
-		""         # Boolean arguments
-		""         # Single value arguments
-		"SOURCES"  # multi value arguments
-		${ARGN}    # arguments of the function to parse, here we take the all original ones
-	)
-
-	add_library(${name}_native STATIC ${SRC_SOURCES})
-	target_include_directories(${name}_native PUBLIC include/)
-	set_target_properties(${name}_native
-		PROPERTIES LINKER_LANGUAGE C
-		PUBLIC_HEADER "${HEADER_FILES}"
-		PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
-
-	llvmir_attach_bc_target(
-		TARGET  ${name}_bitcodes
-		DEPENDS ${name}_native)
-	llvmir_attach_link_target(
-		TARGET  ${name}
-		DEPENDS ${name}_bitcodes
-    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
-
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-	set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
-endfunction(add_bitcode)
-
-
-
-set(SRC_FILES extra/lifetime.c)
-add_library(lifetimemalloc SHARED ${SRC_FILES})
-target_link_libraries(lifetimemalloc dl)
-
-add_bitcode(alaska_translate SOURCES core/translate.cpp)
-add_bitcode(alaska_compat SOURCES core/compat.c)
-
-
-
-add_bitcode(alaska_stub SOURCES
-	stub/net.c
-	stub/dtoa.c
-	stub/obstack.c
-	stub/stub.c
-	stub/memcpy.c
-)
-
-
-target_link_libraries(alaska alaska_translate_native)
-
-
-add_library(rsstracker SHARED extra/rsstracker.c)
-target_link_libraries(rsstracker dl pthread)
-install(TARGETS rsstracker)
-
-
-add_executable(htlb extra/htlb.c)
-target_link_libraries(htlb dl pthread)
-install(TARGETS htlb)
-
 install(FILES include/alaska.h DESTINATION include)
-# install(FILES include/alaska/config.h DESTINATION include/alaska)
-# install(FILES include/alaska/autoconf.h DESTINATION include/alaska)
+
+
+# The alaska library is broken up into two parts: the core, and the runtime.
+# The core provides the main structures and functions to manage the alaska state.
+# The runtime provides a binding that applications link against.
+
+
+
+##########################################################################################
+# This defines the core
+
+set(CORE_SOURCES
+	core/HandleTable.cpp
+	core/Runtime.cpp
+	core/Logger.cpp
+	core/Heap.cpp
+  core/ThreadCache.cpp
+	core/SizeClass.cpp
+  core/HugeObjectAllocator.cpp
+
+  core/HeapPage.cpp
+  core/SizedPage.cpp
+  core/LocalityPage.cpp
+  core/Localizer.cpp
+
+  core/Utils.cpp
+
+  # liballoc is a simple, small, malloc implementation that we embed
+  # so alaska can temporially allocate objects w/o implementing a non-handle
+  # allocator as well
+  core/liballoc.c
+
+	# C++ glue stuff, since we don't link against libc++ in the core library.
+	core/glue.cpp
+)
+
+
+
+add_library(alaska_core_objects OBJECT ${CORE_SOURCES})
+set_property(TARGET alaska_core_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
+# target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+
+
+
+add_library(alaska_core SHARED $<TARGET_OBJECTS:alaska_core_objects>)
+# add_library(alaska_core SHARED ${CORE_SOURCES})
+
+
+set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
+
+target_link_libraries(alaska_core dl pthread)
+
+
+
 
 install(
-  TARGETS alaska
+  TARGETS alaska_core
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+
+# A static copy of the above library.
+add_library(alaska_core_static STATIC $<TARGET_OBJECTS:alaska_core_objects>)
+set_target_properties(alaska_core_static PROPERTIES OUTPUT_NAME "alaska_core")
+install(
+  TARGETS alaska_core_static
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+
+
+add_library(alaska_sim SHARED
+  sim/HTLB.cpp
+  sim/TLB.cpp
+  sim/StatisticsManager.cpp
+)
+install(
+  TARGETS alaska_sim
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+install(FILES
+  include/alaska/sim/HTLB.hpp
+  include/alaska/sim/TLB.hpp
+  include/alaska/sim/StatisticsManager.hpp
+  DESTINATION include/alaska/sim)
+
+
+
+##########################################################################################
+# This defines the runtime that compiled code is linked against
+if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------------------------------------
+
+  find_library(LIBUNWIND_LIBRARIES NAMES unwind )
+  message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
+
+  set(SOURCES
+    rt/init.cpp
+    rt/halloc.cpp
+    rt/compat.c
+    rt/barrier.cpp
+  )
+
+
+if(ALASKA_HTLB_SIM)
+  list(APPEND SOURCES rt/sim.cpp)
+endif(ALASKA_HTLB_SIM)
+
+  add_library(alaska SHARED ${SOURCES})
+
+  target_include_directories(alaska PUBLIC include/)
+  set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
+  target_link_libraries(alaska alaska_core dl pthread ${LIBUNWIND_LIBRARIES})
+
+  # target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
+
+if(ALASKA_HTLB_SIM)
+   target_link_libraries(alaska alaska_sim)
+endif(ALASKA_HTLB_SIM)
+
+  install(
+    TARGETS alaska
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+
+  function(add_bitcode name)
+    cmake_parse_arguments(
+      SRC        # prefix of output variables
+      ""         # Boolean arguments
+      ""         # Single value arguments
+      "SOURCES"  # multi value arguments
+      ${ARGN}    # arguments of the function to parse, here we take the all original ones
+    )
+
+    add_library(${name}_native STATIC ${SRC_SOURCES})
+
+    target_compile_options(${name}_native PRIVATE -O3)
+    target_include_directories(${name}_native PUBLIC include/)
+    set_target_properties(${name}_native
+      PROPERTIES LINKER_LANGUAGE C
+      PUBLIC_HEADER "${HEADER_FILES}"
+      PRIVATE_HEADER "${PRIVATE_HEADER_FILES}")
+    if(ALASKA_ENABLE_COMPILER)
+      llvmir_attach_bc_target(
+          TARGET  ${name}_bitcodes
+          DEPENDS ${name}_native)
+      llvmir_attach_link_target(
+          TARGET  ${name}
+          DEPENDS ${name}_bitcodes
+          OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${name}.bc DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+      set_property(TARGET ${name} PROPERTY EXCLUDE_FROM_ALL OFF)
+    endif(ALASKA_ENABLE_COMPILER)
+  endfunction(add_bitcode)
+
+
+
+  set(SRC_FILES extra/lifetime.c)
+  add_library(lifetimemalloc SHARED ${SRC_FILES})
+  target_link_libraries(lifetimemalloc dl)
+
+  add_bitcode(alaska_translate SOURCES core/translate.cpp)
+  add_bitcode(alaska_compat SOURCES rt/compat.c)
+  add_bitcode(alaska_stub SOURCES
+      stub/net.c
+      stub/dtoa.c
+      stub/obstack.c
+      stub/stub.c
+      stub/memcpy.c
+  )
+
+
+  target_link_libraries(alaska alaska_translate_native)
+
+endif(NOT ALASKA_CORE_ONLY) # ---------------------------------------------------------------------------------
+
+
+
+if(ALASKA_YUKON)
+  add_library(yukon SHARED
+    yukon/yukon.cpp
+  )
+
+  target_include_directories(yukon PUBLIC include/)
+  set_target_properties(yukon PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(yukon PROPERTIES SOVERSION ${ALASKA_VERSION})
+  target_link_libraries(yukon alaska_core_static dl pthread ${LIBUNWIND_LIBRARIES})
+  target_compile_options(yukon PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
+
+  install(
+    TARGETS yukon
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+
+endif(ALASKA_YUKON)
+
+
+if (ALASKA_ENABLE_TESTING)
+
+	find_package(GTest)
+
+	IF (${GTest_FOUND})
+   MESSAGE(STATUS "Found Google Test.")
+	ELSE (${GTest_FOUND})
+		MESSAGE(STATUS "Could not locate Google Test - Installing with FetchContent.")
+		include(FetchContent)
+		FetchContent_Declare(
+		googletest
+		  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+		  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+		)
+		# For Windows: Prevent overriding the parent project's compiler/linker settings
+		set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+		set(INSTALL_GTEST OFF)
+
+		FetchContent_MakeAvailable(googletest)
+	ENDIF (${GTest_FOUND})
+
+
+
+  enable_testing()
+  include(GoogleTest)
+
+
+	add_executable(
+		alaska_test
+		test/runtime_test.cpp
+		test/pagemanager_test.cpp
+		test/heap_test.cpp
+		test/sizeclass_test.cpp
+		test/magazine_test.cpp
+		test/threadcache_test.cpp
+		test/hugeobject_test.cpp
+    test/sizedalloc_test.cpp
+    test/object_allocator_test.cpp
+    test/handle_ptr_test.cpp
+    test/htlb_sim_test.cpp
+    test/locality_page_test.cpp
+	)
+
+	target_link_libraries(
+		alaska_test
+		GTest::gtest_main
+    GTest::gmock
+    alaska_sim
+		alaska_core_static dl pthread
+	)
+
+	gtest_discover_tests(alaska_test)
+
+endif(ALASKA_ENABLE_TESTING)

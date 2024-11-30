@@ -5,6 +5,7 @@
 *.o
 /.config
 /build
+/build-*
 # nix
 /result
 /.clangd

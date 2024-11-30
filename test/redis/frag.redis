@@ -1,0 +1,4 @@
+config set maxmemory 100mb
+config set maxmemory-policy allkeys-lru
+debug populate 700000 asdf 240
+debug populate 170000 asdf 492

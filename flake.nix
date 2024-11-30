@@ -2,7 +2,7 @@
   description = "The Alaska Handle-Based Memory Management System";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-23.05";
+    nixpkgs.url = "nixpkgs/nixos-24.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -20,7 +20,12 @@
             llvmPackages_16.libunwind
             llvmPackages_16.openmp
 
-            gllvm
+            (gllvm.overrideAttrs {
+              doCheck = false;
+            })
+
+            valgrind
+            valgrind.dev
 
             coreutils # For our bash scripts
             python3 # For running bin/alaska-transform
@@ -32,11 +37,14 @@
           buildInputs = with pkgs; runInputs ++ [
             cmake
 
+
+            gtest
             makeWrapper
 
             python3Packages.pip
             gdb ps which git
             zlib
+            wget
 
             bashInteractive
           ];
@@ -44,9 +52,13 @@
         in
         with pkgs; {
           devShell = mkShell {
-            buildInputs = buildInputs;
+            inherit buildInputs;
 
-            shellHook = '' 
+
+            LOCALE_ARCHIVE = "${glibcLocales}/lib/locale/locale-archive";
+            hardeningDisable = ["all"];
+
+            shellHook = ''
               source $PWD/enable
             '';
           };
@@ -56,12 +68,14 @@
             nativeBuildInputs = [ cmake ];
 
             src = pkgs.nix-gitignore.gitignoreSource [] ./.;
-            preConfigure = ''
-              make defconfig
-            '';
+
+            cmakeFlags = [
+              "-DCMAKE_C_COMPILER=clang"
+              "-DCMAKE_CXX_COMPILER=clang++"
+            ];
 
 
-            buildInputs = buildInputs;
+            inherit buildInputs;
 
             postFixup = ''
               for b in $out/bin/*; do

@@ -25,7 +25,7 @@ parser.add_argument('--disable-inlining', action='store_true')
 
 args = parser.parse_args()
 
-print(args)
+# print(args)
 
 if args.output is None:
   args.output = args.input
@@ -93,5 +93,3 @@ if not args.baseline:
 run_passes(passes)
 # exec(f'opt {bitcode} -o {bitcode} --mem2reg -lcssa -gvn --instnamer -sink -simplifycfg -dce')
 exec(f'llvm-dis {args.output}')
-
-

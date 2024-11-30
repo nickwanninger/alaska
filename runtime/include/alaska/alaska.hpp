@@ -14,8 +14,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include <alaska/utils.h>
 #include <alaska/list_head.h>
+#include <alaska/liballoc.h>
+#include <alaska/config.h>
+#include <alaska/Logger.hpp>
+
+#include <ck/utility.h>
+
+
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+static void show_string(const char *msg) { write(1, msg, strlen(msg)); }
 
 
 #define HANDLE_ADDRSPACE __attribute__((address_space(1)))
@@ -39,6 +52,9 @@ namespace alaska {
   extern long translation_hits;
   extern long translation_misses;
 
+  using handle_id_t = uint64_t;
+
+
   class Mapping {
    private:
     // Represent the fact that a handle is just a pointer w/ "important bit patterns"
@@ -54,23 +70,27 @@ namespace alaska {
     };
 
    public:
-    // Return the pointer. If it is free, return NULL
-    ALASKA_INLINE void *get_pointer(void) {
-#ifdef ALASKA_SWAP_SUPPORT
-      // If swapping is enabled, the top bit will be set, so we need to check that
-      if (unlikely(alt.swap)) {
-        // Ask the runtime to "swap" the object back in. We blindly assume that
-        // this will succeed for performance reasons.
-        return alaska_ensure_present(this);
-      }
-#endif
+    ALASKA_INLINE void *get_pointer(void) const {
+      return (void*)(uint64_t)alt.misc;
+    }
+
+    ALASKA_INLINE void *get_pointer_fast(void) const {
       return ptr;
+    }
+
+    inline void invalidate(void) {
+#ifdef __riscv
+      // Fence *before* the handle invalidation.
+      __asm__ volatile("fence" ::: "memory");
+      __asm__ volatile("csrw 0xc4, %0" ::"rK"((uint64_t)handle_id()) : "memory");
+#endif
     }
 
     void set_pointer(void *ptr) {
       reset();
       this->ptr = ptr;
       alt.invl = 0;
+      invalidate();
     }
 
 
@@ -78,7 +98,7 @@ namespace alaska {
     // if this isn't a free handle
     alaska::Mapping *get_next(void) {
       if (is_free()) return NULL;
-      return (alaska::Mapping *)alt.misc;
+      return (alaska::Mapping *)(uint64_t)alt.misc;
     }
 
     void set_next(alaska::Mapping *next) {
@@ -100,6 +120,7 @@ namespace alaska {
       ptr = NULL;
       alt.invl = 0;
       alt.swap = 0;
+      invalidate();
     }
 
 
@@ -108,6 +129,11 @@ namespace alaska {
     ALASKA_INLINE uint64_t encode(void) const {
       auto out = (uint64_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS);
       return out;
+    }
+
+    ALASKA_INLINE handle_id_t handle_id(void) const {
+      uint64_t out = ((uint64_t)encode() << ALASKA_SIZE_BITS);
+      return (out & ~(1UL << 63)) >> ALASKA_SIZE_BITS;
     }
 
     // Encode a mapping into a handle that can be later translated by
@@ -120,11 +146,8 @@ namespace alaska {
       return (void *)out;
     }
 
-    uint32_t to_compact(void) { return (uint32_t)((uint64_t)this >> ALASKA_SQUEEZE_BITS); }
-
-
-    static alaska::Mapping *from_compact(uint32_t c) {
-      return (alaska::Mapping *)((uint64_t)c << ALASKA_SQUEEZE_BITS);
+    static void *translate(void *handle) {
+      return alaska::Mapping::from_handle(handle)->ptr;
     }
 
     // Extract an encoded mapping out of the bits of a handle. WARNING: this function does not
@@ -153,7 +176,58 @@ namespace alaska {
 
   // runtime.cpp
   extern void record_translation_info(bool hit);
+
+
+
+
+  // template <typename T, typename... Args>
+  // T *make_object(Args &&...args) {
+  //   // Allocate raw memory for the object
+  //   void *ptr = alaska_internal_malloc(sizeof(T));
+  //   // Use placement new to construct the object in the allocated memory
+  //   new (ptr) T(args...);
+  //   return (T *)ptr;
+  // }
+
+  // template <typename T>
+  // void delete_object(T *ptr) {
+  //   if (ptr) {
+  //     // Call the destructor explicitly
+  //     ptr->~T();
+  //     // Free the raw memory
+  //     alaska_internal_free(ptr);
+  //   }
+  // }
+
+
+  // Construct an array of length `length` with default constructors
+  template <typename T>
+  T *make_object_array(size_t length) {
+    // Allocate raw memory for the object
+    auto ptr = (T *)alaska_internal_calloc(length, sizeof(T));
+
+    for (size_t i = 0; i < length; i++) {
+      // Use placement new to construct the object in the allocated memory
+      ::new (ptr + i) T();
+    }
+    return ptr;
+  }
+  // Construct an array of length `length` with default constructors
+  template <typename T>
+  void delete_object_array(T *array, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+      // call dtor
+      array[i].~T();
+    }
+    alaska_internal_free((void *)array);
+  }
+
+
+
+  class InternalHeapAllocated {
+   public:
+    void *operator new(size_t size) { return alaska_internal_malloc(size); }
+    void operator delete(void *ptr) { alaska_internal_free(ptr); }
+  };
+
 }  // namespace alaska
-
-
-// In barrier.c
