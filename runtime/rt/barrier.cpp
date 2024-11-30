@@ -541,6 +541,8 @@ static void clear_pending_signals(void) {
 }
 
 
+
+
 // void alaska::barrier::add_self_thread(void) {
 //   setup_signal_handlers();
 //   alaska::thread_tracking::join();
@@ -626,7 +628,42 @@ void parse_stack_map(uint8_t* t) {
       }
     }
 
-    if (true || psi.count != 0) {
+
+    if (record.getID() == 'HFLT') {
+      printf("handle fault at 0x%lx lo:%d, loc:%d\n", addr, record.getNumLiveOuts(),
+          record.getNumLocations());
+      for (std::uint16_t i = 0; i < record.getNumLocations(); i++) {
+        auto l = record.getLocation(i);
+
+        switch (l.getKind()) {
+          case alaska::StackMapParser::LocationKind::Direct: {
+            auto regNum = l.getDwarfRegNum();
+            auto offset = l.getOffset();
+            printf(" direct: regnum = %d, offset = %d\n", regNum, offset);
+            break;
+          }
+
+          case alaska::StackMapParser::LocationKind::Indirect: {
+            auto regNum = l.getDwarfRegNum();
+            auto offset = l.getOffset();
+            printf(" indirect: regnum = %d, offset = %d\n", regNum, offset);
+            break;
+          }
+
+          case alaska::StackMapParser::LocationKind::Constant: {
+            auto constant = l.getSmallConstant();
+            printf(" constant = %d\n", constant);
+            break;
+          }
+
+          default:
+            printf(" other\n");
+            break;
+        }
+      }
+    }
+
+    if (record.getID() == 'PATC') {
       pin_map[addr] = psi;
       //       if (record.getID() == 'BLOK') {
       // #ifdef __amd64__

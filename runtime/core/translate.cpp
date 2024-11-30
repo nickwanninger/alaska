@@ -22,6 +22,7 @@
 #include <alaska/config.h>
 #include <alaska/utils.h>
 #include <alaska/Logger.hpp>
+#include "alaska/Runtime.hpp"
 #include <dlfcn.h>
 
 /**
@@ -65,6 +66,13 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 
 
+extern "C" void do_handle_fault(void) { return; }
+
+
+// This function is a marker, and just gets removed
+// after the compiler does some magic to merge them.
+__attribute__((noinline)) extern "C" void alaska_do_handle_fault_check(
+    void *ptr, void *handle, void *retry);
 
 void *alaska_translate(void *ptr) {
 #ifdef ALASKA_HTLB_SIM
@@ -72,6 +80,7 @@ void *alaska_translate(void *ptr) {
 #endif
 
   int64_t bits = (int64_t)ptr;
+  int64_t mapped_bits;
   if (unlikely(bits >= 0 || bits == -1)) {
     return ptr;
   }
@@ -81,17 +90,29 @@ void *alaska_translate(void *ptr) {
   auto m = alaska::Mapping::from_handle(ptr);
 
 
+retry_translation:
+
   // Grab the pointer
   void *mapped = m->get_pointer_fast();
 
+  // alaska_do_handle_fault_check(mapped, ptr, &&retry_translation);
+  // mapped_bits = (int64_t)mapped;
+  // if (unlikely(mapped_bits < 0)) {
+  //   // asm volatile(
+  //   //     "mov %0, %%rax\n"     // Move the label address into the RAX register
+  //   //     "mov %%rax, 0(%0)\n"  // Move the label address into the RAX register
+  //   //     :
+  //   //     : "r"(&&retry_translation), "r"(mapped)  // Input operand
+  //   //     : "%rax"                                 // Clobbers RAX
+  //   // );
+  //   alaska::do_handle_fault(bits);
+  //   goto retry_translation;
+  // }
 
-  uint64_t mapped_bits = (int64_t)mapped;
-  if (unlikely(mapped_bits < 0)) {
-    abort();
-  }
   // load from the address for some reason
-  // uint8_t _ = *(volatile uint8_t *)mapped;
-  // if (unlikely(mapped == NULL)) abort();
+  uint8_t v;
+  v = *(volatile uint8_t *)mapped;
+
   // Apply the offset from the pointer
   void *result = APPLY_OFFSET(mapped, bits);
   return result;

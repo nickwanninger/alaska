@@ -40,6 +40,13 @@ class PinTrackingPass : public llvm::PassInfoMixin<PinTrackingPass> {
 };
 
 
+// This is implemented in PinTracking.cpp, as it uses many of the same helper functions.
+class HandleFaultPass : public llvm::PassInfoMixin<HandleFaultPass> {
+ public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
+};
+
+
 /**
  * TranslationPrinterPass - A pass which extracts translation information of each
  * function and prints them to stdout in a .dot format.

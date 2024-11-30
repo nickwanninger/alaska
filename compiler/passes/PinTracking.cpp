@@ -122,6 +122,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
           }
           if (auto func = call->getCalledFunction(); func != nullptr) {
             if (func->getName().startswith("alaska.")) continue;
+            if (func->getName() == "alaska_do_handle_fault_check") continue;
           }
           statepointCalls.insert(call);
         }
@@ -241,6 +242,9 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
         } else if (func->hasFnAttribute("alaska_mightblock")) {
           id = 'BLOK';  // This function might block! Record it in the stackmap
           patch_size = 0;
+        } else if (func->getName() == "alaska_do_handle_fault_check") {
+          id = 'FALT';
+          patch_size = ALASKA_PATCH_SIZE;  // TODO: handle ARM
         }
       }
 
@@ -319,7 +323,7 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       //
       // For reference, if this line is removed, NAS cg.B running on 64 cores under OpenMP sees
       // overhead increase from 1.02x to 4x!
-      if (id == 'PATC') {
+      if (id == 'PATC' or id == 'FALT') {
         token->setCallingConv(CallingConv::PreserveAll);
       }
 
@@ -333,6 +337,116 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       errs() << F << "\n";
       exit(EXIT_FAILURE);
     }
+  }
+
+  return PreservedAnalyses::none();
+}
+
+
+
+static void removeAllArgumentsFromFunction(llvm::Function *oldFunction) {
+  if (oldFunction == nullptr) return;
+
+  llvm::Module *module = oldFunction->getParent();
+
+
+  // Create the new function type with no arguments
+  llvm::FunctionType *newFunctionType =
+      llvm::FunctionType::get(oldFunction->getReturnType(), {}, oldFunction->isVarArg());
+
+
+  std::string name = oldFunction->getName().str();
+  // Create the new function
+  llvm::Function *newFunction = llvm::Function::Create(
+      newFunctionType, oldFunction->getLinkage(), oldFunction->getName(), module);
+
+  // Map old arguments to no arguments (leave body unchanged, arguments will no longer be valid)
+  llvm::ValueToValueMapTy valueMap;
+  oldFunction->replaceAllUsesWith(newFunction);
+  // Remove the old function if it's no longer used
+
+  oldFunction->setName(name + "_old");
+  // oldFunction->eraseFromParent();
+  newFunction->setName(name);
+}
+
+
+
+PreservedAnalyses HandleFaultPass::run(Module &M, ModuleAnalysisManager &AM) {
+  // removeAllArgumentsFromFunction(M.getFunction("alaska_do_handle_fault_check"));
+
+  llvm::FunctionType *faultFunctionType =
+      llvm::FunctionType::get(llvm::Type::getVoidTy(M.getContext()), {}, false);
+
+  auto faultFunction = llvm::Function::Create(
+      faultFunctionType, llvm::GlobalValue::LinkageTypes::ExternalLinkage, "alaska.fault", M);
+
+  for (auto &F : M) {
+    // Ignore functions with no bodies
+    if (F.empty()) continue;
+
+    F.setGC("coreclr");
+
+    std::set<CallBase *> faultCalls;
+
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto *call = dyn_cast<CallInst>(&I)) {
+          // alaska::println("  call: ", *call, call->getCalledFunction());
+          if (auto func = call->getCalledFunction()) {
+            if (func->getName() == "alaska_do_handle_fault_check") {
+              faultCalls.insert(call);
+            }
+          }
+        }
+      }
+    }
+
+    // Given a translation, which cell does it belong to? (eagerly)
+    std::map<alaska::Translation *, long> pin_cell_ids;
+    // Interference - a mapping from translations to the translations it is alive along side of.
+    std::map<alaska::Translation *, std::set<alaska::Translation *>> interference;
+
+
+
+    for (auto &call : faultCalls) {
+      IRBuilder<> b(call);
+      // std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
+      std::vector<llvm::Value *> callArgs;
+      std::vector<llvm::Value *> gcArgs(call->args().begin(), call->args().end());
+
+      std::optional<ArrayRef<Value *>> deoptArgs(gcArgs);
+
+      int patch_size = 0;
+      int id = 0;
+
+      id = 'HFLT';
+      patch_size = 4;  // TODO: handle GENERALITY
+
+      // auto callTarget = llvm::FunctionCallee(call->getFunctionType(), called);
+      auto callTarget = llvm::FunctionCallee(faultFunctionType, faultFunction);
+
+      auto *CI = dyn_cast<CallInst>(call);
+      auto *SPCall =
+        b.CreateGCStatepointCall(id, patch_size, callTarget, callArgs, deoptArgs, gcArgs, "");
+
+      // SPCall->setTailCallKind(CI->getTailCallKind());
+      SPCall->setCallingConv(CallingConv::PreserveAll);
+      // SPCall->setAttributes(legalizeCallAttributes(
+      //     CI->getContext(), CI->getAttributes(), SPCall->getAttributes(), CI->arg_size()));
+
+      call->eraseFromParent();
+      alaska::println(*SPCall);
+    }
+
+
+    if (verifyFunction(F, &errs())) {
+      errs() << "Function verification failed!\n";
+      errs() << F.getName() << "\n";
+      errs() << F << "\n";
+      exit(EXIT_FAILURE);
+    }
+    // errs() << F << "\n";
   }
 
   return PreservedAnalyses::none();
