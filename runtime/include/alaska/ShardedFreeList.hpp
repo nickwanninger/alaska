@@ -16,6 +16,7 @@
 
 namespace alaska {
 
+
   // This class provides a singular abstraction for managing local/remote free lists of simple
   // block-like objects in memory. It works entirely using `void*` pointers to blocks of memory,
   // and doesn't really care what the memory is, so long as it is at least 8 bytes big.
@@ -46,10 +47,26 @@ namespace alaska {
       num_local_free = num_remote_free = 0;
     }
 
+
+
    private:
+    template <typename T>
+    inline static T *add_invalid_bit(T *p) {
+      return (T *)((uint64_t)p | 1LU);
+    }
+
+    template <typename T>
+    inline static T *remove_invalid_bit(T *ptr) {
+      return (T *)((uint64_t)ptr & ~1LU);
+    }
+
     // A simple `Block` structure to give us nicer linked-list style access
-    struct Block {
-      Block *next;
+    class Block {
+     public:
+      Block *encoded_next;
+
+      void set_next(Block *next) { this->encoded_next = add_invalid_bit(next); }
+      Block *get_next(void) { return remove_invalid_bit(encoded_next); }
     };
 
     Block *local_free = nullptr;
@@ -69,7 +86,7 @@ namespace alaska {
     void *b = (void *)local_free;
     if (unlikely(b != nullptr)) {
       num_local_free--;
-      local_free = local_free->next;
+      local_free = local_free->get_next();
     }
 
     return b;
@@ -98,7 +115,7 @@ namespace alaska {
   inline void
   ShardedFreeList::free_local(void *p) {
     auto *b = (Block *)p;
-    b->next = local_free;
+    b->set_next(local_free);
     local_free = b;
     num_local_free++;
   }
@@ -108,12 +125,14 @@ namespace alaska {
   inline void
   ShardedFreeList::free_remote(void *p) {
     auto *block = (Block *)p;
-    Block **list = &remote_free;
+
+    Block *invalid_remote_free = add_invalid_bit(remote_free);
+    Block **list = &invalid_remote_free;
     // TODO: NOT SURE ABOUT THE CONSISTENCY OPTIONS HERE
     do {
-      block->next = *list;
+      block->set_next(*list);
     } while (!__atomic_compare_exchange_n(
-        list, &block->next, block, 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+        list, &block->encoded_next, add_invalid_bit(block), 1, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
 
     // num_remote_free ++;
     atomic_inc(num_remote_free, 1);
