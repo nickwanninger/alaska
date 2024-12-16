@@ -96,18 +96,11 @@ retry_translation:
   void *mapped = m->get_pointer_fast();
 
   // alaska_do_handle_fault_check(mapped, ptr, &&retry_translation);
-  // mapped_bits = (int64_t)mapped;
-  // if (unlikely(mapped_bits < 0)) {
-  //   // asm volatile(
-  //   //     "mov %0, %%rax\n"     // Move the label address into the RAX register
-  //   //     "mov %%rax, 0(%0)\n"  // Move the label address into the RAX register
-  //   //     :
-  //   //     : "r"(&&retry_translation), "r"(mapped)  // Input operand
-  //   //     : "%rax"                                 // Clobbers RAX
-  //   // );
-  //   alaska::do_handle_fault(bits);
-  //   goto retry_translation;
-  // }
+  mapped_bits = (int64_t)mapped;
+  if (unlikely(mapped_bits < 0)) {
+    alaska::do_handle_fault(bits);
+    goto retry_translation;
+  }
 
   // load from the address for some reason
   uint8_t v;

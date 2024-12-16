@@ -78,6 +78,7 @@ namespace alaska {
 
     void dump_html(FILE *stream);
 
+    uint64_t handle_faults = 0;
     int handle_fault(uint64_t handle);
 
 
@@ -109,7 +110,7 @@ namespace alaska {
 
 
     unsigned long last_barrier_time = 0;
-    unsigned long min_barrier_interval = 250 * 1000 * 1000;
+    unsigned long min_barrier_interval = 10 * 1000 * 1000;
 
 
     void lock_all_thread_caches(void);

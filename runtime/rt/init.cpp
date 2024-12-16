@@ -17,6 +17,7 @@
 #include <alaska/Runtime.hpp>
 #include <alaska/alaska.hpp>
 #include <alaska/rt/barrier.hpp>
+#include "alaska/ObjectReference.hpp"
 #include <pthread.h>
 #include <stdio.h>
 #include <signal.h>
@@ -39,10 +40,87 @@ extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
+  bool in_marking_state = true;
+  fprintf(stderr, "cold_objects\n");
   while (1) {
+    auto &rt = alaska::Runtime::get();
     usleep(50 * 1000);
-    alaska::Runtime::get().with_barrier([]() {
-      alaska::Runtime::get().heap.compact_sizedpages();
+    continue;
+    long already_invalid = 0;
+    long total_handles = 0;
+    long newly_marked = 0;
+
+    float cold_perc = 0;
+
+    rt.with_barrier([&]() {
+      // Linear Congruential Generator parameters
+      unsigned int seed = 123456789;  // You can set this to any initial value
+      auto rng = [&]() -> unsigned long {
+        seed = (1103515245 * seed + 12345) & 0x7fffffff;
+        return seed;
+      };
+
+      // Generate a random number between min and max (inclusive)
+      auto random_range = [&](int min, int max) -> unsigned long {
+        return min + (rng() % (max - min + 1));
+      };
+
+      auto should_mark = [&]() -> bool {
+        return in_marking_state;
+        // return in_marking_state and (random_range(0, 2) == 1);
+      };
+
+
+      auto mark_in_slab = [&](alaska::HandleSlab *slab) {
+        for (auto *v : slab->allocator) {
+          auto *m = (alaska::Mapping *)v;
+          if (m->is_invalid()) {
+            already_invalid++;
+          }
+          total_handles++;
+
+          if (not m->is_pinned() and should_mark()) {
+            newly_marked++;
+            m->set_invalid();
+          }
+        }
+      };
+
+      auto &slabs = rt.handle_table.get_slabs();
+      // printf("slabs = %d\n", slabs.size());
+
+      auto start = alaska_timestamp();
+      // if (slabs.size() != 0) {
+      //   auto *slab = slabs[random_range(0, slabs.size() - 1)];
+      //   mark_in_slab(slab);
+      // }
+      for (auto *slab : slabs)
+        mark_in_slab(slab);
+
+      auto end = alaska_timestamp();
+
+      auto duration = (end - start) / 1000.0 / 1000.0;
+
+
+
+      cold_perc = ((float)already_invalid / (float)total_handles);
+      if (cold_perc > 0.7) {
+        in_marking_state = false;
+      }
+
+      if (cold_perc < 0.1) {
+        in_marking_state = true;
+      }
+
+      fprintf(stderr, "%f\n", cold_perc * 100.0);
+      // printf(
+      //     "%d | cold objects: %12.6f%% | %8lu inv | %8lu obj | %8zu faults | %8lu added |
+      //     %12fms\n", in_marking_state, 100.0 * cold_perc, already_invalid, total_handles,
+      //     rt.handle_faults, newly_marked, duration);
+
+      rt.handle_faults = 0;
+      // printf("Compacting\n");
+      // alaska::Runtime::get().heap.compact_sizedpages();
     });
   }
 

@@ -218,6 +218,28 @@ namespace alaska {
   }
 
 
+  void SizedPage::get_byte_statistics(long *count_zero, long *count_total, long *hist) {
+    long left = 0;
+    long right = capacity - 1;
+
+
+    for (long cur = left; cur < capacity - 1; cur++) {
+      auto *header = ind_to_header(left);
+      uint8_t *data = reinterpret_cast<uint8_t *>(ind_to_object(left));
+      if (header->is_free()) continue;
+
+      *count_total += object_size;
+
+      for (size_t i = 0; i < this->object_size - header->size_slack; i++) {
+        hist[data[i]]++;
+        if (data[i] == 0x00) {
+          (*count_zero)++;
+        }
+      }
+    }
+  }
+
+
 
   void SizedPage::validate(void) {}
 
@@ -321,8 +343,8 @@ namespace alaska {
 
 
   void SizedPage::dump_json(FILE *stream) {
-    fprintf(stream, "{\"name\": \"SizedPage\", \"object_size\": %zu, \"avail\": %zu}",
-        object_size, this->available());
+    fprintf(stream, "{\"name\": \"SizedPage\", \"object_size\": %zu, \"avail\": %zu}", object_size,
+        this->available());
   }
 
 }  // namespace alaska

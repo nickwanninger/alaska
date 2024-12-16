@@ -62,21 +62,16 @@ namespace alaska {
     union {
       void *ptr;  // Raw pointer memory
       struct {
-        uint64_t misc : 61;   // Some kind of extra info (usually just a pointer)
+        uint64_t misc : 62;   // Some kind of extra info (usually just a pointer)
         unsigned pinned : 1;  // If this handle is pinned currently.
-        unsigned invl : 1;    // This handle is not mapped. ptr is a free list
-        unsigned swap : 1;    // This handle is swapped
+        unsigned invl : 1;    // This handle is allocated, but invalid
       } alt __attribute__((packed));
     };
 
    public:
-    ALASKA_INLINE void *get_pointer(void) const {
-      return (void*)(uint64_t)alt.misc;
-    }
+    ALASKA_INLINE void *get_pointer(void) const { return (void *)(uint64_t)alt.misc; }
 
-    ALASKA_INLINE void *get_pointer_fast(void) const {
-      return ptr;
-    }
+    ALASKA_INLINE void *get_pointer_fast(void) const { return ptr; }
 
     inline void invalidate(void) {
 #ifdef __riscv
@@ -101,13 +96,6 @@ namespace alaska {
       return (alaska::Mapping *)(uint64_t)alt.misc;
     }
 
-    void set_next(alaska::Mapping *next) {
-      reset();
-      alt.misc = (uint64_t)next;
-      alt.invl = 1;
-    }
-
-
     bool is_free(void) const { return alt.invl; }
 
 
@@ -115,11 +103,16 @@ namespace alaska {
     bool is_pinned(void) const { return this->alt.pinned; }
     void set_pinned(bool to) { this->alt.pinned = to; }
 
+    // TODO: Atomics:
+    void set_invalid(void) { this->alt.invl = 1; }
+    // TODO: Atomics:
+    void clear_invalid(void) { this->alt.invl = 0; }
+    bool is_invalid(void) { return this->alt.invl; }
+
 
     void reset(void) {
       ptr = NULL;
       alt.invl = 0;
-      alt.swap = 0;
       invalidate();
     }
 
@@ -146,9 +139,7 @@ namespace alaska {
       return (void *)out;
     }
 
-    static void *translate(void *handle) {
-      return alaska::Mapping::from_handle(handle)->ptr;
-    }
+    static void *translate(void *handle) { return alaska::Mapping::from_handle(handle)->ptr; }
 
     // Extract an encoded mapping out of the bits of a handle. WARNING: this function does not
     // perform any checking, and will blindly translate any pointer regardless of if it really

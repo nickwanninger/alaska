@@ -118,6 +118,8 @@ namespace alaska {
 
     void enable_mlock() { do_mlock = true; }
 
+    const ck::vec<alaska::HandleSlab *> &get_slabs(void) const { return m_slabs; }
+
    protected:
     friend HandleSlab;
 

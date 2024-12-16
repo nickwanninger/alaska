@@ -150,8 +150,10 @@ namespace alaska {
 
 
   int Runtime::handle_fault(uint64_t handle) {
-    printf("Handle fault to handle %lx\n", handle);
-    abort();
+    auto *m = alaska::Mapping::from_handle((void*)handle);
+    atomic_inc(this->handle_faults, 1);
+    m->clear_invalid();
+    return 0;
   }
 
 
