@@ -162,7 +162,7 @@ namespace alaska {
 
     inline void track_freed(void *p) {
       auto i = object_index(p);
-      __atmic_fetch_and(&bitmap[i / 8], ~(1 << (i % 8)), __ATOMIC_RELAXED);
+      __atomic_fetch_and(&bitmap[i / 8], ~(1 << (i % 8)), __ATOMIC_RELAXED);
     }
 
     void *alloc_slow(void);
