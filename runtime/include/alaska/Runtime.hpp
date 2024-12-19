@@ -19,6 +19,9 @@
 #include <ck/set.h>
 #include <alaska/Configuration.hpp>
 #include <alaska/Localizer.hpp>
+#include <alaska/Runtime.hpp>
+#include <alaska/RateCounter.hpp>
+
 
 namespace alaska {
   /**
@@ -78,7 +81,7 @@ namespace alaska {
 
     void dump_html(FILE *stream);
 
-    uint64_t handle_faults = 0;
+    RateCounter handle_faults;
     int handle_fault(uint64_t handle);
 
 

@@ -150,8 +150,9 @@ namespace alaska {
 
 
   int Runtime::handle_fault(uint64_t handle) {
-    auto *m = alaska::Mapping::from_handle((void*)handle);
-    atomic_inc(this->handle_faults, 1);
+    auto *m = alaska::Mapping::from_handle((void *)handle);
+    // printf("fault on %p\n", m);
+    handle_faults.track_atomic(1);
     m->clear_invalid();
     return 0;
   }
