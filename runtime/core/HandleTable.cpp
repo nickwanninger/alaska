@@ -154,14 +154,29 @@ namespace alaska {
 
 
   void HandleTable::dump(FILE *stream) {
-    ck::scoped_lock lk(this->lock);
-
-    // Dump the handle table in a nice debug output
-    log_info("Handle Table:\n");
-    log_info(" - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
+    // // Dump the handle table in a nice debug output
+    fprintf(stream, "Handle Table: ");
+    // log_info(" - Size: %zu bytes\n", m_capacity * HandleTable::slab_size);
     for (auto *slab : m_slabs) {
-      slab->dump(stream);
+      bool has_owner = slab->get_owner() != nullptr;
+      long avail = slab->allocator.num_free();
+
+
+      float avail_frac = avail / (float)slab_capacity;
+      float used_frac = 1.0 - avail_frac;
+
+      if (has_owner) {
+        fprintf(stream, "\033[48;2;0;0;%dm", (int)(255 * used_frac));
+      } else {
+        fprintf(stream, "\033[48;2;%d;0;0m", (int)(255 * used_frac));
+      }
+
+      // printf("%7.2f ", 100.0 * used_frac);
+      fprintf(stream, "%7lu ", avail);
+      fprintf(stream, "\e[0m");
+      // slab->dump(stream);
     }
+    fprintf(stream, "\n");
   }
 
 

@@ -207,36 +207,64 @@ namespace alaska {
   }
 
 
-#define out(...) fprintf(stream, __VA_ARGS__)
   void Heap::dump(FILE *stream) {
-    out("========== HEAP DUMP ==========\n");
+    long i = 0;
 
-    for (int cls = 0; cls < alaska::num_size_classes; cls++) {
-      auto &mag = size_classes[cls];
+    alaska::TimeCache timecache;
+    for (auto &mag : size_classes) {
       if (mag.size() == 0) continue;
+      auto size = alaska::class_to_size(i);
 
-      out("sc %d: %zu heaps\n", cls, mag.size());
+      fprintf(stream, "%8zu bytes, %3zu heaps: ", size, mag.size());
+      i += 1;
+
+      long page_index = 0;
+      mag.foreach ([&](SizedPage *sp) {
+        // if (page_index == 0) printf("(%8lu) ", sp->object_capacity());
+        bool color = sp->get_owner() != nullptr;
+        long avail = sp->available();
+        float avail_frac = avail / (float)sp->object_capacity();
+        float used = sp->object_capacity() - avail;
+        float used_frac = 1.0 - avail_frac;
+
+        // if (sp->get_owner() != nullptr) {
+        //   fprintf(stream, "\033[48;2;0;0;%dm", (int)(255 * used_frac));
+        // } else {
+        //   fprintf(stream, "\033[48;2;%d;0;0m", (int)(255 * used_frac));
+        // }
+
+        auto r = sp->get_rates(timecache);
+        auto pressure = r.pressure();
+
+        auto tend = r.tendancy();
+        auto tend_norm = (tend + 1.0) / 2.0;
+        int blue = (255 * tend_norm);
+        int red = 255 - blue;
+
+        fprintf(stream, "\033[48;2;%d;0;%dm", red, blue);
 
 
-      unsigned long page_ind = 0;
-      mag.foreach ([&](HeapPage *hp) {
-        SizedPage *sp = static_cast<SizedPage *>(hp);
-        int id = -1;
-        auto owner = sp->get_owner();
-        if (owner != NULL) {
-          id = owner->get_id();
-        }
-        out("SizedPage %016zx-%016zx owner:%3d avail:%7zu\n", (uintptr_t)sp->start(),
-            (uintptr_t)sp->end(), id, sp->available());
-        page_ind++;
-        if (page_ind > mag.size()) return false;
+        // printf("%7.2f ", 100.0 * used_frac);
+        // fprintf(stream, "%8.2f/%7.2fkb ", avail * size / 1024.0, alaska::page_size / 1024.0);
+        fprintf(stream, "%8.2fkb ", avail * size / 1024.0);
+        // fprintf(stream, "%8.2f/%7.2fkb ", avail * size / 1024.0, alaska::page_size / 1024.0);
+        // fprintf(stream, "%8.2fkb/%7.2fkb ", used * size / 1024.0, alaska::page_size / 1024.0);
+        // fprintf(stream, "%.3fu ", used_frac);
+        // fprintf(stream, "%+12.2fp ", pressure);
+        fprintf(stream, "%+5.2ft ", tend);
+        fprintf(stream, "%+12.0fΔ ", r.delta());
+        // fprintf(stream, "%+12.2fΔ ", r.allocation_bytes_per_second - r.free_bytes_per_second);
+
+        fprintf(stream, "\e[0m ");
+
+        page_index++;
         return true;
       });
+      fprintf(stream, "\n");
     }
+    // fprintf(stream, "\n");
   }
 
-
-#undef O
 
 
   void Heap::dump_html(FILE *stream) {
