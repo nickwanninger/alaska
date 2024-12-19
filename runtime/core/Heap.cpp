@@ -312,21 +312,15 @@ namespace alaska {
     long byte_histogram[256] = {0};
 
 
-
     size_t bytes_saved = 0;
     long c = 0;
     for (auto &mag : size_classes) {
       mag.foreach ([&](SizedPage *sp) {
         long z = 0, t = 0;
 
-        sp->get_byte_statistics(&z, &t, byte_histogram);
-
         zero_bytes += z;
         total_bytes += t;
         total_objects += t / sp->get_object_size();
-
-        // printf("%zu %zu\n", sp->get_object_size(), t / sp->get_object_size());
-
 
         long moved = sp->compact();
         c += moved;
@@ -334,8 +328,8 @@ namespace alaska {
         return true;
       });
     }
-    printf("bytes that are zero: %6.2f%%, z:%12zu t:%12zu objects:%12zu\n",
-        100.0 * (zero_bytes / (float)total_bytes), zero_bytes, total_bytes, total_objects);
+    // printf("bytes that are zero: %6.2f%%, z:%12zu t:%12zu objects:%12zu\n",
+    //     100.0 * (zero_bytes / (float)total_bytes), zero_bytes, total_bytes, total_objects);
     return 0;
 
     // for (int i = 0; i <= 0xFF; i++) {

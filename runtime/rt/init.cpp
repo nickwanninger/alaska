@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <ck/queue.h>
-
+#include <alaska/RateCounter.hpp>
 
 static alaska::Runtime *the_runtime = nullptr;
 
@@ -41,20 +41,29 @@ extern "C" void alaska_dump(void) { the_runtime->dump(stderr); }
 static pthread_t barrier_thread;
 static void *barrier_thread_func(void *) {
   bool in_marking_state = true;
-  fprintf(stderr, "cold_objects\n");
+
+  FILE *log_file = fopen("cold.csv", "w");
+  // fprintf(log_file, "cold_objects\n");
   while (1) {
     auto &rt = alaska::Runtime::get();
     usleep(50 * 1000);
-    continue;
+
+    // continue;
     long already_invalid = 0;
     long total_handles = 0;
     long newly_marked = 0;
 
     float cold_perc = 0;
+    // Linear Congruential Generator parameters
+    unsigned int seed = 123456789;  // You can set this to any initial value
 
     rt.with_barrier([&]() {
-      // Linear Congruential Generator parameters
-      unsigned int seed = 123456789;  // You can set this to any initial value
+      // printf("\033[2J\033[H");
+      // rt.handle_table.dump(stdout);
+      rt.heap.dump(stdout);
+      return;
+
+
       auto rng = [&]() -> unsigned long {
         seed = (1103515245 * seed + 12345) & 0x7fffffff;
         return seed;
@@ -66,8 +75,9 @@ static void *barrier_thread_func(void *) {
       };
 
       auto should_mark = [&]() -> bool {
-        return in_marking_state;
+        // return in_marking_state;
         // return in_marking_state and (random_range(0, 2) == 1);
+        return random_range(0, 10) == 1;
       };
 
 
@@ -90,12 +100,12 @@ static void *barrier_thread_func(void *) {
       // printf("slabs = %d\n", slabs.size());
 
       auto start = alaska_timestamp();
-      // if (slabs.size() != 0) {
-      //   auto *slab = slabs[random_range(0, slabs.size() - 1)];
-      //   mark_in_slab(slab);
-      // }
-      for (auto *slab : slabs)
+      if (slabs.size() != 0) {
+        auto *slab = slabs[random_range(0, slabs.size() - 1)];
         mark_in_slab(slab);
+      }
+      // for (auto *slab : slabs)
+      //   mark_in_slab(slab);
 
       auto end = alaska_timestamp();
 
@@ -112,13 +122,12 @@ static void *barrier_thread_func(void *) {
         in_marking_state = true;
       }
 
-      fprintf(stderr, "%f\n", cold_perc * 100.0);
+      fprintf(log_file, "%f\n", cold_perc * 100.0);
+      fflush(log_file);
       // printf(
       //     "%d | cold objects: %12.6f%% | %8lu inv | %8lu obj | %8zu faults | %8lu added |
       //     %12fms\n", in_marking_state, 100.0 * cold_perc, already_invalid, total_handles,
       //     rt.handle_faults, newly_marked, duration);
-
-      rt.handle_faults = 0;
       // printf("Compacting\n");
       // alaska::Runtime::get().heap.compact_sizedpages();
     });
