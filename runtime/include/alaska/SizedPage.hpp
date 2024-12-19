@@ -50,8 +50,13 @@ namespace alaska {
     // Move every object somewhere else in the page (for testing)
     long jumble(void);
 
+    long object_capacity(void) const { return this->capacity; }
+
     // Count the number of zero bytes in the page (objects only, not headers)
     void get_byte_statistics(long *count_zero, long *count_total, long *hist);
+
+
+    auto get_rates(TimeCache &tc) { return allocator.get_rates(tc); }
 
    private:
     struct Header {
