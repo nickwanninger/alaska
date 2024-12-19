@@ -69,9 +69,7 @@ namespace alaska {
       return 100.0 * (alloc_count / (double)(heap_size / page_size));
     }
 
-    inline void *get_page(off_t i) {
-      return(void*)((off_t)heap + (i * page_size));
-    }
+    inline void *get_page(off_t i) { return (void *)((off_t)heap + (i * page_size)); }
 
 
     inline uint64_t get_allocated_page_count(void) const { return alloc_count; }
@@ -193,15 +191,28 @@ namespace alaska {
     ALASKA_SANITY(
         this->lock.is_locked(), "The lock must be held before calling find_or_alloc_page");
     if (mag.size() != 0) {
-      auto p = mag.find([=](T *p) {
-        if ((size_t)p->available() >= (size_t)avail_requirement and p->get_owner() == nullptr)
-          return true;
-        return false;
+      T *best = nullptr;
+      mag.foreach ([&](T *p) {
+        size_t avail = p->available();
+        if ((size_t)avail >= (size_t)avail_requirement and p->get_owner() == nullptr) {
+          // best = p;
+          if (best == nullptr) {
+            best = p;
+            return true;
+          }
+
+          if ((long)avail >= (long)best->available()) {
+            best = p;
+          } else {
+            // .. Nothing
+          }
+        }
+        return true;
       });
 
-      if (p != NULL) {
-        p->set_owner(owner);
-        return p;
+      if (best != NULL) {
+        best->set_owner(owner);
+        return best;
       }
     }
 
