@@ -18,6 +18,11 @@
 #include "alaska/HeapPage.hpp"
 #include <alaska/utils.h>
 
+// #define USE_MALLOC
+#ifdef USE_MALLOC
+#include <malloc.h>
+#endif
+
 
 
 namespace alaska {
@@ -34,15 +39,21 @@ namespace alaska {
 
   void *ThreadCache::allocate_backing_data(const alaska::Mapping &m, size_t size) {
     int cls = alaska::size_to_class(size);
+    this->allocation_rate.track(1);
+    void *ptr;
+#ifdef USE_MALLOC
+    ptr = ::malloc(size);
+#else
     SizedPage *page = size_classes[cls];
     if (unlikely(page == nullptr)) page = new_sized_page(cls);
-    void *ptr = page->alloc(m, size);
+    ptr = page->alloc(m, size);
     if (unlikely(ptr == nullptr)) {
       // OOM?
       page = new_sized_page(cls);
       ptr = page->alloc(m, size);
       ALASKA_ASSERT(ptr != nullptr, "OOM!");
     }
+#endif
     return ptr;
   }
 
@@ -50,9 +61,15 @@ namespace alaska {
 
 
   void ThreadCache::free_allocation(const alaska::Mapping &m) {
+    this->free_rate.track(1);
     void *ptr = m.get_pointer();
+
+#ifdef USE_MALLOC
+    ::free(ptr);
+#else
     // Grab the page from the global heap (walk the page table).
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
+    size_t size = page->size_of(ptr);
     if (unlikely(page == NULL)) {
       this->runtime.heap.huge_allocator.free(ptr);
       return;
@@ -66,6 +83,7 @@ namespace alaska {
       log_trace("Free handle %p remotely (ptr = %p)", &m, ptr);
       page->release_remote(m, ptr);
     }
+#endif
   }
 
 
@@ -101,7 +119,6 @@ namespace alaska {
 
   // Stub out the methods of ThreadCache
   void *ThreadCache::halloc(size_t size, bool zero) {
-
     if (unlikely(size == 0)) return NULL;
 
     if (unlikely(alaska::should_be_huge_object(size))) {
@@ -147,14 +164,15 @@ namespace alaska {
       // 1. The original object is a huge object, in which case the object is *not* a pointer, and
       //    we need to return a *different* value.
       original_data = handle;
-      original_size = this->runtime.heap.huge_allocator.size_of(handle);
+      // original_size = this->runtime.heap.huge_allocator.size_of(handle);
     } else {
       // 2. The original object is a handle, in which case we update the handle to point to the new
       //    data. This is the normal case.
       original_data = m->get_pointer();
-      auto *page = this->runtime.heap.pt.get_unaligned(original_data);
-      original_size = page->size_of(original_data);
+      // auto *page = this->runtime.heap.pt.get_unaligned(original_data);
+      // original_size = page->size_of(original_data);
     }
+    original_size = this->get_size(handle);
 
     // We should copy the minimum of the two sizes between the allocations.
     size_t copy_size = original_size > new_size ? new_size : original_size;
@@ -219,9 +237,13 @@ namespace alaska {
 
     if (m->is_free()) return 0;
     void *ptr = m->get_pointer();
+#ifdef USE_MALLOC
+    return ::malloc_usable_size(ptr);
+#else
     auto *page = this->runtime.heap.pt.get_unaligned(ptr);
     if (page == nullptr) return this->runtime.heap.huge_allocator.size_of(ptr);
     return page->size_of(ptr);
+#endif
   }
 
   Mapping *ThreadCache::new_mapping(void) {

@@ -18,6 +18,7 @@
 #include <alaska/alaska.hpp>
 #include <alaska/Localizer.hpp>
 #include "ck/lock.h"
+#include <alaska/RateCounter.hpp>
 
 namespace alaska {
 
@@ -86,6 +87,10 @@ namespace alaska {
     alaska::LocalityPage *locality_page = nullptr;
 
    public:
+    // Track allocation and free rates
+    alaska::RateCounter allocation_rate;
+    alaska::RateCounter free_rate;
+
     // Each thread cache has a localizer, which can be fed with
     // "localization data" to improve object locality
     alaska::Localizer localizer;
