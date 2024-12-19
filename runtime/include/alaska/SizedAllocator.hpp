@@ -16,6 +16,7 @@
 #include <alaska/ShardedFreeList.hpp>
 #include <alaska/HeapPage.hpp>
 #include <alaska/track.hpp>
+#include <alaska/RateCounter.hpp>
 
 namespace alaska {
 
@@ -50,6 +51,8 @@ namespace alaska {
 
 
     void configure(void *objects, size_t object_size, long object_count);
+
+    auto get_rates(TimeCache &tc) { return rates.digest(tc); }
 
     inline bool some_available(void) {
       return free_list.has_local_free() || free_list.has_remote_free() ||
@@ -98,9 +101,8 @@ namespace alaska {
           , object_size(object_size) {
         advance_to_next_set_bit();
       }
-      AllocatedObjectIterator(void) : current_index(-1) {
-
-      }
+      AllocatedObjectIterator(void)
+          : current_index(-1) {}
 
 
 
@@ -126,6 +128,7 @@ namespace alaska {
 
       void *start_object;
       size_t object_size;
+
 
       void advance_to_next_set_bit() {
         while (current_index < size) {
@@ -156,11 +159,13 @@ namespace alaska {
       return (byte_value & (1 << (i % 8))) != 0;
     }
     inline void track_allocated(void *p) {
+      rates.alloc(object_size);
       auto i = object_index(p);
       __atomic_fetch_or(&bitmap[i / 8], 1 << (i % 8), __ATOMIC_RELAXED);
     }
 
     inline void track_freed(void *p) {
+      rates.free(object_size);
       auto i = object_index(p);
       __atomic_fetch_and(&bitmap[i / 8], ~(1 << (i % 8)), __ATOMIC_RELAXED);
     }
@@ -174,6 +179,7 @@ namespace alaska {
     size_t object_size;                 // How large each object is
     uint8_t *bitmap = nullptr;          // A pointer to the start of the free bitmap
     alaska::ShardedFreeList free_list;  // A free list for tracking releases
+    alaska::AllocationRateCounter rates;
   };
 
 
