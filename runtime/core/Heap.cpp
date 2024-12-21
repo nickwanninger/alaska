@@ -243,16 +243,15 @@ namespace alaska {
 
         fprintf(stream, "\033[48;2;%d;0;%dm", red, blue);
 
-
-        // printf("%7.2f ", 100.0 * used_frac);
+        fprintf(stream, "%7.2f%% ", 100.0 * used_frac);
         // fprintf(stream, "%8.2f/%7.2fkb ", avail * size / 1024.0, alaska::page_size / 1024.0);
-        fprintf(stream, "%8.2fkb ", avail * size / 1024.0);
+        // fprintf(stream, "%8.2fkb ", avail * size / 1024.0);
         // fprintf(stream, "%8.2f/%7.2fkb ", avail * size / 1024.0, alaska::page_size / 1024.0);
         // fprintf(stream, "%8.2fkb/%7.2fkb ", used * size / 1024.0, alaska::page_size / 1024.0);
         // fprintf(stream, "%.3fu ", used_frac);
         // fprintf(stream, "%+12.2fp ", pressure);
-        fprintf(stream, "%+5.2ft ", tend);
-        fprintf(stream, "%+12.0fΔ ", r.delta());
+        // fprintf(stream, "%+5.2ft ", tend);
+        // fprintf(stream, "%+12.0fΔ ", r.delta());
         // fprintf(stream, "%+12.2fΔ ", r.allocation_bytes_per_second - r.free_bytes_per_second);
 
         fprintf(stream, "\e[0m ");
