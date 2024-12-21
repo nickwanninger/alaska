@@ -89,13 +89,10 @@ void *alaska_translate(void *ptr) {
   // Grab the mapping from the runtime
   auto m = alaska::Mapping::from_handle(ptr);
 
-
 retry_translation:
-
   // Grab the pointer
   void *mapped = m->get_pointer_fast();
 
-  // alaska_do_handle_fault_check(mapped, ptr, &&retry_translation);
   mapped_bits = (int64_t)mapped;
   if (unlikely(mapped_bits < 0)) {
     alaska::do_handle_fault(bits);
