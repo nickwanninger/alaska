@@ -69,6 +69,7 @@ extern "C" alaska_domain_t *alaska_domain_create(struct alaska_domain_config *cf
 }
 
 extern "C" void alaska_domain_destroy(alaska_domain_t *a) {
+  if (a == nullptr) return;
   // Grab the domain pointer from the opaque type and call delete on it.
   delete reinterpret_cast<alaska::Domain *>(a);
 }
