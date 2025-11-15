@@ -51,4 +51,4 @@ __pycache__
 
 
 # Temp, not sure if should fully ignore this
-/CLAUDE.md
+/CLAUDE.md_codeql_detected_source_root
