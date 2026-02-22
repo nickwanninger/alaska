@@ -164,7 +164,7 @@ namespace alaska {
 #endif
 
   // A version of halloc which uses the global domain.
-  LTO_INLINE void *ThreadCache::halloc(size_t size) {
+  __attribute__((visibility("default"))) LTO_INLINE void *ThreadCache::halloc(size_t size) {
     halloc_track(halloc_calls);
     int cls = alaska::size_to_class(size);
     if (cls == 0) {
@@ -279,7 +279,7 @@ namespace alaska {
     return;
   }
 
-  // #define STUB_ALLOCATES_HANDLES
+  #define STUB_ALLOCATES_HANDLES
 
 
   LTO_INLINE alaska::Mapping *ThreadCache::reverse_lookup(void *heap_ptr) {
@@ -573,7 +573,7 @@ namespace alaska {
   }
 
 
-  static __thread alaska::ThreadCache *g_tc = nullptr;
+  static __attribute__((tls_model("initial-exec"))) __thread alaska::ThreadCache *g_tc = nullptr;
 
   alaska::ThreadCache *alaska::ThreadCache::current() {
     if (g_tc == nullptr) {

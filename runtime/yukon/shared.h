@@ -241,7 +241,7 @@ static void dump_htlb(alaska::ThreadCache *tc) {
         alaska::printf(
             "YUKON: Low locality detected (%.2f%%). Running brute-force localization...\n",
             locality * 100.0f);
-        rt.brute_force_localization(*tc);
+        // rt.brute_force_localization(*tc);
       }
     }
     ::printf("YUKON: Done grading the heap.\n");
@@ -345,7 +345,7 @@ static int in_roi = 0;
 static uint64_t roi_start_insts = 0;
 static uint64_t roi_start_cycles = 0;
 
-extern "C" void yukon_change_roi(int roi_enabled) {
+extern "C" __attribute__((visibility("default"))) void yukon_change_roi(int roi_enabled) {
   if (roi_enabled) {
     alaska::printf("YUKON: entering ROI\n");
 

@@ -17,17 +17,19 @@
 #include <assert.h>
 #include <sys/signal.h>
 
+#define PUBLIC __attribute__((visibility("default")))
+
 
 #include "./shared.h"
 
 
 static bool enable_printing = false;
-extern "C" void yukon_enable_printing(int enable) { enable_printing = enable; }
+extern "C" PUBLIC void yukon_enable_printing(int enable) { enable_printing = enable; }
 
 
 static bool localization_blocked_by_environment = false;
 
-extern "C" void yukon_enable_localization(int enable) {
+extern "C" PUBLIC void yukon_enable_localization(int enable) {
   if (localization_blocked_by_environment) {
     fprintf(stderr, "YUKON: localization disabled by NODUMP env var!\n");
     enable = 0;
@@ -134,19 +136,19 @@ static void *_halloc(size_t sz, int zero) {
   return result;
 }
 
-extern "C" void *halloc(size_t sz) noexcept {
+extern "C" PUBLIC void *halloc(size_t sz) noexcept {
   INSTRUCTION_TRACKER(INSTCOUNT_MALLOC);
-  LocalizationLatch loc_latch;
+  // LocalizationLatch loc_latch;
   return _halloc(sz, 0);
 }
-extern "C" void *hcalloc(size_t nmemb, size_t size) {
+extern "C" PUBLIC void *hcalloc(size_t nmemb, size_t size) {
   INSTRUCTION_TRACKER(INSTCOUNT_CALLOC);
-  LocalizationLatch loc_latch;
+  // LocalizationLatch loc_latch;
   return _halloc(nmemb * size, 1);
 }
 
 // Reallocate a handle
-extern "C" void *hrealloc(void *ptr, size_t new_size) {
+extern "C" PUBLIC void *hrealloc(void *ptr, size_t new_size) {
   // If the ptr is null, then this call is equivalent to malloc(size)
   if (ptr == NULL) {
     return halloc(new_size);
@@ -160,7 +162,7 @@ extern "C" void *hrealloc(void *ptr, size_t new_size) {
   }
 
   INSTRUCTION_TRACKER(INSTCOUNT_REALLOC);
-  LocalizationLatch loc_latch;
+  // LocalizationLatch loc_latch;
   alaska::LockedThreadCache tc = *yukon_get_tc();
   // if (enable_printing) alaska::printf("REALLOC %p\n", ptr);
   return tc->hrealloc(ptr, new_size);
@@ -168,9 +170,9 @@ extern "C" void *hrealloc(void *ptr, size_t new_size) {
 
 
 
-extern "C" void hfree(void *ptr) {
+extern "C" PUBLIC void hfree(void *ptr) {
   INSTRUCTION_TRACKER(INSTCOUNT_FREE);
-  LocalizationLatch loc_latch;
+  // LocalizationLatch loc_latch;
   // AutoFencer fencer;
   // no-op if NULL is passed
   if (unlikely(ptr == NULL)) return;
@@ -182,7 +184,7 @@ extern "C" void hfree(void *ptr) {
 }
 
 
-extern "C" size_t halloc_usable_size(void *ptr) {
+extern "C" PUBLIC size_t halloc_usable_size(void *ptr) {
   INSTRUCTION_TRACKER(INSTCOUNT_GETSIZE);
   auto tc = yukon_get_tc_unchecked();
   return tc->get_size(ptr);
@@ -194,16 +196,16 @@ extern "C" size_t halloc_usable_size(void *ptr) {
 //                        Libc Overrides                          //
 // -------------------------------------------------------------- //
 
-void *operator new(size_t size) { return halloc(size); }
-void *operator new[](size_t size) { return halloc(size); }
-void operator delete(void *ptr) { hfree(ptr); }
-void operator delete[](void *ptr) { hfree(ptr); }
+PUBLIC void *operator new(size_t size) { return halloc(size); }
+PUBLIC void *operator new[](size_t size) { return halloc(size); }
+PUBLIC void operator delete(void *ptr) { hfree(ptr); }
+PUBLIC void operator delete[](void *ptr) { hfree(ptr); }
 
 
 extern "C" {
-void *malloc(size_t size) { return halloc(size); }
-void *calloc(size_t size, size_t count) { return hcalloc(size, count); }
-void *realloc(void *ptr, size_t newsize) { return hrealloc(ptr, newsize); }
-void free(void *ptr) { hfree(ptr); }
-size_t malloc_usable_size(void *ptr) { return halloc_usable_size(ptr); }
+PUBLIC void *malloc(size_t size) { return halloc(size); }
+PUBLIC void *calloc(size_t size, size_t count) { return hcalloc(size, count); }
+PUBLIC void *realloc(void *ptr, size_t newsize) { return hrealloc(ptr, newsize); }
+PUBLIC void free(void *ptr) { hfree(ptr); }
+PUBLIC size_t malloc_usable_size(void *ptr) { return halloc_usable_size(ptr); }
 }

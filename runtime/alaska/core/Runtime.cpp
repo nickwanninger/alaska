@@ -308,7 +308,7 @@ namespace alaska {
 
 
 // Simply use clock_gettime, which is fast enough on most systems
-extern "C" uint64_t alaska_timestamp() {
+extern "C" __attribute__((visibility("default"))) uint64_t alaska_timestamp() {
   struct timespec spec;
   clock_gettime(1, &spec);
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
