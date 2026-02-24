@@ -37,9 +37,16 @@ namespace alaska {
     friend alaska::Localizer;
     friend alaska::HeapPage;
 
+
     // Just an id for this thread cache assigned by the runtime upon creation. It's mostly
     // meaningless, meant for debugging.
     int id;
+
+
+    // How many calls to the generic allocator have we had since the last 'collection'?
+    long generic_count = 0;
+    long generic_collect_count = 0;
+
     // A reference to the global runtime. This is here mainly to gain
     // access to the HandleTable and the Heap.
     alaska::Runtime &runtime;
@@ -47,22 +54,6 @@ namespace alaska {
     // Each ThreadCache now manages its own handle slab directly.
     // When the current slab is exhausted, the ThreadCache requests a new one from the HandleTable.
     alaska::HandleSlab *current_slab = nullptr;
-
-    // Each thread cache has a private heap page for each size class
-    // it might allocate from. When a size class fills up, it is
-    // returned to the global heap and another one is allocated.
-    alaska::SizedPage *size_classes[alaska::num_size_classes];
-
-    // Each thread cache also has a private "Locality Page", which
-    // objects can be relocated to according to some external
-    // policy. This page is special because it can contain many
-    // objects of many different sizes.
-    alaska::LocalityPage *locality_page = nullptr;
-
-    // How many calls to the generic allocator have we had since the last 'collection'?
-    long generic_count = 0;
-    long generic_collect_count = 0;
-
 
    public:
     // A lock which is used to control access to this heap page. Mostly used to control
@@ -83,6 +74,18 @@ namespace alaska {
     // Each thread cache has a localizer, which can be fed with
     // "localization data" to improve object locality
     alaska::Localizer localizer;
+
+  private:
+    // Each thread cache has a private heap page for each size class
+    // it might allocate from. When a size class fills up, it is
+    // returned to the global heap and another one is allocated.
+    alaska::SizedPage *size_classes[alaska::num_size_classes];
+
+    // Each thread cache also has a private "Locality Page", which
+    // objects can be relocated to according to some external
+    // policy. This page is special because it can contain many
+    // objects of many different sizes.
+    alaska::LocalityPage *locality_page = nullptr;
 
    public:
     ThreadCache(int id, alaska::Runtime &rt);
@@ -136,6 +139,8 @@ namespace alaska {
 
    private:
     alaska::Mapping *reverse_lookup(void *heap_ptr);
+
+    void maybe_collect(size_t size);
 
     // Swap to a new sized page owned by this thread cache
     alaska::SizedPage *new_sized_page(int cls);

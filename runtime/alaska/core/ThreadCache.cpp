@@ -73,6 +73,20 @@ namespace alaska {
 
 #define TC_ALIGNED(p) ((__typeof__(p))__builtin_assume_aligned((p), sizeof(uintptr_t)))
 
+  LTO_INLINE void ThreadCache::maybe_collect(size_t size) {
+    if (++this->generic_count >= 100) {
+      this->generic_collect_count += this->generic_count;
+      this->generic_count = 0;
+      constexpr long generic_collect = 10'000;
+      if (this->generic_collect_count >= generic_collect) {
+        this->generic_collect_count = 0;
+        int sc = alaska::size_to_class(size);
+        runtime.heap.collect(this, sc);
+      }
+    }
+  }
+
+
   // noinline
   __attribute__((noinline)) void *ThreadCache::halloc_generic(size_t size) {
     // Now, if we are being called here, it means either we are
@@ -81,24 +95,7 @@ namespace alaska {
     if (unlikely(size == 0)) return NULL;
     void *result = nullptr;
 
-    if (++this->generic_count >= 100) {
-      // Minor collect!
-
-      this->generic_collect_count += this->generic_count;
-      this->generic_count = 0;
-
-      // Collect every once in a while
-      constexpr long generic_collect = 1'000;
-      if (this->generic_collect_count >= generic_collect) {
-        // Major collect!
-        this->generic_collect_count = 0;
-
-        int sc = alaska::size_to_class(size);
-        // printf("Major collect on thread %d, sc=%d, size=%zu\n", this->id, sc, size);
-        runtime.heap.collect(this, sc);
-        // runtime.grade_heap();
-      }
-    }
+    maybe_collect(size);
 
     if (likely(size >= alaska::max_large_size)) {
       // alaska::printf("ThreadCache::halloc_generic: huge alloc %zu\n", size);
@@ -291,6 +288,7 @@ namespace alaska {
 
   // -------------------------------------------------------------- //
   LTO_INLINE void *ThreadCache::malloc_generic(size_t size) {
+    maybe_collect(size);
     void *ptr;
     if (unlikely(alaska::should_be_huge_object(size))) {
       // Allocate the huge allocation.
@@ -334,7 +332,7 @@ namespace alaska {
         auto *slab = this->current_slab;
         if (unlikely(slab == nullptr)) {
           // Need to get a slab first
-          return halloc_generic(size);
+          return malloc_generic(size);
         }
         auto &htfl = slab->get_freelist();
         auto &spfl = sp->get_freelist();
