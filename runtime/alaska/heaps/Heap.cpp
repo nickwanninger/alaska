@@ -26,16 +26,40 @@ namespace alaska {
   Heap::Heap(alaska::Configuration &config)
       : heap_start(nullptr)
       , heap_end(nullptr)
-      , heap_bump(nullptr) {
+      , heap_bump(nullptr)
+      , heap_size(alaska::default_heap_size) {
+    // Allow overriding the heap size via environment variable.
+    if (const char *env = getenv("ALASKA_HEAP_SIZE")) {
+      char *end = nullptr;
+      size_t val = strtoull(env, &end, 10);
+      if (end != env) {
+        switch (*end) {
+          case 'T': case 't': val *= 1024; [[fallthrough]];
+          case 'G': case 'g': val *= 1024; [[fallthrough]];
+          case 'M': case 'm': val *= 1024; [[fallthrough]];
+          case 'K': case 'k': val *= 1024; [[fallthrough]];
+          case '\0': break;
+          default:
+            alaska::printf("ALASKA_HEAP_SIZE: unrecognized suffix '%c'. Aborting.\n", *end);
+            abort();
+        }
+        heap_size = val;
+      } else {
+        alaska::printf("ALASKA_HEAP_SIZE: could not parse '%s'. Aborting.\n", env);
+        abort();
+      }
+    }
+
     auto prot = PROT_READ | PROT_WRITE;
     auto flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
-    heap_start = mmap(NULL, alaska::heap_size, prot, flags, -1, 0);
+    alaska::printf("Heap: Allocating %zu bytes of backing memory from the OS.\n", heap_size);
+    heap_start = mmap(NULL, heap_size, prot, flags, -1, 0);
     ALASKA_ASSERT(heap_start != MAP_FAILED,
                   "Failed to allocate the heap's backing memory. Aborting.");
 
     heap_bump = heap_start;
     heap_bump = (void *)(((uintptr_t)heap_bump + alaska::page_size - 1) & ~(alaska::page_size - 1));
-    heap_end = (void *)((uintptr_t)heap_start + alaska::heap_size);
+    heap_end = (void *)((uintptr_t)heap_start + heap_size);
 
     log_debug("Heap: Backing memory allocated at %p", heap_start);
   }
@@ -43,7 +67,7 @@ namespace alaska {
   Heap::~Heap(void) {
     if (heap_start != nullptr) {
       log_debug("Heap: Deallocating backing memory at %p", heap_start);
-      munmap(heap_start, alaska::heap_size);
+      munmap(heap_start, heap_size);
     }
   }
 

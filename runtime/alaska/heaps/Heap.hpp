@@ -45,7 +45,7 @@ namespace alaska {
   static constexpr uint64_t heap_size_shift_factor = HEAP_SIZE_SHIFT_FACTOR;
 #endif
 
-  static constexpr size_t heap_size = 1LU << heap_size_shift_factor;
+  static constexpr size_t default_heap_size = 1LU << heap_size_shift_factor;
 
 
 
@@ -115,6 +115,8 @@ namespace alaska {
 
 
    private:
+    size_t heap_size;
+
     template <typename T, typename Fn>
     T *find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement,
                           Fn &&init);
