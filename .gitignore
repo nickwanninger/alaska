@@ -49,9 +49,6 @@ test/npb/MG/penmp
 __pycache__
 /htlb_sim/
 
-
-# Temp, not sure if should fully ignore this
-/CLAUDE.md
 /dumps/
 alaska.hprof
 /trace.fxt.gz
