@@ -54,3 +54,5 @@ __pycache__
 /CLAUDE.md
 /dumps/
 alaska.hprof
+/trace.fxt.gz
+/perf.data*
