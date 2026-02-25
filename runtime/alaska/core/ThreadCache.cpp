@@ -107,6 +107,7 @@ namespace alaska {
       int cls = alaska::size_to_class(size);
       if (cls == 0) return NULL;
       auto *mapping = TC_ALIGNED(this->new_mapping());
+      if (unlikely(mapping == nullptr)) return NULL;
 
       void *ptr;
       SizedPage *page = size_classes[cls];
@@ -114,11 +115,16 @@ namespace alaska {
       if (unlikely(page == nullptr)) page = new_sized_page(cls);
       ptr = TC_ALIGNED(page->alloc(*mapping, size));
       if (unlikely(ptr == nullptr)) {
-        // OOM?
+        // OOM? Try a fresh page.
         page = new_sized_page(cls);
         ptr = TC_ALIGNED(page->alloc(*mapping, size));
       }
 
+      if (unlikely(ptr == nullptr)) {
+        // Still OOM — return the handle slot we grabbed so it isn't lost.
+        free_mapping(mapping);
+        return NULL;
+      }
 
       mapping->set_pointer(ptr);
 
@@ -309,6 +315,7 @@ namespace alaska {
 
 #ifdef STUB_ALLOCATES_HANDLES
       m = this->new_mapping();
+      if (unlikely(m == nullptr)) return nullptr;
 #else
       // Stub Mapping
       alaska::Mapping m_p{};
@@ -317,10 +324,19 @@ namespace alaska {
 
       ptr = page->alloc(*m, size);
       if (unlikely(ptr == nullptr)) {
-        // OOM?
+        // OOM? Try a fresh page.
         page = new_sized_page(cls);
         ptr = page->alloc(*m, size);
       }
+
+#ifdef STUB_ALLOCATES_HANDLES
+      if (unlikely(ptr == nullptr)) {
+        // Still OOM — return the handle slot we grabbed so it isn't lost.
+        free_mapping(m);
+        return nullptr;
+      }
+#endif
+
       m->set_pointer(ptr);
     }
 
