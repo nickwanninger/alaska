@@ -36,8 +36,7 @@ void ldflags(void) {
   printf("-Wl,-rpath-link=%s/lib\n", local);
   printf("-lm\n");
   // printf("%s/lib/libalaska.a\n", local);
-  printf("-lalaska\n"); // HACK: load alaska before pthread
-  printf("-lalaska_core\n"); // HACK: load alaska before pthread
+  printf("-lalaska\n");
   printf("-lpthread\n"); // ... for some reason
   // printf("-lomp\n");
 }

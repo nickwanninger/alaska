@@ -621,6 +621,10 @@ static void InsertSafepointPoll(Instruction *InsertBefore,
          "gc.safepoint_poll declared with wrong type");
   // assert(!F->empty() && "gc.safepoint_poll must be a non-empty function");
   CallInst *PollCall = CallInst::Create(F, "", InsertBefore);
+  // Propagate the insertion point's debug location so InlineFunction can
+  // create a proper DIInlinedLocation chain. Without this, the inlined body
+  // retains its own DISubprogram scope, which fails the LLVM verifier.
+  PollCall->setDebugLoc(InsertBefore->getDebugLoc());
 
   // Record some information about the call site we're replacing
   BasicBlock::iterator Before(PollCall), After(PollCall);
