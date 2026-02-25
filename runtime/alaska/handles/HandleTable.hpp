@@ -114,6 +114,10 @@ namespace alaska {
     // to be used when the local free list is empty.
     alaska::Mapping *alloc_slow(void);
 
+    // Batch-extend the local free list from the bump allocator.
+    // Returns the number of entries added.
+    long extend(long count);
+
     // Reset this slab to a clean state for reuse.
     // Called by HandleTable when returning a slab to the free list.
     void reset(void);
@@ -156,7 +160,7 @@ namespace alaska {
   // In the actual runtime implementation, there will be a global instance of this class.
   class HandleTable final {
    public:
-    static constexpr size_t slab_size = 1 << 18;  // 21
+    static constexpr size_t slab_size = 1 << 21;  // 21
     static constexpr size_t slab_capacity = slab_size / sizeof(alaska::Mapping);
     static constexpr size_t initial_capacity = 64;
     static constexpr size_t handle_count = (1UL << (63 - ALASKA_SIZE_BITS)) - 1;

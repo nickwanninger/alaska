@@ -14,6 +14,7 @@
 #endif
 
 #include <execinfo.h>
+#include <unistd.h>
 
 
 #include <alaska/handles/HandleTable.hpp>
@@ -40,6 +41,7 @@ namespace alaska {
   // Handle Table
   //////////////////////
   HandleTable::HandleTable(const alaska::Configuration &config) {
+    FTR_FUNCTION();
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
     // don't have exceptions in this runtime we will just abort.
@@ -79,6 +81,7 @@ namespace alaska {
   }
 
   HandleTable::~HandleTable() {
+    FTR_FUNCTION();
     // Release the handle table back to the OS
     int r = munmap(m_table, m_capacity * HandleTable::slab_size);
     if (r < 0) {
@@ -96,6 +99,7 @@ namespace alaska {
 
 
   void HandleTable::grow() {
+    FTR_FUNCTION();
     auto new_cap = m_capacity * HandleTable::growth_factor;
     alaska::printf("Growing handle table from %lu to %lu\n", m_capacity, new_cap);
     // Scale the capacity of the handle table
@@ -122,6 +126,7 @@ namespace alaska {
   }
 
   HandleSlab *HandleTable::fresh_slab(void) {
+    FTR_FUNCTION();
     ck::scoped_lock lk(this->lock);
 
     // Try to get a slab from the free list first
@@ -161,6 +166,7 @@ namespace alaska {
   }
 
   void HandleTable::return_slab(HandleSlab *slab) {
+    FTR_FUNCTION();
     ck::scoped_lock lk(this->lock);
 
     log_trace("Returning slab %lu to free list", slab->idx);
@@ -272,17 +278,36 @@ namespace alaska {
   HandleSlab::~HandleSlab(void) {}
 
 
-  __attribute__((noinline)) alaska::Mapping *HandleSlab::alloc_slow(void) {
-    // Attempt to bump allocate
-    if (next_free < end) {
-      alaska::Mapping *m = next_free;
-      next_free += 1;
-      return m;
+  long HandleSlab::extend(long count) {
+    alaska::Mapping *batch_start = next_free;
+    alaska::Mapping *batch_end = batch_start + count;
+    if (batch_end > end) batch_end = end;
+
+    long extended_count = batch_end - batch_start;
+    if (extended_count <= 0) return 0;
+
+    next_free = batch_end;
+
+    // Insert in reverse order so the lowest-address mapping is first to be popped.
+    for (alaska::Mapping *m = batch_end - 1; m >= batch_start; m--) {
+      free_list.free_local(m);
     }
 
-    // If we are here, there is no bump allocation available.
-    // Swap the local and remote free lists and try to get the first entry from the local list.
+    return extended_count;
+  }
+
+  __attribute__((noinline)) alaska::Mapping *HandleSlab::alloc_slow(void) {
+    FTR_FUNCTION();
+    long extended_count = extend(256);
+    if (extended_count > 0) {
+      return alloc();
+    }
+
+
+    FTR_SCOPE("Fallback");
+    // Bump allocator exhausted; try swapping the remote free list into the local one.
     free_list.swap();
+    if (not free_list.has_local_free()) return nullptr;
     return (alaska::Mapping *)free_list.pop();
   }
 

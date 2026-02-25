@@ -42,6 +42,7 @@ alaska_option(ALASKA_LIBRARY_TYPE      SHARED) # build translate.bc and stub.bc
 
 alaska_switch(ALASKA_YUKON             OFF)
 alaska_switch(ALASKA_YUKON_NO_HARDWARE OFF)
+alaska_switch(ALASKA_TRACING           OFF)
 
 alaska_option(ALASKA_SIZE_BITS 32)
 alaska_option(CMAKE_BUILD_TYPE Release)

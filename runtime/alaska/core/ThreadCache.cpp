@@ -21,6 +21,7 @@
 
 #include <execinfo.h>
 
+
 namespace alaska {
 
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
@@ -79,6 +80,7 @@ namespace alaska {
       this->generic_count = 0;
       constexpr long generic_collect = 10'000;
       if (this->generic_collect_count >= generic_collect) {
+        FTR_SCOPE("HeapCollect");
         this->generic_collect_count = 0;
         int sc = alaska::size_to_class(size);
         runtime.heap.collect(this, sc);
@@ -89,6 +91,7 @@ namespace alaska {
 
   // noinline
   __attribute__((noinline)) void *ThreadCache::halloc_generic(size_t size) {
+    FTR_SCOPE("HallocGeneric");
     // Now, if we are being called here, it means either we are
     // allocating a large object (size>1024) or one of the following
     // checks failed in ::halloc.
@@ -142,17 +145,17 @@ namespace alaska {
     // print all the stats on their own line, including a percentage of calls to hallo
     alaska::printf("halloc calls: %lu\n", halloc_calls);
     alaska::printf("halloc fastpath: %lu (%.2f%%)\n", halloc_fastpath,
-        (halloc_fastpath * 100.0) / halloc_calls);
-    alaska::printf(
-        "halloc invalid: %lu (%.2f%%)\n", halloc_invalid, (halloc_invalid * 100.0) / halloc_calls);
+                   (halloc_fastpath * 100.0) / halloc_calls);
+    alaska::printf("halloc invalid: %lu (%.2f%%)\n", halloc_invalid,
+                   (halloc_invalid * 100.0) / halloc_calls);
     alaska::printf("halloc not small: %lu (%.2f%%)\n", halloc_not_small,
-        (halloc_not_small * 100.0) / halloc_calls);
-    alaska::printf(
-        "halloc no sp: %lu (%.2f%%)\n", halloc_no_sp, (halloc_no_sp * 100.0) / halloc_calls);
+                   (halloc_not_small * 100.0) / halloc_calls);
+    alaska::printf("halloc no sp: %lu (%.2f%%)\n", halloc_no_sp,
+                   (halloc_no_sp * 100.0) / halloc_calls);
     alaska::printf("halloc sp_empty: %lu (%.2f%%)\n", halloc_sp_empty,
-        (halloc_sp_empty * 100.0) / halloc_calls);
+                   (halloc_sp_empty * 100.0) / halloc_calls);
     alaska::printf("halloc ht_empty: %lu (%.2f%%)\n", halloc_ht_empty,
-        (halloc_ht_empty * 100.0) / halloc_calls);
+                   (halloc_ht_empty * 100.0) / halloc_calls);
   }
 
 
@@ -162,6 +165,7 @@ namespace alaska {
 
   // A version of halloc which uses the global domain.
   __attribute__((visibility("default"))) LTO_INLINE void *ThreadCache::halloc(size_t size) {
+    FTR_SCOPE("Halloc");
     halloc_track(halloc_calls);
     int cls = alaska::size_to_class(size);
     if (cls == 0) {
@@ -205,10 +209,12 @@ namespace alaska {
           halloc_track(halloc_fastpath);
           return mapping->to_handle(0);
         }
-      } else
+      } else {
         halloc_track(halloc_no_sp);
-    } else
+      }
+    } else {
       halloc_track(halloc_not_small);
+    }
 
     // Ope! Fallback to the slower generic path.
     return halloc_generic(size);
@@ -240,6 +246,7 @@ namespace alaska {
 
 
   LTO_INLINE void ThreadCache::hfree(void *handle) {
+    FTR_SCOPE("hfree");
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
 
     // The first case in hfree is handling huge allocations.
@@ -276,7 +283,7 @@ namespace alaska {
     return;
   }
 
-  #define STUB_ALLOCATES_HANDLES
+#define STUB_ALLOCATES_HANDLES
 
 
   LTO_INLINE alaska::Mapping *ThreadCache::reverse_lookup(void *heap_ptr) {

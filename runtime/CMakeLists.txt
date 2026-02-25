@@ -1,18 +1,9 @@
 # add_link_options("-fuse-ld=lld")
 
 
-# set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-
 set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused -Wno-unused-function -Wno-attributes ")
 
 # Compile the runtime with some special flags
-
-# if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-#   if(CMAKE_BUILD_TYPE STREQUAL "Release")
-#     message(STATUS "Enabling Link-time optimization (LTO)")
-#     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto")
-#   endif()
-# endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} -fno-plt")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++2a -Wsign-compare -Wno-deprecated -fno-exceptions -Wno-ctad-maybe-unsupported -Wno-reorder -fno-rtti -Wno-invalid-offsetof ")
@@ -47,6 +38,10 @@ endif()
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
 add_definitions(-D_REENTRANT)
 
+if(NOT ALASKA_TRACING)
+  add_definitions(-DFTR_NO_TRACE=1)
+endif()
+
 
 
 include_directories(
@@ -56,14 +51,9 @@ include_directories(
 install(FILES alaska.h yukon.h DESTINATION include)
 
 
-# The alaska library is broken up into two parts: the core, and the runtime.
-# The core provides the main structures and functions to manage the alaska state.
-# The runtime provides a binding that applications link against.
-
-
 
 ##########################################################################################
-# This defines the core
+# Core sources
 
 set(CORE_SOURCES "")
 file(GLOB_RECURSE CORE_SOURCES
@@ -74,28 +64,27 @@ file(GLOB_RECURSE CORE_SOURCES
 )
 
 
+# Static core library, compiled with hidden visibility.
+# Each product (yukon, yukon_stub, alaska) links this statically so LTO can
+# inline across translation unit boundaries without PLT trampolines.
+add_library(alaska_core_impl STATIC ${CORE_SOURCES})
+set_property(TARGET alaska_core_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(alaska_core_impl PRIVATE
+  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>
+  # -fvisibility=hidden
+)
+target_include_directories(alaska_core_impl PUBLIC include/)
 
-add_library(alaska_core_objects OBJECT ${CORE_SOURCES})
-set_property(TARGET alaska_core_objects PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
-# target_compile_options(alaska_core_objects PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
 
-
-
-
-add_library(alaska_core SHARED $<TARGET_OBJECTS:alaska_core_objects>)
-# add_library(alaska_core SHARED ${CORE_SOURCES})
-
-
-set_target_properties(alaska_core PROPERTIES LINKER_LANGUAGE C)
+# Public-facing shared library used by alaska_sim_trace and tests (no LTO required).
+# No -fvisibility=hidden here — alaska_sim_trace and tests need the C++ class interfaces exported.
+add_library(alaska_core SHARED ${CORE_SOURCES})
 set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZSTD REQUIRED libzstd)
-
-target_link_libraries(alaska_core dl pthread ${ZSTD_STATIC_LIBRARIES})
-
-
+target_compile_options(alaska_core PRIVATE
+  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>
+)
+target_include_directories(alaska_core PUBLIC include/)
+target_link_libraries(alaska_core PRIVATE dl pthread ${ZSTD_STATIC_LIBRARIES})
 
 install(
   TARGETS alaska_core
@@ -103,20 +92,6 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
-
-# A static copy of the above library.
-add_library(alaska_core_static STATIC $<TARGET_OBJECTS:alaska_core_objects>)
-set_target_properties(alaska_core_static PROPERTIES OUTPUT_NAME "alaska_core")
-target_link_libraries(alaska_core_static ${ZSTD_STATIC_LIBRARIES})
-install(
-  TARGETS alaska_core_static
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 
 
@@ -132,12 +107,17 @@ install(
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# install(FILES
-#   sim/HTLB.hpp
-#   sim/TLB.hpp
-#   sim/StatisticsManager.hpp
-#   DESTINATION include/sim)
 
+##########################################################################################
+# LTO support detection
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+if(ipo_supported)
+  message(STATUS "IPO / LTO enabled for release products")
+else()
+  message(STATUS "IPO / LTO not supported: ${ipo_error}")
+endif()
 
 
 ##########################################################################################
@@ -147,41 +127,38 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   find_library(LIBUNWIND_LIBRARIES NAMES unwind)
   message(STATUS "UNWIND: ${LIBUNWIND_LIBRARIES}")
 
-
-  set(SOURCES
+  set(ALASKA_RT_SOURCES
     rt/init.cpp
     rt/halloc.cpp
     rt/compat.c
     rt/barrier.cpp
-    $<TARGET_OBJECTS:alaska_core_objects>
   )
 
+  if(ALASKA_HTLB_SIM)
+    list(APPEND ALASKA_RT_SOURCES rt/sim.cpp)
+  endif()
 
-if(ALASKA_HTLB_SIM)
-  list(APPEND SOURCES rt/sim.cpp)
-endif(ALASKA_HTLB_SIM)
-
-  add_library(alaska ${ALASKA_LIBRARY_TYPE} ${SOURCES})
+  add_library(alaska ${ALASKA_LIBRARY_TYPE} ${ALASKA_RT_SOURCES})
 
   target_include_directories(alaska PUBLIC include/)
   set_target_properties(alaska PROPERTIES LINKER_LANGUAGE C)
   set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
-  target_link_libraries(alaska dl pthread)
+  target_link_libraries(alaska PRIVATE alaska_core_impl dl pthread)
+  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
+  if(ipo_supported)
+    set_property(TARGET alaska PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   # if unwind is found, define a macro
   if(LIBUNWIND_LIBRARIES)
     target_compile_definitions(alaska PUBLIC -DALASKA_HAS_LIBUNWIND=1)
-    target_link_libraries(alaska ${LIBUNWIND_LIBRARIES})
-
+    target_link_libraries(alaska PRIVATE ${LIBUNWIND_LIBRARIES})
   endif()
 
-  # target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
-  target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
-
-if(ALASKA_HTLB_SIM)
-   target_link_libraries(alaska alaska_sim)
-endif(ALASKA_HTLB_SIM)
+  if(ALASKA_HTLB_SIM)
+    target_link_libraries(alaska alaska_sim)
+  endif()
 
   install(
     TARGETS alaska
@@ -241,7 +218,7 @@ endif(ALASKA_HTLB_SIM)
   )
 
 
-  target_link_libraries(alaska alaska_translate_native)
+  target_link_libraries(alaska PRIVATE alaska_translate_native)
   endif(ALASKA_CORE_BITCODE)
 
 endif(NOT ALASKA_CORE_ONLY)
@@ -249,27 +226,21 @@ endif(NOT ALASKA_CORE_ONLY)
 
 
 
-
-
-
-
-
 if(ALASKA_YUKON)
-  add_library(yukon SHARED
-    yukon/yukon.cpp $<TARGET_OBJECTS:alaska_core_objects>
-  )
+  add_library(yukon SHARED yukon/yukon.cpp)
 
   target_include_directories(yukon PUBLIC include/)
   set_target_properties(yukon PROPERTIES LINKER_LANGUAGE C)
   set_target_properties(yukon PROPERTIES SOVERSION ${ALASKA_VERSION})
-  target_link_libraries(yukon PRIVATE dl pthread ${LIBUNWIND_LIBRARIES})
-  # target_compile_options(yukon PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
-  target_compile_options(yukon PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>)
+  target_link_libraries(yukon PRIVATE alaska_core_impl dl pthread)
+  target_compile_options(yukon PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
+    # -fvisibility=hidden
+  )
 
-  # if(CMAKE_BUILD_TYPE MATCHES "Release")
-  #   add_custom_command(TARGET yukon POST_BUILD
-  #                      COMMAND ${CMAKE_STRIP} $<TARGET_FILE:yukon>)
-  # endif()
+  if(ipo_supported)
+    set_property(TARGET yukon PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   install(
     TARGETS yukon
@@ -279,22 +250,20 @@ if(ALASKA_YUKON)
     PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
-  add_library(yukon_stub SHARED
-    yukon/yukon_stub.cpp $<TARGET_OBJECTS:alaska_core_objects>
-  )
+  add_library(yukon_stub SHARED yukon/yukon_stub.cpp)
   target_include_directories(yukon_stub PUBLIC include/)
   set_target_properties(yukon_stub PROPERTIES LINKER_LANGUAGE C)
   set_target_properties(yukon_stub PROPERTIES SOVERSION ${ALASKA_VERSION})
-  target_link_libraries(yukon_stub PRIVATE dl pthread ${LIBUNWIND_LIBRARIES})
-  # target_compile_options(yukon_stub PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib++ -nostdinc++>)
-  target_compile_options(yukon_stub PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>)
-  target_compile_options(yukon_stub PRIVATE -Wl,-Bsymbolic-functions)
+  target_link_libraries(yukon_stub PRIVATE alaska_core_impl dl pthread)
+  target_compile_options(yukon_stub PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
+    # -fvisibility=hidden
+  )
+  target_link_options(yukon_stub PRIVATE -Wl,-Bsymbolic-functions)
 
-
-  # if(CMAKE_BUILD_TYPE MATCHES "Release")
-  #   add_custom_command(TARGET yukon_stub POST_BUILD
-  #                      COMMAND ${CMAKE_STRIP} $<TARGET_FILE:yukon>)
-  # endif()
+  if(ipo_supported)
+    set_property(TARGET yukon_stub PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   install(
     TARGETS yukon_stub
@@ -314,7 +283,6 @@ install(
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 
 
 
@@ -357,7 +325,7 @@ if (ALASKA_ENABLE_TESTING)
 		GTest::gtest_main
     GTest::gmock
     alaska_sim
-		alaska_core_static dl pthread
+		alaska_core dl pthread
 	)
 
 	gtest_discover_tests(alaska_test)

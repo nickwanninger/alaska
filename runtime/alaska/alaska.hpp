@@ -24,6 +24,7 @@
 #include <alaska/util/Logger.hpp>
 
 #include <ck/utility.h>
+#include <alaska/ftr/ftr.h>
 
 
 
