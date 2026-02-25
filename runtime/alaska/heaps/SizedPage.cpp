@@ -42,6 +42,7 @@ namespace alaska {
 
   __attribute__((noinline))  // Don't inline this function, we want it to be a slow path.
   void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
+    FTR_FUNCTION();
 #if 1
     long extended_count = extend(256);
     // 1. If we managed to extend the list, return one of the blocks from it.
@@ -65,6 +66,7 @@ namespace alaska {
     }
 #endif
 
+    FTR_SCOPE("Fallback");
     // 2. If the list was not extended, try swapping the remote_free list and the local_free list.
     // This is a little tricky because we need to worry about atomics here.
     freelist.swap();

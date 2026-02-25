@@ -164,70 +164,23 @@ namespace alaska {
 
   template <typename T, typename Fn>
   T *Heap::find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner,
-                              size_t avail_requirement, Fn &&init_fn) {
-    long num_full = 0;
-    long num_found = 0;
-    if (mag.size() != 0) {
-      T *best = nullptr;
-      // alaska::printf("Searching for page with at least %zu available\n", avail_requirement);
-      mag.for_each([&](T *p) {
-        size_t avail = p->available();
-        if (avail == 0) num_full++;
-
-        num_found++;
-        if (avail >= avail_requirement && p->get_owner() == nullptr) {
-          best = p;
-          return false;
-        }
-
-        return true;
-
-
-
-        // if (avail == 0) {
-        //   num_full++;
-        //   return true;
-        // } else {
-        //   best = p;
-        //   return false;
-        // }
-
-        if ((size_t)avail >= (size_t)avail_requirement and p->get_owner() == nullptr) {
-          // best = p;
-          if (best == nullptr) {
-            best = p;
-            return true;
-          }
-
-
-          if ((long)avail >= (long)best->available()) {
-            best = p;
-          } else {
-            // .. Nothing
-          }
-        }
-        return true;
-      });
-
-      // printf("Find or alloc page. looked at %8ld pages, %8ld full (%.2f%%)\n", num_found,
-      // num_full,
-      //     (float)num_full / (float)num_found * 100.0f);
-
-      if (best != NULL) {
-        best->set_owner(owner);
-        return best;
-      }
+                              size_t /*avail_requirement*/, Fn &&init_fn) {
+    FTR_FUNCTION();
+    // m_available head is kept as the most-recently-returned page (LIFO via put_page).
+    // In the common case the head is unowned and has space; at most one owned page is skipped.
+    T *p = mag.pop_available(owner);
+    if (p != nullptr) {
+      p->set_owner(owner);
+      return p;
     }
 
-
-    // Allocate a new sized page
+    FTR_SCOPE("AllocHeapPage");
+    // No available page — allocate a new one.
     void *memory = alloc_heap_page();
-    T *p = new T(memory);
-    // Map it in the page table for fast lookup
+    p = new T(memory);
     register_page(memory, p);
     mag.add(p);
     p->set_owner(owner);
-
     init_fn(p);
 
     return p;

@@ -72,6 +72,7 @@ namespace alaska {
   }
 
   void *Heap::alloc_heap_page() {
+    FTR_FUNCTION();
     void *page = heap_bump;
     heap_bump = (void *)((uintptr_t)heap_bump + alaska::page_size);
 
@@ -80,6 +81,7 @@ namespace alaska {
   }
 
   SizedPage *Heap::get_sizedpage(size_t size, ThreadCache *owner) {
+    FTR_FUNCTION();
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     int cls = alaska::size_to_class(size);
     auto &mag = this->size_classes[cls];
@@ -87,6 +89,7 @@ namespace alaska {
     // TODO: it would be smart to adjust this requirement dynamically based on the allocation
     // request.
     auto *p = this->find_or_alloc_page<SizedPage>(mag, owner, 1, [=](auto p) {
+      FTR_SCOPE("InitSizedPage");
       // alaska::printf("Allocating sized page for class %d (%zu bytes)\n", cls, size);
       p->set_size_class(cls);
     });
@@ -95,6 +98,7 @@ namespace alaska {
 
 
   LocalityPage *Heap::get_localitypage(size_t size_requirement, ThreadCache *owner) {
+    FTR_FUNCTION();
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     auto *p = this->find_or_alloc_page<LocalityPage>(locality_pages, owner, size_requirement,
                                                      [](auto *p) {
@@ -104,18 +108,32 @@ namespace alaska {
 
 
   void Heap::put_page(SizedPage *page) {
+    FTR_FUNCTION();
     // Return a SizedPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
-    if (page->magazine) page->magazine->rebalance(page);
+    if (page->magazine) {
+      if (page->available() > 0) {
+        page->magazine->move_to_available(page);
+      } else {
+        page->magazine->move_to_full(page);
+      }
+    }
   }
 
 
   void Heap::put_page(LocalityPage *page) {
-    // Return a SizedPage back to the global (unowned) heap.
+    FTR_FUNCTION();
+    // Return a LocalityPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
-    if (page->magazine) page->magazine->rebalance(page);
+    if (page->magazine) {
+      if (page->available() > 0) {
+        page->magazine->move_to_available(page);
+      } else {
+        page->magazine->move_to_full(page);
+      }
+    }
   }
 
 

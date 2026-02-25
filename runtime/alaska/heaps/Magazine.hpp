@@ -41,6 +41,16 @@ namespace alaska {
         was_full = false;
       }
     }
+
+    // Place page at the head of m_available (LIFO: most-recently-returned first).
+    inline void move_to_available(alaska::HeapPage *page) {
+      list_move(&page->mag_list, &this->m_available);
+    }
+
+    // Place page at the tail of m_recent_full.
+    inline void move_to_full(alaska::HeapPage *page) {
+      list_move_tail(&page->mag_list, &this->m_recent_full);
+    }
   };
 
   template <typename T>
@@ -85,6 +95,17 @@ namespace alaska {
       list_for_each_entry(entry, &this->m_recent_full, mag_list) {
         if (!f(entry)) break;
       }
+    }
+
+    // Return the first unowned page from m_available without removing it from the list.
+    // Ownership is tracked via set_owner. With the LIFO invariant enforced by put_page,
+    // the head is almost always the answer; at most one owned page is skipped.
+    T *pop_available(ThreadCache *owner) {
+      T *entry = nullptr;
+      list_for_each_entry(entry, &this->m_available, mag_list) {
+        if (entry->get_owner() == nullptr) return entry;
+      }
+      return nullptr;
     }
 
    private:
