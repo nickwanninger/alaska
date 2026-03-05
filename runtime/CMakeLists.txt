@@ -272,6 +272,28 @@ if(ALASKA_YUKON)
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+
+  add_library(yukon_wrap SHARED yukon/yukon_wrap.cpp)
+  target_include_directories(yukon_wrap PUBLIC include/)
+  set_target_properties(yukon_wrap PROPERTIES LINKER_LANGUAGE C)
+  set_target_properties(yukon_wrap PROPERTIES SOVERSION ${ALASKA_VERSION})
+  target_link_libraries(yukon_wrap PRIVATE alaska_core_impl dl pthread)
+  target_compile_options(yukon_wrap PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
+  )
+  target_link_options(yukon_wrap PRIVATE -Wl,-Bsymbolic-functions)
+
+  if(ipo_supported)
+    set_property(TARGET yukon_wrap PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+
+  install(
+    TARGETS yukon_wrap
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 endif(ALASKA_YUKON)
 
 
