@@ -1,8 +1,8 @@
 #pragma once
 
 #include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -14,13 +14,30 @@ extern "C" {
 // trace files from a simple API. It is designed to be used in high performance
 // code with many threads without a huge overhead.
 //
-// Tracing starts automatically on program init. Output goes to trace.fxt by
-// default. Control via environment variables:
-//   FTR_TRACE_PATH  — override the output file path
+// By default, tracing does NOT start automatically unless FTR_TRACE_PATH is
+// set in the environment. Use ftr_init() or ftr_init_file() to start explicitly.
+//
+// Environment variables:
+//   FTR_TRACE_PATH  — if set, auto-initializes to that file on startup
 //   FTR_DISABLE     — set to any value to disable tracing entirely
 #define FTR_MIN_SCOPE_DURATION_NS 0
 
-extern void ftr_close();
+// Called with raw FXT bytes whenever the internal buffer flushes.
+// Always invoked under the shared buffer lock.
+typedef void (*ftr_write_fn)(const void *data, size_t len, void *userdata);
+
+// Initialize with a custom output callback. The caller owns `userdata` and
+// must release it after calling ftr_close().
+// No-op if tracing is already active.
+extern void ftr_init(ftr_write_fn write_fn, void *userdata);
+
+// Initialize to a file. If `path` is NULL, reads FTR_TRACE_PATH env var,
+// falling back to "trace.fxt.gz". Handles .gz extension via popen+gzip.
+// Registers atexit(ftr_close) automatically.
+// No-op if tracing is already active.
+extern void ftr_init_file(const char *path);
+
+extern void ftr_close(void);
 extern void ftr_debug_dump(void);
 
 // An FXT trace atom.
@@ -77,6 +94,7 @@ static inline void ftr_end_event(struct ftr_event_t *e) {
 #define FTR_FUNCTION()
 #define FTR_MARK(name)
 #define FTR_COUNTER(name, value)
+#define FTR_EXPR(name, expr) (expr)
 #define FTR_SCOPE_FLOW_BEGIN(name, flow_id)
 #define FTR_SCOPE_FLOW_STEP(name, flow_id)
 #define FTR_SCOPE_FLOW_END(name, flow_id)
@@ -94,6 +112,21 @@ static inline void ftr_end_event(struct ftr_event_t *e) {
 // __func__ has a stable per-function pointer in practice (it's a static local
 // array), so we can use the same static-cache trick as FTR_SCOPE.
 #define FTR_FUNCTION() FTR_SCOPE(__PRETTY_FUNCTION__)
+
+// Trace the duration of evaluating expr and return its value.
+// Uses a GCC/Clang statement expression ({ ... }) — not standard C99 but
+// universally supported by the compilers this library targets.
+#define FTR_EXPR(name, expr)                                                   \
+  __extension__({                                                              \
+    static ftr_str_t FTR_CONCAT(__idx_, __LINE__) = 0;                        \
+    if (FTR_CONCAT(__idx_, __LINE__) == 0)                                     \
+      FTR_CONCAT(__idx_, __LINE__) = ftr_intern_string(name);                 \
+    struct ftr_event_t FTR_CONCAT(__event_, __LINE__) =                       \
+        ftr_begin_event(FTR_CONCAT(__idx_, __LINE__));                         \
+    __auto_type FTR_CONCAT(__result_, __LINE__) = (expr);                     \
+    ftr_end_event(&FTR_CONCAT(__event_, __LINE__));                            \
+    FTR_CONCAT(__result_, __LINE__);                                           \
+  })
 
 #define FTR_MARK(name)                                                         \
   do {                                                                         \

@@ -2,9 +2,14 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+rm *.zip
+rm -rf ftr-main *.zip
 
-echo "$SCRIPT_DIR"
+wget https://github.com/nickwanninger/ftr/archive/refs/heads/main.zip
 
-for name in "ftr.h" "ftr.c"; do
-    curl https://raw.githubusercontent.com/nickwanninger/ftr/refs/heads/main/src/${name} > "$SCRIPT_DIR/${name}"
-done
+unzip main.zip
+
+cp ftr-main/src/ftr.* .
+
+
+rm -rf *.zip ftr-main
