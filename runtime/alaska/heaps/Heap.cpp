@@ -34,11 +34,24 @@ namespace alaska {
       size_t val = strtoull(env, &end, 10);
       if (end != env) {
         switch (*end) {
-          case 'T': case 't': val *= 1024; [[fallthrough]];
-          case 'G': case 'g': val *= 1024; [[fallthrough]];
-          case 'M': case 'm': val *= 1024; [[fallthrough]];
-          case 'K': case 'k': val *= 1024; [[fallthrough]];
-          case '\0': break;
+          case 'T':
+          case 't':
+            val *= 1024;
+            [[fallthrough]];
+          case 'G':
+          case 'g':
+            val *= 1024;
+            [[fallthrough]];
+          case 'M':
+          case 'm':
+            val *= 1024;
+            [[fallthrough]];
+          case 'K':
+          case 'k':
+            val *= 1024;
+            [[fallthrough]];
+          case '\0':
+            break;
           default:
             alaska::printf("ALASKA_HEAP_SIZE: unrecognized suffix '%c'. Aborting.\n", *end);
             abort();
@@ -54,8 +67,10 @@ namespace alaska {
     auto flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
     alaska::printf("Heap: Allocating %zu bytes of backing memory from the OS.\n", heap_size);
     heap_start = mmap(NULL, heap_size, prot, flags, -1, 0);
+
     ALASKA_ASSERT(heap_start != MAP_FAILED,
                   "Failed to allocate the heap's backing memory. Aborting.");
+    madvise(heap_start, heap_size, MADV_NOHUGEPAGE);
 
     heap_bump = heap_start;
     heap_bump = (void *)(((uintptr_t)heap_bump + alaska::page_size - 1) & ~(alaska::page_size - 1));
@@ -253,15 +268,26 @@ namespace alaska {
     return c;
   }
 
-  void Heap::collect(ThreadCache *tc, int sc) {
-    // ck::scoped_lock lk(this->lock);
-    auto &mag = this->size_classes[sc];
-    // printf("Collecting size class %d\n", sc);
-    // mag.collect();
+
+
+  void Heap::sweep(void) {
+    long num_marked = 0;
+    long num_pages = 0;
     for (auto &mag : size_classes) {
-      mag.collect();
+      mag.for_each([&](SizedPage *sp) -> bool {
+        num_pages++;
+        num_marked += sp->bump_age();
+        return true;
+      });
     }
+    // alaska::printf("Heap sweep: marked %ld objects across %ld pages.\n", num_marked, num_pages);
   }
+
+  void Heap::collect(ThreadCache *tc, int sc) {
+    ck::scoped_lock lk(this->lock);
+    this->size_classes[sc].collect();
+  }
+
 
 
 

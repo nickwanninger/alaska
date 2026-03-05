@@ -209,3 +209,65 @@ PUBLIC void *realloc(void *ptr, size_t newsize) { return hrealloc(ptr, newsize);
 PUBLIC void free(void *ptr) { hfree(ptr); }
 PUBLIC size_t malloc_usable_size(void *ptr) { return halloc_usable_size(ptr); }
 }
+
+static long seen = 0;
+
+static long localize_structure_impl(alaska::Mapping *m, int depth, alaska::ThreadCache &tc) {
+  long localized = 0;
+  seen++;
+
+
+  auto header = alaska::ObjectHeader::from(m);
+  uint64_t *start = (uint64_t *)m->get_pointer();
+  uint64_t *end = (uint64_t *)((char *)start + header->object_size());
+
+  // alaska::printf("%6ld ", seen);
+  // for (int i = 0; i < depth - 1; i++) alaska::printf("|  ");
+  // alaska::printf("|--");
+  // alaska::printf("%p,%p %zu | ", m, m->get_pointer(), header->object_size());
+  // // gray
+  // alaska::printf("\e[90m");
+  // for (uint64_t *p = start; p < end; p++) {
+  //   alaska::printf("%016lx ", *p);
+  // }
+  // alaska::printf("\e[0m\n");
+
+  // if (depth > 2000) return localized;
+
+  // then, walk its data
+
+  if (!header->localized) {
+    localized += (long)tc.localize(m, 0);
+  }
+
+  if (depth == 0) return localized;
+
+  header = alaska::ObjectHeader::from(m);
+
+  // header->walk([&](alaska::Mapping *om, alaska::ObjectHeader *oheader) {
+  //   if (oheader->localized) return;
+  //   localized += (long)tc.localize(om, 0);
+  // });
+
+  header->walk([&](alaska::Mapping *om, alaska::ObjectHeader *oheader) {
+    localized += localize_structure_impl(om, depth - 1, tc);
+  });
+  return localized;
+}
+
+extern "C" bool localize_structure(void *ptr) {
+  auto &rt = alaska::Runtime::get();
+
+
+  auto *m = alaska::Mapping::from_handle_safe(ptr);
+  if (m == nullptr) return false;
+
+  alaska::printf("Localizing structure at handle %p\n", ptr);
+  return rt.with_barrier([&]() {
+    auto *tc = alaska::ThreadCache::current();
+    seen = 0;
+
+    constexpr int loc_depth = 400;
+    auto localize_count = localize_structure_impl(m, loc_depth, *tc);
+  });
+}

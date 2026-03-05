@@ -397,3 +397,10 @@ extern "C" AlaskaCtlResult __alaska_ctl(AlaskaCtlOperation op, uint64_t arg) {
       return ALASKA_INVALID;
   }
 }
+
+
+
+extern "C" void alaska_sweep(void) {
+  auto &rt = alaska::Runtime::get();
+  rt.heap.sweep();
+}

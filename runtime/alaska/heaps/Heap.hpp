@@ -86,6 +86,9 @@ namespace alaska {
     long compact_sizedpages(void);
     long compact_locality_pages(void);
 
+
+    void sweep(void);
+
     inline bool contains(void *ptr) {
       auto addr = (uintptr_t)ptr;
       return addr >= (uintptr_t)heap_start && addr < (uintptr_t)heap_end;
@@ -94,7 +97,7 @@ namespace alaska {
     const ck::vec<alaska::HeapPage *> &get_page_table(void) const { return page_table; }
 
 
-    // get the page containing some object.
+    // This REQUIRES that the object is actually in the heap, it does not check.
     static alaska::HeapPage *get_page(void *object);
 
     template <typename Fn>
@@ -138,7 +141,6 @@ namespace alaska {
 
   inline alaska::HeapPage *Heap::get_page(void *object) {
     HeapPageHeader *h = (HeapPageHeader *)((uintptr_t)object & ~(alaska::page_size - 1));
-    if (h->magic != HeapPageHeader::expected_magic) return nullptr;
     return h->owner;
   }
 

@@ -7,7 +7,6 @@
 
 typedef struct node {
   struct node *next;
-  int value;
   // char *payload;
 } node_t;
 
@@ -18,8 +17,15 @@ unsigned int seed = 12345;
 node_t *make_list(int depth) {
   node_t *list = NULL;
 
+
   while (depth > 0) {
-    node_t *n = calloc(1, sizeof(node_t));
+    size_t size = sizeof(node_t) + depth;
+    node_t *n = calloc(1, size);
+
+    off_t o = n - list;
+    printf("node: %zu %p %ld\n", size, n, o);
+
+
 
     n->next = list;
     list = n;
@@ -57,7 +63,7 @@ bool localize_structure(uint64_t ptr);
 void run_tests() {
   for (int trial = 0; trial < 15; trial++) {
     uint64_t start = alaska_timestamp();
-    node_t *n = make_list(1 << 21);
+    node_t *n = make_list(1 << 16);
     volatile unsigned long c = 0;
     for (int i = 0; i < 20; i++) {
       c += list_count_nodes(n);
@@ -76,6 +82,9 @@ void run_tests() {
 
 
 int main() {
+  // make_list(1 << 21);
+  make_list(250);
+  return 0;
   long start, end;
   printf("localized,walk_time\n");
   bool localized = false;
