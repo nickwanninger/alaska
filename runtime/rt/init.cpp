@@ -44,6 +44,8 @@ static void *barrier_thread_func(void *) {
     useconds_t sleep_time = (useconds_t)(toWait * 1000000);
     usleep(sleep_time);
 
+    continue;
+
     rt.with_barrier([&]() {
       toWait = rt.scheduler.tick(toWait);
     });
@@ -152,6 +154,8 @@ void __attribute__((constructor(102))) alaska_init(void) {
   the_runtime = new alaska::Runtime();
   // Attach the runtime's barrier manager
   the_runtime->barrier_manager = &the_barrier_manager;
+  // Trigger the current() bootstrap swap now so the hot path skips init checks.
+  alaska::ThreadCache::current();
   pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
 
   char *port_env = getenv("ALASKA_CMD_PORT");

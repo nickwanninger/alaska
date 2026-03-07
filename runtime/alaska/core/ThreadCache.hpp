@@ -21,6 +21,9 @@
 #include "ck/lock.h"
 #include <alaska/util/RateCounter.hpp>
 
+
+#define TC_ALIGNED(p) ((__typeof__(p))__builtin_assume_aligned((p), sizeof(uintptr_t)))
+
 namespace alaska {
 
   struct Runtime;
@@ -75,7 +78,7 @@ namespace alaska {
     // "localization data" to improve object locality
     alaska::Localizer localizer;
 
-  private:
+   private:
     // Each thread cache has a private heap page for each size class
     // it might allocate from. When a size class fills up, it is
     // returned to the global heap and another one is allocated.
@@ -90,10 +93,28 @@ namespace alaska {
    public:
     ThreadCache(int id, alaska::Runtime &rt);
 
+
+    // Allocating data from a threadcache is broken into two
+    // steps. First, we allocate a handle from the handle table. Then,
+    // we allocate the data. Both of these steps have a 'fast path'
+    // and a generic 'slow path'.  The core of both of the fast paths
+    // is that they attempt to allocate by popping off a linked list.
+    // If the linked list is empty, (or there is some other failure,
+    // such as missing a HeapPage) then we drop into the generic slow
+    // path.
+
+    // Allocate a new handle table mapping
+    alaska::Mapping *new_mapping(void);
+    alaska::Mapping *new_mapping_generic(void);
+    void free_mapping(alaska::Mapping *);
+
+
+    alaska::ObjectHeader *allocate_object(size_t size, alaska::Mapping &mapping);
+    alaska::ObjectHeader *allocate_object_generic(size_t size, alaska::Mapping &mapping);
+
     // Handle allocation and deallocation routines.
     void *halloc(size_t size) alaska_attr_malloc;
-
-    void *halloc_generic(size_t size) alaska_attr_malloc;
+    void *halloc_generic(size_t size, alaska::Mapping &m) alaska_attr_malloc;
 
 
     void *hrealloc(void *handle, size_t new_size) alaska_attr_malloc;
@@ -106,7 +127,7 @@ namespace alaska {
     //    allocator.
     // You SHOULD NOT use this function *and* the handle allocation routine
     // in the same execution context, as it will likely cause bugs.
-    void *malloc_generic(size_t size) alaska_attr_malloc;
+    void *malloc_generic(size_t size, alaska::Mapping &m) alaska_attr_malloc;
     void *malloc(size_t size, bool zero = false) alaska_attr_malloc;
     void *realloc(void *ptr, size_t new_size) alaska_attr_malloc;
     void free(void *ptr);
@@ -130,12 +151,8 @@ namespace alaska {
     long localize(alaska::Mapping *mapping, long allowed_depth = 0, long depth = 0);
     long localize_one(alaska::Mapping *mapping);
 
-    // Allocate a new handle table mapping
-    alaska::Mapping *new_mapping(void);
-    alaska::Mapping *new_mapping_slow_path(void);
-    void free_mapping(alaska::Mapping *);
 
-    static ThreadCache *current(void);
+    static ThreadCache *current() noexcept;
 
    private:
     alaska::Mapping *reverse_lookup(void *heap_ptr);
@@ -147,20 +164,6 @@ namespace alaska {
     // Swap to a new locality page owned by this thread cache
     alaska::LocalityPage *new_locality_page(size_t required_size);
   };
-
-
-  inline alaska::Mapping *ThreadCache::new_mapping(void) {
-    if (unlikely(current_slab == nullptr || !current_slab->has_any_free())) {
-      // Slow path: find/allocate a new slab
-      return new_mapping_slow_path();
-    }
-    auto m = current_slab->alloc();
-    if (unlikely(m == nullptr)) {
-      // Slab appeared to have space but allocation failed, try slow path
-      return new_mapping_slow_path();
-    }
-    return m;
-  }
 
 
 
@@ -185,9 +188,6 @@ namespace alaska {
     LockedThreadCache(LockedThreadCache &&) = delete;
     LockedThreadCache &operator=(LockedThreadCache &&) = delete;
 
-
-
-
     ThreadCache &operator*(void) { return tc; }
     ThreadCache *operator->(void) { return &tc; }
 
@@ -196,5 +196,43 @@ namespace alaska {
   };
 
 
+  // Free-function allocation interface. Defined alongside ThreadCache methods in
+  // ThreadCache.cpp so the compiler can inline the TC lookup and dispatch together.
+  void *halloc(size_t size) noexcept;
+  void *hcalloc(size_t nmemb, size_t size) noexcept;
+  void *hrealloc(void *handle, size_t new_size) noexcept;
+  void hfree(void *handle) noexcept;
+  size_t halloc_usable_size(void *handle) noexcept;
+
+  // Pointer-returning allocation interface (no handles).
+  void *stub_malloc(size_t size) noexcept;
+  void *stub_calloc(size_t nmemb, size_t size) noexcept;
+  void *stub_realloc(void *ptr, size_t new_size) noexcept;
+  void stub_free(void *ptr) noexcept;
+  size_t stub_malloc_usable_size(void *ptr) noexcept;
+
+
+
+
+
+
+
+
+
+  inline alaska::Mapping *ThreadCache::new_mapping(void) {
+    // Slab is guarenteed to be non-null, because it is allocated in the constructor of
+    // ThreadCache.
+    auto *slab = this->current_slab;
+
+    auto &htfl = slab->get_freelist();
+
+    auto *m = TC_ALIGNED(htfl.peek());
+
+    if (m != nullptr) {
+      htfl.pop_unchecked(m);
+      return (alaska::Mapping *)m;
+    }
+    return new_mapping_generic();
+  }
 
 }  // namespace alaska

@@ -41,6 +41,7 @@ namespace alaska {
   // Handle Table
   //////////////////////
   HandleTable::HandleTable(const alaska::Configuration &config) {
+    alaska::printf("Initializing handle table this=%p\n", this);
     FTR_FUNCTION();
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
@@ -51,7 +52,7 @@ namespace alaska {
 
 
 #ifndef ALASKA_YUKON_NO_HARDWARE
-    if (dev_alaska_fd == -1) {
+    if (dev_alaska_fd == -1 && getenv("ALASKA_ANON_HANDLE_TABLE") == nullptr) {
       int fd = open("/dev/alaska", O_RDWR);
       if (fd > 0) dev_alaska_fd = fd;
     }
@@ -60,14 +61,14 @@ namespace alaska {
     if (dev_alaska_fd > 0) {
       m_table = (Mapping *)mmap((void *)table_start, m_capacity * HandleTable::map_granularity,
                                 PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, dev_alaska_fd, 0);
-      // alaska::printf("Yukon: allocated handle table to %p with the kernel module!\n", m_table);
+      alaska::printf("Yukon: allocated handle table to %p with the kernel module!\n", m_table);
     } else {
       // Attempt to allocate the initial memory for the table.
       m_table =
           (Mapping *)mmap((void *)table_start, m_capacity * HandleTable::map_granularity,
                           PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
-      // alaska::printf("Allocated handle table to %p with anon mmap\n", m_table);
+      alaska::printf("Allocated handle table to %p with anon mmap\n", m_table);
     }
 
 
@@ -269,10 +270,6 @@ namespace alaska {
 
     // Finally, set the end pointer to the end of the slab
     this->end = (alaska::Mapping *)memory + HandleTable::slab_capacity;
-    // alaska::printf("Allocated new handle slab %p at idx %d (%p - %p)\n", this, idx, start,
-    // end);
-
-    this->register_periodic_work(alaska::Runtime::get().scheduler);
   }
 
   HandleSlab::~HandleSlab(void) {}
@@ -297,17 +294,24 @@ namespace alaska {
   }
 
   __attribute__((noinline)) alaska::Mapping *HandleSlab::alloc_slow(void) {
-    FTR_FUNCTION();
-    long extended_count = extend(256);
-    if (extended_count > 0) {
-      return alloc();
+    // 1. try swapping the remote_free list and the local_free list.
+    this->free_list.swap();
+    if (this->free_list.has_local_free()) {
+      return (alaska::Mapping *)this->free_list.pop();
     }
 
+    // 2. If that doesn't work, try extending the list with the bump allocator.
+    FTR_FUNCTION();
+    long extended_count = extend(4096 / sizeof(alaska::Mapping));
+    if (extended_count > 0) {
+      return (alaska::Mapping *)free_list.pop();
+    }
 
-    FTR_SCOPE("Fallback");
-    // Bump allocator exhausted; try swapping the remote free list into the local one.
-    free_list.swap();
+    // This check might be redundant since extend should only return 0
+    // if there are no more mappings to allocate, but we check it just
+    // in case.
     if (not free_list.has_local_free()) return nullptr;
+
     return (alaska::Mapping *)free_list.pop();
   }
 
@@ -325,15 +329,6 @@ namespace alaska {
   void HandleSlab::mlock(void) {
     // auto start = table.get_slab_start(idx);
     // ::mlock((void *)start, sizeof(alaska::Mapping) * HandleTable::slab_capacity);
-  }
-
-  void HandleSlab::periodic_work(float deltaTime) {
-    // alaska::printf("HandleSlab::periodic_work %p %f\n", this, deltaTime);
-    // No-op for now
-  }
-
-  void HandleSlab::deferred_work(void) {
-    // alaska::printf("HandleSlab::deferred_work %p\n", this);
   }
 
 

@@ -45,8 +45,12 @@ namespace alaska {
   }
 
   inline size_class_t size_to_class(size_t size) {
-    if (size < max_small_size) return size_to_class_small(size);
-    return size_to_class_large(size);
+    // Branchless via SLTIU on RISC-V: compute a large flag (0 or 1) and
+    // derive shift/rounding/offset from it using shifts and adds only.
+    const size_t large   = (size_t)(size >= max_small_size);  // SLTIU — no branch
+    const size_t shift   = 4 + (large << 1);                  // 4 (small) or 6 (large)
+    const size_t rounding = (size_t(1) << shift) - 1;         // 15 or 63
+    return ((size - (large << 10) + rounding) >> shift) + (large << 6);
   }
 
 

@@ -37,16 +37,12 @@ namespace alaska {
     Block *local_free = nullptr;
     Block *remote_free = nullptr;
 
-    long num_local_free = 0;
-    long num_remote_free = 0;
-
    public:
     inline Block *peek(void) const { return local_free; }
     // Pop from the local free list. Return null if the local free list is empty
     inline Block *pop(void) { return pop(local_free); }
     inline Block *pop(Block *b) {
       if (unlikely(b != nullptr)) {
-        num_local_free--;
         local_free = local_free->next;
       }
       b->markAllocated();
@@ -55,7 +51,6 @@ namespace alaska {
 
     inline Block *pop_unchecked(Block *b) {
       local_free = b->next;
-      num_local_free--;
       b->markAllocated();
       return b;
     }
@@ -68,22 +63,10 @@ namespace alaska {
     inline bool has_any_free(void) const { return has_local_free() || has_remote_free(); }
 
 
-    inline long num_free(void) const {
-      // atomics?
-      return num_local_free + num_remote_free;
-    }
-
     // Ask the free list to swap remote_free into the local_free list atomically.
     inline void swap(void) {
       if (local_free != nullptr) return;  // Sanity!
-      do {
-        this->local_free = this->remote_free;
-      } while (!__atomic_compare_exchange_n(&this->remote_free, &this->local_free, nullptr, 1,
-                                            __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-
-      // ??? ATOMICS ???
-      num_local_free += num_remote_free;
-      atomic_set(num_remote_free, 0);
+      this->local_free = __atomic_exchange_n(&this->remote_free, nullptr, __ATOMIC_ACQUIRE);
     }
 
 
@@ -92,7 +75,6 @@ namespace alaska {
       b->next = local_free;
       b->markFreed();
       local_free = b;
-      num_local_free++;
     }
 
     // Thread-safe version of free_local using atomics.
@@ -107,28 +89,23 @@ namespace alaska {
                                             __ATOMIC_RELAXED));
 
       block->markFreed();
-      // Atomically increment the count
-      atomic_inc(num_local_free, 1);
     }
 
     __attribute__((noinline)) inline void free_remote(void *p) {
       auto *block = (Block *)p;
       Block **list = &remote_free;
-      // TODO: NOT SURE ABOUT THE CONSISTENCY OPTIONS HERE
+
       do {
         block->next = *list;
-      } while (!__atomic_compare_exchange_n(list, &block->next, block, 1, __ATOMIC_ACQUIRE,
+      } while (!__atomic_compare_exchange_n(list, &block->next, block, 1, __ATOMIC_RELEASE,
                                             __ATOMIC_RELAXED));
 
       block->markFreed();
-      // I don't like this atomic.
-      atomic_inc(num_remote_free, 1);
     }
 
     // Wipe out the free lists.
     void reset() {
       local_free = remote_free = NULL;
-      num_local_free = num_remote_free = 0;
     }
   };
 

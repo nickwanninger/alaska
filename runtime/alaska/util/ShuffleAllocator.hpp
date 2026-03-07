@@ -69,12 +69,6 @@ namespace alaska {
     }
 
 
-    inline long num_free(void) const {
-      return num_free_in_free_list() + num_free_in_bump_allocator();
-    }
-
-    inline long num_free_in_free_list(void) const { return free_list.num_free(); }
-
     inline long num_free_in_bump_allocator(void) const {
       return (((uintptr_t)objects_end - (uintptr_t)bump_next) / sizeof(T));
     }

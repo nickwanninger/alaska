@@ -31,7 +31,7 @@ namespace alaska {
     for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
       size_classes[i] = nullptr;
     }
-    this->current_slab = nullptr;
+    this->current_slab = runtime.handle_table.fresh_slab();
   }
 
 
@@ -72,9 +72,7 @@ namespace alaska {
 
 
 
-#define TC_ALIGNED(p) ((__typeof__(p))__builtin_assume_aligned((p), sizeof(uintptr_t)))
-
-  LTO_INLINE void ThreadCache::maybe_collect(size_t size) {
+  void ThreadCache::maybe_collect(size_t size) {
     if (++this->generic_count >= 100) {
       this->generic_collect_count += this->generic_count;
       this->generic_count = 0;
@@ -89,8 +87,66 @@ namespace alaska {
   }
 
 
+  alaska::ObjectHeader *ThreadCache::allocate_object(size_t size, alaska::Mapping &m) {
+    int cls = alaska::size_to_class(size);
+
+    // Grab the sized page for this size class.
+    alaska::SizedPage *sp = size_classes[cls];
+
+    // The sized page must not be null.
+    if (sp != nullptr) {
+      // Grab the free list.
+      auto &spfl = sp->get_freelist();
+      // Peek at the handle table and size page free lists.
+      auto *d = TC_ALIGNED(spfl.peek());
+      if (d != nullptr) {
+        // Pop the free list and use that slot for our allocation.
+        spfl.pop_unchecked(d);
+        // Setup the handle table mapping.
+        auto *header = &d->header;
+        header->set_mapping(&m);
+        header->set_object_size(size);
+        m.set_pointer(header->data());
+
+        // Encode and return the handle
+        return header;
+      }
+    }
+
+
+    return allocate_object_generic(size, m);
+  }
+
+  __attribute__((noinline)) alaska::ObjectHeader *ThreadCache::allocate_object_generic(
+      size_t size, alaska::Mapping &m) {
+    int cls = alaska::size_to_class(size);
+    if (cls == 0) return NULL;
+
+    void *ptr;
+    SizedPage *page = size_classes[cls];
+
+    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+    ptr = TC_ALIGNED(page->alloc(m, size));
+    if (unlikely(ptr == nullptr)) {
+      // OOM? Try a fresh page.
+      page = new_sized_page(cls);
+      ptr = TC_ALIGNED(page->alloc(m, size));
+    }
+
+    if (unlikely(ptr == nullptr)) {
+      return NULL;
+    }
+
+    m.set_pointer(ptr);
+
+    return alaska::ObjectHeader::from(ptr);
+  }
+
+
+
+
   // noinline
-  __attribute__((noinline)) void *ThreadCache::halloc_generic(size_t size) {
+  __attribute__((noinline)) void *ThreadCache::halloc_generic(size_t size, alaska::Mapping &m) {
     FTR_SCOPE("HallocGeneric");
     // Now, if we are being called here, it means either we are
     // allocating a large object (size>1024) or one of the following
@@ -100,35 +156,36 @@ namespace alaska {
 
     maybe_collect(size);
 
+    ALASKA_ASSERT(size < alaska::max_large_size,
+                  "HallocGeneric should only be called for small allocations");
+
     if (likely(size >= alaska::max_large_size)) {
       // alaska::printf("ThreadCache::halloc_generic: huge alloc %zu\n", size);
       result = alaska_internal_malloc(size);
     } else {
       int cls = alaska::size_to_class(size);
       if (cls == 0) return NULL;
-      auto *mapping = TC_ALIGNED(this->new_mapping());
-      if (unlikely(mapping == nullptr)) return NULL;
 
       void *ptr;
       SizedPage *page = size_classes[cls];
 
       if (unlikely(page == nullptr)) page = new_sized_page(cls);
-      ptr = TC_ALIGNED(page->alloc(*mapping, size));
+      ptr = TC_ALIGNED(page->alloc(m, size));
       if (unlikely(ptr == nullptr)) {
         // OOM? Try a fresh page.
         page = new_sized_page(cls);
-        ptr = TC_ALIGNED(page->alloc(*mapping, size));
+        ptr = TC_ALIGNED(page->alloc(m, size));
       }
 
       if (unlikely(ptr == nullptr)) {
         // Still OOM — return the handle slot we grabbed so it isn't lost.
-        free_mapping(mapping);
+        free_mapping(&m);
         return NULL;
       }
 
-      mapping->set_pointer(ptr);
+      m.set_pointer(ptr);
 
-      result = mapping->to_handle(0);
+      result = m.to_handle(0);
     }
 
     // if (zero) memset(result, 0, size);
@@ -136,94 +193,57 @@ namespace alaska {
   }
 
 
-#if 0
 
-#define halloc_track(name) (name++)
-  static uint64_t halloc_calls = 0;
-  static uint64_t halloc_fastpath = 0;
-  static uint64_t halloc_invalid = 0;
-  static uint64_t halloc_not_small = 0;
-  static uint64_t halloc_no_sp = 0;
-  static uint64_t halloc_sp_empty = 0;
-  static uint64_t halloc_ht_empty = 0;
-
-  __attribute__((destructor)) void halloc_stats() {
-    // print all the stats on their own line, including a percentage of calls to hallo
-    alaska::printf("halloc calls: %lu\n", halloc_calls);
-    alaska::printf("halloc fastpath: %lu (%.2f%%)\n", halloc_fastpath,
-                   (halloc_fastpath * 100.0) / halloc_calls);
-    alaska::printf("halloc invalid: %lu (%.2f%%)\n", halloc_invalid,
-                   (halloc_invalid * 100.0) / halloc_calls);
-    alaska::printf("halloc not small: %lu (%.2f%%)\n", halloc_not_small,
-                   (halloc_not_small * 100.0) / halloc_calls);
-    alaska::printf("halloc no sp: %lu (%.2f%%)\n", halloc_no_sp,
-                   (halloc_no_sp * 100.0) / halloc_calls);
-    alaska::printf("halloc sp_empty: %lu (%.2f%%)\n", halloc_sp_empty,
-                   (halloc_sp_empty * 100.0) / halloc_calls);
-    alaska::printf("halloc ht_empty: %lu (%.2f%%)\n", halloc_ht_empty,
-                   (halloc_ht_empty * 100.0) / halloc_calls);
-  }
-
-
-#else
-#define halloc_track(name)
-#endif
-
-  // A version of halloc which uses the global domain.
-  __attribute__((visibility("default"))) LTO_INLINE void *ThreadCache::halloc(size_t size) {
+  LTO_INLINE void *ThreadCache::halloc(size_t size) {
     FTR_SCOPE("Halloc");
-    halloc_track(halloc_calls);
+
+    // If the object is too big, drop to the internal malloc (just allocate with pointers)
+    // TODO: we should have our own huge allocator.
+    if (unlikely(size >= alaska::max_large_size)) {
+      return alaska_internal_malloc(size);
+    }
+
+    // Allocate a mapping. This *must* succeed (it is an error to return null).
+    auto *mapping = new_mapping();
+
+    // auto *header = allocate_object(size, *mapping);
+    // if (header == nullptr) {
+    //   // Allocation failed, free the mapping and return null.
+    //   free_mapping(mapping);
+    //   return nullptr;
+    // }
+
+    // return mapping->to_handle(0);
+
+
+    // int cls = alaska::size_to_class(size);
     int cls = alaska::size_to_class(size);
-    if (cls == 0) {
-      halloc_track(halloc_invalid);
-      return NULL;
-    }
 
-    if (likely(size < alaska::max_small_size)) {
-      // Grab the sized page for this size class.
-      auto *sp = size_classes[cls];
+    // Grab the sized page for this size class.
+    alaska::SizedPage *sp = size_classes[cls];
 
-      if (likely(sp != NULL)) {
-        auto *slab = this->current_slab;
-        if (unlikely(slab == nullptr)) {
-          // Need to get a slab first
-          return halloc_generic(size);
-        }
-        auto &htfl = slab->get_freelist();
-        auto &spfl = sp->get_freelist();
+    // The sized page must not be null.
+    if (sp != nullptr) {
+      // Grab the free list.
+      auto &spfl = sp->get_freelist();
+      // Peek at the handle table and size page free lists.
+      auto *d = TC_ALIGNED(spfl.peek());
+      if (d != nullptr) {
+        // Pop the free list and use that slot for our allocation.
+        spfl.pop_unchecked(d);
+        // Setup the handle table mapping.
+        auto *header = &d->header;
+        header->set_mapping(mapping);
+        header->set_object_size(size);
+        mapping->set_pointer(header->data());
 
-        // Peek at the handle table and size page free lists.
-        auto *m = TC_ALIGNED(htfl.peek());
-        auto *d = TC_ALIGNED(spfl.peek());
-
-        if (m == nullptr) halloc_track(halloc_ht_empty);
-        if (d == nullptr) halloc_track(halloc_sp_empty);
-
-        // If both had local free entries, we can take the fast path.
-        if (likely((!!m) & (!!d))) {
-          // Pop from both free lists.
-          htfl.pop_unchecked(m);
-          spfl.pop_unchecked(d);
-
-          // Setup the handle table mapping.
-          auto *mapping = (alaska::Mapping *)m;
-          auto *header = &d->header;
-          header->set_mapping(mapping);
-          header->set_object_size(size);
-          mapping->set_pointer(header->data());
-
-          halloc_track(halloc_fastpath);
-          return mapping->to_handle(0);
-        }
-      } else {
-        halloc_track(halloc_no_sp);
+        // Encode and return the handle
+        return mapping->to_handle(0);
       }
-    } else {
-      halloc_track(halloc_not_small);
     }
 
-    // Ope! Fallback to the slower generic path.
-    return halloc_generic(size);
+
+    return halloc_generic(size, *mapping);
   }
 
 
@@ -236,6 +256,9 @@ namespace alaska {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
 
     auto original_size = this->get_size(handle);
+    // alaska::printf("ThreadCache::hrealloc: handle=%p, sz %zu -> %zu (%d -> %d)\n", handle,
+    //                original_size, new_size, alaska::size_to_class(original_size),
+    //                alaska::size_to_class(new_size));
 
     void *new_handle = this->halloc(new_size);
 
@@ -253,7 +276,7 @@ namespace alaska {
 
   LTO_INLINE void ThreadCache::hfree(void *handle) {
     FTR_SCOPE("hfree");
-    alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    alaska::Mapping *m = FTR_EXPR("GetMapping", alaska::Mapping::from_handle_safe(handle));
 
     // The first case in hfree is handling huge allocations.
     // These allocations are not tracked in the handle table, so we
@@ -262,6 +285,7 @@ namespace alaska {
     // are relatively rare.
 
     if (unlikely(m == nullptr)) {
+      FTR_SCOPE("NonHandle");
       alaska_internal_free(handle);
       return;
     }
@@ -270,26 +294,28 @@ namespace alaska {
     void *ptr = m->get_pointer();
     // auto *header = alaska::ObjectHeader::from(ptr);
 
-    auto *handle_slab = this->runtime.handle_table.get_slab(m);
-    auto *heap_page = alaska::Heap::get_page(ptr);
+    auto *handle_slab = FTR_EXPR("GetSlab", this->runtime.handle_table.get_slab(m));
+    auto *heap_page = FTR_EXPR("GetPage", alaska::Heap::get_page(ptr));
 
-    bool heap_owned = heap_page->is_owned_by(this);
+    bool heap_owned = FTR_EXPR("ChkOwner", heap_page->is_owned_by(this));
 
     // Now the slow path.
-
     if (likely(heap_owned)) {
+      FTR_SCOPE("LocalFree");
       heap_page->release_local(*m, ptr);
     } else {
+      FTR_SCOPE("RemoteFree");
       heap_page->release_remote(*m, ptr);
     }
 
     // Return the handle to the slab using thread-safe atomic operations.
     // This works correctly even if freed from a different thread than allocation.
+    FTR_SCOPE("HandleSlabFree");
     handle_slab->free(m);
     return;
   }
 
-#define STUB_ALLOCATES_HANDLES
+  // #define STUB_ALLOCATES_HANDLES
 
 
   LTO_INLINE alaska::Mapping *ThreadCache::reverse_lookup(void *heap_ptr) {
@@ -300,103 +326,73 @@ namespace alaska {
   }
 
   // -------------------------------------------------------------- //
-  LTO_INLINE void *ThreadCache::malloc_generic(size_t size) {
+  __attribute__((noinline)) void *ThreadCache::malloc_generic(size_t size, alaska::Mapping &m) {
+    if (unlikely(size == 0)) return NULL;
+
     maybe_collect(size);
-    void *ptr;
-    if (unlikely(alaska::should_be_huge_object(size))) {
-      // Allocate the huge allocation.
-      ptr = alaska_internal_malloc(size);
-    } else {
-      int cls = alaska::size_to_class(size);
-      SizedPage *page = size_classes[cls];
-      if (unlikely(page == nullptr)) page = new_sized_page(cls);
 
-      alaska::Mapping *m;
-
-#ifdef STUB_ALLOCATES_HANDLES
-      m = this->new_mapping();
-      if (unlikely(m == nullptr)) return nullptr;
-#else
-      // Stub Mapping
-      alaska::Mapping m_p{};
-      m = &m_p;
-#endif
-
-      ptr = page->alloc(*m, size);
-      if (unlikely(ptr == nullptr)) {
-        // OOM? Try a fresh page.
-        page = new_sized_page(cls);
-        ptr = page->alloc(*m, size);
-      }
-
-#ifdef STUB_ALLOCATES_HANDLES
-      if (unlikely(ptr == nullptr)) {
-        // Still OOM — return the handle slot we grabbed so it isn't lost.
-        free_mapping(m);
-        return nullptr;
-      }
-#endif
-
-      m->set_pointer(ptr);
+    if (unlikely(size >= alaska::max_large_size)) {
+      return alaska_internal_malloc(size);
     }
 
+    int cls = alaska::size_to_class(size);
+    if (cls == 0) return NULL;
+
+
+    SizedPage *page = size_classes[cls];
+    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+
+    void *ptr = TC_ALIGNED(page->alloc(m, size));
+    if (unlikely(ptr == nullptr)) {
+      page = new_sized_page(cls);
+      ptr = TC_ALIGNED(page->alloc(m, size));
+    }
+
+    if (unlikely(ptr == nullptr)) {
+#ifdef STUB_ALLOCATES_HANDLES
+      free_mapping(&m);
+#endif
+      return nullptr;
+    }
+
+    m.set_pointer(ptr);
     return ptr;
   }
 
 
   LTO_INLINE void *ThreadCache::malloc(size_t size, bool zero_ignored) {
-    if (likely(size < alaska::max_small_size)) {
-      // int cls = alaska::size_to_class(size);
-      auto *sp = size_classes[alaska::size_to_class_small(size)];
-
-      // alaska::printf("sp=%p\n", sp);
-
-      if (likely(sp != NULL)) {
-        auto *slab = this->current_slab;
-        if (unlikely(slab == nullptr)) {
-          // Need to get a slab first
-          return malloc_generic(size);
-        }
-        auto &htfl = slab->get_freelist();
-        auto &spfl = sp->get_freelist();
-// Note: we cram an ALIGNED here because the RISCV compiler
-// can't figure it out, and emits four loads and four stores
-// to avoid alignment problems. If we tell the compiler it is
-// aligned, things get much faster (It should be aligned anyways)
+    // If the object is too big, drop to the internal malloc.
+    if (unlikely(size >= alaska::max_large_size)) {
+      return alaska_internal_malloc(size);
+    }
 #ifdef STUB_ALLOCATES_HANDLES
-        auto *m = TC_ALIGNED(htfl.peek());  // peek at the handle table
+    auto *mapping = new_mapping();
 #else
-        // Stub mapping
-        alaska::Mapping m_p{};
-        auto *m = &m_p;
+    // auto *mapping = (alaska::Mapping *)0x400000008UL;
+    auto *mapping = alaska::Mapping::from_handle_id(1);
 #endif
-        auto *d = TC_ALIGNED(spfl.peek());  // peek at the size page
-        // alaska::printf("m=%p, d=%p\n", m, d);
 
-        // If both had local free entries, we can take the fast path.
-        if (likely(m and d)) {
-// Pop from both free lists.
-#ifdef STUB_ALLOCATES_HANDLES
-          htfl.pop(m);
-#endif
-          spfl.pop(d);
+    int cls = alaska::size_to_class(size);
+    alaska::SizedPage *sp = size_classes[cls];
+
+    if (sp != nullptr) {
+      auto &spfl = sp->get_freelist();
+      auto *d = TC_ALIGNED(spfl.peek());
+      if (d != nullptr) {
+        spfl.pop_unchecked(d);
 
 
-          // Setup the handle table mapping.
-          auto *mapping = (alaska::Mapping *)m;
-          auto *header = &d->header;
-          header->set_mapping(mapping);
-          header->set_object_size(size);
-          void *data = header->data();
-          mapping->set_pointer(data);
+        auto *header = &d->header;
+        header->set_mapping(mapping);
+        header->set_object_size(size);
+        void *data = header->data();
+        mapping->set_pointer(data);
 
-          return data;
-        }
+        return data;
       }
     }
 
-    // Ope! Fallback to the slower generic path.
-    return malloc_generic(size);
+    return malloc_generic(size, *mapping);
   }
 
 
@@ -425,12 +421,22 @@ namespace alaska {
       // Use thread-safe atomic free operation
       handle_slab->free(m);
 #else
-      // Stub mapping
-      alaska::Mapping m_p{};
-      auto *m = &m_p;
+      // auto *m = (alaska::Mapping *)0x400000008UL;
+      auto *m = alaska::Mapping::from_handle_id(1);
 #endif
 
-      heap_page->release_local(*m, ptr);
+
+      bool heap_owned = FTR_EXPR("ChkOwner", heap_page->is_owned_by(this));
+
+      // Now the slow path.
+      if (likely(heap_owned)) {
+        FTR_SCOPE("LocalFree");
+        heap_page->release_local(*m, ptr);
+      } else {
+        FTR_SCOPE("RemoteFree");
+        heap_page->release_remote(*m, ptr);
+      }
+
     } else {
       alaska_internal_free(ptr);
     }
@@ -441,46 +447,41 @@ namespace alaska {
 
   LTO_INLINE size_t ThreadCache::get_size(void *handle) {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
-    if (m == nullptr) {
-      void *pointer = handle;
 
-      if (runtime.heap.contains(pointer)) {
-        // it has an object header.
-        return alaska::ObjectHeader::from(pointer)->object_size();
-      } else {
-        return alaska_internal_malloc_usable_size(pointer);
-      }
+    if (m) {
+      void *ptr = m->get_pointer();
+      auto header = alaska::ObjectHeader::from(ptr);
+      return header->object_size();
     }
 
 
-    if (m->is_free()) return 0;
-
-    void *ptr = m->get_pointer();
-    auto header = alaska::ObjectHeader::from(ptr);
-    return header->object_size();
+    void *pointer = handle;
+    if (runtime.heap.contains(pointer)) {
+      // it has an object header.
+      return alaska::ObjectHeader::from(pointer)->object_size();
+    } else {
+      return alaska_internal_malloc_usable_size(pointer);
+    }
   }
 
-  __attribute__((noinline)) Mapping *ThreadCache::new_mapping_slow_path(void) {
-    handle_table_churn++;  // record that we are looking for a new handle table slab.
-    // printf("Ran out of handles in the slab!\n");
+
+
+
+  __attribute__((noinline)) Mapping *ThreadCache::new_mapping_generic(void) {
+    auto m = current_slab->alloc();
+    if (m != nullptr) {
+      return m;
+    }
 
     // We need to get a new slab from the handle table
     auto new_slab = runtime.handle_table.fresh_slab();
-
-    if (new_slab == nullptr) {
-      return nullptr;
-    }
-
-    if (current_slab != nullptr) {
-      current_slab->schedule_deferred();
-    }
+    ALASKA_ASSERT(new_slab != nullptr, "Failed to allocate new handle slab");
 
     // Update our current slab
     this->current_slab = new_slab;
 
     // Allocate from the new slab
-    auto m = new_slab->alloc();
-    return m;
+    return new_slab->alloc();
   }
 
   void ThreadCache::free_mapping(alaska::Mapping *m) { this->runtime.handle_table.put(m, this); }
@@ -592,16 +593,104 @@ namespace alaska {
 
     return res;
   }
+  __attribute__((tls_model("initial-exec"))) thread_local alaska::ThreadCache *g_tc = nullptr;
 
+  // Self-resolving dispatch for ThreadCache::current().
+  // current_bootstrap runs once (under a mutex), creates the Runtime if needed,
+  // then swaps g_current to current_fast so all subsequent calls are a single
+  // indirect branch with no init check on the hot path.
+  static ThreadCache *current_fast() noexcept;
+  static ThreadCache *current_bootstrap() noexcept;
 
-  static __attribute__((tls_model("initial-exec"))) __thread alaska::ThreadCache *g_tc = nullptr;
+  __attribute__((tls_model("initial-exec"))) thread_local ThreadCache *(*g_current)() noexcept =
+      current_bootstrap;
 
-  alaska::ThreadCache *alaska::ThreadCache::current() {
-    if (g_tc == nullptr) {
-      auto &rt = alaska::Runtime::get();
-      g_tc = rt.new_threadcache();
+  static ThreadCache *current_fast() noexcept { return g_tc; }
+
+  static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+  __attribute__((noinline)) static ThreadCache *current_bootstrap() noexcept {
+    alaska::printf("current_bootstrap called rt=%p\n", Runtime::get_ptr());
+    pthread_mutex_lock(&init_mutex);
+    if (g_current == current_bootstrap) {
+      if (Runtime::get_ptr() == nullptr) {
+        new Runtime();
+      }
     }
-    return g_tc;
+
+    if (g_tc == nullptr) {
+      g_tc = Runtime::get().new_threadcache();
+    }
+
+    g_current = current_fast;
+    alaska::printf("current_bootstrap done rt=%p tc=%p\n", Runtime::get_ptr(), g_tc);
+    pthread_mutex_unlock(&init_mutex);
+    return current_fast();
   }
+
+  ThreadCache *ThreadCache::current() noexcept { return g_current(); }
+
+
+
+  // --- Handle-based Allocation functions --- //
+
+  void *halloc(size_t size) noexcept {
+    void *handle = g_current()->halloc(size);
+    return handle;
+  }
+
+  void *hcalloc(size_t nmemb, size_t size) noexcept {
+    void *handle = g_current()->halloc(nmemb * size);
+    if (handle != nullptr) {
+      memset(alaska::Mapping::translate(handle), 0, nmemb * size);
+    }
+    return handle;
+  }
+
+  void *hrealloc(void *handle, size_t new_size) noexcept {
+    if (handle == nullptr) return halloc(new_size);
+    if (new_size == 0) {
+      hfree(handle);
+      return nullptr;
+    }
+    return g_current()->hrealloc(handle, new_size);
+  }
+
+  void hfree(void *handle) noexcept {
+    if (handle == nullptr) return;
+    g_current()->hfree(handle);
+  }
+
+  size_t halloc_usable_size(void *handle) noexcept { return g_current()->get_size(handle); }
+
+
+  // --- Stub Allocation functions (pointer-based, not handle-based) --- //
+
+  void *stub_malloc(size_t size) noexcept { return g_current()->malloc(size); }
+
+  void *stub_calloc(size_t nmemb, size_t size) noexcept {
+    void *handle = g_current()->malloc(nmemb * size);
+    if (handle != nullptr) {
+      memset(alaska::Mapping::translate(handle), 0, nmemb * size);
+    }
+    return handle;
+  }
+
+  void *stub_realloc(void *ptr, size_t new_size) noexcept {
+    if (ptr == nullptr) return stub_malloc(new_size);
+    if (new_size == 0) {
+      stub_free(ptr);
+      return nullptr;
+    }
+    return g_current()->realloc(ptr, new_size);
+  }
+
+  void stub_free(void *ptr) noexcept {
+    if (ptr == nullptr) return;
+    g_current()->free(ptr);
+  }
+
+  size_t stub_malloc_usable_size(void *ptr) noexcept { return g_current()->get_size(ptr); }
+
 
 }  // namespace alaska

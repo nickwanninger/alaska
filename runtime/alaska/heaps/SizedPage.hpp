@@ -46,19 +46,17 @@ namespace alaska {
 
 
 
+    long bump_age(void); // Return the number of objects bumped.
+
     float fragmentation(void) override {
-      return (float)num_free_in_free_list() / (float)object_extent();
+      auto extent = object_extent();
+      if (extent == 0) return 0.0f;
+      return 1.0f - ((float)num_free_in_bump_allocator() / (float)extent);
     }
 
 
     // How many free slots are there? (We return an estimate!)
-    inline size_t available(void) override { return num_free() * object_size; }
-
-    inline long num_free(void) const {
-      return num_free_in_free_list() + num_free_in_bump_allocator();
-    }
-
-    inline long num_free_in_free_list(void) const { return freelist.num_free(); }
+    inline size_t available(void) override { return num_free_in_bump_allocator() * object_size; }
 
     inline long num_free_in_bump_allocator(void) const {
       return (((uintptr_t)objects_end - (uintptr_t)bump_next) / object_size);
@@ -126,6 +124,20 @@ namespace alaska {
       return ((char *)h - (char *)this->memory) / real_size;
     }
   };
+
+
+  inline bool SizedPage::release_local(const alaska::Mapping &m, void *ptr) {
+    auto header = alaska::ObjectHeader::from(ptr);
+    release_local(header);
+    return true;
+  }
+
+
+  inline bool SizedPage::release_remote(const alaska::Mapping &m, void *ptr) {
+    auto header = alaska::ObjectHeader::from(ptr);
+    release_remote(header);
+    return true;
+  }
 
 
 

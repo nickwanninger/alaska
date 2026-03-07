@@ -340,7 +340,7 @@ static size_t compress_zero_removal_size(void *data, size_t size) {
 
 bool test_is_valid(void *handle, alaska::Runtime &rt) { return rt.is_valid_handle(handle); }
 
-extern "C" AlaskaCtlResult __alaska_ctl(AlaskaCtlOperation op, uint64_t arg) {
+extern "C" ALASKA_EXPORT AlaskaCtlResult __alaska_ctl(AlaskaCtlOperation op, uint64_t arg) {
   // printf("alaska_ctl(%d, %p)\n", op, (void *)arg);
 
 #define CTRL_CHECK_HANDLE(_arg)                                \
@@ -400,7 +400,7 @@ extern "C" AlaskaCtlResult __alaska_ctl(AlaskaCtlOperation op, uint64_t arg) {
 
 
 
-extern "C" void alaska_sweep(void) {
+extern "C" ALASKA_EXPORT void alaska_sweep(void) {
   auto &rt = alaska::Runtime::get();
   rt.heap.sweep();
 }

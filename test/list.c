@@ -22,10 +22,6 @@ node_t *make_list(int depth) {
     size_t size = sizeof(node_t) + depth;
     node_t *n = calloc(1, size);
 
-    off_t o = n - list;
-    printf("node: %zu %p %ld\n", size, n, o);
-
-
 
     n->next = list;
     list = n;
@@ -82,9 +78,6 @@ void run_tests() {
 
 
 int main() {
-  // make_list(1 << 21);
-  make_list(250);
-  return 0;
   long start, end;
   printf("localized,walk_time\n");
   bool localized = false;

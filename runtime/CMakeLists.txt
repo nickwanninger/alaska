@@ -3,6 +3,10 @@
 
 set(WARNINGS "-Wall -Werror -Wno-multichar -Wno-unused -Wno-unused-function -Wno-attributes ")
 
+include(CheckIPOSupported)
+check_ipo_supported()  # Fails if unsupported
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 # Compile the runtime with some special flags
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4 ${WARNINGS} -fno-plt")
@@ -71,7 +75,7 @@ add_library(alaska_core_impl STATIC ${CORE_SOURCES})
 set_property(TARGET alaska_core_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_compile_options(alaska_core_impl PRIVATE
   $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>
-  # -fvisibility=hidden
+  -fvisibility=hidden
 )
 target_include_directories(alaska_core_impl PUBLIC include/)
 
@@ -145,6 +149,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   set_target_properties(alaska PROPERTIES SOVERSION ${ALASKA_VERSION})
   target_link_libraries(alaska PRIVATE alaska_core_impl dl pthread)
   target_compile_options(alaska PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
+  target_link_options(alaska PRIVATE -Wl,-Bsymbolic-functions)
 
   if(ipo_supported)
     set_property(TARGET alaska PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -235,8 +240,9 @@ if(ALASKA_YUKON)
   target_link_libraries(yukon PRIVATE alaska_core_impl dl pthread)
   target_compile_options(yukon PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
-    # -fvisibility=hidden
+    -fvisibility=hidden
   )
+  target_link_options(yukon PRIVATE -Wl,-Bsymbolic-functions)
 
   if(ipo_supported)
     set_property(TARGET yukon PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -257,7 +263,7 @@ if(ALASKA_YUKON)
   target_link_libraries(yukon_stub PRIVATE alaska_core_impl dl pthread)
   target_compile_options(yukon_stub PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
-    # -fvisibility=hidden
+    -fvisibility=hidden
   )
   target_link_options(yukon_stub PRIVATE -Wl,-Bsymbolic-functions)
 
@@ -273,26 +279,6 @@ if(ALASKA_YUKON)
     PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
-  add_library(yukon_wrap SHARED yukon/yukon_wrap.cpp)
-  target_include_directories(yukon_wrap PUBLIC include/)
-  set_target_properties(yukon_wrap PROPERTIES LINKER_LANGUAGE C)
-  set_target_properties(yukon_wrap PROPERTIES SOVERSION ${ALASKA_VERSION})
-  target_link_libraries(yukon_wrap PRIVATE alaska_core_impl dl pthread)
-  target_compile_options(yukon_wrap PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:-nostdlib -nostdinc++>
-  )
-  target_link_options(yukon_wrap PRIVATE -Wl,-Bsymbolic-functions)
-
-  if(ipo_supported)
-    set_property(TARGET yukon_wrap PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  endif()
-
-  install(
-    TARGETS yukon_wrap
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 endif(ALASKA_YUKON)
 

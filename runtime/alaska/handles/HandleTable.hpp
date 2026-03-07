@@ -44,16 +44,12 @@ namespace alaska {
   // mappings. It is a fixed size, and no two threads will allocate from the
   // same slab at the same time.
   struct HandleSlab final : public alaska::OwnedBy<alaska::ThreadCache>,
-                            public alaska::PersistentAllocation,
-                            public alaska::Worker {
+                            public alaska::PersistentAllocation {
    private:
     alaska::ShardedFreeList<DefaultFreeListBlock> free_list;  // A free list for tracking releases
     alaska::Mapping *start;
     alaska::Mapping *end;
     alaska::Mapping *next_free;  // Bump allocator.
-
-    void periodic_work(float deltaTime) override;
-    void deferred_work(void) override;
 
    public:
     slabidx_t idx;                           // Which slab is this?
@@ -73,9 +69,16 @@ namespace alaska {
 
 
     // Implemented at the bottom of this file...
-    alaska::Mapping *alloc(void);   // Allocate a mapping from this slab
-    void free(alaska::Mapping *m);  // Return a mapping back to this slab (thread-safe)
-    void mlock(void);               // `mlock` the memory behind this slab
+    alaska::Mapping *alloc(void);  // Allocate a mapping from this slab
+
+    // Thread-safe free operation that can be called from any thread.
+    // Uses atomic operations to safely return a mapping to this slab.
+    __attribute__((always_inline)) inline void free(Mapping *m) {
+      // TODO: local/free???
+      free_list.free_local((void *)m);
+    }
+
+    void mlock(void);  // `mlock` the memory behind this slab
 
 
     inline alaska::Mapping *get_end(void) const { return end; }
@@ -122,7 +125,7 @@ namespace alaska {
     // Called by HandleTable when returning a slab to the free list.
     void reset(void);
 
-    size_t num_free(void) const { return free_list.num_free() + (end - next_free); }
+    size_t num_free(void) const { return (end - next_free); }
     size_t capacity(void) const { return end - start; }
     bool has_any_free(void) const { return free_list.has_any_free() || (next_free < end); }
 
@@ -190,6 +193,10 @@ namespace alaska {
 
 
 
+    // Get the slab that a mapping belongs to. This is done by using
+    // pointer arithmetic to find the start of the slab. It is illegal
+    // to call this function with a mapping which is not actually
+    // allocated in the handle table, this does not perform checks.
     inline alaska::HandleSlab *get_slab(alaska::Mapping *m) {
       alaska::HandleSlab *slab = *(alaska::HandleSlab **)((uintptr_t)m & ~(slab_size - 1));
       return slab;
@@ -278,15 +285,12 @@ namespace alaska {
     // 1. Attempt to allocate a mapping from the free list.
     auto *m = (alaska::Mapping *)free_list.pop();
     // 2. If that fails, drop out to the slow path
-    if (unlikely(m == nullptr)) {
-      m = alloc_slow();
+    if (m == nullptr) {
+      return alloc_slow();
     }
     return m;
   }
 
-  // Thread-safe free operation that can be called from any thread.
-  // Uses atomic operations to safely return a mapping to this slab.
-  inline void HandleSlab::free(Mapping *m) { free_list.free_local_atomic((void *)m); }
 
 
 

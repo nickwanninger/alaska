@@ -25,6 +25,7 @@ namespace alaska {
 
 
   long SizedPage::extend(long count) {
+    FTR_SCOPE("Extend");
     size_t real_size = this->object_size + sizeof(ObjectHeader);
     long extended_count = 0;
     off_t start = (off_t)bump_next;
@@ -43,33 +44,21 @@ namespace alaska {
   __attribute__((noinline))  // Don't inline this function, we want it to be a slow path.
   void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
     FTR_FUNCTION();
-#if 1
-    long extended_count = extend(256);
-    // 1. If we managed to extend the list, return one of the blocks from it.
-    if (extended_count > 0) {
-      // Fall back into the alloc function to do the heavy lifting of actually allocating
-      // one of the blocks we just extended the list with.
-      return alloc(m, size);
-    }
-#else
-    // 1. Attempt to bump allocate
-    if (bump_next < objects_end) {
-      auto *p = (SizePageBlock *)bump_next;
-      bump_next = (void *)((uintptr_t)bump_next + object_size + sizeof(ObjectHeader));
 
-      auto &header = p->header;
-      header.set_mapping(&m);
-      header.set_object_size(size);
-      header.placement_badness = 0;
 
-      return p->header.data();
-    }
-#endif
-
-    FTR_SCOPE("Fallback");
-    // 2. If the list was not extended, try swapping the remote_free list and the local_free list.
+    // 1. try swapping the remote_free list and the local_free list.
     // This is a little tricky because we need to worry about atomics here.
     freelist.swap();
+    if (freelist.has_local_free()) return alloc(m, size);
+
+    // 2. If that doesn't work, try extending the list with the bump allocator.
+    long extend_count = 4096 / object_size;
+    if (extend_count < 4) extend_count = 4;
+    long extended_count = extend(extend_count);
+    if (extended_count > 0) {
+      return alloc(m, size);
+    }
+
 
     // If local-free is still null, return null
     if (not freelist.has_local_free()) return nullptr;
@@ -90,20 +79,6 @@ namespace alaska {
     header.placement_badness = 0;
 
     return p->header.data();
-  }
-
-
-  bool SizedPage::release_local(const alaska::Mapping &m, void *ptr) {
-    auto header = alaska::ObjectHeader::from(ptr);
-    release_local(header);
-    return true;
-  }
-
-
-  bool SizedPage::release_remote(const alaska::Mapping &m, void *ptr) {
-    auto header = alaska::ObjectHeader::from(ptr);
-    release_remote(header);
-    return true;
   }
 
 
@@ -137,6 +112,23 @@ namespace alaska {
 
 
     freelist = ShardedFreeList<SizePageBlock>();
+  }
+
+
+
+  long SizedPage::bump_age(void) {
+    long count = 0;
+    size_t real_object_size = this->object_size + sizeof(ObjectHeader);
+    for (void *p = (void *)this->memory_start(); p < this->bump_next;
+         p = (void *)((uintptr_t)p + real_object_size)) {
+      auto obj = (ObjectHeader *)WORD_ALIGNED(p);
+      auto m = obj->get_mapping();
+      if (m) {
+        m->set_fault_pending(false);
+      }
+      count++;
+    }
+    return count;
   }
 
 

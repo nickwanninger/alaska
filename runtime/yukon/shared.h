@@ -8,6 +8,7 @@
 #include <alaska/core/ThreadCache.hpp>
 #include <alaska/core/Runtime.hpp>
 #include <sys/ioctl.h>
+#include <sys/signal.h>
 #include <math.h>
 
 #define CONSTRUCTOR __attribute__((constructor))
@@ -91,23 +92,6 @@ struct InstructionTracker {
   }
 };
 
-
-
-
-static inline alaska::Runtime *the_runtime;
-
-__attribute__((noinline)) static void yukon_init_runtime_and_tc() {
-  the_runtime = new alaska::Runtime();
-}
-
-static inline alaska::ThreadCache *yukon_get_tc_unchecked() {
-  return alaska::ThreadCache::current();
-}
-
-static inline alaska::ThreadCache *yukon_get_tc() {
-  if (unlikely(the_runtime == nullptr)) yukon_init_runtime_and_tc();
-  return yukon_get_tc_unchecked();
-}
 
 
 
@@ -264,7 +248,7 @@ __attribute__((noinline)) static bool attempt_localization(void) {
     return false;
   }
 
-  dump_htlb(yukon_get_tc());
+  // dump_htlb(yukon_get_tc());
 
   return true;
 }
@@ -323,17 +307,12 @@ struct LocalizationLatch {
 
 void CONSTRUCTOR alaska_init(void) {
   seed = rand();
-  // Setup the output buffers for stdout and stderr so they don't invoke our allocator.
-  // This is important because we want to avoid recursion in the allocator.
   setvbuf(stdout, stdout_buf, _IOLBF, BUFSIZ);
   setvbuf(stderr, stderr_buf, _IOLBF, BUFSIZ);
-
-  // Unset LD_PRELOAD to avoid running alaska in subprocesses. (We haven't tested this yet.)
   unsetenv("LD_PRELOAD");
 
-  // Make sure the runtime and thread cache are initialized.
   alaska::handle_id_t t[DUMP_SIZE];
-  auto *tc = yukon_get_tc();
+  auto *tc = alaska::ThreadCache::current();
   dump_htlb_into(tc, t);
 }
 

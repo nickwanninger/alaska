@@ -34,6 +34,7 @@
 
 
 #define LTO_INLINE
+// #define LTO_INLINE __attribute__((always_inline))
 
 
 static void show_string(const char *msg) { write(1, msg, strlen(msg)); }

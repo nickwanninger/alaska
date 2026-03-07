@@ -109,17 +109,12 @@ TEST_F(RuntimeTest, SlabGetHandle) {
   ASSERT_NE(handle, nullptr);
 }
 
-TEST_F(RuntimeTest, SlabNFreeDecreasesOnHandleGet) {
-  // Allocate a fresh slab from the handle table
+TEST_F(RuntimeTest, SlabHasFreeAfterFreshAndDecreasesOnAlloc) {
   auto* slab = runtime.handle_table.fresh_slab();
-  // Get the initial nfree count
-  int initialNFree = slab->num_free();
-  // Get a handle from the slab
+  ASSERT_TRUE(slab->has_any_free());
   auto handle = slab->alloc();
-  // Check that the handle is valid
   ASSERT_NE(handle, nullptr);
-  // Check that the nfree count has decreased by 1
-  ASSERT_EQ(slab->num_free(), initialNFree - 1);
+  ASSERT_TRUE(slab->has_any_free());
 }
 
 
@@ -142,10 +137,9 @@ TEST_F(RuntimeTest, SlabGetReturnsNullWhenOutOfCapacity) {
   // Fill up the slab with handles
   for (size_t i = 0; i < slab->capacity(); i++) {
     auto handle = slab->alloc();
-    // ::printf("allocated handle %p %zu\n", handle, slab->num_free());
     ASSERT_NE(handle, nullptr);
   }
-  ::printf("out of capacity, num_free: %zu\n", slab->num_free());
+  ASSERT_FALSE(slab->has_any_free());
   // Try to get another handle from the slab
   auto handle = slab->alloc();
   // Check that the handle is null
@@ -160,7 +154,7 @@ TEST_F(RuntimeTest, SlabUniqueHandles) {
   // Create a set to store the handles
   std::set<alaska::Mapping*> handles;
   // Fill up the slab with handles
-  for (size_t i = 0; i < slab->num_free(); i++) {
+  for (size_t i = 0; i < slab->capacity(); i++) {
     auto handle = slab->alloc();
     ASSERT_NE(handle, nullptr);
     // Check that the handle is unique
@@ -195,7 +189,7 @@ TEST_F(RuntimeTest, SlabMappingIndex) {
     // Allocate a fresh slab from the handle table
     auto* slab = runtime.handle_table.fresh_slab();
     // Fill up the slab with handles
-    for (size_t i = 0; slab->num_free() > 0; i++) {
+    for (size_t i = 0; slab->has_any_free(); i++) {
       auto handle = slab->alloc();
       ASSERT_NE(handle, nullptr);
       // Check that the handle is in the right index

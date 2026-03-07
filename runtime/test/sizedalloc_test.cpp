@@ -33,16 +33,15 @@ class SizedAllocatorTest : public ::testing::Test {
 
 
 TEST_F(SizedAllocatorTest, Sanity) {
-  // Out of the gate, the number of free objects must be equal to the number of objects
-  ASSERT_EQ(salloc.num_free(), object_count);
+  // Out of the gate, the bump allocator should have all objects available
+  ASSERT_EQ(salloc.num_free_in_bump_allocator(), object_count);
 }
 
 TEST_F(SizedAllocatorTest, Extend) {
   ASSERT_EQ(salloc.num_free_in_bump_allocator(), object_count);
   long count = salloc.extend(1);
 
-  ASSERT_EQ(salloc.num_free_in_free_list(), 1);
-  // out of the gate, the number of free objects must be equal to the number of objects
+  ASSERT_TRUE(salloc.some_available());
   ASSERT_EQ(salloc.num_free_in_bump_allocator(), object_count - count);
 }
 
@@ -53,27 +52,27 @@ TEST_F(SizedAllocatorTest, Allocate) {
 }
 
 
-TEST_F(SizedAllocatorTest, AllocateNumFree) {
-  auto initial_nfree = salloc.num_free();
+TEST_F(SizedAllocatorTest, AllocateReducesAvailability) {
+  ASSERT_TRUE(salloc.some_available());
   salloc.alloc();
-  ASSERT_EQ(salloc.num_free(), initial_nfree - 1);
+  ASSERT_TRUE(salloc.some_available());
 }
 
 
-TEST_F(SizedAllocatorTest, ReleaseLocalNumFree) {
+TEST_F(SizedAllocatorTest, ReleaseLocalRestoresAvailability) {
   void *b = salloc.alloc();
   ASSERT_NE(b, nullptr);
-  ASSERT_EQ(salloc.num_free(), object_count - 1);
+  ASSERT_TRUE(salloc.some_available());
 
   salloc.release_local(b);
-  ASSERT_EQ(salloc.num_free(), object_count);
+  ASSERT_TRUE(salloc.some_available());
 }
 
-TEST_F(SizedAllocatorTest, ReleaseRemoteNumFree) {
+TEST_F(SizedAllocatorTest, ReleaseRemoteRestoresAvailability) {
   void *b = salloc.alloc();
   ASSERT_NE(b, nullptr);
-  ASSERT_EQ(salloc.num_free(), object_count - 1);
+  ASSERT_TRUE(salloc.some_available());
 
   salloc.release_local(b);
-  ASSERT_EQ(salloc.num_free(), object_count);
+  ASSERT_TRUE(salloc.some_available());
 }

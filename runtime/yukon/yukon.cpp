@@ -30,6 +30,7 @@ extern "C" PUBLIC void yukon_enable_printing(int enable) { enable_printing = ena
 static bool localization_blocked_by_environment = false;
 
 extern "C" PUBLIC void yukon_enable_localization(int enable) {
+  enable = 0;
   if (localization_blocked_by_environment) {
     fprintf(stderr, "YUKON: localization disabled by NODUMP env var!\n");
     enable = 0;
@@ -54,8 +55,6 @@ extern "C" PUBLIC void yukon_enable_localization(int enable) {
   alaska::printf("YUKON: localization %s\n", enable ? "enabled" : "disabled");
   if (enable_localization) {
     schedule_localization_interrupt();
-    // the_runtime->brute_force_localization(*yukon_get_tc());
-    // the_runtime->heap.compact_sizedpages();
   }
 }
 
@@ -63,20 +62,44 @@ extern "C" PUBLIC void yukon_enable_localization(int enable) {
 
 // Signal handler for segmentation faults
 static void yukon_segfault_handler(int sig, siginfo_t *si, void *uc) {
+  // Print the address that caused the segmentation fault
   alaska::printf("YUKON: Segmentation fault at address: %p\n", si->si_addr);
+  // Print the instruction pointer at the time of the fault (riscv)
+  ucontext_t *context = (ucontext_t *)uc;
+#if defined(__riscv_xlen) && __riscv_xlen == 64
+  alaska::printf("YUKON: Instruction pointer: %p\n", (void *)context->uc_mcontext.__gregs[REG_PC]);
+#elif defined(__riscv_xlen) && __riscv_xlen == 32
+  alaska::printf("YUKON: Instruction pointer: %p\n", (void *)context->uc_mcontext.__gregs[REG_PC]);
+#else
+  alaska::printf("YUKON: Instruction pointer: (unknown architecture)\n");
+#endif
+
+
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "cat /proc/%d/maps", getpid());
+  setenv("LD_PRELOAD", "", 1);  // Unset LD_PRELOAD to avoid recursive faults in the handler.
+  system(buffer);
+  
   exit(-1);
 }
 
 
 
 static void CONSTRUCTOR yukon_init(void) {
+  // Register segmentation fault handler
+  struct sigaction sa;
+  sa.sa_sigaction = yukon_segfault_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_SIGINFO;
+  sigaction(SIGSEGV, &sa, NULL);
+  return;
   // Here, we initialize the dumping system in yukon.
 
   localization_blocked_by_environment = getenv("NODUMP") != nullptr;
   // Program the signal handler.
 
 
-  yukon_get_tc();
+  alaska::ThreadCache::current();  // Force the runtime to initialize before we start getting signals.
 
   signal(SIGPROF, yukon_dump_alarm_handler);
 
@@ -87,12 +110,6 @@ static void CONSTRUCTOR yukon_init(void) {
     yukon_enable_localization(false);
   }
 
-  // Register segmentation fault handler
-  // struct sigaction sa;
-  // sa.sa_sigaction = yukon_segfault_handler;
-  // sigemptyset(&sa.sa_mask);
-  // sa.sa_flags = SA_SIGINFO;
-  // sigaction(SIGSEGV, &sa, NULL);
 
 
 #if !defined(ALASKA_YUKON_NO_HARDWARE)
@@ -115,100 +132,28 @@ static void CONSTRUCTOR yukon_init(void) {
 
 
 
-// -------------------------------------------------------------- //
-//                     Allocation Interface                       //
-// -------------------------------------------------------------- //
-
-
-static void *_halloc(size_t sz, int zero) {
-  void *result = NULL;
-
-
-  alaska::LockedThreadCache tc = *yukon_get_tc();
-  result = tc->halloc(sz);
-  if (zero) {
-    // NOTE: we can just memset here, no need to software translate!
-    memset(result, 0, sz);
-  }
-
-
-  // if (enable_printing) alaska::printf("HALLOC %p\n", result);
-  return result;
-}
-
-extern "C" PUBLIC void *halloc(size_t sz) noexcept {
-  INSTRUCTION_TRACKER(INSTCOUNT_MALLOC);
-  // LocalizationLatch loc_latch;
-  return _halloc(sz, 0);
-}
-extern "C" PUBLIC void *hcalloc(size_t nmemb, size_t size) {
-  INSTRUCTION_TRACKER(INSTCOUNT_CALLOC);
-  // LocalizationLatch loc_latch;
-  return _halloc(nmemb * size, 1);
-}
-
-// Reallocate a handle
-extern "C" PUBLIC void *hrealloc(void *ptr, size_t new_size) {
-  // If the ptr is null, then this call is equivalent to malloc(size)
-  if (ptr == NULL) {
-    return halloc(new_size);
-  }
-
-  // If the size is equal to zero, and the ptr is not null, realloc acts like free(ptr)
-  if (new_size == 0) {
-    // If it wasn't a ptr, just forward to the system realloc
-    hfree(ptr);
-    return NULL;
-  }
-
-  INSTRUCTION_TRACKER(INSTCOUNT_REALLOC);
-  // LocalizationLatch loc_latch;
-  alaska::LockedThreadCache tc = *yukon_get_tc();
-  // if (enable_printing) alaska::printf("REALLOC %p\n", ptr);
-  return tc->hrealloc(ptr, new_size);
-}
-
-
-
-extern "C" PUBLIC void hfree(void *ptr) {
-  INSTRUCTION_TRACKER(INSTCOUNT_FREE);
-  // LocalizationLatch loc_latch;
-  // AutoFencer fencer;
-  // no-op if NULL is passed
-  if (unlikely(ptr == NULL)) return;
-  alaska::LockedThreadCache tc = *yukon_get_tc_unchecked();
-
-
-  // if (enable_printing) alaska::printf("HFREE %p\n", ptr);
-  tc->hfree(ptr);
-}
-
-
-extern "C" PUBLIC size_t halloc_usable_size(void *ptr) {
-  INSTRUCTION_TRACKER(INSTCOUNT_GETSIZE);
-  auto tc = yukon_get_tc_unchecked();
-  return tc->get_size(ptr);
-}
-
 
 
 // -------------------------------------------------------------- //
 //                        Libc Overrides                          //
 // -------------------------------------------------------------- //
 
-PUBLIC void *operator new(size_t size) { return halloc(size); }
-PUBLIC void *operator new[](size_t size) { return halloc(size); }
-PUBLIC void operator delete(void *ptr) { hfree(ptr); }
-PUBLIC void operator delete[](void *ptr) { hfree(ptr); }
+PUBLIC void *operator new(size_t size) { return malloc(size); }
+PUBLIC void *operator new[](size_t size) { return malloc(size); }
+PUBLIC void operator delete(void *ptr) { free(ptr); }
+PUBLIC void operator delete(void *ptr, unsigned long) { free(ptr); }
+PUBLIC void operator delete[](void *ptr) { free(ptr); }
 
 
 extern "C" {
-PUBLIC void *malloc(size_t size) { return halloc(size); }
-PUBLIC void *calloc(size_t size, size_t count) { return hcalloc(size, count); }
-PUBLIC void *realloc(void *ptr, size_t newsize) { return hrealloc(ptr, newsize); }
-PUBLIC void free(void *ptr) { hfree(ptr); }
-PUBLIC size_t malloc_usable_size(void *ptr) { return halloc_usable_size(ptr); }
+PUBLIC void *malloc(size_t size) { return alaska::halloc(size); }
+PUBLIC void *calloc(size_t size, size_t count) { return alaska::hcalloc(size, count); }
+PUBLIC void *realloc(void *ptr, size_t newsize) { return alaska::hrealloc(ptr, newsize); }
+PUBLIC void free(void *ptr) { return alaska::hfree(ptr); }
+PUBLIC size_t malloc_usable_size(void *ptr) { return alaska::halloc_usable_size(ptr); }
 }
+
+
 
 static long seen = 0;
 
@@ -221,21 +166,6 @@ static long localize_structure_impl(alaska::Mapping *m, int depth, alaska::Threa
   uint64_t *start = (uint64_t *)m->get_pointer();
   uint64_t *end = (uint64_t *)((char *)start + header->object_size());
 
-  // alaska::printf("%6ld ", seen);
-  // for (int i = 0; i < depth - 1; i++) alaska::printf("|  ");
-  // alaska::printf("|--");
-  // alaska::printf("%p,%p %zu | ", m, m->get_pointer(), header->object_size());
-  // // gray
-  // alaska::printf("\e[90m");
-  // for (uint64_t *p = start; p < end; p++) {
-  //   alaska::printf("%016lx ", *p);
-  // }
-  // alaska::printf("\e[0m\n");
-
-  // if (depth > 2000) return localized;
-
-  // then, walk its data
-
   if (!header->localized) {
     localized += (long)tc.localize(m, 0);
   }
@@ -244,18 +174,13 @@ static long localize_structure_impl(alaska::Mapping *m, int depth, alaska::Threa
 
   header = alaska::ObjectHeader::from(m);
 
-  // header->walk([&](alaska::Mapping *om, alaska::ObjectHeader *oheader) {
-  //   if (oheader->localized) return;
-  //   localized += (long)tc.localize(om, 0);
-  // });
-
   header->walk([&](alaska::Mapping *om, alaska::ObjectHeader *oheader) {
     localized += localize_structure_impl(om, depth - 1, tc);
   });
   return localized;
 }
 
-extern "C" bool localize_structure(void *ptr) {
+extern "C" PUBLIC bool localize_structure(void *ptr) {
   auto &rt = alaska::Runtime::get();
 
 

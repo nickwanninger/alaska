@@ -21,7 +21,7 @@ extern "C" {
 
 #define ALASKA_INTERNAL_MALLOC_CACHE_LINE_SIZE 64
 #if defined(__clang__) || defined(__GNUC__)
-#define ALASKA_INTERNAL_MALLOC_EXPORT __attribute__((visibility("default")))
+#define ALASKA_INTERNAL_MALLOC_EXPORT __attribute__((visibility("default"))) __attribute__((noinline))
 #define ALASKA_INTERNAL_MALLOC_RESTRICT __restrict
 #define ALASKA_INTERNAL_MALLOC_ALLOCATOR
 #define ALASKA_INTERNAL_MALLOC_CACHE_ALIGNED __attribute__((aligned(ALASKA_INTERNAL_MALLOC_CACHE_LINE_SIZE)))
@@ -36,7 +36,7 @@ extern "C" {
 #endif
 #define ALASKA_INTERNAL_MALLOC_CDECL
 #elif defined(_MSC_VER)
-#define ALASKA_INTERNAL_MALLOC_EXPORT
+#define ALASKA_INTERNAL_MALLOC_EXPORT 
 #define ALASKA_INTERNAL_MALLOC_RESTRICT __declspec(restrict)
 #define ALASKA_INTERNAL_MALLOC_ALLOCATOR __declspec(allocator) __declspec(restrict)
 #define ALASKA_INTERNAL_MALLOC_CACHE_ALIGNED __declspec(align(ALASKA_INTERNAL_MALLOC_CACHE_LINE_SIZE))
@@ -45,7 +45,7 @@ extern "C" {
 #define ALASKA_INTERNAL_MALLOC_ATTRIB_ALLOC_SIZE2(count, size)
 #define ALASKA_INTERNAL_MALLOC_CDECL __cdecl
 #else
-#define ALASKA_INTERNAL_MALLOC_EXPORT
+#define ALASKA_INTERNAL_MALLOC_EXPORT  __attribute__((noinline))
 #define ALASKA_INTERNAL_MALLOC_ALLOCATOR
 #define ALASKA_INTERNAL_MALLOC_ATTRIB_MALLOC
 #define ALASKA_INTERNAL_MALLOC_ATTRIB_ALLOC_SIZE(size)

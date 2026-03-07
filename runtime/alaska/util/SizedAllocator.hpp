@@ -45,7 +45,10 @@ namespace alaska {
       alaska_track_free(ptr, 0);
     }
 
-    float fragmentation(void) { return (float)num_free_in_free_list() / (float)object_extent(); }
+    float fragmentation(void) {
+      if (!some_available()) return 0.0f;
+      return 1.0f - ((float)num_free_in_bump_allocator() / (float)object_extent());
+    }
 
 
     void configure(void *objects, size_t object_size, long object_count);
@@ -57,12 +60,6 @@ namespace alaska {
              (bump_next != objects_end);
     }
 
-
-    inline long num_free(void) const {
-      return num_free_in_free_list() + num_free_in_bump_allocator();
-    }
-
-    inline long num_free_in_free_list(void) const { return free_list.num_free(); }
 
     inline long num_free_in_bump_allocator(void) const {
       return (((uintptr_t)objects_end - (uintptr_t)bump_next) / object_size);
