@@ -113,6 +113,7 @@ namespace alaska {
 
     alaska::MagazineBase* magazine = nullptr;
     struct list_head mag_list;
+    struct list_head tc_list;  // Per-ThreadCache local page queue membership
     bool was_full = false;
   };
 

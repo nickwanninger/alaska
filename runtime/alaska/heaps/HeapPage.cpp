@@ -29,6 +29,7 @@ namespace alaska {
     // alaska::printf("HeapPage: memory: %p, header %p, owned by %p\n", memory,
     // (uintptr_t)this->header(), this->header()->owner);
     mag_list = LIST_HEAD_INIT(mag_list);
+    tc_list = LIST_HEAD_INIT(tc_list);
   }
 
 

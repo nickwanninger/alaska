@@ -29,30 +29,67 @@ namespace alaska {
       , runtime(rt)
       , localizer(rt.config, *this) {
     for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
-      size_classes[i] = nullptr;
+      bins[i].active = nullptr;
+      bins[i].rest = LIST_HEAD_INIT(bins[i].rest);
     }
     this->current_slab = runtime.handle_table.fresh_slab();
+  }
+
+  ThreadCache::~ThreadCache() {
+    for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
+      if (bins[i].active) {
+        list_del_init(&bins[i].active->tc_list);
+        runtime.heap.put_page(bins[i].active);
+        bins[i].active = nullptr;
+      }
+      SizedPage *entry, *temp;
+      list_for_each_entry_safe(entry, temp, &bins[i].rest, tc_list) {
+        list_del_init(&entry->tc_list);
+        runtime.heap.put_page(entry);
+      }
+    }
+    if (locality_page) {
+      runtime.heap.put_page(locality_page);
+      locality_page = nullptr;
+    }
   }
 
 
 
 
-  SizedPage *ThreadCache::new_sized_page(int cls) {
-    // alaska::printf("Thread %d needs new sized page for class %d\n", id, cls);
+  SizedPage *ThreadCache::rotate_sized_page(int cls) {
+    auto &bin = bins[cls];
+
+    // Step 1: Try to recover space on the active page via remote frees.
+    if (bin.active != nullptr) {
+      auto &fl = bin.active->get_freelist();
+      fl.swap();
+      if (fl.has_local_free() || bin.active->num_free_in_bump_allocator() > 0) {
+        return bin.active;
+      }
+      // Active is truly full — park it in rest.
+      list_add(&bin.active->tc_list, &bin.rest);
+      bin.active = nullptr;
+    }
+
+    // Step 2: Scan rest for a page that has free space (check remote frees too).
+    SizedPage *entry, *temp;
+    list_for_each_entry_safe(entry, temp, &bin.rest, tc_list) {
+      auto &fl = entry->get_freelist();
+      fl.swap();
+      if (fl.has_local_free() || entry->num_free_in_bump_allocator() > 0) {
+        list_del_init(&entry->tc_list);
+        bin.active = entry;
+        return bin.active;
+      }
+    }
+
+    // Step 3: All locally held pages are exhausted. Fetch a fresh one from global.
     heap_churn++;
-    // Get a new heap
-    auto *heap = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
-
-    // And set the owner
-    heap->set_owner(this);
-
-    // Swap the heaps in the thread cache
-    if (size_classes[cls] != nullptr) runtime.heap.put_page(size_classes[cls]);
-    // alaska::printf("Thread %d got new sized page %p for class %d\n", id, heap, cls);
-    size_classes[cls] = heap;
-
-    ALASKA_ASSERT(heap->available() > 0, "New heap must have space");
-    return heap;
+    auto *fresh = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
+    ALASKA_ASSERT(fresh->available() > 0, "Fresh page must have space");
+    bin.active = fresh;
+    return bin.active;
   }
 
 
@@ -91,7 +128,7 @@ namespace alaska {
     int cls = alaska::size_to_class(size);
 
     // Grab the sized page for this size class.
-    alaska::SizedPage *sp = size_classes[cls];
+    alaska::SizedPage *sp = bins[cls].active;
 
     // The sized page must not be null.
     if (sp != nullptr) {
@@ -123,13 +160,12 @@ namespace alaska {
     if (cls == 0) return NULL;
 
     void *ptr;
-    SizedPage *page = size_classes[cls];
+    SizedPage *page = bins[cls].active;
 
-    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+    if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
     ptr = TC_ALIGNED(page->alloc(m, size));
     if (unlikely(ptr == nullptr)) {
-      // OOM? Try a fresh page.
-      page = new_sized_page(cls);
+      page = rotate_sized_page(cls);
       ptr = TC_ALIGNED(page->alloc(m, size));
     }
 
@@ -167,13 +203,12 @@ namespace alaska {
       if (cls == 0) return NULL;
 
       void *ptr;
-      SizedPage *page = size_classes[cls];
+      SizedPage *page = bins[cls].active;
 
-      if (unlikely(page == nullptr)) page = new_sized_page(cls);
+      if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
       ptr = TC_ALIGNED(page->alloc(m, size));
       if (unlikely(ptr == nullptr)) {
-        // OOM? Try a fresh page.
-        page = new_sized_page(cls);
+        page = rotate_sized_page(cls);
         ptr = TC_ALIGNED(page->alloc(m, size));
       }
 
@@ -220,7 +255,7 @@ namespace alaska {
     int cls = alaska::size_to_class(size);
 
     // Grab the sized page for this size class.
-    alaska::SizedPage *sp = size_classes[cls];
+    alaska::SizedPage *sp = bins[cls].active;
 
     // The sized page must not be null.
     if (sp != nullptr) {
@@ -339,12 +374,12 @@ namespace alaska {
     if (cls == 0) return NULL;
 
 
-    SizedPage *page = size_classes[cls];
-    if (unlikely(page == nullptr)) page = new_sized_page(cls);
+    SizedPage *page = bins[cls].active;
+    if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
 
     void *ptr = TC_ALIGNED(page->alloc(m, size));
     if (unlikely(ptr == nullptr)) {
-      page = new_sized_page(cls);
+      page = rotate_sized_page(cls);
       ptr = TC_ALIGNED(page->alloc(m, size));
     }
 
@@ -373,7 +408,7 @@ namespace alaska {
 #endif
 
     int cls = alaska::size_to_class(size);
-    alaska::SizedPage *sp = size_classes[cls];
+    alaska::SizedPage *sp = bins[cls].active;
 
     if (sp != nullptr) {
       auto &spfl = sp->get_freelist();
@@ -466,6 +501,41 @@ namespace alaska {
 
 
 
+
+  void ThreadCache::dump_info(FILE *f) {
+    fprintf(f, "ThreadCache %d\n", id);
+    fprintf(f, "  heap_churn:       %lu\n", heap_churn.read());
+    fprintf(f, "  alloc_rate:       %lu\n", allocation_rate.read());
+    fprintf(f, "  free_rate:        %lu\n", free_rate.read());
+
+    for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
+      auto &bin = bins[i];
+      if (bin.active == nullptr && list_empty(&bin.rest)) continue;
+
+      size_t object_size = alaska::class_to_size(i);
+      fprintf(f, "  cls %3zu (sz=%4zu):", i, object_size);
+
+      if (bin.active) {
+        fprintf(f, "  active avail=%zu/%ld",
+                bin.active->available() / object_size,
+                bin.active->object_capacity());
+      } else {
+        fprintf(f, "  active=none");
+      }
+
+      int rest_count = 0;
+      size_t rest_avail = 0;
+      SizedPage *entry;
+      list_for_each_entry(entry, &bin.rest, tc_list) {
+        rest_count++;
+        rest_avail += entry->available() / object_size;
+      }
+      if (rest_count > 0) {
+        fprintf(f, "  rest=%d pages avail=%zu", rest_count, rest_avail);
+      }
+      fprintf(f, "\n");
+    }
+  }
 
   __attribute__((noinline)) Mapping *ThreadCache::new_mapping_generic(void) {
     auto m = current_slab->alloc();
@@ -609,6 +679,19 @@ namespace alaska {
 
   static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+  // pthread key used to call del_threadcache when a thread exits.
+  static pthread_key_t tc_cleanup_key;
+  static pthread_once_t tc_key_once = PTHREAD_ONCE_INIT;
+
+  static void tc_thread_exit(void *arg) {
+    auto *tc = (ThreadCache *)arg;
+    if (tc && Runtime::get_ptr() != nullptr) {
+      Runtime::get().del_threadcache(tc);
+    }
+  }
+
+  static void tc_key_init() { pthread_key_create(&tc_cleanup_key, tc_thread_exit); }
+
   __attribute__((noinline)) static ThreadCache *current_bootstrap() noexcept {
     alaska::printf("current_bootstrap called rt=%p\n", Runtime::get_ptr());
     pthread_mutex_lock(&init_mutex);
@@ -620,6 +703,8 @@ namespace alaska {
 
     if (g_tc == nullptr) {
       g_tc = Runtime::get().new_threadcache();
+      pthread_once(&tc_key_once, tc_key_init);
+      pthread_setspecific(tc_cleanup_key, g_tc);
     }
 
     g_current = current_fast;

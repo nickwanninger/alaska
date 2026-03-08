@@ -136,7 +136,24 @@ static void *cmd_thread_function(void *arg) {
       continue;
     }
 
-    if (strcmp(buffer, "ping") == 0) {
+    if (strcmp(buffer, "tc") == 0) {
+      auto &rt = alaska::Runtime::get();
+      char *out_buf = nullptr;
+      size_t out_size = 0;
+      FILE *mem = open_memstream(&out_buf, &out_size);
+
+      rt.tcs_lock.lock();
+      for (auto *tc : rt.tcs) {
+        tc->dump_info(mem);
+      }
+      rt.tcs_lock.unlock();
+
+      fflush(mem);
+      fclose(mem);
+
+      sendto(sockfd, out_buf, out_size, MSG_CONFIRM, (const struct sockaddr *)&cliaddr, len);
+      free(out_buf);
+    } else if (strcmp(buffer, "ping") == 0) {
       const char *response = "pong";
       sendto(sockfd, response, strlen(response), MSG_CONFIRM, (const struct sockaddr *)&cliaddr,
              len);

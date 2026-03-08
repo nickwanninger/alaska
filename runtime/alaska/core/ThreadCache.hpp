@@ -79,10 +79,15 @@ namespace alaska {
     alaska::Localizer localizer;
 
    private:
-    // Each thread cache has a private heap page for each size class
-    // it might allocate from. When a size class fills up, it is
-    // returned to the global heap and another one is allocated.
-    alaska::SizedPage *size_classes[alaska::num_size_classes];
+    // Each thread cache owns a set of pages per size class. Following mimalloc's
+    // model, pages are kept locally until thread exit — no return-during-rotation.
+    // The active page is the current allocation target; rest holds full pages that
+    // may be revived when remote frees arrive.
+    struct SizeClassBin {
+      alaska::SizedPage *active = nullptr;  // current allocation target
+      struct list_head rest;                // other owned pages (via HeapPage::tc_list)
+    };
+    SizeClassBin bins[alaska::num_size_classes];
 
     // Each thread cache also has a private "Locality Page", which
     // objects can be relocated to according to some external
@@ -92,6 +97,7 @@ namespace alaska {
 
    public:
     ThreadCache(int id, alaska::Runtime &rt);
+    ~ThreadCache();
 
 
     // Allocating data from a threadcache is broken into two
@@ -154,13 +160,15 @@ namespace alaska {
 
     static ThreadCache *current() noexcept;
 
+    void dump_info(FILE *f);
+
    private:
     alaska::Mapping *reverse_lookup(void *heap_ptr);
 
     void maybe_collect(size_t size);
 
-    // Swap to a new sized page owned by this thread cache
-    alaska::SizedPage *new_sized_page(int cls);
+    // Rotate to a page with free space, acquiring from global heap if needed.
+    alaska::SizedPage *rotate_sized_page(int cls);
     // Swap to a new locality page owned by this thread cache
     alaska::LocalityPage *new_locality_page(size_t required_size);
   };
