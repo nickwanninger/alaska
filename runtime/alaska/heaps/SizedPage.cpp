@@ -45,26 +45,24 @@ namespace alaska {
   void *SizedPage::alloc_slow(const alaska::Mapping &m, alaska::AlignedSize size) {
     FTR_FUNCTION();
 
+    // 1. Bump-allocate one slot directly — prefer fresh memory, touch only what we need.
+    size_t real_size = object_size + sizeof(ObjectHeader);
+    if ((char *)bump_next + real_size <= (char *)objects_end) {
+      auto *block = (SizePageBlock *)bump_next;
+      bump_next = (char *)bump_next + real_size;
+      auto &header = block->header;
+      header.set_mapping(&m);
+      header.set_object_size(size);
+      header.placement_badness = 0;
+      return header.data();
+    }
 
-    // 1. try swapping the remote_free list and the local_free list.
-    // This is a little tricky because we need to worry about atomics here.
+    // 2. Bump exhausted — swap remote_free into local_free and retry.
     freelist.swap();
     if (freelist.has_local_free()) return alloc(m, size);
 
-    // 2. If that doesn't work, try extending the list with the bump allocator.
-    long extend_count = 4096 / object_size;
-    if (extend_count < 4) extend_count = 4;
-    long extended_count = extend(extend_count);
-    if (extended_count > 0) {
-      return alloc(m, size);
-    }
-
-
-    // If local-free is still null, return null
-    if (not freelist.has_local_free()) return nullptr;
-
-    // Otherwise, fall back to alloc
-    return alloc(m, size);
+    // 3. Truly out of space.
+    return nullptr;
   }
 
   void *SizedPage::alloc(const alaska::Mapping &m, alaska::AlignedSize size) {
