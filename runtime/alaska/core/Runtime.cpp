@@ -116,7 +116,7 @@ namespace alaska {
   int Runtime::handle_fault(uint64_t handle) {
     auto *m = alaska::Mapping::from_handle((void *)handle);
 
-    // printf("Handle fault on %p\n", (void *)m);
+    printf("Handle fault on %p\n", (void *)m);
 
     // With domains removed, we simply clear the fault pending bit.
     // If we had more complex logic (like paging from disk), it would go here.

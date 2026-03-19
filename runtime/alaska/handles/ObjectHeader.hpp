@@ -20,22 +20,28 @@ namespace alaska {
 
 
   struct ObjectHeader final {
-    // The first 32 bits of the object header are the handle id. We use this
-    // very often, so we want it to be fast as possible to access (without masks or anything)
-    uint32_t handle_id;
-    uint16_t size;  // The size of the object in bytes, not including the header.
-
-
-
-    // And then theres some metadata
     union {
       struct {
-        bool localized : 1;  // A marker to quickly indicate if the object is localized
-        bool marked : 1;
+        // The first 32 bits of the object header are the handle id. We use this
+        // very often, so we want it to be fast as possible to access (without masks or anything)
+        uint32_t handle_id;
+        uint16_t size;  // The size of the object in bytes, not including the header.
+
+
+
+        // And then theres some metadata
+        union {
+          struct {
+            bool localized : 1;  // A marker to quickly indicate if the object is localized
+            bool marked : 1;
+          };
+          uint8_t __metadata : 8;  // don't use this manually. just here to ensure space
+        };
+        int8_t placement_badness;
       };
-      uint8_t __metadata : 8;  // don't use this manually. just here to ensure space
+
+      uint64_t header_data;
     };
-    int8_t placement_badness;
 
     inline size_t object_size(void) const { return this->size; }
     inline size_t real_object_size(void) const { return object_size() + sizeof(ObjectHeader); }
@@ -47,6 +53,15 @@ namespace alaska {
       __metadata = 0;
       // placement_badness = 0;
     }
+
+    // Bitwise reset
+    inline void reset(alaska::Mapping &m, size_t size_bytes) {
+      uint32_t new_handle_id = m.handle_id();
+      uint16_t new_size = size_bytes;
+      this->header_data = new_handle_id | ((uint64_t)new_size << 32);
+    }
+
+
     alaska::Mapping *get_mapping(void) const { return alaska::Mapping::from_handle_id(handle_id); }
     // Passing null here means the object is not mapped.
     inline void set_mapping(const alaska::Mapping *m) {

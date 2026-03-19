@@ -180,6 +180,10 @@ namespace alaska {
 
 
 
+  __attribute__((noinline)) void *ThreadCache::halloc_generic_empty_ht(size_t size) {
+    return halloc_generic(size, *new_mapping_generic());
+  }
+
 
   // noinline
   __attribute__((noinline)) void *ThreadCache::halloc_generic(size_t size, alaska::Mapping &m) {
@@ -223,7 +227,6 @@ namespace alaska {
       result = m.to_handle(0);
     }
 
-    // if (zero) memset(result, 0, size);
     return result;
   }
 
@@ -238,47 +241,47 @@ namespace alaska {
       return alaska_internal_malloc(size);
     }
 
+
+
     // Allocate a mapping. This *must* succeed (it is an error to return null).
-    auto *mapping = new_mapping();
-
-    // auto *header = allocate_object(size, *mapping);
-    // if (header == nullptr) {
-    //   // Allocation failed, free the mapping and return null.
-    //   free_mapping(mapping);
-    //   return nullptr;
-    // }
-
-    // return mapping->to_handle(0);
-
-
-    // int cls = alaska::size_to_class(size);
-    int cls = alaska::size_to_class(size);
-
-    // Grab the sized page for this size class.
-    alaska::SizedPage *sp = bins[cls].active;
-
-    // The sized page must not be null.
-    if (sp != nullptr) {
-      // Grab the free list.
-      auto &spfl = sp->get_freelist();
-      // Peek at the handle table and size page free lists.
-      auto *d = TC_ALIGNED(spfl.peek());
-      if (d != nullptr) {
-        // Pop the free list and use that slot for our allocation.
-        spfl.pop_unchecked(d);
-        // Setup the handle table mapping.
-        auto *header = &d->header;
-        header->set_mapping(mapping);
-        header->set_object_size(size);
-        mapping->set_pointer(header->data());
-
-        // Encode and return the handle
-        return mapping->to_handle(0);
-      }
+    // auto *mapping = new_mapping();
+    auto slab = this->current_slab;
+    auto &htfl = slab->get_freelist();
+    auto *mp = TC_ALIGNED(htfl.peek());
+    if (unlikely(mp == nullptr)) {
+      return halloc_generic_empty_ht(size);
     }
 
 
-    return halloc_generic(size, *mapping);
+    htfl.pop_unchecked(mp);
+    auto *mapping = (alaska::Mapping *)mp;
+    alaska::SizedPage *sp = bins[alaska::size_to_class_small(size)].active;
+
+    // The sized page must not be null.
+    if (sp == nullptr) {
+      return halloc_generic(size, *mapping);
+    }
+
+
+    // Grab the free list.
+    auto &spfl = sp->get_freelist();
+    // Peek at the handle table and size page free lists.
+    auto *d = TC_ALIGNED(spfl.peek());
+
+    if (d == nullptr) {
+      return halloc_generic(size, *mapping);
+    }
+    // Pop the free list and use that slot for our allocation.
+    spfl.pop_unchecked(d);
+    // Setup the handle table mapping.
+    auto *header = &d->header;
+    header->reset(*mapping, size);
+    // header->set_mapping(mapping);
+    // header->set_object_size(size);
+    mapping->set_pointer(header->data());
+
+    // Encode and return the handle
+    return mapping->to_handle(0);
   }
 
 
@@ -516,8 +519,7 @@ namespace alaska {
       fprintf(f, "  cls %3zu (sz=%4zu):", i, object_size);
 
       if (bin.active) {
-        fprintf(f, "  active avail=%zu/%ld",
-                bin.active->available() / object_size,
+        fprintf(f, "  active avail=%zu/%ld", bin.active->available() / object_size,
                 bin.active->object_capacity());
       } else {
         fprintf(f, "  active=none");
@@ -713,19 +715,26 @@ namespace alaska {
     return current_fast();
   }
 
-  ThreadCache *ThreadCache::current() noexcept { return g_current(); }
+  ThreadCache *ThreadCache::current() noexcept {
+
+    if (unlikely(g_tc == nullptr)) {
+      return current_bootstrap();
+    }
+
+    return g_tc;
+  }
 
 
 
   // --- Handle-based Allocation functions --- //
 
   void *halloc(size_t size) noexcept {
-    void *handle = g_current()->halloc(size);
+    void *handle = ThreadCache::current()->halloc(size);
     return handle;
   }
 
   void *hcalloc(size_t nmemb, size_t size) noexcept {
-    void *handle = g_current()->halloc(nmemb * size);
+    void *handle = ThreadCache::current()->halloc(nmemb * size);
     if (handle != nullptr) {
       memset(alaska::Mapping::translate(handle), 0, nmemb * size);
     }
@@ -746,15 +755,17 @@ namespace alaska {
     g_current()->hfree(handle);
   }
 
-  size_t halloc_usable_size(void *handle) noexcept { return g_current()->get_size(handle); }
+  size_t halloc_usable_size(void *handle) noexcept {
+    return ThreadCache::current()->get_size(handle);
+  }
 
 
   // --- Stub Allocation functions (pointer-based, not handle-based) --- //
 
-  void *stub_malloc(size_t size) noexcept { return g_current()->malloc(size); }
+  void *stub_malloc(size_t size) noexcept { return ThreadCache::current()->malloc(size); }
 
   void *stub_calloc(size_t nmemb, size_t size) noexcept {
-    void *handle = g_current()->malloc(nmemb * size);
+    void *handle = ThreadCache::current()->malloc(nmemb * size);
     if (handle != nullptr) {
       memset(alaska::Mapping::translate(handle), 0, nmemb * size);
     }
@@ -767,15 +778,17 @@ namespace alaska {
       stub_free(ptr);
       return nullptr;
     }
-    return g_current()->realloc(ptr, new_size);
+    return ThreadCache::current()->realloc(ptr, new_size);
   }
 
   void stub_free(void *ptr) noexcept {
     if (ptr == nullptr) return;
-    g_current()->free(ptr);
+    ThreadCache::current()->free(ptr);
   }
 
-  size_t stub_malloc_usable_size(void *ptr) noexcept { return g_current()->get_size(ptr); }
+  size_t stub_malloc_usable_size(void *ptr) noexcept {
+    return ThreadCache::current()->get_size(ptr);
+  }
 
 
 }  // namespace alaska

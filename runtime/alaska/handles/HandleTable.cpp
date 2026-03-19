@@ -102,16 +102,8 @@ namespace alaska {
   void HandleTable::grow() {
     FTR_FUNCTION();
     auto new_cap = m_capacity * HandleTable::growth_factor;
-    alaska::printf("Growing handle table from %lu to %lu\n", m_capacity, new_cap);
     // Scale the capacity of the handle table
     log_debug("Growing handle table. New capacity: %lu, old: %lu", new_cap, m_capacity);
-
-
-
-    void *array[50];
-    size_t size = backtrace(array, 50);
-    backtrace_symbols_fd(array, size, STDOUT_FILENO);
-
 
     // Grow the mmap region
     m_table = (alaska::Mapping *)mremap(m_table, m_capacity * HandleTable::map_granularity,

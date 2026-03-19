@@ -121,6 +121,7 @@ namespace alaska {
     // Handle allocation and deallocation routines.
     void *halloc(size_t size) alaska_attr_malloc;
     void *halloc_generic(size_t size, alaska::Mapping &m) alaska_attr_malloc;
+    void *halloc_generic_empty_ht(size_t size) alaska_attr_malloc;
 
 
     void *hrealloc(void *handle, size_t new_size) alaska_attr_malloc;
