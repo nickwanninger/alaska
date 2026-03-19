@@ -105,7 +105,8 @@ namespace alaska {
   }
 
 
-  void *do_handle_fault_and_translate(uint64_t handle) {
+
+  ALASKA_EXPORT void *do_handle_fault_and_translate(uint64_t handle) {
     auto &rt = alaska::Runtime::get();
     rt.handle_fault(handle);
     return alaska::Mapping::translate((void *)handle);
