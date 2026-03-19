@@ -24,8 +24,7 @@ size_t get_rss_bytes(void) {
   long rss_pages = 0;
   FILE *f = fopen("/proc/self/statm", "r");
   if (f) {
-    if (fscanf(f, "%*s%ld", &rss_pages) != 1)
-      rss_pages = 0;
+    if (fscanf(f, "%*s%ld", &rss_pages) != 1) rss_pages = 0;
     fclose(f);
   }
   return (size_t)rss_pages * (size_t)0x1000;
@@ -66,156 +65,151 @@ static inline uint64_t read_instret() {
 
 namespace ycsbc {
 
-// Each field/value pair is stored as a malloc'd node in a linked list.
-struct FieldNode {
-  char *name;
-  char *value;
-  FieldNode *next;
-};
+  // Each field/value pair is stored as a malloc'd node in a linked list.
+  struct FieldNode {
+    char *name;
+    char *value;
+    FieldNode *next;
+  };
 
-static FieldNode *make_field_node(const std::string &name, const std::string &value) {
-  FieldNode *node = (FieldNode *)malloc(sizeof(FieldNode));
-  node->name  = (char *)malloc(name.size() + 1);
-  node->value = (char *)malloc(value.size() + 1);
-  memcpy(node->name,  name.data(),  name.size() + 1);
-  memcpy(node->value, value.data(), value.size() + 1);
-  node->next = nullptr;
-  return node;
-}
-
-static void free_field_list(FieldNode *head) {
-  while (head) {
-    FieldNode *next = head->next;
-    free(head->name);
-    free(head->value);
-    free(head);
-    head = next;
+  static FieldNode *make_field_node(const std::string &name, const std::string &value) {
+    FieldNode *node = (FieldNode *)malloc(sizeof(FieldNode));
+    node->name = (char *)malloc(name.size() + 1);
+    node->value = (char *)malloc(value.size() + 1);
+    memcpy(node->name, name.data(), name.size() + 1);
+    memcpy(node->value, value.data(), value.size() + 1);
+    node->next = nullptr;
+    return node;
   }
-}
 
-static uint64_t sds_hash(const void *key) {
-  return dictGenHashFunction((const unsigned char *)key, sdslen((const sds)key));
-}
+  static void free_field_list(FieldNode *head) {
+    while (head) {
+      FieldNode *next = head->next;
+      free(head->name);
+      free(head->value);
+      free(head);
+      head = next;
+    }
+  }
 
-static int sds_compare(dict *, const void *a, const void *b) {
-  return sdscmp((sds)a, (sds)b) == 0;
-}
+  static uint64_t sds_hash(const void *key) {
+    return dictGenHashFunction((const unsigned char *)key, sdslen((const sds)key));
+  }
 
-static dictType ycsbDictType = {
-  sds_hash,
-  NULL,
-  NULL,
-  sds_compare,
-  [](dict*, void *k){ sdsfree((sds)k); },
-  [](dict*, void *v){ free_field_list((FieldNode*)v); },
-  NULL
-};
+  static int sds_compare(dict *, const void *a, const void *b) {
+    return sdscmp((sds)a, (sds)b) == 0;
+  }
 
-class InMemoryDB : public DB {
-public:
-  InMemoryDB()  { table_ = dictCreate(&ycsbDictType); }
-  ~InMemoryDB() { dictRelease(table_); }
+  static dictType ycsbDictType = {sds_hash,
+                                  NULL,
+                                  NULL,
+                                  sds_compare,
+                                  [](dict *, void *k) {
+                                    sdsfree((sds)k);
+                                  },
+                                  [](dict *, void *v) {
+                                    free_field_list((FieldNode *)v);
+                                  },
+                                  NULL};
 
-  void Init() {}
+  class InMemoryDB : public DB {
+   public:
+    InMemoryDB() { table_ = dictCreate(&ycsbDictType); }
+    ~InMemoryDB() { dictRelease(table_); }
 
-  int Read(const std::string &table, const std::string &key,
-           const std::vector<std::string> *fields,
-           std::vector<KVPair> &result) {
-    sds k = sdsnewlen(key.data(), key.size());
-    dictEntry *de = dictFind(table_, k);
-    sdsfree(k);
-    if (!de)
-      return kErrorNoData;
+    void Init() {}
 
-    for (FieldNode *n = (FieldNode *)dictGetVal(de); n != nullptr; n = n->next) {
-      if (!fields) {
-        result.emplace_back(n->name, n->value);
-      } else {
-        for (const auto &f : *fields) {
-          if (f == n->name) {
-            result.emplace_back(n->name, n->value);
-            break;
+    int Read(const std::string &table, const std::string &key,
+             const std::vector<std::string> *fields, std::vector<KVPair> &result) {
+      sds k = sdsnewlen(key.data(), key.size());
+      dictEntry *de = dictFind(table_, k);
+      sdsfree(k);
+      if (!de) return kErrorNoData;
+
+      for (FieldNode *n = (FieldNode *)dictGetVal(de); n != nullptr; n = n->next) {
+        if (!fields) {
+          result.emplace_back(n->name, n->value);
+        } else {
+          for (const auto &f : *fields) {
+            if (f == n->name) {
+              result.emplace_back(n->name, n->value);
+              break;
+            }
           }
         }
       }
+      return kOK;
     }
-    return kOK;
-  }
 
-  int Scan(const std::string &table, const std::string &key, int len,
-           const std::vector<std::string> *fields,
-           std::vector<std::vector<KVPair>> &result) {
-    throw "Scan: function not implemented!";
-    return 0;
-  }
+    int Scan(const std::string &table, const std::string &key, int len,
+             const std::vector<std::string> *fields, std::vector<std::vector<KVPair>> &result) {
+      throw "Scan: function not implemented!";
+      return 0;
+    }
 
-  int Update(const std::string &table, const std::string &key,
-             std::vector<KVPair> &values) {
-    sds k = sdsnewlen(key.data(), key.size());
-    dictEntry *de = dictFind(table_, k);
+    int Update(const std::string &table, const std::string &key, std::vector<KVPair> &values) {
+      sds k = sdsnewlen(key.data(), key.size());
+      dictEntry *de = dictFind(table_, k);
 
-    FieldNode *head = de ? (FieldNode *)dictGetVal(de) : nullptr;
+      FieldNode *head = de ? (FieldNode *)dictGetVal(de) : nullptr;
 
-    for (auto &kv : values) {
-      const std::string &fname = kv.first;
-      const std::string &fval  = kv.second.empty() ? std::string("X") : kv.second;
+      for (auto &kv : values) {
+        const std::string &fname = kv.first;
+        const std::string &fval = kv.second.empty() ? std::string("X") : kv.second;
 
-      for (FieldNode *n = head; n != nullptr; n = n->next) {
-        if (strcmp(n->name, fname.c_str()) == 0) {
-          free(n->value);
-          n->value = (char *)malloc(fval.size() + 1);
-          memcpy(n->value, fval.data(), fval.size() + 1);
-          goto next_pair;
+        for (FieldNode *n = head; n != nullptr; n = n->next) {
+          if (strcmp(n->name, fname.c_str()) == 0) {
+            free(n->value);
+            n->value = (char *)malloc(fval.size() + 1);
+            memcpy(n->value, fval.data(), fval.size() + 1);
+            goto next_pair;
+          }
         }
+
+        {
+          FieldNode *node = make_field_node(fname, fval);
+          node->next = head;
+          head = node;
+        }
+
+      next_pair:;
       }
 
-      {
-        FieldNode *node = make_field_node(fname, fval);
-        node->next = head;
-        head = node;
+      if (de) {
+        dictSetVal(table_, de, head);
+        sdsfree(k);
+      } else {
+        dictAdd(table_, k, head);  // dict takes ownership of k
       }
-
-    next_pair:;
+      return kOK;
     }
 
-    if (de) {
-      dictSetVal(table_, de, head);
+    int Insert(const std::string &table, const std::string &key, std::vector<KVPair> &values) {
+      return Update(table, key, values);
+    }
+
+    int Delete(const std::string &table, const std::string &key) {
+      sds k = sdsnewlen(key.data(), key.size());
+      int ret = dictDelete(table_, k);
       sdsfree(k);
-    } else {
-      dictAdd(table_, k, head);  // dict takes ownership of k
+      return ret == DICT_OK ? kOK : kErrorNoData;
     }
-    return kOK;
-  }
 
-  int Insert(const std::string &table, const std::string &key,
-             std::vector<KVPair> &values) {
-    return Update(table, key, values);
-  }
+   private:
+    dict *table_;
+  };
 
-  int Delete(const std::string &table, const std::string &key) {
-    sds k = sdsnewlen(key.data(), key.size());
-    int ret = dictDelete(table_, k);
-    sdsfree(k);
-    return ret == DICT_OK ? kOK : kErrorNoData;
-  }
-
-private:
-  dict *table_;
-};
-
-} // namespace ycsbc
+}  // namespace ycsbc
 
 typedef void (*yukon_enable_localization_t)(bool enable);
 
-int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-                   bool is_loading) {
+int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops, bool is_loading) {
   yukon_enable_localization_t yukon_enable_localization =
       (yukon_enable_localization_t)dlsym(RTLD_DEFAULT, "yukon_enable_localization");
 
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
-  int bads = 0;
 
   if (yukon_enable_localization != NULL) {
     yukon_enable_localization(!is_loading);
@@ -240,31 +234,31 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
       next_report = reporting_interval;
       float rss_mb = get_rss_bytes() / 1024.0f / 1024.0f;
 
-      auto report_end_inst   = read_instret();
+      auto report_end_inst = read_instret();
       auto report_end_cycles = read_cycle_counter();
-      size_t insts   = report_end_inst   - report_start_inst;
-      size_t cycles  = report_end_cycles - report_start_cycles;
+      size_t insts = report_end_inst - report_start_inst;
+      size_t cycles = report_end_cycles - report_start_cycles;
 
-      report_start_inst   = report_end_inst;
+      report_start_inst = report_end_inst;
       report_start_cycles = report_end_cycles;
 
-      printf("   ");
-      printf("progress=%6.1f%%, ", (i + 1) * 100.0 / num_ops);
-      printf("rss=%fmb, ", rss_mb);
+      printf(" [%s] ", is_loading ? "LOAD" : "WORK");
+      printf("%4.0f%%, ", (i + 1) * 100.0 / num_ops);
+      printf("rss=%10.3f MB, ", rss_mb);
       printf("C/OP=%10lf, ", cycles / (float)reporting_interval);
+#ifdef __riscv
       // printf("CPI=%5.2f, ", cycles / (insts + 1e-9f));
+      volatile("rdinstret %0" : "=r"(instret));
+#endif
       printf("TPUT=%8zu, ", (size_t)(reporting_interval / (cycles / 1e9f)));
-      printf("bads=%u, ", bads);
       printf("\n");
       fflush(stdout);
     }
 
     if (is_loading) {
       if (client.DoInsert()) oks++;
-      else                   bads++;
     } else {
       if (client.DoTransaction()) oks++;
-      else                        bads++;
     }
   }
 
@@ -284,9 +278,9 @@ int main(int argc, char **argv) {
   float scaleInsert = 1.0f, scaleWorkload = 1.0f;
 
   static struct option long_opts[] = {
-    {"repeat", required_argument, nullptr, 'n'},
-    {"records", required_argument, nullptr, 'r'},
-    {nullptr, 0, nullptr, 0},
+      {"repeat", required_argument, nullptr, 'n'},
+      {"records", required_argument, nullptr, 'r'},
+      {nullptr, 0, nullptr, 0},
   };
   int opt;
   while ((opt = getopt_long(argc, argv, "n:r:", long_opts, nullptr)) != -1) {
@@ -295,24 +289,21 @@ int main(int argc, char **argv) {
     else if (opt == 'r')
       scaleInsert = atof(optarg);
     else {
-      fprintf(stderr, "Usage: %s [-n <workload-multiplier>] [-r <record-multiplier>] <workload>\n", argv[0]);
+      fprintf(stderr, "Usage: %s [-n <workload-multiplier>] [-r <record-multiplier>] <workload>\n",
+              argv[0]);
       return 1;
     }
   }
 
   if (optind >= argc) {
-    fprintf(stderr, "Usage: %s [-n <workload-multiplier>] [-r <record-multiplier>] <workload>\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-n <workload-multiplier>] [-r <record-multiplier>] <workload>\n",
+            argv[0]);
     return 1;
   }
 
   utils::Properties props;
-  try {
-    std::ifstream file(argv[optind]);
-    props.Load(file);
-  } catch (const std::exception &e) {
-    fprintf(stderr, "Failed to load workload: %s\n", e.what());
-    return 1;
-  }
+  std::ifstream file(argv[optind]);
+  props.Load(file);
 
   ycsbc::InMemoryDB db;
   ycsbc::CoreWorkload wl;

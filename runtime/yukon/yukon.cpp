@@ -63,7 +63,7 @@ extern "C" PUBLIC void yukon_enable_localization(int enable) {
 // Signal handler for segmentation faults
 static void yukon_segfault_handler(int sig, siginfo_t *si, void *uc) {
   // Print the address that caused the segmentation fault
-  alaska::printf("YUKON: Segmentation fault at address: %p\n", si->si_addr);
+  alaska::printf("YUKON: fault %d at address: %p\n", sig, si->si_addr);
   // Print the instruction pointer at the time of the fault (riscv)
   ucontext_t *context = (ucontext_t *)uc;
 #if defined(__riscv_xlen) && __riscv_xlen == 64
@@ -79,7 +79,7 @@ static void yukon_segfault_handler(int sig, siginfo_t *si, void *uc) {
   snprintf(buffer, sizeof(buffer), "cat /proc/%d/maps", getpid());
   setenv("LD_PRELOAD", "", 1);  // Unset LD_PRELOAD to avoid recursive faults in the handler.
   system(buffer);
-  
+
   exit(-1);
 }
 
@@ -92,6 +92,7 @@ static void CONSTRUCTOR yukon_init(void) {
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_SIGINFO;
   sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGILL, &sa, NULL);
   return;
   // Here, we initialize the dumping system in yukon.
 
@@ -99,7 +100,8 @@ static void CONSTRUCTOR yukon_init(void) {
   // Program the signal handler.
 
 
-  alaska::ThreadCache::current();  // Force the runtime to initialize before we start getting signals.
+  alaska::ThreadCache::current();  // Force the runtime to initialize before we start getting
+                                   // signals.
 
   signal(SIGPROF, yukon_dump_alarm_handler);
 
@@ -128,8 +130,6 @@ static void CONSTRUCTOR yukon_init(void) {
   }
 #endif
 }
-
-
 
 
 

@@ -43,6 +43,10 @@ static void *_halloc(size_t sz, int zero) {
     alaska::handle_memset(result, 0, sz);
   }
 
+  auto *h = alaska::Mapping::from_handle_safe(result);
+  if (h) {
+    printf("halloc: %zu bytes -> %p -> %p\n", sz, result, h->get_pointer());
+  }
   return result;
 }
 
@@ -51,14 +55,16 @@ void *halloc(size_t sz) noexcept {
 #ifdef MALLOC_BYPASS
   return ::malloc(sz);
 #endif
-  return _halloc(sz, 0);
+  return alaska::halloc(sz);
+  // return _halloc(sz, 0);
 }
 
 void *hcalloc(size_t nmemb, size_t size) {
 #ifdef MALLOC_BYPASS
   return ::calloc(nmemb, size);
 #endif
-  return _halloc(nmemb * size, 1);
+  return alaska::hcalloc(nmemb, size);
+  // return _halloc(nmemb * size, 1);
 }
 
 // Reallocate a handle
@@ -66,21 +72,7 @@ void *hrealloc(void *handle, size_t new_size) {
 #ifdef MALLOC_BYPASS
   return ::realloc(handle, new_size);
 #endif
-  // If the handle is null, then this call is equivalent to malloc(size)
-  if (handle == NULL) return halloc(new_size);
-
-
-  auto *m = alaska::Mapping::from_handle_safe(handle);
-  // If the size is equal to zero, and the handle is not null, realloc acts like free(handle)
-  if (new_size == 0) {
-    log_debug("realloc edge case: zero size %p!", handle);
-    // If it wasn't a handle, just forward to the system realloc
-    hfree(handle);
-    return NULL;
-  }
-
-  handle = get_tc()->hrealloc(handle, new_size);
-  return handle;
+  return alaska::hrealloc(handle, new_size);
 }
 
 
@@ -89,16 +81,7 @@ void hfree(void *ptr) {
 #ifdef MALLOC_BYPASS
   return ::free(ptr);
 #endif
-  // no-op if NULL is passed
-  if (unlikely(ptr == NULL)) return;
-
-#ifdef ALASKA_HTLB_SIM
-  extern void alaska_htlb_sim_invalidate(uintptr_t handle);
-  alaska_htlb_sim_invalidate((uintptr_t)ptr);
-#endif
-
-  // Simply ask the thread cache to free it!
-  get_tc()->hfree(ptr);
+  return alaska::hfree(ptr);
 }
 
 
@@ -108,46 +91,9 @@ size_t alaska_usable_size(void *ptr) {
 #ifdef MALLOC_BYPASS
   return ::malloc_usable_size(ptr);
 #endif
-  return get_tc()->get_size(ptr);
+  return alaska::halloc_usable_size(ptr);
 }
 
-
-
-
-// template <typename Fn>
-// static void walk_structure(void *ptr, size_t max_depth, Fn fn) {
-//   auto &rt = alaska::Runtime::get();
-//   auto *tc = alaska::ThreadCache::current();
-//   ck::queue<void *> todo(max_depth);
-
-//   auto schedule_pointer = [&](void *h, alaska::Mapping *m) {
-//     if (m == NULL or not rt.handle_table.valid_handle(m) or m->is_free()) return;
-//     fn(m);
-//     if (todo.size() >= max_depth) return;
-//     todo.push(h);
-//   };
-
-//   auto *m = alaska::Mapping::from_handle_safe(ptr);
-//   // Fire off a check of the first pointer to bootstrap the localization
-//   schedule_pointer(ptr, m);
-
-//   while (not todo.is_empty()) {
-//     auto *h = todo.pop().unwrap();
-//     auto *m = alaska::Mapping::from_handle_safe(h);
-//     if (m == nullptr) continue;
-//     long size = tc->get_size(h);
-//     long elements = size / 8;
-
-//     void **cursor = (void **)m->get_pointer();
-//     for (long e = 0; e < elements; e++) {
-//       void *c = cursor[e];
-//       auto *m = alaska::Mapping::from_handle_safe(c);
-//       if (m) {
-//         schedule_pointer(c, m);
-//       }
-//     }
-//   }
-// }
 
 
 

@@ -1,5 +1,4 @@
-ycsb
-ycsb-alaska
+bin/
 *.o
 *.bc
 *.ll

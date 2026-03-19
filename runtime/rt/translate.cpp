@@ -57,7 +57,7 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 
 
-// #define ENABLE_HANDLE_FAULTS
+#define ENABLE_HANDLE_FAULTS
 
 uint32_t flagsToMatch = 0;
 
@@ -70,8 +70,6 @@ extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *pt
   uint8_t flags;
 
   mapped_bits = (int64_t)mapped;
-
-
 
 
   constexpr int mask_bits = 1;  // TODO: or more for when we use flags.
