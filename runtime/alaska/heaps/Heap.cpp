@@ -209,12 +209,13 @@ namespace alaska {
 
   void Heap::dump_json(FILE *stream) {
     fprintf(stream, "{\"pages\": [");
-    for (off_t i = 0; true; i++) {
-      void *page_addr = (void *)((uintptr_t)heap_start + (i * alaska::page_size));
-      if (page_addr >= heap_end) break;
-      auto page = get_page(page_addr);
-      if (page == NULL) break;
-      if (i != 0) fprintf(stream, ",");
+    bool first = true;
+    for (uintptr_t addr = (uintptr_t)heap_start; addr < (uintptr_t)heap_bump;
+         addr += alaska::page_size) {
+      auto *page = get_page((void *)addr);
+      if (!page) continue;
+      if (!first) fprintf(stream, ",");
+      first = false;
       page->dump_json(stream);
     }
     fprintf(stream, "]}");

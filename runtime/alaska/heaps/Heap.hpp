@@ -19,7 +19,6 @@
 #include <alaska/heaps/track.hpp>
 #include "alaska/Configuration.hpp"
 #include "alaska/heaps/LocalityPage.hpp"
-#include <ck/vec.h>
 #include <stdlib.h>
 #include <ck/lock.h>
 
@@ -93,9 +92,6 @@ namespace alaska {
       return addr >= (uintptr_t)heap_start && addr < (uintptr_t)heap_end;
     }
 
-    const ck::vec<alaska::HeapPage *> &get_page_table(void) const { return page_table; }
-
-
     // This REQUIRES that the object is actually in the heap, it does not check.
     static alaska::HeapPage *get_page(void *object);
 
@@ -123,8 +119,6 @@ namespace alaska {
     T *find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner, size_t avail_requirement,
                           Fn &&init);
 
-    void register_page(void *page, alaska::HeapPage *hp);
-    alaska::HeapPage **walk_page_table(void *page, bool ensure = false);
     void *alloc_heap_page();
 
     // This lock is taken whenever global state in the heap is changed by a thread cache.
@@ -132,7 +126,6 @@ namespace alaska {
     void *heap_start;
     void *heap_end;
     void *heap_bump;
-    ck::vec<alaska::HeapPage *> page_table;
     alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
     alaska::Magazine<alaska::LocalityPage> locality_pages;
   };
@@ -142,26 +135,6 @@ namespace alaska {
     HeapPageHeader *h = (HeapPageHeader *)((uintptr_t)object & ~(alaska::page_size - 1));
     return h->owner;
   }
-
-  inline void Heap::register_page(void *page, alaska::HeapPage *hp) {
-    auto **entry = walk_page_table(page, true);
-    *entry = hp;
-  }
-
-  inline alaska::HeapPage **Heap::walk_page_table(void *vpage, bool ensure) {
-    uintptr_t page_off = (uintptr_t)vpage - (uintptr_t)heap_start;
-    off_t page_number = page_off >> alaska::page_shift_factor;
-
-    if (page_number >= page_table.size()) {
-      if (!ensure) {
-        return nullptr;
-      }
-      page_table.resize(page_number + 1);
-    }
-
-    return &page_table[page_number];
-  }
-
 
   template <typename T, typename Fn>
   T *Heap::find_or_alloc_page(alaska::Magazine<T> &mag, ThreadCache *owner,
@@ -179,7 +152,6 @@ namespace alaska {
     // No available page — allocate a new one.
     void *memory = alloc_heap_page();
     p = new T(memory);
-    register_page(memory, p);
     mag.add(p);
     p->set_owner(owner);
     init_fn(p);
