@@ -16,6 +16,7 @@
 #include <alaska/core/ThreadCache.hpp>
 #include <alaska/work/WorkScheduler.hpp>
 #include <alaska/heaps/Heap.hpp>
+#include <alaska/heaps/HugeAllocator.hpp>
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
 #include <alaska/Configuration.hpp>
@@ -49,6 +50,9 @@ namespace alaska {
 
     // This is the actual heap
     alaska::Heap heap;
+
+    // Huge object allocator for objects >= max_large_size (bypasses handle table)
+    alaska::HugeAllocator huge_allocator;
 
     // This is a set of all the active thread caches in the system
     ck::set<alaska::ThreadCache *> tcs;

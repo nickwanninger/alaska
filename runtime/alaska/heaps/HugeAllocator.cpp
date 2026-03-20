@@ -23,6 +23,7 @@ namespace alaska {
     region_size = DEFAULT_REGION_SIZE;
     total_pages = region_size / PAGE_SIZE;
 
+    // Reserve virtual address space only
     region_base = mmap(nullptr, region_size, PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (region_base == MAP_FAILED) {
@@ -32,6 +33,7 @@ namespace alaska {
       return;
     }
 
+    // Metadata is demand-paged too: 32KB for bitmap, ~1MB for run_lengths on a 1GB region.
     size_t bitmap_bytes = (total_pages + 63) / 64 * sizeof(uint64_t);
     size_t run_lengths_bytes = total_pages * sizeof(uint32_t);
 
@@ -117,12 +119,14 @@ namespace alaska {
     bitmap[idx / 64] &= ~(1UL << (idx % 64));
   }
 
+  // Scan the bitmap for `pages_needed` consecutive free pages, mark them, and
+  // return a pointer into the region. Starts from search_hint and wraps around.
+  // Returns nullptr if no run is found (caller falls back to direct mmap).
   void *HugeAllocator::alloc_page_run(size_t total) {
     size_t pages_needed = total / PAGE_SIZE;
 
     lock.lock();
 
-    // Scan from search_hint for a run of consecutive free pages.
     size_t start = search_hint;
     size_t run = 0;
     size_t scan_start = start;
@@ -182,6 +186,8 @@ namespace alaska {
     return nullptr;
   }
 
+  // Clear the bitmap bits for this run and release the physical pages back to the OS.
+  // The virtual mapping remains so the pages can be reused without another mmap.
   void HugeAllocator::free_page_run(void *ptr, size_t total) {
     size_t offset = (char *)ptr - (char *)region_base;
     size_t start_page = offset / PAGE_SIZE;
@@ -194,6 +200,7 @@ namespace alaska {
     }
     run_lengths[start_page] = 0;
 
+    // Pull search_hint back so future scans can reuse this space.
     if (start_page < search_hint) {
       search_hint = start_page;
     }

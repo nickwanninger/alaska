@@ -18,6 +18,7 @@
 #include "alaska/heaps/HeapPage.hpp"
 #include <alaska/util/utils.h>
 #include <alaska/util/lphash_set.h>
+#include <alaska/heaps/HugeAllocator.hpp>
 
 #include <execinfo.h>
 
@@ -200,8 +201,7 @@ namespace alaska {
                   "HallocGeneric should only be called for small allocations");
 
     if (likely(size >= alaska::max_large_size)) {
-      // alaska::printf("ThreadCache::halloc_generic: huge alloc %zu\n", size);
-      result = alaska_internal_malloc(size);
+      result = runtime.huge_allocator.alloc(size);
     } else {
       int cls = alaska::size_to_class(size);
       if (cls == 0) return NULL;
@@ -235,10 +235,8 @@ namespace alaska {
   LTO_INLINE void *ThreadCache::halloc(size_t size) {
     FTR_SCOPE("Halloc");
 
-    // If the object is too big, drop to the internal malloc (just allocate with pointers)
-    // TODO: we should have our own huge allocator.
     if (unlikely(size >= alaska::max_large_size)) {
-      return alaska_internal_malloc(size);
+      return runtime.huge_allocator.alloc(size);
     }
 
 
@@ -324,7 +322,7 @@ namespace alaska {
 
     if (unlikely(m == nullptr)) {
       FTR_SCOPE("NonHandle");
-      alaska_internal_free(handle);
+      runtime.huge_allocator.free(handle);
       return;
     }
 
@@ -370,7 +368,7 @@ namespace alaska {
     maybe_collect(size);
 
     if (unlikely(size >= alaska::max_large_size)) {
-      return alaska_internal_malloc(size);
+      return runtime.huge_allocator.alloc(size);
     }
 
     int cls = alaska::size_to_class(size);
@@ -399,9 +397,8 @@ namespace alaska {
 
 
   LTO_INLINE void *ThreadCache::malloc(size_t size, bool zero_ignored) {
-    // If the object is too big, drop to the internal malloc.
     if (unlikely(size >= alaska::max_large_size)) {
-      return alaska_internal_malloc(size);
+      return runtime.huge_allocator.alloc(size);
     }
 #ifdef STUB_ALLOCATES_HANDLES
     auto *mapping = new_mapping();
@@ -476,7 +473,7 @@ namespace alaska {
       }
 
     } else {
-      alaska_internal_free(ptr);
+      runtime.huge_allocator.free(ptr);
     }
   }
 
@@ -498,7 +495,7 @@ namespace alaska {
       // it has an object header.
       return alaska::ObjectHeader::from(pointer)->object_size();
     } else {
-      return alaska_internal_malloc_usable_size(pointer);
+      return runtime.huge_allocator.usable_size(pointer);
     }
   }
 
