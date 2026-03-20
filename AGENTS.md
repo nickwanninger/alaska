@@ -14,8 +14,8 @@
 - Example end-to-end: `local/bin/alaska -O3 test/sanity.c -o build/sanity && ./build/sanity`.
 
 ## Tests
-- Runtime tests: `make test` or run `build/runtime/alaska_test`.
-- Compiler suite: `make unit`.
+- Runtime tests: `make test`. This compiles and runs the gtests located in `runtime/test/`.
+- We only unit test the `runtime/` - the compiler has a separate suite elsewhere.
 - Quick smoke test: `make sanity`.
 
 ## Directory Notes

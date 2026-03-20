@@ -14,7 +14,6 @@
 #include <alaska/util/Logger.hpp>
 #include <alaska/heaps/Heap.hpp>
 #include "alaska/heaps/HeapPage.hpp"
-#include "alaska/heaps/HugeObjectAllocator.hpp"
 #include "alaska/heaps/LocalityPage.hpp"
 #include "alaska/heaps/SizeClass.hpp"
 #include "alaska/util/utils.h"
@@ -65,7 +64,6 @@ namespace alaska {
 
     auto prot = PROT_READ | PROT_WRITE;
     auto flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
-    alaska::printf("Heap: Allocating %zu bytes of backing memory from the OS.\n", heap_size);
     heap_start = mmap(NULL, heap_size, prot, flags, -1, 0);
 
     ALASKA_ASSERT(heap_start != MAP_FAILED,

@@ -188,7 +188,6 @@ TEST_F(ThreadCacheTest, MallocUnique) {
   void *p2 = t1->malloc(16);
   ASSERT_NE(p1, p2);
 
-  printf("p1: %p, p2: %p\n", p1, p2);
 }
 
 TEST_F(ThreadCacheTest, MallocFree) {
@@ -197,7 +196,7 @@ TEST_F(ThreadCacheTest, MallocFree) {
   t1->free(p);
 
   void *p2 = t1->malloc(16);
-  printf("p: %p, p2: %p\n", p, p2);
+  ASSERT_NE(p2, nullptr);
 }
 
 TEST_F(ThreadCacheTest, ReallocWorks) {

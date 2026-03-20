@@ -16,7 +16,6 @@
 #include <alaska/heaps/SizedPage.hpp>
 #include <alaska/heaps/SizeClass.hpp>
 #include <alaska/heaps/Magazine.hpp>
-#include <alaska/heaps/HugeObjectAllocator.hpp>
 #include <alaska/heaps/track.hpp>
 #include "alaska/Configuration.hpp"
 #include "alaska/heaps/LocalityPage.hpp"

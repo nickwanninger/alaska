@@ -41,7 +41,7 @@ namespace alaska {
   // Handle Table
   //////////////////////
   HandleTable::HandleTable(const alaska::Configuration &config) {
-    alaska::printf("Initializing handle table this=%p\n", this);
+    log_info("Initializing handle table this=%p\n", this);
     FTR_FUNCTION();
     // We allocate a handle table to a fixed location. If that allocation fails,
     // we know that another handle table has already been allocated. Since we
@@ -61,14 +61,14 @@ namespace alaska {
     if (dev_alaska_fd > 0) {
       m_table = (Mapping *)mmap((void *)table_start, m_capacity * HandleTable::map_granularity,
                                 PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, dev_alaska_fd, 0);
-      alaska::printf("Yukon: allocated handle table to %p with the kernel module!\n", m_table);
+      log_info("Yukon: allocated handle table to %p with the kernel module!\n", m_table);
     } else {
       // Attempt to allocate the initial memory for the table.
       m_table =
           (Mapping *)mmap((void *)table_start, m_capacity * HandleTable::map_granularity,
                           PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
-      alaska::printf("Allocated handle table to %p with anon mmap\n", m_table);
+      log_info("Allocated handle table to %p with anon mmap\n", m_table);
     }
 
 

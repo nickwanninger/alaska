@@ -12,7 +12,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <alaska/heaps/HugeObjectAllocator.hpp>
 
 namespace alaska {
   // This structure is threaded through the creation of the runtime to
@@ -20,8 +19,5 @@ namespace alaska {
   struct Configuration {
     uintptr_t handle_table_location =
         (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS));
-
-    // Allocate using a custom mmap backend by default for large objects.
-    HugeAllocationStrategy huge_strategy = HugeAllocationStrategy::MALLOC_BACKED;
   };
 }  // namespace alaska

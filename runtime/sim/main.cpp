@@ -13,7 +13,6 @@
 #include "alaska/alaska.hpp"
 #include "alaska/util/utils.h"
 #include <sys/wait.h>
-#include <alaska/heaps/HugeObjectAllocator.hpp>
 #include <getopt.h>
 #include <math.h>
 
