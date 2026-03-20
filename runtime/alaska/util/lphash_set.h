@@ -47,11 +47,11 @@ namespace alaska {
 
     while (set[index] != 0xFFFFFFFFFFFFFFFFUL) {
       if (set[index] == key) {
-        return false;  // Already exists
+        return true;
       }
       index = (index + 1) % size;  // Linear probing
       if (index == start_index) {
-        return false;  // Table full (shouldn't happen if TABLE_SIZE is large enough)
+        return false;  // Table full, key not found
       }
     }
 
