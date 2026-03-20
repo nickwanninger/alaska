@@ -6,7 +6,7 @@
 
 static constexpr size_t ALIGNMENT = 16;
 static constexpr size_t SLAB_SIZE = 2 * 1024 * 1024;  // 2MB
-static constexpr size_t LARGE_THRESHOLD = 64 * 1024;   // 64KB
+static constexpr size_t LARGE_THRESHOLD = 64 * 1024;  // 64KB
 
 struct AllocHeader {
   size_t size;  // total size including header, always ALIGNMENT-aligned
@@ -25,9 +25,7 @@ static struct {
   FreeChunk *freelist;
 } state;
 
-static inline size_t align_up(size_t n, size_t a) {
-  return (n + a - 1) & ~(a - 1);
-}
+static inline size_t align_up(size_t n, size_t a) { return (n + a - 1) & ~(a - 1); }
 
 static inline void spin_lock() {
   while (__atomic_test_and_set(&state.lock, __ATOMIC_ACQUIRE)) {
@@ -35,13 +33,10 @@ static inline void spin_lock() {
   }
 }
 
-static inline void spin_unlock() {
-  __atomic_clear(&state.lock, __ATOMIC_RELEASE);
-}
+static inline void spin_unlock() { __atomic_clear(&state.lock, __ATOMIC_RELEASE); }
 
 static void *alloc_large(size_t alloc_size) {
-  void *p = mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE,
-                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  void *p = mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (p == MAP_FAILED) return nullptr;
   auto *hdr = static_cast<AllocHeader *>(p);
   hdr->size = alloc_size;
@@ -50,8 +45,6 @@ static void *alloc_large(size_t alloc_size) {
 
 static void *alloc_small(size_t alloc_size) {
   spin_lock();
-  alaska::printf("Allocating small chunk of size %zu\n", alloc_size);
-  // alaska_dump_backtrace();
 
   // Check freelist for a suitable chunk
   FreeChunk **prev = &state.freelist;
@@ -68,8 +61,7 @@ static void *alloc_small(size_t alloc_size) {
 
   // Bump-allocate from current slab
   if (state.slab_remaining < alloc_size) {
-    void *p = mmap(nullptr, SLAB_SIZE, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *p = mmap(nullptr, SLAB_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (p == MAP_FAILED) {
       spin_unlock();
       return nullptr;
@@ -92,13 +84,15 @@ static void *alloc_small(size_t alloc_size) {
 extern "C" void *alaska_internal_malloc(size_t size) {
   if (size == 0) size = 1;
   size_t alloc_size = align_up(size + ALIGNMENT, ALIGNMENT);
-  if (alloc_size >= LARGE_THRESHOLD)
-    return alloc_large(alloc_size);
-  return alloc_small(alloc_size);
+  if (alloc_size >= LARGE_THRESHOLD) return alloc_large(alloc_size);
+  void *p = alloc_small(alloc_size);
+  // alaska::printf("malloc(%zu) -> %p\n", size, p);
+  return p;
 }
 
 extern "C" void alaska_internal_free(void *ptr) {
   if (!ptr) return;
+  // alaska::printf("free(%p)\n", ptr);
   auto *hdr = reinterpret_cast<AllocHeader *>(static_cast<char *>(ptr) - ALIGNMENT);
   size_t alloc_size = hdr->size;
 
