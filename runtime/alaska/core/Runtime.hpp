@@ -20,7 +20,6 @@
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
 #include <alaska/Configuration.hpp>
-#include <alaska/Localizer.hpp>
 #include <alaska/core/Runtime.hpp>
 #include <alaska/util/RateCounter.hpp>
 #include <alaska/work/BarrierWorker.hpp>

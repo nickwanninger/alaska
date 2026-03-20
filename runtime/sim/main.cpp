@@ -16,6 +16,16 @@
 #include <getopt.h>
 #include <math.h>
 
+struct SimKnobs {
+  float effort = 1.0;
+  long dump_interval_us = 100;
+  long localization_interval = 20;
+  long localization_depth = 0;
+  long hotness_cutoff = 1;
+  bool relocalize = false;
+  float relocalize_ratio = 0.5;
+};
+
 enum class Event : uint8_t {
   ALLOC,
   FREE,
@@ -373,6 +383,9 @@ class HTLBTraceRunner : public TraceRunner {
 
   bool do_localization = true;
 
+  SimKnobs knobs;
+  size_t localized_objects = 0;
+
   FILE *hitrate_file;  // file where csv hitrate output goes
   FILE *frag_file;     // file where csv fragmentation goes
 
@@ -425,11 +438,11 @@ class HTLBTraceRunner : public TraceRunner {
       fprintf(hitrate_file, "%zu,", htlb.tlb.l1.hits);
       fprintf(hitrate_file, "%zu,", htlb.tlb.l2.misses);
       fprintf(hitrate_file, "%f,", miss_frac);
-      fprintf(hitrate_file, "%zu", tc->localizer.localized_objects);
+      fprintf(hitrate_file, "%zu", localized_objects);
       fprintf(hitrate_file, "\n");
       fflush(hitrate_file);
       htlb.reset();
-      // tc->localizer.localized_objects = 0;
+      // localized_objects = 0;
     }
 
 
@@ -450,12 +463,10 @@ class HTLBTraceRunner : public TraceRunner {
   void on_timer(uint64_t cycle) override {
     float sim_time_seconds = (float)(cycle + ns_sim_skew) / 1e9f;
     if (simulating and do_localization and sim_time_seconds > 0) {
-      tc->localizer.knobs.effort = miss_frac;
+      knobs.effort = miss_frac;
 
       ns_sim_skew += htlb.localize();
     }
-
-    auto &knobs = tc->localizer.knobs;
 
     us_since_last_dump += knobs.dump_interval_us;
     if (us_since_last_dump > 10 * 1000) {
@@ -465,7 +476,7 @@ class HTLBTraceRunner : public TraceRunner {
       htlb.reset();
     }
 
-    auto interval = exp_rand(tc->localizer.knobs.localization_interval);
+    auto interval = exp_rand(knobs.localization_interval);
 
     set_timer(interval);
   }
@@ -486,7 +497,7 @@ class HTLBTraceRunner : public TraceRunner {
     simulating = true;
 
     // schedule the first dump timer.
-    set_timer(tc->localizer.knobs.dump_interval_us);
+    set_timer(knobs.dump_interval_us);
 
     size_t batch_size = 1'000'000;
     auto *events = new TraceEvent[batch_size];
@@ -536,7 +547,7 @@ void usage(void) {
 }
 
 
-void adjust_knobs(alaska::LocalizerKnobs &knobs, std::string knob_name, std::string value) {
+void adjust_knobs(SimKnobs &knobs, std::string knob_name, std::string value) {
   printf("adjust knob %s to %s\n", knob_name.c_str(), value.c_str());
 
   std::vector<const char *> allowed;
@@ -577,7 +588,7 @@ int main(int argc, char **argv) {
   float sweep_start = 0;
   bool do_localize = true;
 
-  alaska::LocalizerKnobs knobs;
+  SimKnobs knobs;
 
   // Getopt for those values above
   int opt;
@@ -629,7 +640,7 @@ int main(int argc, char **argv) {
 
   HTLBTraceRunner runner(tracefile);
   runner.run_name = run_name;
-  runner.htlb.thread_cache->localizer.knobs = knobs;
+  runner.knobs = knobs;
   runner.do_localization = do_localize;
   runner.run_sweep(sweep_start, 1);
 

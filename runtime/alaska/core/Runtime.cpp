@@ -14,7 +14,6 @@
 #include <alaska/core/Runtime.hpp>
 #include <alaska/heaps/SizeClass.hpp>
 #include <alaska/work/BarrierManager.hpp>
-#include <alaska/Localizer.hpp>
 #include "alaska/alaska.hpp"
 #include "alaska/util/utils.h"
 #include <stdlib.h>

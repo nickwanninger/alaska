@@ -89,11 +89,10 @@ static void *sim_background_thread_func(void *) {
   for (long trial = 0; true; trial++) {
     pthread_mutex_lock(&dump_mutex);
     pthread_cond_wait(&dump_cond, &dump_mutex);
-    alaska::handle_id_t *buf = tc->localizer.get_hotness_buffer(TOTAL_ENTRIES);
-    memcpy(buf, dump_buf, sizeof(dump_buf));
-    tc->localizer.feed_hotness_buffer(TOTAL_ENTRIES, dump_buf);
 
-    rt.localization_epoch++;
+    alaska::handle_id_t buf[TOTAL_ENTRIES];
+    memcpy(buf, dump_buf, sizeof(buf));
+    tc->localize(buf, TOTAL_ENTRIES);
 
     sm.compute();
     sm.dump_csv_row(log);

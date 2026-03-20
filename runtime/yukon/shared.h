@@ -231,16 +231,9 @@ static void dump_htlb(alaska::ThreadCache *tc) {
     ::printf("YUKON: Done grading the heap.\n");
   });
 
-  return;
-
-  // auto *space = tc->localizer.get_hotness_buffer(DUMP_SIZE);
-  alaska::handle_id_t space[DUMP_SIZE];
-  dump_htlb_into(tc, space);
-  tc->localize(space, DUMP_SIZE);
-  // tc->localizer.feed_hotness_buffer(DUMP_SIZE, space);
 }
 
-// This method attempts to localize by feeding the localizer with new dump data.
+// This method attempts to localize by feeding the thread cache with new dump data.
 // It returns true if anything was able to be done, and false if it should try again later.
 __attribute__((noinline)) static bool attempt_localization(void) {
   localizer_state_transition(LS_LOCALIZING);

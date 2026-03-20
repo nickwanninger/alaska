@@ -310,24 +310,15 @@ namespace alaska::sim {
 
     // Localize, returning skew cycles.
     size_t localize(void) {
-      auto &rt = alaska::Runtime::get();
-
-      // auto utilization_before = get_htlb_utilization();
-
-      static int localization_count = 0;
-
       auto handles = htlb.get_entries();
-      auto *buffer = this->thread_cache->localizer.get_hotness_buffer(528);
-      for (size_t i = 0; i < handles.size(); i++) {
+      alaska::handle_id_t buffer[528];
+      size_t count = handles.size();
+      if (count > 528) count = 528;
+      for (size_t i = 0; i < count; i++) {
         buffer[i] = handles[i];
       }
-      auto res = this->thread_cache->localizer.feed_hotness_buffer(528, buffer);
-
-      if (res.localized) {
-        return 400 * 1000;
-      } else {
-        return 2000;
-      }
+      auto res = this->thread_cache->localize(buffer, count);
+      return res.count > 0 ? 400 * 1000 : 2000;
     }
 
 

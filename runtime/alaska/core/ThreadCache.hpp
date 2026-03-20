@@ -17,7 +17,6 @@
 
 #include <alaska/heaps/LocalityPage.hpp>
 #include <alaska/alaska.hpp>
-#include <alaska/Localizer.hpp>
 #include "ck/lock.h"
 #include <alaska/util/RateCounter.hpp>
 
@@ -37,7 +36,6 @@ namespace alaska {
    protected:
     friend class LockedThreadCache;
     friend alaska::Runtime;
-    friend alaska::Localizer;
     friend alaska::HeapPage;
 
 
@@ -73,10 +71,6 @@ namespace alaska {
     // How often are we getting a new heap or handle table?
     alaska::RateCounter heap_churn;
     alaska::RateCounter handle_table_churn;
-
-    // Each thread cache has a localizer, which can be fed with
-    // "localization data" to improve object locality
-    alaska::Localizer localizer;
 
    private:
     // Each thread cache owns a set of pages per size class. Following mimalloc's
@@ -150,11 +144,7 @@ namespace alaska {
     // The thread cache is responsible for localizing a set of mappings to improve object
     // locality. This function takes a list of ordered mappings and lays them out contiguously
     // in memory and the mappings are updated to point to their new locations.
-    // This function is called from the Localizer class.
     LocalizationResult localize(alaska::handle_id_t *hids, size_t count);
-    static constexpr uint64_t hotness_hist_size = 1 << 6;
-    uint64_t localization_epoch = 0;
-    uint64_t hotness_hist[hotness_hist_size] = {0};
     long localize(alaska::Mapping *mapping, long allowed_depth = 0, long depth = 0);
     long localize_one(alaska::Mapping *mapping);
 

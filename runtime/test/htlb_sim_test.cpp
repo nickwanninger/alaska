@@ -364,9 +364,6 @@ TEST_F(HTLBSimTest, TableWalk) {
     if (improved) {
       improved_count++;
     }
-    for (uint64_t h = 1; h < alaska::ThreadCache::hotness_hist_size; h++) {
-      fprintf(f, "%lu,%lu,%d\n", h, htlb.thread_cache->hotness_hist[h], i);
-    }
   }
   fclose(f);
   printf("improved: %zu times\n", improved_count);

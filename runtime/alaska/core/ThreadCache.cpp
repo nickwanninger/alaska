@@ -27,8 +27,7 @@ namespace alaska {
 
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
       : id(id)
-      , runtime(rt)
-      , localizer(rt.config, *this) {
+      , runtime(rt) {
     for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
       bins[i].active = nullptr;
       bins[i].rest = LIST_HEAD_INIT(bins[i].rest);
