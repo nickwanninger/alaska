@@ -469,9 +469,9 @@ namespace ck {
     void reset_capacity() { m_capacity = inline_capacity; }
 
     static int padded_capacity(int capacity) {
-      int n = capacity + (capacity / 4) + 4;
-      if (n > 4) return n;
-      return 4;
+      int n = capacity * 2;
+      if (n < 8) n = 8;
+      return n;
     }
 
     T* slot(int i) { return &data()[i]; }
