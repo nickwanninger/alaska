@@ -98,6 +98,8 @@ set(CMAKE_INSTALL_BINDIR ${CMAKE_INSTALL_PREFIX}/bin)
 set(CMAKE_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_PREFIX}/include)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_LIBDIR}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# Ensure build-tree binaries use build-tree libraries (not stale installed ones).
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -fPIC -g3 -Wno-unknown-warning-option -Wno-covered-switch-default ")
 set(CMAKE_INSTALL_MESSAGE LAZY)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
