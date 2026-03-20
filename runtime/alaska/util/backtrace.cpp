@@ -20,15 +20,15 @@
 #include <execinfo.h>
 
 void alaska_dump_backtrace() {
-  FILE *stream = fopen("/proc/self/maps", "r");
+  // FILE *stream = fopen("/proc/self/maps", "r");
 
-  fprintf(stderr, "Memory Map:\n");
-  char line[1024];
-  while (fgets(line, sizeof(line), stream) != NULL) {
-    fwrite(line, strlen(line), 1, stderr);
-  }
+  // fprintf(stderr, "Memory Map:\n");
+  // char line[1024];
+  // while (fgets(line, sizeof(line), stream) != NULL) {
+  //   fwrite(line, strlen(line), 1, stderr);
+  // }
 
-  fclose(stream);
+  // fclose(stream);
 
   void *buffer[50];                   // Buffer to store backtrace addresses
   int nptrs = backtrace(buffer, 50);  // Get backtrace addresses
