@@ -65,33 +65,6 @@ static inline uint64_t read_instret() {
 
 namespace ycsbc {
 
-  // Each field/value pair is stored as a malloc'd node in a linked list.
-  struct FieldNode {
-    char *name;
-    char *value;
-    FieldNode *next;
-  };
-
-  static FieldNode *make_field_node(const std::string &name, const std::string &value) {
-    FieldNode *node = (FieldNode *)malloc(sizeof(FieldNode));
-    node->name = (char *)malloc(name.size() + 1);
-    node->value = (char *)malloc(value.size() + 1);
-    memcpy(node->name, name.data(), name.size() + 1);
-    memcpy(node->value, value.data(), value.size() + 1);
-    node->next = nullptr;
-    return node;
-  }
-
-  static void free_field_list(FieldNode *head) {
-    while (head) {
-      FieldNode *next = head->next;
-      free(head->name);
-      free(head->value);
-      free(head);
-      head = next;
-    }
-  }
-
   static uint64_t sds_hash(const void *key) {
     return dictGenHashFunction((const unsigned char *)key, sdslen((const sds)key));
   }
@@ -100,16 +73,20 @@ namespace ycsbc {
     return sdscmp((sds)a, (sds)b) == 0;
   }
 
+  static dictType fieldDictType = {sds_hash,
+                                   NULL,
+                                   NULL,
+                                   sds_compare,
+                                   [](dict *, void *k) { sdsfree((sds)k); },
+                                   [](dict *, void *v) { sdsfree((sds)v); },
+                                   NULL};
+
   static dictType ycsbDictType = {sds_hash,
                                   NULL,
                                   NULL,
                                   sds_compare,
-                                  [](dict *, void *k) {
-                                    sdsfree((sds)k);
-                                  },
-                                  [](dict *, void *v) {
-                                    free_field_list((FieldNode *)v);
-                                  },
+                                  [](dict *, void *k) { sdsfree((sds)k); },
+                                  [](dict *, void *v) { dictRelease((dict *)v); },
                                   NULL};
 
   class InMemoryDB : public DB {
@@ -122,20 +99,24 @@ namespace ycsbc {
     int Read(const std::string &table, const std::string &key,
              const std::vector<std::string> *fields, std::vector<KVPair> &result) {
       sds k = sdsnewlen(key.data(), key.size());
-      dictEntry *de = dictFind(table_, k);
+      dictEntry *outer = dictFind(table_, k);
       sdsfree(k);
-      if (!de) return kErrorNoData;
+      if (!outer) return kErrorNoData;
 
-      for (FieldNode *n = (FieldNode *)dictGetVal(de); n != nullptr; n = n->next) {
-        if (!fields) {
-          result.emplace_back(n->name, n->value);
-        } else {
-          for (const auto &f : *fields) {
-            if (f == n->name) {
-              result.emplace_back(n->name, n->value);
-              break;
-            }
-          }
+      dict *inner = (dict *)dictGetVal(outer);
+
+      if (!fields) {
+        dictIterator *it = dictGetIterator(inner);
+        dictEntry *fe;
+        while ((fe = dictNext(it)) != nullptr)
+          result.emplace_back((char *)dictGetKey(fe), (char *)dictGetVal(fe));
+        dictReleaseIterator(it);
+      } else {
+        for (const auto &fname : *fields) {
+          sds fk = sdsnewlen(fname.data(), fname.size());
+          dictEntry *fe = dictFind(inner, fk);
+          sdsfree(fk);
+          if (fe) result.emplace_back((char *)dictGetKey(fe), (char *)dictGetVal(fe));
         }
       }
       return kOK;
@@ -143,43 +124,38 @@ namespace ycsbc {
 
     int Scan(const std::string &table, const std::string &key, int len,
              const std::vector<std::string> *fields, std::vector<std::vector<KVPair>> &result) {
-      throw "Scan: function not implemented!";
+      abort();
       return 0;
     }
 
     int Update(const std::string &table, const std::string &key, std::vector<KVPair> &values) {
       sds k = sdsnewlen(key.data(), key.size());
-      dictEntry *de = dictFind(table_, k);
+      dictEntry *outer = dictFind(table_, k);
 
-      FieldNode *head = de ? (FieldNode *)dictGetVal(de) : nullptr;
+      dict *inner;
+      if (outer) {
+        sdsfree(k);
+        inner = (dict *)dictGetVal(outer);
+      } else {
+        inner = dictCreate(&fieldDictType);
+        dictAdd(table_, k, inner);  // outer dict takes ownership of k
+      }
 
       for (auto &kv : values) {
         const std::string &fname = kv.first;
         const std::string &fval = kv.second.empty() ? std::string("X") : kv.second;
 
-        for (FieldNode *n = head; n != nullptr; n = n->next) {
-          if (strcmp(n->name, fname.c_str()) == 0) {
-            free(n->value);
-            n->value = (char *)malloc(fval.size() + 1);
-            memcpy(n->value, fval.data(), fval.size() + 1);
-            goto next_pair;
-          }
+        sds fk = sdsnewlen(fname.data(), fname.size());
+        dictEntry *fe = dictFind(inner, fk);
+        if (fe) {
+          sdsfree(fk);
+          sds old_val = (sds)dictGetVal(fe);
+          sds new_val = sdsnewlen(fval.data(), fval.size());
+          dictSetVal(inner, fe, new_val);
+          sdsfree(old_val);
+        } else {
+          dictAdd(inner, fk, sdsnewlen(fval.data(), fval.size()));
         }
-
-        {
-          FieldNode *node = make_field_node(fname, fval);
-          node->next = head;
-          head = node;
-        }
-
-      next_pair:;
-      }
-
-      if (de) {
-        dictSetVal(table_, de, head);
-        sdsfree(k);
-      } else {
-        dictAdd(table_, k, head);  // dict takes ownership of k
       }
       return kOK;
     }
