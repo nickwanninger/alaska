@@ -20,6 +20,7 @@
 #include "alaska/Configuration.hpp"
 #include "alaska/heaps/LocalityPage.hpp"
 #include <stdlib.h>
+#include <time.h>
 #include <ck/lock.h>
 
 namespace alaska {
@@ -52,6 +53,12 @@ namespace alaska {
   // free pages allocated by mmap_alloc
   void mmap_free(void *ptr, size_t bytes);
 
+  static inline uint64_t now_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+  }
+
   class Heap final {
    public:
     Heap(alaska::Configuration &config);
@@ -65,6 +72,24 @@ namespace alaska {
 
     void put_page(alaska::SizedPage *page);
     void put_page(alaska::LocalityPage *page);
+
+    struct list_head m_age_list;
+
+    void rotate_out(HeapPage &page) {
+      page.time_of_last_use = alaska::now_ms();
+      list_del(&page.age_list);
+      list_add(&page.age_list, &m_age_list);
+    }
+
+    template <typename Fn>
+    void for_each_old_page(uint64_t min_age_ms, Fn fn) {
+      auto cutoff = alaska::now_ms() - min_age_ms;
+      HeapPage *entry;
+      list_for_each_entry_reverse(entry, &m_age_list, age_list) {
+        if (entry->time_of_last_use > cutoff) break;
+        fn(entry);
+      }
+    }
 
 
 

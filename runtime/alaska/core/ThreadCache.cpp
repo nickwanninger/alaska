@@ -80,6 +80,7 @@ namespace alaska {
       if (fl.has_local_free() || entry->num_free_in_bump_allocator() > 0) {
         list_del_init(&entry->tc_list);
         bin.active = entry;
+        runtime.heap.rotate_out(*entry);
         return bin.active;
       }
     }
@@ -89,6 +90,7 @@ namespace alaska {
     auto *fresh = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
     ALASKA_ASSERT(fresh->available() > 0, "Fresh page must have space");
     bin.active = fresh;
+    runtime.heap.rotate_out(*fresh);
     return bin.active;
   }
 

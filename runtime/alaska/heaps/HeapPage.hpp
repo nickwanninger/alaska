@@ -114,6 +114,8 @@ namespace alaska {
     alaska::MagazineBase* magazine = nullptr;
     struct list_head mag_list;
     struct list_head tc_list;  // Per-ThreadCache local page queue membership
+    struct list_head age_list;  // Global age-ordered list membership
+    uint64_t time_of_last_use = 0;  // Milliseconds from CLOCK_MONOTONIC
     bool was_full = false;
   };
 

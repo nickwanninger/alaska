@@ -30,6 +30,7 @@ namespace alaska {
     // (uintptr_t)this->header(), this->header()->owner);
     mag_list = LIST_HEAD_INIT(mag_list);
     tc_list = LIST_HEAD_INIT(tc_list);
+    age_list = LIST_HEAD_INIT(age_list);
   }
 
 
