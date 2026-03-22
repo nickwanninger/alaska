@@ -254,7 +254,7 @@ namespace alaska {
 
     htfl.pop_unchecked(mp);
     auto *mapping = (alaska::Mapping *)mp;
-    alaska::SizedPage *sp = bins[alaska::size_to_class_small(size)].active;
+    alaska::SizedPage *sp = bins[alaska::size_to_class(size)].active;
 
     // The sized page must not be null.
     if (sp == nullptr) {
