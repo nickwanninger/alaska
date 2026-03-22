@@ -36,7 +36,6 @@ alaska_switch(ALASKA_ENABLE_COMPILER   ON)
 alaska_switch(ALASKA_ENABLE_TESTING    ON)
 alaska_switch(ALASKA_ENABLE_LOGGING    OFF)
 alaska_switch(ALASKA_CORE_ONLY         OFF)
-alaska_switch(ALASKA_HTLB_SIM          OFF)
 alaska_switch(ALASKA_CORE_BITCODE      ON) # build translate.bc and stub.bc
 alaska_option(ALASKA_LIBRARY_TYPE      SHARED) # build translate.bc and stub.bc
 

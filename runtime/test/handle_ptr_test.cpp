@@ -7,7 +7,7 @@
 #include <alaska/heaps/Heap.hpp>
 #include <alaska/core/Runtime.hpp>
 #include "alaska/core/ThreadCache.hpp"
-#include <sim/handle_ptr.hpp>
+#include <alaska/util/handle_ptr.hpp>
 
 
 class HandlePtrTest : public ::testing::Test {

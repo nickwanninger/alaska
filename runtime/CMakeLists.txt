@@ -78,8 +78,8 @@ target_compile_options(alaska_core_impl PRIVATE
 target_include_directories(alaska_core_impl PUBLIC include/)
 
 
-# Public-facing shared library used by alaska_sim_trace and tests (no LTO required).
-# No -fvisibility=hidden here — alaska_sim_trace and tests need the C++ class interfaces exported.
+# Public-facing shared library used by tests (no LTO required).
+# No -fvisibility=hidden here — tests need the C++ class interfaces exported.
 add_library(alaska_core SHARED ${CORE_SOURCES})
 set_target_properties(alaska_core PROPERTIES SOVERSION ${ALASKA_VERSION})
 target_compile_options(alaska_core PRIVATE
@@ -96,18 +96,6 @@ install(
   PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
-
-add_library(alaska_sim SHARED
-  sim/HTLB.cpp
-  sim/TLB.cpp
-  sim/StatisticsManager.cpp
-)
-install(
-  TARGETS alaska_sim
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 
 ##########################################################################################
@@ -136,9 +124,6 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
     rt/barrier.cpp
   )
 
-  if(ALASKA_HTLB_SIM)
-    list(APPEND ALASKA_RT_SOURCES rt/sim.cpp)
-  endif()
 
   add_library(alaska ${ALASKA_LIBRARY_TYPE} ${ALASKA_RT_SOURCES})
 
@@ -159,9 +144,6 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
     target_link_libraries(alaska PRIVATE ${LIBUNWIND_LIBRARIES})
   endif()
 
-  if(ALASKA_HTLB_SIM)
-    target_link_libraries(alaska alaska_sim)
-  endif()
 
   install(
     TARGETS alaska
@@ -281,16 +263,6 @@ if(ALASKA_YUKON)
 endif(ALASKA_YUKON)
 
 
-add_executable(alaska_sim_trace sim/main.cpp)
-target_link_libraries(alaska_sim_trace alaska_core alaska_sim)
-install(
-    TARGETS alaska_sim_trace
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-
 
 
 if (ALASKA_ENABLE_TESTING)
@@ -330,7 +302,6 @@ if (ALASKA_ENABLE_TESTING)
 		alaska_test
 		GTest::gtest_main
     GTest::gmock
-    alaska_sim
 		alaska_core dl pthread
 	)
 
