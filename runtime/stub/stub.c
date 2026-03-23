@@ -10,7 +10,7 @@
 #define ALIGN (sizeof(size_t))
 #define ONES ((size_t)-1 / UCHAR_MAX)
 #define HIGHS (ONES * (UCHAR_MAX / 2 + 1))
-#define HASZERO(x) (((x)-ONES) & ~(x)&HIGHS)
+#define HASZERO(x) (((x) - ONES) & ~(x) & HIGHS)
 
 // Most of these functions are straight up stolen from musl libc
 void setbuf(FILE *stream, char *buf) {
@@ -64,9 +64,7 @@ char *strpbrk(const char *s, const char *b) {
   return *s ? (char *)s : 0;
 }
 
-size_t __strlen_avx2(const char *s) {
-  return strlen(s);
-}
+size_t __strlen_avx2(const char *s) { return strlen(s); }
 
 size_t strlen(const char *s) {
   size_t len = 0;
@@ -75,15 +73,15 @@ size_t strlen(const char *s) {
   }
   return len;
   // const char *a = s;
-// #ifdef __GNUC__
-//   typedef size_t __attribute__((__may_alias__)) word;
-//   const word *w;
-//   for (; (uintptr_t)s % ALIGN; s++)
-//     if (!*s) return s - a;
-//   for (w = (const void *)s; !HASZERO(*w); w++)
-//     ;
-//   s = (const void *)w;
-// #endif
+  // #ifdef __GNUC__
+  //   typedef size_t __attribute__((__may_alias__)) word;
+  //   const word *w;
+  //   for (; (uintptr_t)s % ALIGN; s++)
+  //     if (!*s) return s - a;
+  //   for (w = (const void *)s; !HASZERO(*w); w++)
+  //     ;
+  //   s = (const void *)w;
+  // #endif
   // for (; *s; s++)
   //   ;
   // return s - a;
@@ -107,9 +105,7 @@ void *__memrchr(const void *m, int c, size_t n) {
   return 0;
 }
 
-char *strrchr(const char *s, int c) {
-  return __memrchr(s, c, strlen(s) + 1);
-}
+char *strrchr(const char *s, int c) { return __memrchr(s, c, strlen(s) + 1); }
 
 void *memchr(const void *src, int c, size_t n) {
   const unsigned char *s = src;
@@ -139,10 +135,17 @@ int strcasecmp(const char *_l, const char *_r) {
   return tolower(*l) - tolower(*r);
 }
 
-int __strcasecmp_l(const char *l, const char *r, locale_t loc) {
-  return strcasecmp(l, r);
+int __strcasecmp_l(const char *l, const char *r, locale_t loc) { return strcasecmp(l, r); }
+
+int memcmp(const void *vl, const void *vr, size_t n) {
+  const unsigned char *l = vl, *r = vr;
+  for (; n && *l == *r; n--, l++, r++)
+    ;
+  return n ? *l - *r : 0;
 }
 
+
+int bcmp(const void *s1, const void *s2, size_t n) { return memcmp(s1, s2, n); }
 
 char *strdup(const char *s) {
   size_t l = strlen(s);
@@ -236,9 +239,7 @@ char *strncat(char *restrict d, const char *restrict s, size_t n) {
 extern void alaska_barrier_signal_join(void);
 // This function is the "signal" function to the runtime that gets patched
 // into the code whenever a barrier needs to occur.
-__attribute__((preserve_most)) void __alaska_signal(void) {
-  alaska_barrier_signal_join();
-}
+__attribute__((preserve_most)) void __alaska_signal(void) { alaska_barrier_signal_join(); }
 
 
 
@@ -252,5 +253,4 @@ static void __attribute__((constructor)) alaska_init(void) {
   cfg.code_end = (uintptr_t)__alaska_text_end;
   cfg.stackmap = &__LLVM_StackMaps;
   alaska_blob_init(&cfg);
-
 }
