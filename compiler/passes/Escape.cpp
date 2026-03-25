@@ -387,6 +387,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
           }
 
 
+          #if 0
           if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
             // llvm::errs() << "ESCAPE " << func->getName() << " :: " << *func->getFunctionType()
             //              << "\n";
@@ -399,6 +400,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
             }
             llvm::errs() << "\n";
           }
+          #endif
 
 
 
