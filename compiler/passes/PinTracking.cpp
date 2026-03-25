@@ -221,6 +221,17 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
 
 
     for (auto &call : statepointCalls) {
+      // Drop debug locations that reference a different subprogram than the
+      // containing function (e.g. from inlining). The verifier rejects these
+      // after statepoint lowering.
+      if (auto DL = call->getDebugLoc()) {
+        if (auto *SP = F.getSubprogram()) {
+          auto *Scope = DL->getScope();
+          if (Scope && Scope->getSubprogram() != SP) {
+            call->setDebugLoc(DebugLoc());
+          }
+        }
+      }
       IRBuilder<> b(call);
       std::vector<llvm::Value *> callArgs(call->args().begin(), call->args().end());
       std::vector<llvm::Value *> gcArgs;
@@ -335,8 +346,9 @@ PreservedAnalyses PinTrackingPass::run(Module &M, ModuleAnalysisManager &AM) {
       call->eraseFromParent();
     }
 
+
     if (verifyFunction(F, &errs())) {
-      errs() << "Function verification failed!\n";
+      errs() << "Function verification failed in PinTracking!\n";
       errs() << F.getName() << "\n";
       errs() << F << "\n";
       exit(EXIT_FAILURE);
@@ -389,14 +401,11 @@ PreservedAnalyses HandleFaultPass::run(Module &M, ModuleAnalysisManager &AM) {
     // Ignore functions with no bodies
     if (F.empty()) continue;
 
-    F.setGC("coreclr");
-
     std::set<CallBase *> faultCalls;
 
     for (auto &BB : F) {
       for (auto &I : BB) {
         if (auto *call = dyn_cast<CallInst>(&I)) {
-          // alaska::println("  call: ", *call, call->getCalledFunction());
           if (auto func = call->getCalledFunction()) {
             if (func->getName() == "alaska_do_handle_fault_check") {
               faultCalls.insert(call);
@@ -405,6 +414,10 @@ PreservedAnalyses HandleFaultPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
     }
+
+    if (faultCalls.empty()) continue;
+
+    F.setGC("coreclr");
 
     // Given a translation, which cell does it belong to? (eagerly)
     std::map<alaska::Translation *, long> pin_cell_ids;
@@ -434,7 +447,7 @@ PreservedAnalyses HandleFaultPass::run(Module &M, ModuleAnalysisManager &AM) {
       auto *SPCall =
           b.CreateGCStatepointCall(id, patch_size, callTarget, callArgs, deoptArgs, gcArgs, "");
 
-      // SPCall->setTailCallKind(CI->getTailCallKind());
+      SPCall->setDebugLoc(DebugLoc());
       SPCall->setCallingConv(CallingConv::PreserveAll);
       // SPCall->setAttributes(legalizeCallAttributes(
       //     CI->getContext(), CI->getAttributes(), SPCall->getAttributes(), CI->arg_size()));
@@ -445,7 +458,7 @@ PreservedAnalyses HandleFaultPass::run(Module &M, ModuleAnalysisManager &AM) {
 
 
     if (verifyFunction(F, &errs())) {
-      errs() << "Function verification failed!\n";
+      errs() << "Function verification failead in HandleFaultPass\n";
       errs() << F.getName() << "\n";
       errs() << F << "\n";
       exit(EXIT_FAILURE);

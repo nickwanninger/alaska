@@ -246,6 +246,14 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
         }
       }
       onlyCalls = false;
+      // Ensure the call has a debug location if the function has debug info,
+      // otherwise the verifier rejects inlinable calls without !dbg.
+      if (!call->getDebugLoc()) {
+        if (auto *SP = call->getFunction()->getSubprogram()) {
+          call->setDebugLoc(DILocation::get(M.getContext(), SP->getLine(), 0, SP));
+        }
+      }
+
       if (onlyCalls) {
         call->setCalledFunction(translateEscapeFunc);
       } else {
