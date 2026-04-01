@@ -159,6 +159,10 @@ class CoreWorkload {
   bool read_all_fields() const { return read_all_fields_; }
   bool write_all_fields() const { return write_all_fields_; }
 
+  // Call after a successful TransactionInsert to make the new key visible to
+  // NextTransactionKey() and the latest-skewed key chooser.
+  void AcknowledgeInsert() { insert_key_sequence_.Next(); }
+
   CoreWorkload() :
       field_count_(0), read_all_fields_(false), write_all_fields_(false),
       field_len_generator_(NULL), key_generator_(NULL), key_chooser_(NULL),

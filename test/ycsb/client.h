@@ -135,8 +135,10 @@ inline int Client::TransactionInsert() {
   const std::string &key = workload_.NextSequenceKey();
   std::vector<DB::KVPair> values;
   workload_.BuildValues(values);
-  return db_.Insert(table, key, values);
-} 
+  int status = db_.Insert(table, key, values);
+  if (status == DB::kOK) workload_.AcknowledgeInsert();
+  return status;
+}
 
 } // ycsbc
 
