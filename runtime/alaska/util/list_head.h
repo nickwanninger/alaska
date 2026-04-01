@@ -590,6 +590,73 @@ static inline void hlist_add_after(struct hlist_node *n, struct hlist_node *next
 
 #ifdef __cplusplus
 }
+
+namespace alaska {
+
+// Range-for adapter for list_head intrusive lists.
+//
+// Provides safe iteration — the current element can be removed or moved to
+// another list during the loop body without corrupting the traversal, because
+// the next pointer is pre-fetched before the body runs (mirroring the
+// list_for_each_entry_safe / list_for_each_entry_safe_reverse macros).
+//
+// Usage:
+//   for (auto *p : alaska::list_range<HeapPage, &HeapPage::age_list>(&head)) { ... }
+//   for (auto *p : alaska::list_range_reverse<HeapPage, &HeapPage::age_list>(&head)) { ... }
+template <typename T, list_head T::*Member, bool Reverse = false>
+class ListRange {
+  static size_t member_offset() {
+    // Null-pointer trick for obtaining the byte offset — same GCC/Clang
+    // extension already used by container_of in this file.
+    const T *p = nullptr;
+    return (size_t)(reinterpret_cast<const char *>(&(p->*Member)) -
+                    reinterpret_cast<const char *>(p));
+  }
+
+  static T *to_entry(list_head *node) {
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(node) - member_offset());
+  }
+
+  static list_head *advance(list_head *n) { return Reverse ? n->prev : n->next; }
+
+ public:
+  struct iterator {
+    list_head *cur;   // current node
+    list_head *next;  // pre-fetched successor — safe if cur is removed/moved
+
+    explicit iterator(list_head *node) : cur(node), next(advance(node)) {}
+
+    T *operator*() const { return to_entry(cur); }
+    iterator &operator++() {
+      cur = next;
+      next = advance(next);
+      return *this;
+    }
+    bool operator!=(const iterator &o) const { return cur != o.cur; }
+    bool operator==(const iterator &o) const { return cur == o.cur; }
+  };
+
+  explicit ListRange(list_head *head) : m_head(head) {}
+
+  iterator begin() const { return iterator(Reverse ? m_head->prev : m_head->next); }
+  iterator end() const { return iterator(m_head); }
+
+ private:
+  list_head *m_head;
+};
+
+template <typename T, list_head T::*M>
+ListRange<T, M, false> list_range(list_head *head) {
+  return ListRange<T, M, false>(head);
+}
+
+template <typename T, list_head T::*M>
+ListRange<T, M, true> list_range_reverse(list_head *head) {
+  return ListRange<T, M, true>(head);
+}
+
+}  // namespace alaska
+
 #endif
 
 #endif

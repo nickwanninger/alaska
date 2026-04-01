@@ -92,17 +92,22 @@ namespace alaska {
       list_add(&page.age_list, &m_elderly);
     }
 
+
+    auto get_aging_pages(void) {
+      return alaska::list_range_reverse<HeapPage, &HeapPage::age_list>(&m_nursery);
+    }
+
     // Calls fn on each nursery page older than min_age_ms.
     // Call promote_to_elderly() inside fn to move a page to the elderly list.
     template <typename Fn>
     void get_aging_pages(uint64_t min_age_ms, Fn fn) {
       auto cutoff = alaska::now_ms() - min_age_ms;
-      HeapPage *entry, *temp;
-      list_for_each_entry_safe_reverse(entry, temp, &m_nursery, age_list) {
+      for (auto *entry : get_aging_pages()) {
         if (entry->time_of_last_use > cutoff) break;
         fn(entry);
       }
     }
+
 
 
 

@@ -82,11 +82,15 @@ static void *barrier_thread_func(void *) {
         // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->available());
       });
 
-      rt.heap.get_aging_pages((sleep_time / 2) / 1000, [&](alaska::HeapPage *p) {
-        if (old_heaps >= 1000) return;
-        total_fragmentation += p->fragmentation();
+
+      auto cutoff = now - (sleep_time / 2) / 1000;
+      for (auto *page : rt.heap.get_aging_pages()) {
+        if (page->time_of_last_use > cutoff) break;
+
+        total_fragmentation += page->fragmentation();
         old_heaps++;
-      });
+        rt.heap.promote_to_elderly(*page);
+      }
 
       toWait = rt.scheduler.tick(toWait);
       fflush(log);
