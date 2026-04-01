@@ -206,6 +206,8 @@ namespace alaska {
   __attribute__((preserve_all, pure)) void *do_handle_fault_and_translate(uint64_t handle) asm(
       "alaska.HF");
 
+  __attribute__((preserve_all, pure)) void do_handle_access_trace(uint64_t handle) asm("alaska.AT");
+
   struct LocalityReport {
     size_t out_pointers = 0;  // How many pointers point out of the block?
     size_t in_pointers = 0;   // How many pointers point into the same block?
