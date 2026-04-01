@@ -73,7 +73,8 @@ namespace alaska {
     heap_bump = heap_start;
     heap_bump = (void *)(((uintptr_t)heap_bump + alaska::page_size - 1) & ~(alaska::page_size - 1));
     heap_end = (void *)((uintptr_t)heap_start + heap_size);
-    INIT_LIST_HEAD(&m_age_list);
+    INIT_LIST_HEAD(&m_nursery);
+    INIT_LIST_HEAD(&m_elderly);
 
     log_debug("Heap: Backing memory allocated at %p", heap_start);
   }

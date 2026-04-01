@@ -74,19 +74,31 @@ namespace alaska {
     void put_page(alaska::SizedPage *page);
     void put_page(alaska::LocalityPage *page);
 
-    struct list_head m_age_list;
+    struct list_head m_nursery;  // active pages; head=newest, tail=oldest
+    struct list_head m_elderly;  // pages promoted out of the nursery
 
-    void rotate_out(HeapPage &page) {
+    // Called when a page is allocated from. Moves it to the front of the nursery,
+    // removing it from the elderly list if it was there.
+    void reset_age(HeapPage &page) {
       page.time_of_last_use = alaska::now_ms();
       list_del(&page.age_list);
-      list_add(&page.age_list, &m_age_list);
+      list_add(&page.age_list, &m_nursery);
     }
 
+    // Explicitly promote a page from the nursery to the elderly list.
+    // Safe to call from within the fn() callback of get_aging_pages.
+    void promote_to_elderly(HeapPage &page) {
+      list_del(&page.age_list);
+      list_add(&page.age_list, &m_elderly);
+    }
+
+    // Calls fn on each nursery page older than min_age_ms.
+    // Call promote_to_elderly() inside fn to move a page to the elderly list.
     template <typename Fn>
-    void for_each_old_page(uint64_t min_age_ms, Fn fn) {
+    void get_aging_pages(uint64_t min_age_ms, Fn fn) {
       auto cutoff = alaska::now_ms() - min_age_ms;
       HeapPage *entry, *temp;
-      list_for_each_entry_safe_reverse(entry, temp, &m_age_list, age_list) {
+      list_for_each_entry_safe_reverse(entry, temp, &m_nursery, age_list) {
         if (entry->time_of_last_use > cutoff) break;
         fn(entry);
       }
