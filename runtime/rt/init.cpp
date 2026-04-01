@@ -37,18 +37,68 @@ static void *barrier_thread_func(void *) {
   bool in_marking_state = true;
 
 
+  FILE *log = fopen("heaps.csv", "w");
+  fprintf(log, "timestamp,heapid,last_use_ms\n");
 
-  float toWait = 1.0;  // Wait a second at the start... Update
+  auto boot_time = alaska::now_ms();
+
+  float toWait = 0.125;  // Seconds to wait before the first barrier.
   while (1) {
     auto &rt = alaska::Runtime::get();
     useconds_t sleep_time = (useconds_t)(toWait * 1000000);
     usleep(sleep_time);
 
-    continue;
+    // alaska::printf("Barrier!\n");
+
+    // uint64_t total_pages = 0;
+    // uint64_t total_handle_slabs = rt.handle_table.get_slabs().size();
+
+    // rt.heap.for_each_page([&](alaska::HeapPage *p) {
+    //   total_pages++;
+    // });
+
+
+    // alaska::printf("Total pages: %12lu, Handle slabs: %12lu\n", total_pages, total_handle_slabs);
+
+
+
+    // continue;
+
+    float total_fragmentation = 0.0f;
+    uint64_t old_heaps = 0;
+    auto start = alaska_timestamp();
 
     rt.with_barrier([&]() {
+      auto now = alaska::now_ms();
+      auto timestamp = now - boot_time;
+
+      int i = 0;
+      uintptr_t heap_start = (uintptr_t)rt.heap.base_pointer();
+
+      rt.heap.for_each_page([&](alaska::HeapPage *page) {
+        uintptr_t page_addr = (uintptr_t)page->start();
+        uintptr_t page_index = (page_addr - heap_start) / alaska::page_size;
+        fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, now - page->time_of_last_use);
+        // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->available());
+      });
+
+      rt.heap.for_each_old_page((sleep_time / 2) / 1000, [&](alaska::HeapPage *p) {
+        if (old_heaps > 1000) {
+          return;
+        }
+        total_fragmentation += p->fragmentation();
+        old_heaps++;
+        rt.heap.rotate_out(*p);
+      });
+
       toWait = rt.scheduler.tick(toWait);
+      fflush(log);
     });
+
+
+    auto end = alaska_timestamp();
+    auto duration_ns = end - start;
+    alaska::printf("Barrier took %10.2fms\n", duration_ns / 1e6);
   }
 
   return NULL;
@@ -165,6 +215,18 @@ static void *cmd_thread_function(void *arg) {
   return NULL;
 }
 
+
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <alaska/dwarf/dwarf_parser.h>
+
+static void test_dwarf(void) {
+  DwarfTypeDB db;
+  dwarf_parse_self(&db);
+  dwarf_dump(&db);
+}
+
+
 void __attribute__((constructor(102))) alaska_init(void) {
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
@@ -180,6 +242,8 @@ void __attribute__((constructor(102))) alaska_init(void) {
     int port = atoi(port_env);
     pthread_create(&cmd_thread, NULL, cmd_thread_function, (void *)(intptr_t)port);
   }
+
+  test_dwarf();
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {}
