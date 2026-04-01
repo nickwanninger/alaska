@@ -56,7 +56,14 @@ namespace alaska {
 
 
     // How many free slots are there? (We return an estimate!)
-    inline size_t available(void) override { return num_free_in_bump_allocator() * object_size; }
+    // NOTE: freelist slots count even when the bump pointer is exhausted — without this,
+    // pages with freed slots get stranded in m_recent_full and new pages are allocated
+    // instead of reusing them.
+    inline size_t available(void) override {
+      size_t bump = num_free_in_bump_allocator() * object_size;
+      if (bump > 0) return bump;
+      return freelist.has_any_free() ? object_size : 0;
+    }
 
     inline long num_free_in_bump_allocator(void) const {
       return (((uintptr_t)objects_end - (uintptr_t)bump_next) / object_size);

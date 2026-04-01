@@ -111,11 +111,20 @@ namespace alaska {
     return alaska::Mapping::translate((void *)handle);
   }
 
+  ALASKA_EXPORT void do_handle_access_trace(uint64_t handle) {
+    auto &rt = alaska::Runtime::get();
+    auto *m = alaska::Mapping::from_handle_safe((void *)handle);
+    if (!m) return;
+    alaska::printf("[AT] Handle %p (mapping %p)\n", (void *)handle, (void *)m);
+  }
+
 
   int Runtime::handle_fault(uint64_t handle) {
     auto *m = alaska::Mapping::from_handle((void *)handle);
 
-    printf("Handle fault on %p\n", (void *)m);
+    alaska::printf("Handle fault on %p %016p %c%c\n", (void *)m, m->get_pointer_fast(),
+                   m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-');
+
 
     // With domains removed, we simply clear the fault pending bit.
     // If we had more complex logic (like paging from disk), it would go here.

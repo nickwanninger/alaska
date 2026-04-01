@@ -59,29 +59,16 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 #define ENABLE_HANDLE_FAULTS
 
-uint32_t flagsToMatch = 0;
-
 
 extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *ptr) {
   auto m = alaska::Mapping::from_handle(ptr);
 
   void *mapped = m->get_pointer_fast();
-  int64_t mapped_bits;
-  uint8_t flags;
 
-  mapped_bits = (int64_t)mapped;
-
-
-  constexpr int mask_bits = 1;  // TODO: or more for when we use flags.
 #ifdef ENABLE_HANDLE_FAULTS
-  // if the top bit is set, we should fault.
-  bool shouldFault = m->fault_pending();
-  // TODO: flags based matching
-  // flags = reinterpret_cast<uint64_t>(mapped) >> (64 - mask_bits);
-  // shouldFault = (flagsToMatch & (1 << flags)) != 0;
-  // mapped = reinterpret_cast<void *>(reinterpret_cast<uint64_t>(mapped) &
-  //                                   ((1ULL << (64 - mask_bits)) - 1));
 
+  // Check if either of the two top bits are set, which indicates a fault.
+  bool shouldFault = ((uint64_t)mapped >> 62) != 0;
   if (unlikely(shouldFault)) {
     return alaska::do_handle_fault_and_translate((int64_t)ptr);
   }

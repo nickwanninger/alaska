@@ -71,6 +71,7 @@ namespace alaska {
 
    private:
     size_t freed_bytes = 0;
+    long live_count = 0;
     void *bump_next;
   };
 
@@ -92,6 +93,7 @@ namespace alaska {
     header->localized = 1;
 
     bump_next = (void *)bump_after;
+    live_count++;
     return header->data();
   }
 

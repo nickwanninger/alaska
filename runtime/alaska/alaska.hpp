@@ -80,8 +80,9 @@ namespace alaska {
    private:
     union {
       struct {
-        uint64_t _value : 62;
+        uint64_t _value : 61;
         uint64_t pinned : 1;
+        uint64_t access_trace : 1;
         uint64_t pending_fault : 1;
       };
       uint64_t value;
@@ -141,9 +142,11 @@ namespace alaska {
     bool is_pinned(void) const { return this->pinned; }
     void set_pinned(bool to) { this->pinned = to; }
 
-
     bool fault_pending(void) const { return this->pending_fault; }
     void set_fault_pending(bool to) { this->pending_fault = to; }
+
+    bool access_traced(void) const { return this->access_trace; }
+    void set_access_traced(bool to) { this->access_trace = to; }
 
     void reset(void) {
       this->value = 0;

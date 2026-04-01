@@ -19,12 +19,17 @@ namespace alaska {
   LocalityPage::~LocalityPage() {}
 
 
-  // TODO:
   bool LocalityPage::release_local(const alaska::Mapping &m, void *ptr) {
     auto *header = alaska::ObjectHeader::from(ptr);
     atomic_inc(this->freed_bytes, header->real_object_size());
-
     header->set_mapping(nullptr);  // This is how we free.
+
+    if (--live_count == 0) {
+      // All objects have been freed — reset the bump pointer so this page can be reused
+      // rather than sitting in m_recent_full forever.
+      bump_next = (void *)memory_start();
+      freed_bytes = 0;
+    }
     return true;
   }
 

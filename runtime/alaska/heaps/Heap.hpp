@@ -19,6 +19,7 @@
 #include <alaska/heaps/track.hpp>
 #include "alaska/Configuration.hpp"
 #include "alaska/heaps/LocalityPage.hpp"
+#include "alaska/util/list_head.h"
 #include <stdlib.h>
 #include <time.h>
 #include <ck/lock.h>
@@ -84,8 +85,8 @@ namespace alaska {
     template <typename Fn>
     void for_each_old_page(uint64_t min_age_ms, Fn fn) {
       auto cutoff = alaska::now_ms() - min_age_ms;
-      HeapPage *entry;
-      list_for_each_entry_reverse(entry, &m_age_list, age_list) {
+      HeapPage *entry, *temp;
+      list_for_each_entry_safe_reverse(entry, temp, &m_age_list, age_list) {
         if (entry->time_of_last_use > cutoff) break;
         fn(entry);
       }
@@ -116,6 +117,8 @@ namespace alaska {
       auto addr = (uintptr_t)ptr;
       return addr >= (uintptr_t)heap_start && addr < (uintptr_t)heap_end;
     }
+
+    inline void *base_pointer(void) const { return heap_start; }
 
     // This REQUIRES that the object is actually in the heap, it does not check.
     static alaska::HeapPage *get_page(void *object);
@@ -168,6 +171,12 @@ namespace alaska {
     // m_available head is kept as the most-recently-returned page (LIFO via put_page).
     // In the common case the head is unowned and has space; at most one owned page is skipped.
     T *p = mag.pop_available(owner);
+    if (p == nullptr) {
+      // Nothing in m_available. Collect re-promotes pages that gained freelist space since
+      // they were last checked (e.g. bump-exhausted pages with non-empty freelists).
+      mag.collect();
+      p = mag.pop_available(owner);
+    }
     if (p != nullptr) {
       p->set_owner(owner);
       return p;
