@@ -81,6 +81,7 @@ namespace alaska {
     // removing it from the elderly list if it was there.
     void reset_age(HeapPage &page) {
       page.time_of_last_use = alaska::now_ms();
+      page.age_resets++;
       list_del(&page.age_list);
       list_add(&page.age_list, &m_nursery);
     }
@@ -120,8 +121,6 @@ namespace alaska {
 
     // Dump the state of the global heap to some file stream.
     void dump(FILE *stream);
-    void dump_html(FILE *stream);
-    void dump_json(FILE *stream);
 
     // Run a compaction on sized pages.
     long compact_sizedpages(void);

@@ -192,37 +192,6 @@ namespace alaska {
 
 
 
-  void Heap::dump_html(FILE *stream) {
-    auto dump_page = [&](auto page) {
-      if (page == NULL) return true;
-      fprintf(stream, "<tr>");
-      fprintf(stream, "<td>%p</td>", page);
-      fprintf(stream, "<td>");
-      page->dump_html(stream);
-      fprintf(stream, "</tr>\n");
-      return true;
-    };
-
-    locality_pages.for_each(dump_page);
-    // for (auto &mag : size_classes)
-    //   mag.for_each (dump_page);
-  }
-
-
-  void Heap::dump_json(FILE *stream) {
-    fprintf(stream, "{\"pages\": [");
-    bool first = true;
-    for (uintptr_t addr = (uintptr_t)heap_start; addr < (uintptr_t)heap_bump;
-         addr += alaska::page_size) {
-      auto *page = get_page((void *)addr);
-      if (!page) continue;
-      if (!first) fprintf(stream, ",");
-      first = false;
-      page->dump_json(stream);
-    }
-    fprintf(stream, "]}");
-  }
-
   void Heap::collect() {
     ck::scoped_lock lk(this->lock);
 

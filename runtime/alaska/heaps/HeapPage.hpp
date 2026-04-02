@@ -27,7 +27,7 @@ namespace alaska {
    * policies. For example, one page might only allocate objects of a fixed size,
    * and another might allocate objects of varying sizes.
    */
-  static constexpr uint64_t page_shift_factor = 18;  // 21; // 16
+  static constexpr uint64_t page_shift_factor = 21;  // 21; // 16
   static constexpr size_t page_size = 1LU << page_shift_factor;
   static constexpr size_t huge_object_thresh = 4096;
 
@@ -95,11 +95,6 @@ namespace alaska {
     void* start(void) const { return memory; }
     void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
 
-    virtual void dump_html(FILE* stream) { fprintf(stream, "TODO"); }
-    virtual void dump_json(FILE* stream) {
-      fprintf(stream, "{\"name\": \"HeapPage\", \"objs\": \"\"}");
-    }
-
    protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.
     void* memory = nullptr;
@@ -116,6 +111,7 @@ namespace alaska {
     struct list_head tc_list;  // Per-ThreadCache local page queue membership
     struct list_head age_list;  // Global age-ordered list membership
     uint64_t time_of_last_use = 0;  // Milliseconds from CLOCK_MONOTONIC
+    uint64_t age_resets = 0; // TEMPORARY
     bool was_full = false;
   };
 

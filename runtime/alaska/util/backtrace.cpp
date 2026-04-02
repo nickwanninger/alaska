@@ -46,11 +46,4 @@ void alaska_dump_backtrace() {
   }
 
   free(symbols);  // Free memory allocated by backtrace_symbols
-
-
-  auto *rt = alaska::Runtime::get_ptr();
-  if (rt) {
-    fprintf(stderr, "Heap dump:\n");
-    rt->heap.dump_json(stderr);
-  }
 }
