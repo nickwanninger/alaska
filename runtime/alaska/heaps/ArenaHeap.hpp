@@ -11,6 +11,10 @@ namespace alaska {
   static constexpr uint64_t arena_size_shift_factor = 16;
   static constexpr size_t arena_size = 1ULL << arena_size_shift_factor;
 
+  static constexpr int    bin_count = 5;
+  static constexpr int    bin_shift = arena_size_shift_factor - 2;  // 14
+  static constexpr size_t bin_mask  = ~((arena_size / 4) - 1);      // ~0x3FFF
+
   static_assert(arena_size >= alaska::max_large_size * 8,
                 "Arena size must be larger than the maximum large size.");
 
@@ -31,24 +35,31 @@ namespace alaska {
     void destroySegment(ArenaSegment *segment);
 
     ArenaBlock *newBlock(void);
-
-
+    void rebin(ArenaBlock *block, int new_bin);
+    void dump(FILE *out = stderr) const;  // Debug Dump
 
    private:
     struct list_head segment_list;
+    struct list_head bins[bin_count];
   };
 
 
   struct ArenaBlock {
     struct list_head age_list;
+    struct list_head bin_list;
     uint32_t freed_bytes = 0;
+    uint8_t current_bin = 0;
     void *bump;
     void *end;
 
     ObjectHeader *allocate(size_t size);
     void free(ObjectHeader *header);
-    inline void reset() { bump = (char *)end - arena_size; }
-    inline size_t available() { return (char *)end - (char *)bump; }
+    inline void reset() {
+      bump = (char *)end - arena_size;
+      freed_bytes = 0;
+    }
+    inline size_t available() const { return (char *)end - (char *)bump; }
+    inline size_t used() const { return alaska::arena_size - available(); }
   };
 
 
@@ -106,11 +117,13 @@ namespace alaska {
   }
 
   inline void ArenaBlock::free(ObjectHeader *header) {
-    // In a bump allocator, we don't actually free individual objects.
-    // Instead, we can only reset the entire block when all objects are freed.
-    // For simplicity, we won't implement reference counting here. The caller
-    // is responsible for resetting the block when it's no longer needed.
+    uint32_t old = freed_bytes;
     freed_bytes += header->real_object_size();
+
+    if (__builtin_expect((old ^ freed_bytes) & alaska::bin_mask, 0)) {
+      int new_bin = (int)(freed_bytes >> alaska::bin_shift);
+      get_arena_segment(this)->owner->rebin(this, new_bin);
+    }
   }
 
 }  // namespace alaska

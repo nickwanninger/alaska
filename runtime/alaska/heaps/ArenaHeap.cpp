@@ -1,5 +1,6 @@
 #include "./ArenaHeap.hpp"
 #include <sys/mman.h>
+#include <stdio.h>
 
 
 
@@ -35,7 +36,38 @@ static void *mmap_aligned_2mb(size_t size, size_t alignment) {
 
 namespace alaska {
 
-  ArenaHeap::ArenaHeap() { INIT_LIST_HEAD(&this->segment_list); }
+  ArenaHeap::ArenaHeap() {
+    INIT_LIST_HEAD(&this->segment_list);
+    for (auto &b : bins)
+      INIT_LIST_HEAD(&b);
+  }
+
+  void ArenaHeap::dump(FILE *out) const {
+    static const char *bin_labels[] = {
+        "  full (<25% free)", "  75%  (25-50%)",  "  50%  (50-75%)",
+        "  25%  (75-99%)",    "  empty (ready) ",
+    };
+    fprintf(out, "ArenaHeap @ %p\n", (void *)this);
+    for (int i = 0; i < bin_count; i++) {
+      int count = 0;
+      const list_head *pos;
+      list_for_each(pos, &bins[i]) count++;
+      fprintf(out, "  bin[%d] %s : %d block(s)\n", i, bin_labels[i], count);
+      if (count > 0) {
+        list_for_each(pos, &bins[i]) {
+          const ArenaBlock *blk = list_entry(pos, ArenaBlock, bin_list);
+          fprintf(out, "         %p  freed=%-6u used=%-6zu avail=%-6zu\n", (void *)blk,
+                  blk->freed_bytes, blk->used(), blk->available());
+        }
+      }
+    }
+  }
+
+  void ArenaHeap::rebin(ArenaBlock *block, int new_bin) {
+    list_del(&block->bin_list);
+    block->current_bin = new_bin;
+    list_add(&block->bin_list, &bins[new_bin]);
+  }
 
 
   ArenaSegment *ArenaHeap::createSegment(void) {
@@ -57,20 +89,27 @@ namespace alaska {
   }
 
   ArenaBlock *ArenaHeap::newBlock() {
-    // Try to allocate a new block from the most recently created segment.
-    // TODO: arena tiers!
+    // Prefer reusing a block that has been fully emptied.
+    if (!list_empty(&bins[4])) {
+      ArenaBlock *block = list_entry(bins[4].next, ArenaBlock, bin_list);
+      block->reset();
+      rebin(block, 0);
+      return block;
+    }
 
     if (list_empty(&this->segment_list)) {
-      // No segments exist yet, so we need to create one.
       ArenaSegment *new_segment = this->createSegment();
       if (new_segment == nullptr) {
-        return nullptr;  // Failed to create a new segment.
+        return nullptr;
       }
     }
 
     ArenaSegment *last_segment = list_entry(this->segment_list.prev, ArenaSegment, segment_list);
     ArenaBlock *block = last_segment->newBlock();
     if (block != nullptr) {
+      INIT_LIST_HEAD(&block->bin_list);
+      block->current_bin = 0;
+      list_add(&block->bin_list, &bins[0]);
       return block;
     }
 
