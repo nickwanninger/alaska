@@ -64,6 +64,7 @@ namespace alaska {
   }
 
   void ArenaHeap::rebin(ArenaBlock *block, int new_bin) {
+    ck::scoped_lock lk(lock);
     list_del(&block->bin_list);
     block->current_bin = new_bin;
     list_add(&block->bin_list, &bins[new_bin]);
@@ -89,11 +90,16 @@ namespace alaska {
   }
 
   ArenaBlock *ArenaHeap::newBlock() {
+    ck::scoped_lock lk(lock);
+
     // Prefer reusing a block that has been fully emptied.
     if (!list_empty(&bins[4])) {
       ArenaBlock *block = list_entry(bins[4].next, ArenaBlock, bin_list);
       block->reset();
-      rebin(block, 0);
+      // Rebin inline — lock already held, don't call rebin() to avoid re-locking.
+      list_del(&block->bin_list);
+      block->current_bin = 0;
+      list_add(&block->bin_list, &bins[0]);
       return block;
     }
 

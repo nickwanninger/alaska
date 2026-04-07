@@ -2,6 +2,7 @@
 
 #include <alaska/heaps/Heap.hpp>
 #include <alaska/heaps/SizeClass.hpp>
+#include <ck/lock.h>
 
 namespace alaska {
 
@@ -39,6 +40,7 @@ namespace alaska {
     void dump(FILE *out = stderr) const;  // Debug Dump
 
    private:
+    ck::mutex lock;
     struct list_head segment_list;
     struct list_head bins[bin_count];
   };
@@ -99,6 +101,13 @@ namespace alaska {
   template <typename T>
   static inline ArenaSegment *get_arena_segment(T *ptr) {
     return (ArenaSegment *)((uintptr_t)ptr & ~(arena_segment_size - 1));
+  }
+
+  // Given any pointer into arena memory, return the ArenaBlock that owns it.
+  static inline ArenaBlock *get_arena_block(void *ptr) {
+    ArenaSegment *seg = get_arena_segment(ptr);
+    size_t idx = ((uintptr_t)ptr - (uintptr_t)seg) >> arena_size_shift_factor;
+    return seg->getBlock(idx);
   }
 
 
