@@ -305,6 +305,8 @@ if (ALASKA_ENABLE_TESTING)
 		alaska_core dl pthread
 	)
 
+	target_link_options(alaska_test PRIVATE -Wl,--disable-new-dtags)
+
 	gtest_discover_tests(alaska_test)
 
 endif(ALASKA_ENABLE_TESTING)
