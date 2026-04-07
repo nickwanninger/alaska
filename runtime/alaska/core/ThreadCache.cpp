@@ -28,156 +28,39 @@ namespace alaska {
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
       : id(id)
       , runtime(rt) {
-    for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
-      bins[i].active = nullptr;
-      bins[i].rest = LIST_HEAD_INIT(bins[i].rest);
-    }
     this->current_slab = runtime.handle_table.fresh_slab();
   }
 
   ThreadCache::~ThreadCache() {
-    for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
-      if (bins[i].active) {
-        list_del_init(&bins[i].active->tc_list);
-        runtime.heap.put_page(bins[i].active);
-        bins[i].active = nullptr;
-      }
-      SizedPage *entry, *temp;
-      list_for_each_entry_safe(entry, temp, &bins[i].rest, tc_list) {
-        list_del_init(&entry->tc_list);
-        runtime.heap.put_page(entry);
-      }
-    }
-    if (locality_page) {
-      runtime.heap.put_page(locality_page);
-      locality_page = nullptr;
-    }
   }
 
 
 
 
-  SizedPage *ThreadCache::rotate_sized_page(int cls) {
-    auto &bin = bins[cls];
-
-    // Step 1: Try to recover space on the active page via remote frees.
-    if (bin.active != nullptr) {
-      auto &fl = bin.active->get_freelist();
-      fl.swap();
-      if (fl.has_local_free() || bin.active->num_free_in_bump_allocator() > 0) {
-        return bin.active;
-      }
-      // Active is truly full — park it in rest.
-      list_add(&bin.active->tc_list, &bin.rest);
-      bin.active = nullptr;
-    }
-
-    // Step 2: Scan rest for a page that has free space (check remote frees too).
-    SizedPage *entry, *temp;
-    list_for_each_entry_safe(entry, temp, &bin.rest, tc_list) {
-      auto &fl = entry->get_freelist();
-      fl.swap();
-      if (fl.has_local_free() || entry->num_free_in_bump_allocator() > 0) {
-        list_del_init(&entry->tc_list);
-        bin.active = entry;
-        runtime.heap.reset_age(*entry);
-        return bin.active;
-      }
-    }
-
-    // Step 3: All locally held pages are exhausted. Fetch a fresh one from global.
-    heap_churn++;
-    auto *fresh = runtime.heap.get_sizedpage(alaska::class_to_size(cls), this);
-    ALASKA_ASSERT(fresh->available() > 0, "Fresh page must have space");
-    bin.active = fresh;
-    runtime.heap.reset_age(*fresh);
-    return bin.active;
-  }
-
-
-  LocalityPage *ThreadCache::new_locality_page(size_t required_size) {
-    heap_churn++;
-    // Get a new heap
-    auto *lp = runtime.heap.get_localitypage(required_size, this);
-
-    // Swap the heaps in the thread cache
-    if (this->locality_page != nullptr) runtime.heap.put_page(this->locality_page);
-    this->locality_page = lp;
-
-    ALASKA_ASSERT(lp->available() > 0, "New heap must have space");
-    return lp;
-  }
 
 
 
 
   void ThreadCache::maybe_collect(size_t size) {
-    if (++this->generic_count >= 100) {
-      this->generic_collect_count += this->generic_count;
-      this->generic_count = 0;
-      constexpr long generic_collect = 10'000;
-      if (this->generic_collect_count >= generic_collect) {
-        FTR_SCOPE("HeapCollect");
-        this->generic_collect_count = 0;
-        int sc = alaska::size_to_class(size);
-        runtime.heap.collect(this, sc);
-      }
-    }
   }
 
 
   alaska::ObjectHeader *ThreadCache::allocate_object(size_t size, alaska::Mapping &m) {
-    int cls = alaska::size_to_class(size);
-
-    // Grab the sized page for this size class.
-    alaska::SizedPage *sp = bins[cls].active;
-
-    // The sized page must not be null.
-    if (sp != nullptr) {
-      // Grab the free list.
-      auto &spfl = sp->get_freelist();
-      // Peek at the handle table and size page free lists.
-      auto *d = TC_ALIGNED(spfl.peek());
-      if (d != nullptr) {
-        // Pop the free list and use that slot for our allocation.
-        spfl.pop_unchecked(d);
-        // Setup the handle table mapping.
-        auto *header = &d->header;
-        header->set_mapping(&m);
-        header->set_object_size(size);
-        m.set_pointer(header->data());
-
-        // Encode and return the handle
-        return header;
-      }
-    }
-
-
     return allocate_object_generic(size, m);
   }
 
   __attribute__((noinline)) alaska::ObjectHeader *ThreadCache::allocate_object_generic(
       size_t size, alaska::Mapping &m) {
-    int cls = alaska::size_to_class(size);
-    if (cls == 0) return NULL;
-
-    void *ptr;
-    SizedPage *page = bins[cls].active;
-
-    if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
-    ptr = TC_ALIGNED(page->alloc(m, size));
-    if (unlikely(ptr == nullptr)) {
-      page = rotate_sized_page(cls);
-      ptr = TC_ALIGNED(page->alloc(m, size));
+    if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+    auto *header = active_block ? active_block->allocate(size) : nullptr;
+    if (header == nullptr) {
+      active_block = runtime.arena_heap.newBlock();
+      header = active_block ? active_block->allocate(size) : nullptr;
     }
-
-    if (unlikely(ptr == nullptr)) {
-      return NULL;
-    }
-
-    m.set_pointer(ptr);
-
-    return alaska::ObjectHeader::from(ptr);
+    if (header == nullptr) return nullptr;
+    header->set_mapping(&m);
+    m.set_pointer(header->data());
+    return header;
   }
 
 
@@ -204,27 +87,18 @@ namespace alaska {
     if (likely(size >= alaska::max_large_size)) {
       result = runtime.huge_allocator.alloc(size);
     } else {
-      int cls = alaska::size_to_class(size);
-      if (cls == 0) return NULL;
-
-      void *ptr;
-      SizedPage *page = bins[cls].active;
-
-      if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
-      ptr = TC_ALIGNED(page->alloc(m, size));
-      if (unlikely(ptr == nullptr)) {
-        page = rotate_sized_page(cls);
-        ptr = TC_ALIGNED(page->alloc(m, size));
+      if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+      auto *header = active_block ? active_block->allocate(size) : nullptr;
+      if (header == nullptr) {
+        active_block = runtime.arena_heap.newBlock();
+        header = active_block ? active_block->allocate(size) : nullptr;
       }
-
-      if (unlikely(ptr == nullptr)) {
-        // Still OOM — return the handle slot we grabbed so it isn't lost.
+      if (unlikely(header == nullptr)) {
         free_mapping(&m);
         return NULL;
       }
-
-      m.set_pointer(ptr);
-
+      header->set_mapping(&m);
+      m.set_pointer(header->data());
       result = m.to_handle(0);
     }
 
@@ -254,33 +128,16 @@ namespace alaska {
 
     htfl.pop_unchecked(mp);
     auto *mapping = (alaska::Mapping *)mp;
-    alaska::SizedPage *sp = bins[alaska::size_to_class(size)].active;
 
-    // The sized page must not be null.
-    if (sp == nullptr) {
-      return halloc_generic(size, *mapping);
+    if (active_block != nullptr) {
+      auto *header = active_block->allocate(size);
+      if (header != nullptr) {
+        header->set_mapping(mapping);
+        mapping->set_pointer(header->data());
+        return mapping->to_handle(0);
+      }
     }
-
-
-    // Grab the free list.
-    auto &spfl = sp->get_freelist();
-    // Peek at the handle table and size page free lists.
-    auto *d = TC_ALIGNED(spfl.peek());
-
-    if (d == nullptr) {
-      return halloc_generic(size, *mapping);
-    }
-    // Pop the free list and use that slot for our allocation.
-    spfl.pop_unchecked(d);
-    // Setup the handle table mapping.
-    auto *header = &d->header;
-    header->reset(*mapping, size);
-    // header->set_mapping(mapping);
-    // header->set_object_size(size);
-    mapping->set_pointer(header->data());
-
-    // Encode and return the handle
-    return mapping->to_handle(0);
+    return halloc_generic(size, *mapping);
   }
 
 
@@ -329,21 +186,11 @@ namespace alaska {
 
     // --- Free the data allocation --- //
     void *ptr = m->get_pointer();
-    // auto *header = alaska::ObjectHeader::from(ptr);
 
     auto *handle_slab = FTR_EXPR("GetSlab", this->runtime.handle_table.get_slab(m));
-    auto *heap_page = FTR_EXPR("GetPage", alaska::Heap::get_page(ptr));
 
-    bool heap_owned = FTR_EXPR("ChkOwner", heap_page->is_owned_by(this));
-
-    // Now the slow path.
-    if (likely(heap_owned)) {
-      FTR_SCOPE("LocalFree");
-      heap_page->release_local(*m, ptr);
-    } else {
-      FTR_SCOPE("RemoteFree");
-      heap_page->release_remote(*m, ptr);
-    }
+    auto *header = alaska::ObjectHeader::from(ptr);
+    alaska::get_arena_block(ptr)->free(header);
 
     // Return the handle to the slab using thread-safe atomic operations.
     // This works correctly even if freed from a different thread than allocation.
@@ -372,28 +219,16 @@ namespace alaska {
       return runtime.huge_allocator.alloc(size);
     }
 
-    int cls = alaska::size_to_class(size);
-    if (cls == 0) return NULL;
-
-
-    SizedPage *page = bins[cls].active;
-    if (unlikely(page == nullptr)) page = rotate_sized_page(cls);
-
-    void *ptr = TC_ALIGNED(page->alloc(m, size));
-    if (unlikely(ptr == nullptr)) {
-      page = rotate_sized_page(cls);
-      ptr = TC_ALIGNED(page->alloc(m, size));
+    if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+    auto *header = active_block ? active_block->allocate(size) : nullptr;
+    if (header == nullptr) {
+      active_block = runtime.arena_heap.newBlock();
+      header = active_block ? active_block->allocate(size) : nullptr;
     }
-
-    if (unlikely(ptr == nullptr)) {
-#ifdef STUB_ALLOCATES_HANDLES
-      free_mapping(&m);
-#endif
-      return nullptr;
-    }
-
-    m.set_pointer(ptr);
-    return ptr;
+    if (unlikely(header == nullptr)) return nullptr;
+    header->set_mapping(&m);
+    m.set_pointer(header->data());
+    return header->data();
   }
 
 
@@ -407,26 +242,6 @@ namespace alaska {
     // auto *mapping = (alaska::Mapping *)0x400000008UL;
     auto *mapping = alaska::Mapping::from_handle_id(1);
 #endif
-
-    int cls = alaska::size_to_class(size);
-    alaska::SizedPage *sp = bins[cls].active;
-
-    if (sp != nullptr) {
-      auto &spfl = sp->get_freelist();
-      auto *d = TC_ALIGNED(spfl.peek());
-      if (d != nullptr) {
-        spfl.pop_unchecked(d);
-
-
-        auto *header = &d->header;
-        header->set_mapping(mapping);
-        header->set_object_size(size);
-        void *data = header->data();
-        mapping->set_pointer(data);
-
-        return data;
-      }
-    }
 
     return malloc_generic(size, *mapping);
   }
@@ -508,33 +323,7 @@ namespace alaska {
     fprintf(f, "  heap_churn:       %lu\n", heap_churn.read());
     fprintf(f, "  alloc_rate:       %lu\n", allocation_rate.read());
     fprintf(f, "  free_rate:        %lu\n", free_rate.read());
-
-    for (size_class_t i = 0; i < alaska::num_size_classes; i++) {
-      auto &bin = bins[i];
-      if (bin.active == nullptr && list_empty(&bin.rest)) continue;
-
-      size_t object_size = alaska::class_to_size(i);
-      fprintf(f, "  cls %3zu (sz=%4zu):", i, object_size);
-
-      if (bin.active) {
-        fprintf(f, "  active avail=%zu/%ld", bin.active->available() / object_size,
-                bin.active->object_capacity());
-      } else {
-        fprintf(f, "  active=none");
-      }
-
-      int rest_count = 0;
-      size_t rest_avail = 0;
-      SizedPage *entry;
-      list_for_each_entry(entry, &bin.rest, tc_list) {
-        rest_count++;
-        rest_avail += entry->available() / object_size;
-      }
-      if (rest_count > 0) {
-        fprintf(f, "  rest=%d pages avail=%zu", rest_count, rest_avail);
-      }
-      fprintf(f, "\n");
-    }
+    fprintf(f, "  active_block:     %p\n", (void *)active_block);
   }
 
   __attribute__((noinline)) Mapping *ThreadCache::new_mapping_generic(void) {
@@ -560,22 +349,12 @@ namespace alaska {
 
   constexpr long required_size_for_new_locality_page = 4096;
   long ThreadCache::localize_one(alaska::Mapping *m) {
-    bool localized = locality_page->localize(*m);
-
-    if (!localized) {
-      // We failed to localize, so we need a new locality page.
-      locality_page =
-          new_locality_page(required_size_for_new_locality_page);  // Make it big enough for a page.
-      localized = locality_page->localize(*m);
-    }
-    return localized ? 1 : 0;
+    alaska::printf("TODO: localize_one for mapping %p\n", (void *)m);
+    return 0;
   }
 
   long ThreadCache::localize(alaska::Mapping *m, long allowed_depth, long depth) {
     if (m->is_free() || m->is_pinned()) return 0;
-
-    if (unlikely(locality_page == nullptr))
-      locality_page = new_locality_page(required_size_for_new_locality_page);
 
     void *old_data = m->get_pointer();
     auto *old_header = alaska::ObjectHeader::from(old_data);

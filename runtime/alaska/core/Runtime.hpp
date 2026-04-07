@@ -16,6 +16,7 @@
 #include <alaska/core/ThreadCache.hpp>
 #include <alaska/work/WorkScheduler.hpp>
 #include <alaska/heaps/Heap.hpp>
+#include <alaska/heaps/ArenaHeap.hpp>
 #include <alaska/heaps/HugeAllocator.hpp>
 #include <alaska/alaska.hpp>
 #include <ck/set.h>
@@ -49,6 +50,7 @@ namespace alaska {
 
     // This is the actual heap
     alaska::Heap heap;
+    alaska::ArenaHeap arena_heap;
 
     // Huge object allocator for objects >= max_large_size (bypasses handle table)
     alaska::HugeAllocator huge_allocator;

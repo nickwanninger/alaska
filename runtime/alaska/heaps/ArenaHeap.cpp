@@ -42,6 +42,15 @@ namespace alaska {
       INIT_LIST_HEAD(&b);
   }
 
+  ArenaHeap::~ArenaHeap() {
+    dump(stderr);
+    // Clean up all segments (which also cleans up their blocks).
+    while (!list_empty(&segment_list)) {
+      ArenaSegment *segment = list_entry(segment_list.next, ArenaSegment, segment_list);
+      destroySegment(segment);
+    }
+  }
+
   void ArenaHeap::dump(FILE *out) const {
     static const char *bin_labels[] = {
         "  full (<25% free)", "  75%  (25-50%)",  "  50%  (50-75%)",
@@ -52,12 +61,14 @@ namespace alaska {
       int count = 0;
       const list_head *pos;
       list_for_each(pos, &bins[i]) count++;
-      fprintf(out, "  bin[%d] %s : %d block(s)\n", i, bin_labels[i], count);
+      float megabytes_in_this_bin = (count * arena_size) / (1024.0f * 1024.0f);
+      fprintf(out, "  bin[%d] %s : %d block(s) (%.2fmb)\n", i, bin_labels[i], count,
+              megabytes_in_this_bin);
       if (count > 0) {
         list_for_each(pos, &bins[i]) {
           const ArenaBlock *blk = list_entry(pos, ArenaBlock, bin_list);
-          fprintf(out, "         %p  freed=%-6u used=%-6zu avail=%-6zu\n", (void *)blk,
-                  blk->freed_bytes, blk->used(), blk->available());
+          float pct_free = 100.0f * blk->freed_bytes / (float)arena_size;
+          fprintf(out, "         %p  freed=%-6u  %f%%\n", (void *)blk, blk->freed_bytes, pct_free);
         }
       }
     }
@@ -89,6 +100,16 @@ namespace alaska {
     munmap(segment, alaska::arena_segment_size);
   }
 
+  // Returns a segment with available block capacity, creating one if needed.
+  // Must be called with the heap lock held.
+  ArenaSegment *ArenaHeap::ensureWritableSegment() {
+    if (!list_empty(&segment_list)) {
+      auto *seg = list_entry(segment_list.next, ArenaSegment, segment_list);
+      if (seg->num_blocks < usable_arenas_per_segment) return seg;
+    }
+    return createSegment();
+  }
+
   ArenaBlock *ArenaHeap::newBlock() {
     ck::scoped_lock lk(lock);
 
@@ -103,33 +124,25 @@ namespace alaska {
       return block;
     }
 
-    if (list_empty(&this->segment_list)) {
-      ArenaSegment *new_segment = this->createSegment();
-      if (new_segment == nullptr) {
-        return nullptr;
-      }
-    }
+    ArenaSegment *seg = ensureWritableSegment();
+    if (seg == nullptr) return nullptr;
 
-    ArenaSegment *last_segment = list_entry(this->segment_list.prev, ArenaSegment, segment_list);
-    ArenaBlock *block = last_segment->newBlock();
-    if (block != nullptr) {
-      INIT_LIST_HEAD(&block->bin_list);
-      block->current_bin = 0;
-      list_add(&block->bin_list, &bins[0]);
-      return block;
-    }
-
-    return nullptr;
+    ArenaBlock *block = seg->newBlock();
+    if (block == nullptr) return nullptr;
+    INIT_LIST_HEAD(&block->bin_list);
+    block->current_bin = 0;
+    list_add(&block->bin_list, &bins[0]);
+    return block;
   }
 
 
 
   ArenaBlock *ArenaSegment::newBlock() {
-    if (num_blocks >= max_arenas_per_segment) {
-      return nullptr;  // No more blocks can be allocated in this segment.
+    if (num_blocks >= usable_arenas_per_segment) {
+      // No more blocks can be allocated in this segment.
+      return nullptr;
     }
     ArenaBlock *block = new (&blocks[num_blocks++]) ArenaBlock();
-    // TODO: This should link the block into some global list of blocks.
     block->bump = getArenaData(num_blocks - 1);
     block->end = (char *)block->bump + arena_size;
     return block;

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <alaska/heaps/Heap.hpp>
+#include <alaska/heaps/ArenaHeap.hpp>
 #include <alaska/heaps/HeapPage.hpp>
 #include <alaska/handles/HandleTable.hpp>
 
@@ -73,21 +74,7 @@ namespace alaska {
     alaska::RateCounter handle_table_churn;
 
    private:
-    // Each thread cache owns a set of pages per size class. Following mimalloc's
-    // model, pages are kept locally until thread exit — no return-during-rotation.
-    // The active page is the current allocation target; rest holds full pages that
-    // may be revived when remote frees arrive.
-    struct SizeClassBin {
-      alaska::SizedPage *active = nullptr;  // current allocation target
-      struct list_head rest;                // other owned pages (via HeapPage::tc_list)
-    };
-    SizeClassBin bins[alaska::num_size_classes];
-
-    // Each thread cache also has a private "Locality Page", which
-    // objects can be relocated to according to some external
-    // policy. This page is special because it can contain many
-    // objects of many different sizes.
-    alaska::LocalityPage *locality_page = nullptr;
+    alaska::ArenaBlock *active_block = nullptr;
 
    public:
     ThreadCache(int id, alaska::Runtime &rt);
