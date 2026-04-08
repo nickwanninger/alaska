@@ -307,7 +307,7 @@ namespace alaska {
 
 
     void *pointer = handle;
-    if (runtime.heap.contains(pointer)) {
+    if (runtime.heap.contains(pointer) || runtime.arena_heap.contains(pointer)) {
       // it has an object header.
       return alaska::ObjectHeader::from(pointer)->object_size();
     } else {

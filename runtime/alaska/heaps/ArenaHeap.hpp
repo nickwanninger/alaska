@@ -3,6 +3,9 @@
 #include <alaska/heaps/Heap.hpp>
 #include <alaska/heaps/SizeClass.hpp>
 #include <ck/lock.h>
+#include <string.h>
+#include <alaska/work/WorkScheduler.hpp>
+#include "alaska/alaska.hpp"
 
 namespace alaska {
 
@@ -24,10 +27,10 @@ namespace alaska {
 
 
 
-  class ArenaHeap {
+  class ArenaHeap : public alaska::Worker, public alaska::InternalHeapAllocated {
    public:
     ArenaHeap();
-    ~ArenaHeap();
+    virtual ~ArenaHeap();
 
 
 
@@ -37,8 +40,12 @@ namespace alaska {
 
     ArenaBlock *newBlock(void);
     void rebin(ArenaBlock *block, int new_bin);
+    bool contains(void *ptr) const;
     void dump(FILE *out = stderr) const;  // Debug Dump
 
+
+    void periodic_work(float deltaTime) override; // ^Worker
+    size_t evacuate();  // Evacuate live objects from highly-fragmented blocks into fresh ones
    private:
     ArenaSegment *ensureWritableSegment();
 
@@ -60,6 +67,7 @@ namespace alaska {
 
     ObjectHeader *allocate(AlignedSize size);
     void free(ObjectHeader *header);
+    size_t compact();
     inline void reset() {
       bump = (char *)end - arena_size;
       freed_bytes = 0;

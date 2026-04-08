@@ -43,6 +43,9 @@ namespace alaska {
     // Attach a default barrier manager
     this->barrier_manager = &global_nop_barrier_manager;
 
+    // Register the arena heap as a periodic worker with the scheduler
+    arena_heap.register_periodic_work(scheduler);
+
     log_debug("Created a new Alaska Runtime @ %p", this);
     atomic_set(runtime_initialized, true);
   }

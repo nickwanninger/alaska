@@ -37,8 +37,8 @@ static void *barrier_thread_func(void *) {
   bool in_marking_state = true;
 
 
-  FILE *log = fopen("heaps.csv", "w");
-  fprintf(log, "timestamp,heapid,last_use_ms\n");
+  // FILE *log = fopen("heaps.csv", "w");
+  // fprintf(log, "timestamp,heapid,last_use_ms\n");
 
   auto boot_time = alaska::now_ms();
 
@@ -48,58 +48,53 @@ static void *barrier_thread_func(void *) {
     useconds_t sleep_time = (useconds_t)(toWait * 1000000);
     usleep(sleep_time);
 
-    // alaska::printf("Barrier!\n");
-
-    // uint64_t total_pages = 0;
-    // uint64_t total_handle_slabs = rt.handle_table.get_slabs().size();
-
-    // rt.heap.for_each_page([&](alaska::HeapPage *p) {
-    //   total_pages++;
-    // });
-
-
-    // alaska::printf("Total pages: %12lu, Handle slabs: %12lu\n", total_pages, total_handle_slabs);
-
-
-
-    // continue;
-
     float total_fragmentation = 0.0f;
     uint64_t old_heaps = 0;
+    uint64_t total_heaps = 0;
+    uint64_t young_heaps = 0;
     auto start = alaska_timestamp();
 
     rt.with_barrier([&]() {
-      auto now = alaska::now_ms();
-      auto timestamp = now - boot_time;
+      // auto now = alaska::now_ms();
+      // auto timestamp = now - boot_time;
 
-      int i = 0;
-      uintptr_t heap_start = (uintptr_t)rt.heap.base_pointer();
+      // int i = 0;
+      // uintptr_t heap_start = (uintptr_t)rt.heap.base_pointer();
+      // auto old_cutoff = now - (sleep_time / 2) / 1000;
 
-      rt.heap.for_each_page([&](alaska::HeapPage *page) {
-        uintptr_t page_addr = (uintptr_t)page->start();
-        uintptr_t page_index = (page_addr - heap_start) / alaska::page_size;
-        fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, now - page->time_of_last_use);
-        // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->available());
-      });
+      // rt.heap.for_each_page([&](alaska::HeapPage *page) {
+      //   uintptr_t page_addr = (uintptr_t)page->start();
+      //   uintptr_t page_index = (page_addr - heap_start) / alaska::page_size;
+      //   fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, now - page->time_of_last_use);
+      //   total_heaps++;
+      //   if (page->time_of_last_use > old_cutoff) {
+      //     young_heaps++;
+      //   }
+      //   // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->age_resets);
+      //   // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->available());
+      // });
+
+      // FILE *arena_log = fopen("arenas", "w");
+      // rt.arena_heap.dump(arena_log);
+      // fclose(arena_log);
 
 
-      auto cutoff = now - (sleep_time / 2) / 1000;
-      for (auto *page : rt.heap.get_aging_pages()) {
-        if (page->time_of_last_use > cutoff) break;
+      // for (auto *page : rt.heap.get_aging_pages()) {
+      //   if (page->time_of_last_use > old_cutoff) break;
 
-        total_fragmentation += page->fragmentation();
-        old_heaps++;
-        rt.heap.promote_to_elderly(*page);
-      }
+      //   total_fragmentation += page->fragmentation();
+      //   old_heaps++;
+      //   rt.heap.promote_to_elderly(*page);
+      // }
 
       toWait = rt.scheduler.tick(toWait);
-      fflush(log);
+      // fflush(log);
     });
 
 
     auto end = alaska_timestamp();
     auto duration_ns = end - start;
-    alaska::printf("Barrier took %10.2fms\n", duration_ns / 1e6);
+    alaska::printf("Barrier took %10.2fms o:%lu y:%lu t:%lu\n", duration_ns / 1e6, old_heaps, young_heaps, total_heaps);
   }
 
   return NULL;

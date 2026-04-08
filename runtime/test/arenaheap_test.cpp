@@ -74,7 +74,7 @@ TEST_F(ArenaHeapTest, MinimumObjectAllocation) {
   // Each block should have the correct size
   ArenaBlock *blk = seg->newBlock();
 
-  size_t alloc_req = 8;
+  size_t alloc_req = alaska::alignment;  // Must be aligned; AlignedSize rounds up to 16
   auto *object = blk->allocate(alloc_req);
   EXPECT_NE(object, nullptr);
   EXPECT_EQ(object->object_size(), alloc_req);
@@ -87,7 +87,7 @@ TEST_F(ArenaHeapTest, AvailableDrops) {
 
   size_t initial_available = blk->available();
 
-  size_t alloc_req = 8;
+  size_t alloc_req = alaska::alignment;  // Must be aligned; AlignedSize rounds up to 16
   auto *object = blk->allocate(alloc_req);
   size_t after_available = blk->available();
   EXPECT_NE(initial_available, after_available);
@@ -106,9 +106,21 @@ class ArenaBinTest : public ::testing::Test {
   alaska::ArenaHeap heap;
 
   // Allocate an object whose real_object_size() equals exactly `real_size`.
+  // NOTE: real_size - sizeof(ObjectHeader) must already be a multiple of alaska::alignment.
   ObjectHeader *alloc_real(ArenaBlock *blk, size_t real_size) {
     size_t obj_size = real_size - sizeof(ObjectHeader);
     return blk->allocate(obj_size);
+  }
+
+  // Allocate the largest aligned object that fits, then exhaust trailing slack bytes
+  // via a failing allocation. Afterwards blk->freed_bytes == 0 but the block is full.
+  // Call blk->free(result) to drive freed_bytes to arena_size and land in bin 4.
+  ObjectHeader *fill_block(ArenaBlock *blk) {
+    size_t max_data = (blk->available() - sizeof(ObjectHeader)) & ~(alaska::alignment - 1);
+    ObjectHeader *obj = blk->allocate(max_data);
+    if (obj == nullptr) return nullptr;
+    blk->allocate(alaska::alignment);  // Fails → freed_bytes absorbs the trailing bytes
+    return obj;
   }
 };
 
@@ -154,7 +166,7 @@ TEST_F(ArenaBinTest, FullBlockReachesReadyBin) {
   ASSERT_NE(blk, nullptr);
 
   // Fill the entire block and free it — freed_bytes reaches arena_size → bin 4.
-  ObjectHeader *obj = alloc_real(blk, arena_size);
+  ObjectHeader *obj = fill_block(blk);
   ASSERT_NE(obj, nullptr);
 
   blk->free(obj);
@@ -166,7 +178,7 @@ TEST_F(ArenaBinTest, NewBlockPrefersReadyBin) {
   // Get a block into bin 4.
   ArenaBlock *blk = heap.newBlock();
   ASSERT_NE(blk, nullptr);
-  ObjectHeader *obj = alloc_real(blk, arena_size);
+  ObjectHeader *obj = fill_block(blk);
   ASSERT_NE(obj, nullptr);
   blk->free(obj);
   ASSERT_EQ(blk->current_bin, 4);
@@ -180,7 +192,7 @@ TEST_F(ArenaBinTest, NewBlockPrefersReadyBin) {
 TEST_F(ArenaBinTest, ReusedBlockIsReset) {
   ArenaBlock *blk = heap.newBlock();
   ASSERT_NE(blk, nullptr);
-  ObjectHeader *obj = alloc_real(blk, arena_size);
+  ObjectHeader *obj = fill_block(blk);
   ASSERT_NE(obj, nullptr);
   blk->free(obj);
   ASSERT_EQ(blk->current_bin, 4);
@@ -197,15 +209,16 @@ TEST_F(ArenaBinTest, NoSpuriousRebinBelowThreshold) {
   ASSERT_NE(blk, nullptr);
 
   // Free many tiny objects; total stays well below arena_size/4.
-  // Each alloc_real(blk, 9) → real_object_size = 9 bytes.
-  // 1000 frees → 9000 bytes freed, which is < 16384 (quarter boundary).
+  // Minimum object = alignment(16) bytes data + 8 bytes header = 24 bytes real.
+  // Loop while freed_total + real_size < quarter boundary (16384).
   size_t freed_total = 0;
   size_t quarter = arena_size / 4;
-  while (freed_total + 9 < quarter) {
-    ObjectHeader *obj = alloc_real(blk, 9);
+  size_t obj_real = alaska::alignment + sizeof(ObjectHeader);
+  while (freed_total + obj_real < quarter) {
+    ObjectHeader *obj = blk->allocate(alaska::alignment);
     ASSERT_NE(obj, nullptr);
     blk->free(obj);
-    freed_total += 9;
+    freed_total += obj_real;
   }
   EXPECT_EQ(blk->current_bin, 0);
 }
@@ -213,29 +226,146 @@ TEST_F(ArenaBinTest, NoSpuriousRebinBelowThreshold) {
 
 TEST_F(ArenaBinTest, ExactBoundaryTransitions) {
   // Verify each quarter boundary triggers the right bin transition.
-  // We do this with four objects, each crossing one boundary in sequence.
+  // With 8-byte headers and 16-byte alignment, an object with data_size=16376
+  // has AlignedSize=16384 and real_object_size=16392. Three of these fit in the block
+  // (3*16392=49176), and a fourth with data_size=16352 (real=16360) fills the rest
+  // (49176+16360=65536=arena_size). Each free crosses exactly one bin boundary.
   ArenaBlock *blk = heap.newBlock();
   ASSERT_NE(blk, nullptr);
 
-  size_t quarter = arena_size / 4;
-
-  ObjectHeader *o1 = alloc_real(blk, quarter);
+  ObjectHeader *o1 = blk->allocate(16376);  // real = 16392; freed → 16392 → bin 1
   ASSERT_NE(o1, nullptr);
   blk->free(o1);
   EXPECT_EQ(blk->current_bin, 1);
 
-  ObjectHeader *o2 = alloc_real(blk, quarter);
+  ObjectHeader *o2 = blk->allocate(16376);  // freed → 32784 → bin 2
   ASSERT_NE(o2, nullptr);
   blk->free(o2);
   EXPECT_EQ(blk->current_bin, 2);
 
-  ObjectHeader *o3 = alloc_real(blk, quarter);
+  ObjectHeader *o3 = blk->allocate(16376);  // freed → 49176 → bin 3
   ASSERT_NE(o3, nullptr);
   blk->free(o3);
   EXPECT_EQ(blk->current_bin, 3);
 
-  ObjectHeader *o4 = alloc_real(blk, quarter);
+  ObjectHeader *o4 = blk->allocate(16352);  // real = 16360; freed → 65536 → bin 4
   ASSERT_NE(o4, nullptr);
   blk->free(o4);
   EXPECT_EQ(blk->current_bin, 4);
+}
+
+TEST_F(ArenaBinTest, CompactNoopWhenNoFreedBytes) {
+  Runtime rt;
+  ThreadCache *tc = rt.new_threadcache();
+
+  void *h1 = tc->halloc(16);
+  void *h2 = tc->halloc(24);
+  ASSERT_NE(h1, nullptr);
+  ASSERT_NE(h2, nullptr);
+
+  Mapping *m1 = Mapping::from_handle_safe(h1);
+  Mapping *m2 = Mapping::from_handle_safe(h2);
+  ASSERT_NE(m1, nullptr);
+  ASSERT_NE(m2, nullptr);
+
+  ArenaBlock *blk = get_arena_block(m1->get_pointer());
+  ASSERT_EQ(get_arena_block(m2->get_pointer()), blk);
+
+  void *p1_before = m1->get_pointer();
+  void *p2_before = m2->get_pointer();
+  size_t available_before = blk->available();
+
+  size_t reclaimed = blk->compact();
+  EXPECT_EQ(reclaimed, 0u);
+  EXPECT_EQ(m1->get_pointer(), p1_before);
+  EXPECT_EQ(m2->get_pointer(), p2_before);
+  EXPECT_EQ(blk->available(), available_before);
+
+  tc->hfree(h1);
+  tc->hfree(h2);
+  rt.del_threadcache(tc);
+}
+
+
+TEST_F(ArenaBinTest, CompactPacksLiveObjectsAndUpdatesMappings) {
+  Runtime rt;
+  ThreadCache *tc = rt.new_threadcache();
+
+  void *h1 = tc->halloc(16);
+  void *hdead = tc->halloc(24);
+  void *h2 = tc->halloc(32);
+  ASSERT_NE(h1, nullptr);
+  ASSERT_NE(hdead, nullptr);
+  ASSERT_NE(h2, nullptr);
+
+  Mapping *m1 = Mapping::from_handle_safe(h1);
+  Mapping *mdead = Mapping::from_handle_safe(hdead);
+  Mapping *m2 = Mapping::from_handle_safe(h2);
+  ASSERT_NE(m1, nullptr);
+  ASSERT_NE(mdead, nullptr);
+  ASSERT_NE(m2, nullptr);
+
+  ObjectHeader *live1 = ObjectHeader::from(m1->get_pointer());
+  ObjectHeader *dead = ObjectHeader::from(mdead->get_pointer());
+  ObjectHeader *live2 = ObjectHeader::from(m2->get_pointer());
+
+  ArenaBlock *blk = get_arena_block(m1->get_pointer());
+  ASSERT_EQ(get_arena_block(mdead->get_pointer()), blk);
+  ASSERT_EQ(get_arena_block(m2->get_pointer()), blk);
+
+  *reinterpret_cast<uint64_t *>(live1->data()) = 0x1111222233334444ULL;
+  *reinterpret_cast<uint64_t *>(live2->data()) = 0x5555666677778888ULL;
+
+  void *live2_before = m2->get_pointer();
+  size_t available_before = blk->available();
+  size_t dead_size = dead->real_object_size();
+
+  tc->hfree(hdead);
+  ASSERT_GT(blk->freed_bytes, 0u);
+
+  size_t reclaimed = blk->compact();
+
+  EXPECT_EQ(reclaimed, dead_size);
+  EXPECT_EQ(blk->available(), available_before + reclaimed);
+  EXPECT_EQ(blk->freed_bytes, 0u);
+
+  auto *live1_after = ObjectHeader::from(m1->get_pointer());
+  auto *live2_after = ObjectHeader::from(m2->get_pointer());
+  EXPECT_EQ(*reinterpret_cast<uint64_t *>(live1_after->data()), 0x1111222233334444ULL);
+  EXPECT_EQ(*reinterpret_cast<uint64_t *>(live2_after->data()), 0x5555666677778888ULL);
+  EXPECT_EQ((char *)m2->get_pointer(), (char *)live2_before - dead_size);
+
+  tc->hfree(h1);
+  tc->hfree(h2);
+  rt.del_threadcache(tc);
+}
+
+
+TEST_F(ArenaBinTest, CompactFullyDeadBlockTransitionsToReadyBin) {
+  Runtime rt;
+  ThreadCache *tc = rt.new_threadcache();
+
+  void *h = tc->halloc(40);
+  ASSERT_NE(h, nullptr);
+
+  Mapping *m = Mapping::from_handle_safe(h);
+  ASSERT_NE(m, nullptr);
+
+  ObjectHeader *obj = ObjectHeader::from(m->get_pointer());
+  ArenaBlock *blk = get_arena_block(m->get_pointer());
+
+  tc->hfree(h);
+
+  size_t reclaimed = blk->compact();
+  EXPECT_EQ(reclaimed, obj->real_object_size());
+  EXPECT_EQ(blk->available(), arena_size);
+  EXPECT_EQ(blk->freed_bytes, arena_size);
+  EXPECT_EQ(blk->current_bin, 4);
+
+  ArenaBlock *reused = rt.arena_heap.newBlock();
+  EXPECT_EQ(reused, blk);
+  EXPECT_EQ(reused->current_bin, 0);
+  EXPECT_EQ(reused->freed_bytes, 0u);
+
+  rt.del_threadcache(tc);
 }
