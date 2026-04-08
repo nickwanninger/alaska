@@ -56,6 +56,19 @@ namespace alaska {
     INIT_LIST_HEAD(&this->segment_list);
     for (auto &b : bins)
       INIT_LIST_HEAD(&b);
+    INIT_LIST_HEAD(&m_nursery);
+    INIT_LIST_HEAD(&m_elderly);
+  }
+
+  void ArenaHeap::reset_age(ArenaBlock &block) {
+    block.time_of_last_use = alaska::now_ms();
+    list_del(&block.age_list);
+    list_add(&block.age_list, &m_nursery);
+  }
+
+  void ArenaHeap::promote_to_elderly(ArenaBlock &block) {
+    list_del(&block.age_list);
+    list_add(&block.age_list, &m_elderly);
   }
 
   ArenaHeap::~ArenaHeap() {
@@ -215,6 +228,10 @@ namespace alaska {
   }
 
   void ArenaHeap::destroySegment(ArenaSegment *segment) {
+    // Remove each block from the age lists before the memory is unmapped.
+    for (ArenaBlock *block = segment->begin(); block != segment->end(); block++) {
+      list_del(&block->age_list);
+    }
     // Remove the segment from the heap's list of segments.
     list_del(&segment->segment_list);
     // Unmap the memory used by the segment.
@@ -242,6 +259,11 @@ namespace alaska {
       list_del(&block->bin_list);
       block->current_bin = 0;
       list_add(&block->bin_list, &bins[0]);
+      // Block already has an initialized age_list from its previous life; reset_age
+      // will list_del + list_add safely.
+      block->time_of_last_use = alaska::now_ms();
+      list_del(&block->age_list);
+      list_add(&block->age_list, &m_nursery);
       return block;
     }
 
@@ -253,6 +275,9 @@ namespace alaska {
     INIT_LIST_HEAD(&block->bin_list);
     block->current_bin = 0;
     list_add(&block->bin_list, &bins[0]);
+    // age_list is already INIT'd by ArenaSegment::newBlock(); enroll in nursery.
+    block->time_of_last_use = alaska::now_ms();
+    list_add(&block->age_list, &m_nursery);
     return block;
   }
 
@@ -278,6 +303,7 @@ namespace alaska {
     ArenaBlock *block = new (&blocks[num_blocks++]) ArenaBlock();
     block->bump = getArenaData(num_blocks - 1);
     block->end = (char *)block->bump + arena_size;
+    INIT_LIST_HEAD(&block->age_list);
     return block;
   }
 

@@ -46,12 +46,23 @@ namespace alaska {
 
     void periodic_work(float deltaTime) override; // ^Worker
     size_t evacuate();  // Evacuate live objects from highly-fragmented blocks into fresh ones
+
+    void reset_age(ArenaBlock &block);
+    void promote_to_elderly(ArenaBlock &block);
+
+    auto get_aging_blocks();
+
+    template <typename Fn>
+    void get_aging_blocks(uint64_t min_age_ms, Fn fn);
+
    private:
     ArenaSegment *ensureWritableSegment();
 
     ck::mutex lock;
     struct list_head segment_list;
     struct list_head bins[bin_count];
+    struct list_head m_nursery;  // head=newest, tail=oldest
+    struct list_head m_elderly;
   };
 
 
@@ -61,7 +72,8 @@ namespace alaska {
     uint32_t freed_bytes = 0;
     uint32_t current_bin = 0;
 
-    // struct list_head age_list;
+    uint64_t time_of_last_use = 0;  // milliseconds, CLOCK_MONOTONIC
+    struct list_head age_list;
     struct list_head bin_list;
 
 
@@ -153,6 +165,19 @@ namespace alaska {
     if (__builtin_expect((old ^ freed_bytes) & alaska::bin_mask, 0)) {
       int new_bin = (int)(freed_bytes >> alaska::bin_shift);
       get_arena_segment(this)->owner->rebin(this, new_bin);
+    }
+  }
+
+  inline auto ArenaHeap::get_aging_blocks() {
+    return alaska::list_range_reverse<ArenaBlock, &ArenaBlock::age_list>(&m_nursery);
+  }
+
+  template <typename Fn>
+  inline void ArenaHeap::get_aging_blocks(uint64_t min_age_ms, Fn fn) {
+    auto cutoff = alaska::now_ms() - min_age_ms;
+    for (auto *block : get_aging_blocks()) {
+      if (block->time_of_last_use > cutoff) break;
+      fn(block);
     }
   }
 
