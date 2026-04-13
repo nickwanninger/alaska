@@ -1,3 +1,14 @@
+/*
+ * This file is part of the Alaska Handle-Based Memory Management System
+ *
+ * Copyright (c) 2024, Nick Wanninger <ncw@u.northwestern.edu>
+ * Copyright (c) 2024, The Constellation Project
+ * All rights reserved.
+ *
+ * This is free software.  You are permitted to use, redistribute,
+ * and modify it as specified in the file "LICENSE".
+ */
+
 #pragma once
 
 #include <alaska/heaps/Heap.hpp>
@@ -38,14 +49,26 @@ namespace alaska {
     ArenaSegment *createSegment();
     void destroySegment(ArenaSegment *segment);
 
-    ArenaBlock *newBlock(void);
+    // ThreadCache API: checkout acquires a block (marks it owned),
+    // checkin releases it back (clears owned). Nothing else touches owned.
+    ArenaBlock *checkout_block(void);
+    void checkin_block(ArenaBlock *block);
+
     void rebin(ArenaBlock *block, int new_bin);
     bool contains(void *ptr) const;
     void dump(FILE *out = stderr) const;  // Debug Dump
 
 
     void periodic_work(float deltaTime) override; // ^Worker
-    size_t evacuate();  // Evacuate live objects from highly-fragmented blocks into fresh ones
+
+    struct EvacStats {
+      size_t reclaimed_bytes = 0;
+      int candidates  = 0;  // blocks attempted
+      int reclaimed   = 0;  // blocks reset to ready (bin 4)
+      int skipped_avail  = 0;  // blocks skipped — still have allocatable space
+      int skipped_pinned = 0;  // blocks stuck — at least one pinned object
+    };
+    EvacStats evacuate();  // Evacuate live objects from highly-fragmented blocks into fresh ones
 
     void reset_age(ArenaBlock &block);
     void promote_to_elderly(ArenaBlock &block);
@@ -56,6 +79,7 @@ namespace alaska {
     void get_aging_blocks(uint64_t min_age_ms, Fn fn);
 
    private:
+    ArenaBlock *newBlock(void);
     ArenaSegment *ensureWritableSegment();
 
     ck::mutex lock;
@@ -71,6 +95,7 @@ namespace alaska {
     void *end;
     uint32_t freed_bytes = 0;
     uint32_t current_bin = 0;
+    bool owned = false;  // true while a ThreadCache holds this as its active_block
 
     uint64_t time_of_last_use = 0;  // milliseconds, CLOCK_MONOTONIC
     struct list_head age_list;
@@ -146,9 +171,14 @@ namespace alaska {
 
     void *new_bump = (char *)bump + total_size;
     if (new_bump > (char *)end) {
-      freed_bytes += available(); // Account for the wasted space.
-      bump = end; // Mark this block as full.
-      return nullptr;  // Not enough space in this block.
+      uint32_t old = freed_bytes;
+      freed_bytes += available();
+      bump = end;
+      if (__builtin_expect((old ^ freed_bytes) & alaska::bin_mask, 0)) {
+        int new_bin = (int)(freed_bytes >> alaska::bin_shift);
+        get_arena_segment(this)->owner->rebin(this, new_bin);
+      }
+      return nullptr;
     }
     // alaska::printf("Allocating %zu bytes in ArenaBlock %p (used: %zu, available: %zu)\n", size, this, used(), available());
 

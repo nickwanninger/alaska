@@ -11,13 +11,12 @@
 
 #include "WorkScheduler.hpp"
 #include <alaska/util/list_head.h>
+#include <alaska/core/Runtime.hpp>
 #include <unistd.h>
 
 namespace alaska {
 
-  WorkScheduler::WorkScheduler() {
-    INIT_LIST_HEAD(&m_periodic_workers);
-  }
+  WorkScheduler::WorkScheduler() { INIT_LIST_HEAD(&m_periodic_workers); }
 
   WorkScheduler::~WorkScheduler() {}
 
@@ -48,9 +47,15 @@ namespace alaska {
   }
 
   void WorkScheduler::work() {
+    float toWait = m_interval_s;
+
+    // XXX: Implict global runtime dependency!
+    auto& rt = alaska::Runtime::get();
     while (true) {
-      float wait = tick(m_interval_s);
-      usleep((useconds_t)(wait * 1000000.0f));
+      usleep((useconds_t)(toWait * 1000000.0f));
+      rt.with_barrier([&]() {
+        toWait = tick(toWait);
+      });
     }
   }
 

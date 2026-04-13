@@ -98,7 +98,7 @@ TEST_F(ArenaHeapTest, AvailableDrops) {
 
 // ─── Bin system tests ────────────────────────────────────────────────────────
 //
-// These tests use heap.newBlock() (not seg->newBlock()) so that blocks are
+// These tests use heap.checkout_block() (not seg->newBlock()) so that blocks are
 // properly enrolled in the bin system from the start.
 
 class ArenaBinTest : public ::testing::Test {
@@ -126,14 +126,14 @@ class ArenaBinTest : public ::testing::Test {
 
 
 TEST_F(ArenaBinTest, NewBlockStartsInBin0) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
   EXPECT_EQ(blk->current_bin, 0);
 }
 
 
 TEST_F(ArenaBinTest, QuarterCrossingMovesToBin1) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
   EXPECT_EQ(blk->current_bin, 0);
 
@@ -148,7 +148,7 @@ TEST_F(ArenaBinTest, QuarterCrossingMovesToBin1) {
 
 
 TEST_F(ArenaBinTest, MultiSkipLandsInCorrectBin) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
 
   // A single free worth 3/4 of the arena skips from bin 0 directly to bin 3.
@@ -162,7 +162,7 @@ TEST_F(ArenaBinTest, MultiSkipLandsInCorrectBin) {
 
 
 TEST_F(ArenaBinTest, FullBlockReachesReadyBin) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
 
   // Fill the entire block and free it — freed_bytes reaches arena_size → bin 4.
@@ -176,7 +176,7 @@ TEST_F(ArenaBinTest, FullBlockReachesReadyBin) {
 
 TEST_F(ArenaBinTest, NewBlockPrefersReadyBin) {
   // Get a block into bin 4.
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
   ObjectHeader *obj = fill_block(blk);
   ASSERT_NE(obj, nullptr);
@@ -184,20 +184,20 @@ TEST_F(ArenaBinTest, NewBlockPrefersReadyBin) {
   ASSERT_EQ(blk->current_bin, 4);
 
   // newBlock() should hand back the same block, not allocate a fresh one.
-  ArenaBlock *reused = heap.newBlock();
+  ArenaBlock *reused = heap.checkout_block();
   EXPECT_EQ(reused, blk);
 }
 
 
 TEST_F(ArenaBinTest, ReusedBlockIsReset) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
   ObjectHeader *obj = fill_block(blk);
   ASSERT_NE(obj, nullptr);
   blk->free(obj);
   ASSERT_EQ(blk->current_bin, 4);
 
-  ArenaBlock *reused = heap.newBlock();
+  ArenaBlock *reused = heap.checkout_block();
   EXPECT_EQ(reused->freed_bytes, 0u);
   EXPECT_EQ(reused->available(), arena_size);
   EXPECT_EQ(reused->current_bin, 0);
@@ -205,7 +205,7 @@ TEST_F(ArenaBinTest, ReusedBlockIsReset) {
 
 
 TEST_F(ArenaBinTest, NoSpuriousRebinBelowThreshold) {
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
 
   // Free many tiny objects; total stays well below arena_size/4.
@@ -230,7 +230,7 @@ TEST_F(ArenaBinTest, ExactBoundaryTransitions) {
   // has AlignedSize=16384 and real_object_size=16392. Three of these fit in the block
   // (3*16392=49176), and a fourth with data_size=16352 (real=16360) fills the rest
   // (49176+16360=65536=arena_size). Each free crosses exactly one bin boundary.
-  ArenaBlock *blk = heap.newBlock();
+  ArenaBlock *blk = heap.checkout_block();
   ASSERT_NE(blk, nullptr);
 
   ObjectHeader *o1 = blk->allocate(16376);  // real = 16392; freed → 16392 → bin 1
@@ -362,7 +362,7 @@ TEST_F(ArenaBinTest, CompactFullyDeadBlockTransitionsToReadyBin) {
   EXPECT_EQ(blk->freed_bytes, arena_size);
   EXPECT_EQ(blk->current_bin, 4);
 
-  ArenaBlock *reused = rt.arena_heap.newBlock();
+  ArenaBlock *reused = rt.arena_heap.checkout_block();
   EXPECT_EQ(reused, blk);
   EXPECT_EQ(reused->current_bin, 0);
   EXPECT_EQ(reused->freed_bytes, 0u);

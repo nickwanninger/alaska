@@ -32,6 +32,8 @@ namespace alaska {
   }
 
   ThreadCache::~ThreadCache() {
+    if (active_block) runtime.arena_heap.checkin_block(active_block);
+    active_block = nullptr;
   }
 
 
@@ -51,10 +53,11 @@ namespace alaska {
 
   __attribute__((noinline)) alaska::ObjectHeader *ThreadCache::allocate_object_generic(
       size_t size, alaska::Mapping &m) {
-    if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+    if (active_block == nullptr) active_block = runtime.arena_heap.checkout_block();
     auto *header = active_block ? active_block->allocate(size) : nullptr;
     if (header == nullptr) {
-      active_block = runtime.arena_heap.newBlock();
+      if (active_block) runtime.arena_heap.checkin_block(active_block);
+      active_block = runtime.arena_heap.checkout_block();
       header = active_block ? active_block->allocate(size) : nullptr;
     }
     if (header == nullptr) return nullptr;
@@ -87,10 +90,11 @@ namespace alaska {
     if (likely(size >= alaska::max_large_size)) {
       result = runtime.huge_allocator.alloc(size);
     } else {
-      if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+      if (active_block == nullptr) active_block = runtime.arena_heap.checkout_block();
       auto *header = active_block ? active_block->allocate(size) : nullptr;
       if (header == nullptr) {
-        active_block = runtime.arena_heap.newBlock();
+        if (active_block) runtime.arena_heap.checkin_block(active_block);
+        active_block = runtime.arena_heap.checkout_block();
         header = active_block ? active_block->allocate(size) : nullptr;
       }
       if (unlikely(header == nullptr)) {
@@ -219,10 +223,11 @@ namespace alaska {
       return runtime.huge_allocator.alloc(size);
     }
 
-    if (active_block == nullptr) active_block = runtime.arena_heap.newBlock();
+    if (active_block == nullptr) active_block = runtime.arena_heap.checkout_block();
     auto *header = active_block ? active_block->allocate(size) : nullptr;
     if (header == nullptr) {
-      active_block = runtime.arena_heap.newBlock();
+      if (active_block) runtime.arena_heap.checkin_block(active_block);
+      active_block = runtime.arena_heap.checkout_block();
       header = active_block ? active_block->allocate(size) : nullptr;
     }
     if (unlikely(header == nullptr)) return nullptr;

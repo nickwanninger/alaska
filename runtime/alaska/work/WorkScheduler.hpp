@@ -76,7 +76,7 @@ namespace alaska {
 
    private:
     struct list_head m_periodic_workers;
-    float m_interval_s = 0.25f;  // 250ms default
+    float m_interval_s = 0.25f;  // Measured in seconds
   };
 
   // Inline implementations for Worker
