@@ -27,7 +27,7 @@ namespace alaska {
    * policies. For example, one page might only allocate objects of a fixed size,
    * and another might allocate objects of varying sizes.
    */
-  static constexpr uint64_t page_shift_factor = 21;  // 21; // 16
+  static constexpr uint64_t page_shift_factor = 16;  // 21; // 16
   static constexpr size_t page_size = 1LU << page_shift_factor;
   static constexpr size_t huge_object_thresh = 4096;
 
