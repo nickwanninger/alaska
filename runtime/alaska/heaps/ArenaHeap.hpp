@@ -54,6 +54,10 @@ namespace alaska {
     ArenaBlock *checkout_block(void);
     void checkin_block(ArenaBlock *block);
 
+    // Slab API: like checkout_block but stamps the block with a fixed size class.
+    // The returned block allocates slots of class_to_size(cls) bytes each.
+    ArenaBlock *checkout_slab_block(size_class_t cls);
+
     void rebin(ArenaBlock *block, int new_bin);
     bool contains(void *ptr) const;
     void dump(FILE *out = stderr) const;  // Debug Dump
@@ -85,6 +89,7 @@ namespace alaska {
     ck::mutex lock;
     struct list_head segment_list;
     struct list_head bins[bin_count];
+    struct list_head slab_bins[alaska::num_size_classes];  // per-class available slab blocks
     struct list_head m_nursery;  // head=newest, tail=oldest
     struct list_head m_elderly;
   };
@@ -101,6 +106,17 @@ namespace alaska {
     struct list_head age_list;
     struct list_head bin_list;
 
+    // Slab mode: when slab_class != 0, this block allocates fixed-size slots
+    // of class_to_size(slab_class) bytes each. Freed slots are chained through
+    // slab_free_list; the next pointer is stored in the first sizeof(void*)
+    // bytes of the object data area (matching the SizedPage::SizePageBlock convention).
+    size_class_t  slab_class     = 0;
+    ObjectHeader *slab_free_list = nullptr;
+
+    inline bool   is_slab() const { return slab_class != 0; }
+    inline size_t slab_object_size() const { return alaska::class_to_size(slab_class); }
+    inline size_t slab_slot_bytes() const { return slab_object_size() + sizeof(ObjectHeader); }
+    inline size_t slab_total_slots() const { return arena_size / slab_slot_bytes(); }
 
     ObjectHeader *allocate(AlignedSize size);
     void free(ObjectHeader *header);
@@ -108,6 +124,8 @@ namespace alaska {
     inline void reset() {
       bump = (char *)end - arena_size;
       freed_bytes = 0;
+      slab_class = 0;
+      slab_free_list = nullptr;
     }
     inline size_t available() const { return (char *)end - (char *)bump; }
     inline size_t used() const { return alaska::arena_size - available(); }
@@ -167,6 +185,27 @@ namespace alaska {
 
 
   inline ObjectHeader *ArenaBlock::allocate(AlignedSize size) {
+    if (slab_class != 0) {
+      if (slab_free_list != nullptr) {
+        ObjectHeader *h = slab_free_list;
+        slab_free_list = *reinterpret_cast<ObjectHeader **>(h->data());
+        h->size = size;
+        freed_bytes -= (uint32_t)slab_slot_bytes();
+        return h;
+      }
+      // No recycled slots — try to bump-allocate a fresh slot.
+      size_t total_size = sizeof(ObjectHeader) + size;
+      void *new_bump = (char *)bump + total_size;
+      if (new_bump > (char *)end) {
+        // The remaining tail bytes are alignment waste; don't account for them.
+        return nullptr;
+      }
+      ObjectHeader *header = (ObjectHeader *)bump;
+      header->size = size;
+      bump = new_bump;
+      return header;
+    }
+
     size_t total_size = sizeof(ObjectHeader) + size;
 
     void *new_bump = (char *)bump + total_size;
@@ -180,7 +219,6 @@ namespace alaska {
       }
       return nullptr;
     }
-    // alaska::printf("Allocating %zu bytes in ArenaBlock %p (used: %zu, available: %zu)\n", size, this, used(), available());
 
     ObjectHeader *header = (ObjectHeader *)bump;
     header->size = size;
@@ -189,6 +227,14 @@ namespace alaska {
   }
 
   inline void ArenaBlock::free(ObjectHeader *header) {
+    if (slab_class != 0) {
+      header->handle_id = 0;
+      *reinterpret_cast<ObjectHeader **>(header->data()) = slab_free_list;
+      slab_free_list = header;
+      freed_bytes += (uint32_t)slab_slot_bytes();
+      return;
+    }
+
     uint32_t old = freed_bytes;
     freed_bytes += header->real_object_size();
 

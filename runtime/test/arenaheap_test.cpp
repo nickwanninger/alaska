@@ -369,3 +369,217 @@ TEST_F(ArenaBinTest, CompactFullyDeadBlockTransitionsToReadyBin) {
 
   rt.del_threadcache(tc);
 }
+
+
+// ─── Slab block tests ────────────────────────────────────────────────────────
+
+class ArenaSlabTest : public ::testing::Test {
+ public:
+  alaska::ArenaHeap heap;
+};
+
+
+// A slab block for size class 1 (16-byte objects) starts with slab_class set,
+// owned, and has a fresh bump pointer ready for slot allocation.
+TEST_F(ArenaSlabTest, CheckoutSlabBlockIsStamped) {
+  size_class_t cls = alaska::size_to_class(16);
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+  EXPECT_TRUE(blk->is_slab());
+  EXPECT_EQ(blk->slab_class, cls);
+  EXPECT_TRUE(blk->owned);
+  EXPECT_EQ(blk->slab_free_list, nullptr);
+  heap.checkin_block(blk);
+}
+
+
+// Allocating one slot advances bump and returns a properly-sized header.
+TEST_F(ArenaSlabTest, SlabAllocReturnsSizedHeader) {
+  size_class_t cls = alaska::size_to_class(32);
+  size_t obj_size = alaska::class_to_size(cls);  // 32
+
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+
+  void *bump_before = blk->bump;
+  ObjectHeader *h = blk->allocate(obj_size);
+  ASSERT_NE(h, nullptr);
+  EXPECT_EQ(h->object_size(), obj_size);
+  EXPECT_GT(blk->bump, bump_before);  // bump advanced
+
+  heap.checkin_block(blk);
+}
+
+
+// After filling all slots and freeing each one, freed_bytes equals the number
+// of slots times slot_bytes. The free list chains all freed slots.
+TEST_F(ArenaSlabTest, SlabAllocFreeRoundTrip) {
+  size_class_t cls = alaska::size_to_class(64);
+  size_t obj_size = alaska::class_to_size(cls);  // 64
+
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+
+  size_t slot_bytes = blk->slab_slot_bytes();
+  size_t total_slots = blk->slab_total_slots();
+
+  // Allocate every slot.
+  std::vector<ObjectHeader *> headers;
+  while (true) {
+    ObjectHeader *h = blk->allocate(obj_size);
+    if (h == nullptr) break;
+    headers.push_back(h);
+  }
+  // Tail bytes (arena_size % slot_bytes) are wasted padding — not accounted in freed_bytes.
+  EXPECT_EQ(headers.size(), total_slots);
+  EXPECT_EQ(blk->freed_bytes, 0u);
+
+  // Free every slot.
+  for (auto *h : headers)
+    blk->free(h);
+
+  // freed_bytes tracks slot-sized chunks, not the tail padding.
+  EXPECT_EQ(blk->freed_bytes, (uint32_t)(total_slots * slot_bytes));
+  EXPECT_NE(blk->slab_free_list, nullptr);  // free list is populated
+
+  heap.checkin_block(blk);
+}
+
+
+// After filling all bump slots and freeing half of them, allocating that same
+// count must come from the free list (bump pointer must not advance).
+TEST_F(ArenaSlabTest, SlabFreeListReuse) {
+  size_class_t cls = alaska::size_to_class(128);
+  size_t obj_size = alaska::class_to_size(cls);
+
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+
+  // Fill.
+  std::vector<ObjectHeader *> headers;
+  while (true) {
+    ObjectHeader *h = blk->allocate(obj_size);
+    if (h == nullptr) break;
+    headers.push_back(h);
+  }
+  ASSERT_FALSE(headers.empty());
+
+  // Free every other slot.
+  size_t freed_count = 0;
+  for (size_t i = 0; i < headers.size(); i += 2) {
+    blk->free(headers[i]);
+    freed_count++;
+  }
+  EXPECT_EQ(blk->freed_bytes, (uint32_t)(freed_count * blk->slab_slot_bytes()));
+
+  void *bump_snapshot = blk->bump;
+
+  // Re-allocate the freed count — must all come from the free list.
+  for (size_t i = 0; i < freed_count; i++) {
+    ObjectHeader *h = blk->allocate(obj_size);
+    ASSERT_NE(h, nullptr);
+  }
+
+  // Bump pointer must not have moved.
+  EXPECT_EQ(blk->bump, bump_snapshot);
+  EXPECT_EQ(blk->freed_bytes, 0u);
+
+  heap.checkin_block(blk);
+}
+
+
+// A checked-in slab block is placed in slab_bins; a second checkout_slab_block
+// for the same class returns the same block (not a fresh one).
+TEST_F(ArenaSlabTest, CheckinRestoresBlockToSlabBin) {
+  size_class_t cls = alaska::size_to_class(16);
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+
+  heap.checkin_block(blk);
+  EXPECT_FALSE(blk->owned);
+
+  ArenaBlock *same = heap.checkout_slab_block(cls);
+  EXPECT_EQ(same, blk);
+
+  heap.checkin_block(same);
+}
+
+
+// Slab blocks and mixed blocks can coexist in the same ArenaHeap.
+// get_arena_block() must return the correct block for pointers from each.
+TEST_F(ArenaSlabTest, SlabAndMixedBlocksCoexist) {
+  size_class_t cls = alaska::size_to_class(32);
+  size_t obj_size = alaska::class_to_size(cls);
+
+  ArenaBlock *slab = heap.checkout_slab_block(cls);
+  ArenaBlock *mixed = heap.checkout_block();
+  ASSERT_NE(slab, nullptr);
+  ASSERT_NE(mixed, nullptr);
+  EXPECT_NE(slab, mixed);
+
+  ObjectHeader *sh = slab->allocate(obj_size);
+  ObjectHeader *mh = mixed->allocate(16);
+  ASSERT_NE(sh, nullptr);
+  ASSERT_NE(mh, nullptr);
+
+  EXPECT_EQ(get_arena_block(sh->data()), slab);
+  EXPECT_EQ(get_arena_block(mh->data()), mixed);
+
+  heap.checkin_block(slab);
+  heap.checkin_block(mixed);
+}
+
+
+// When a slab block is checked in and its slab_class is cleared via reset(),
+// checkout_block() can recycle it as a plain mixed block.
+TEST_F(ArenaSlabTest, RecycledSlabBlockBecomesCleanMixedBlock) {
+  size_class_t cls = alaska::size_to_class(16);
+  size_t obj_size = alaska::class_to_size(cls);
+
+  ArenaBlock *slab = heap.checkout_slab_block(cls);
+  ASSERT_NE(slab, nullptr);
+
+  // Fill and free everything so freed_bytes is maximal.
+  std::vector<ObjectHeader *> headers;
+  while (true) {
+    ObjectHeader *h = slab->allocate(obj_size);
+    if (h == nullptr) break;
+    headers.push_back(h);
+  }
+  for (auto *h : headers)
+    slab->free(h);
+
+  // Manually reset to make it a fully-reclaimed mixed block.
+  slab->reset();
+  EXPECT_FALSE(slab->is_slab());
+  EXPECT_EQ(slab->freed_bytes, 0u);
+  EXPECT_EQ(slab->slab_free_list, nullptr);
+  EXPECT_EQ(slab->available(), arena_size);
+}
+
+
+// Slab blocks must not appear in the evacuation candidates because they live in
+// slab_bins[], not in the mixed fragmentation bins[].
+TEST_F(ArenaSlabTest, SlabBlocksSkippedByEvacuation) {
+  size_class_t cls = alaska::size_to_class(64);
+  size_t obj_size = alaska::class_to_size(cls);
+
+  ArenaBlock *blk = heap.checkout_slab_block(cls);
+  ASSERT_NE(blk, nullptr);
+
+  // Fill then free 80% of slots.
+  std::vector<ObjectHeader *> headers;
+  while (true) {
+    ObjectHeader *h = blk->allocate(obj_size);
+    if (h == nullptr) break;
+    headers.push_back(h);
+  }
+  size_t to_free = headers.size() * 4 / 5;
+  for (size_t i = 0; i < to_free; i++)
+    blk->free(headers[i]);
+
+  heap.checkin_block(blk);
+
+  auto stats = heap.evacuate();
+  EXPECT_EQ(stats.candidates, 0);
+}

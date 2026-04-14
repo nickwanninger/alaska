@@ -66,6 +66,8 @@ namespace alaska {
     INIT_LIST_HEAD(&this->segment_list);
     for (auto &b : bins)
       INIT_LIST_HEAD(&b);
+    for (auto &b : slab_bins)
+      INIT_LIST_HEAD(&b);
     INIT_LIST_HEAD(&m_nursery);
     INIT_LIST_HEAD(&m_elderly);
   }
@@ -380,8 +382,48 @@ namespace alaska {
     return block;
   }
 
+  ArenaBlock *ArenaHeap::checkout_slab_block(size_class_t cls) {
+    ALASKA_ASSERT(cls > 0 && cls < alaska::num_size_classes, "invalid slab class");
+    ck::scoped_lock lk(lock);
+
+    // Prefer a partially-used slab block of the same class.
+    if (!list_empty(&slab_bins[cls])) {
+      ArenaBlock *b = list_entry(slab_bins[cls].next, ArenaBlock, bin_list);
+      list_del(&b->bin_list);
+      b->owned = true;
+      return b;
+    }
+
+    // Reuse a fully-reclaimed block (bin 4) or carve a fresh one from a segment.
+    ArenaBlock *block = nullptr;
+    if (!list_empty(&bins[4])) {
+      block = list_entry(bins[4].next, ArenaBlock, bin_list);
+      block->reset();
+      list_del(&block->bin_list);
+      block->time_of_last_use = alaska::now_ms();
+      list_del(&block->age_list);
+      list_add(&block->age_list, &m_nursery);
+    } else {
+      ArenaSegment *seg = ensureWritableSegment();
+      if (seg == nullptr) return nullptr;
+      block = seg->newBlock();
+      if (block == nullptr) return nullptr;
+      INIT_LIST_HEAD(&block->bin_list);
+      block->time_of_last_use = alaska::now_ms();
+      list_add(&block->age_list, &m_nursery);
+    }
+
+    block->slab_class = cls;
+    block->owned = true;
+    return block;
+  }
+
   void ArenaHeap::checkin_block(ArenaBlock *block) {
     block->owned = false;
+    if (block->is_slab()) {
+      ck::scoped_lock lk(lock);
+      list_add(&block->bin_list, &slab_bins[block->slab_class]);
+    }
   }
 
 
