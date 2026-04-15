@@ -13,6 +13,7 @@
 #include <alaska/AllocationRequest.hpp>
 #include <alaska/core/ThreadCache.hpp>
 #include <alaska/core/Runtime.hpp>
+#include <alaska/handles/ObjectHeader.hpp>
 
 #include <sys/mman.h>
 
@@ -52,6 +53,10 @@ namespace alaska {
 
   void *HeapPage::alloc(const Mapping &m, AlignedSize size) { return nullptr; }
 
-
+  ObjectRange HeapPage::objects() const {
+    ObjectHeader *start = (ObjectHeader *)memory_start();
+    void *end = (void *)memory_end();
+    return ObjectRange(start, end);
+  }
 
 }  // namespace alaska

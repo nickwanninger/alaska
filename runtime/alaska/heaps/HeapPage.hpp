@@ -20,6 +20,8 @@
 #include <alaska/util/list_head.h>
 
 namespace alaska {
+  // Forward declarations to avoid circular includes
+  struct ObjectRange;
 
   /**
    * Alaska's heap is broken down into "pages" which are a certain size. Each
@@ -94,6 +96,8 @@ namespace alaska {
 
     void* start(void) const { return memory; }
     void* end(void) const { return (void*)((uintptr_t)memory + page_size); }
+
+    ObjectRange objects() const;
 
    protected:
     // This is the backing memory for the page. it is alaska::page_size bytes long.
