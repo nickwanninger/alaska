@@ -122,6 +122,52 @@ namespace alaska {
 
   } __attribute__((packed));
 
+  struct ObjectIterator {
+    ObjectHeader *current;
+    void *end_ptr;
+
+    ObjectIterator(ObjectHeader *start, void *end_ptr)
+        : current(start)
+        , end_ptr(end_ptr) {
+      if ((void *)current >= end_ptr) {
+        current = nullptr;
+      }
+    }
+
+    ObjectHeader *operator*() const { return current; }
+    ObjectHeader *operator->() const { return current; }
+
+    ObjectIterator &operator++() {
+      if (current) {
+        current = (ObjectHeader *)((char *)current + current->real_object_size());
+        if ((void *)current >= end_ptr) {
+          current = nullptr;
+        }
+      }
+      return *this;
+    }
+
+    ObjectIterator operator++(int) {
+      ObjectIterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    bool operator==(const ObjectIterator &other) const { return current == other.current; }
+    bool operator!=(const ObjectIterator &other) const { return current != other.current; }
+  };
+
+
+  struct ObjectRange {
+    ObjectHeader *start;
+    void *end_ptr;
+    ObjectRange(ObjectHeader *start, void *end_ptr)
+        : start(start)
+        , end_ptr(end_ptr) {}
+    ObjectIterator begin() const { return ObjectIterator(start, end_ptr); }
+    ObjectIterator end() const { return ObjectIterator(nullptr, end_ptr); }
+  };
+
   static constexpr size_t OBJECT_HEADER_SIZE = sizeof(ObjectHeader);
   // static_assert(sizeof(ObjectHeader) == 16, "ObjectHeader is not the right size!");
   static_assert(sizeof(ObjectHeader) == 8, "ObjectHeader is not the right size!");
