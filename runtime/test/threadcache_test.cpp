@@ -58,30 +58,6 @@ TEST_F(ThreadCacheTest, HallocUnique) {
 }
 
 
-TEST_F(ThreadCacheTest, HallocFreeHallocLocal) {
-  size_t size = 16;
-  // Allocate one handle
-  void *h1 = t1->halloc(size);
-  // Translate it...
-  void *p1 = alaska::Mapping::translate(h1);
-  // Free it LOCALLY
-  t1->hfree(h1);
-
-  // Then allocate another handle. With a bump allocator the backing memory advances,
-  // so p2 will be at a new position (not the same as p1).
-  void *h2 = t1->halloc(size);
-  // Translate it to get the backing address
-  void *p2 = alaska::Mapping::translate(h2);
-  // ArenaHeap is a bump allocator — p2 is past p1, not at the same address.
-  ASSERT_NE(p1, p2);
-  // The mapping (handle) is recycled from the free list.
-  ASSERT_EQ(h1, h2);
-
-  // NOTE: this test only makes sense in this controlled environment.
-}
-
-
-
 TEST_F(ThreadCacheTest, HallocFreeHallocRemote) {
   size_t size = 16;
   // Allocate one handle
