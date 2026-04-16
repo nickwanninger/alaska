@@ -245,7 +245,7 @@ void alaska::barrier::get_pinned_handles(bool pin) {
     }
     if (res < 0) {
       printf("unknown libunwind error! %d\n", res);
-      abort();
+      break;
     }
     unw_get_reg(&cursor, UNW_REG_IP, &pc);
     unw_get_reg(&cursor, UNW_REG_SP, &sp);
