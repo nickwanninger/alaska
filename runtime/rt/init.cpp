@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <ck/queue.h>
 #include <alaska/util/RateCounter.hpp>
+#include "alaska/heaps/HeapPage.hpp"
 
 static alaska::Runtime *the_runtime = nullptr;
 
@@ -43,49 +44,102 @@ static void *barrier_thread_func(void *) {
   auto boot_time = alaska::now_ms();
 
   float toWait = 0.125;  // Seconds to wait before the first barrier.
+  int iteration = 0;
+
+  FILE *log = fopen("faults.csv", "w");
+  printf("Logging to faults.csv\n");
+  fprintf(log, "timestamp,total_objects,total_waiting_faults,total_bytes,bytes_waiting,pct_faults\n");
+
   while (1) {
     auto &rt = alaska::Runtime::get();
     useconds_t sleep_time = (useconds_t)(toWait * 1000000);
     usleep(sleep_time);
 
-    float total_fragmentation = 0.0f;
     uint64_t old_heaps = 0;
     uint64_t total_heaps = 0;
     uint64_t young_heaps = 0;
     auto start = alaska_timestamp();
 
     rt.with_barrier([&]() {
-      // auto now = alaska::now_ms();
-      // auto timestamp = now - boot_time;
+      auto now = alaska::now_ms();
+      auto timestamp = now - boot_time;
 
-      // int i = 0;
-      // uintptr_t heap_start = (uintptr_t)rt.heap.base_pointer();
-      // auto old_cutoff = now - (sleep_time / 2) / 1000;
+      int i = 0;
+      uintptr_t heap_start = (uintptr_t)rt.heap.base_pointer();
+      auto old_cutoff = now - (sleep_time / 2) / 1000;
 
-      // rt.heap.for_each_page([&](alaska::HeapPage *page) {
-      //   uintptr_t page_addr = (uintptr_t)page->start();
-      //   uintptr_t page_index = (page_addr - heap_start) / alaska::page_size;
-      //   fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, now - page->time_of_last_use);
-      //   total_heaps++;
-      //   if (page->time_of_last_use > old_cutoff) {
-      //     young_heaps++;
-      //   }
-      //   // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->age_resets);
-      //   // fprintf(log, "%lu,%lu,%lu\n", timestamp, page_index, page->available());
-      // });
+      rt.heap.for_each_page([&](alaska::HeapPage *page) {
+        uintptr_t page_addr = (uintptr_t)page->start();
+        uintptr_t page_index = (page_addr - heap_start) / alaska::page_size;
+        total_heaps++;
+        if (page->time_of_last_use > old_cutoff) {
+          young_heaps++;
+        }
+      });
 
-      // FILE *arena_log = fopen("arenas", "w");
-      // rt.arena_heap.dump(arena_log);
-      // fclose(arena_log);
+      iteration += 1;
+      bool is_marking = false;
+      if (iteration == 15) {
+        is_marking = true;
+        iteration = 0;
+      }
+
+      uint64_t total_faults_waiting = 0;
+      uint64_t total_objects = 0;
 
 
-      // for (auto *page : rt.heap.get_aging_pages()) {
-      //   if (page->time_of_last_use > old_cutoff) break;
+      uint64_t total_faults_waiting_bytes = 0;
+      uint64_t total_objects_bytes = 0;
+      rt.heap.for_each_page([&](alaska::HeapPage *page) {
+        for (auto *obj : page->objects()) {
+          if (!obj->is_active()) continue;
+          total_objects++;
+          size_t size = obj->real_object_size();
+          total_objects_bytes += size;
+          auto *mapping = obj->get_mapping();
+          if (mapping->fault_pending()) {
+            total_faults_waiting++;
+            total_faults_waiting_bytes += size;
+          }
+          // if (is_marking) {
+          //   obj->get_mapping()->set_fault_pending(true);
+          // }
+        }
+      });
 
-      //   total_fragmentation += page->fragmentation();
-      //   old_heaps++;
-      //   rt.heap.promote_to_elderly(*page);
-      // }
+      float pct_waiting =
+          total_objects > 0 ? (total_faults_waiting * 100.0f) / total_objects : 0.0f;
+      alaska::printf("Objects waiting for fault resolution: %zu/%zu (%.2f%%)\n",
+                     total_faults_waiting, total_objects, pct_waiting);
+      fprintf(log, "%lu,%lu,%lu,%lu,%lu,%.2f\n", timestamp, total_objects, total_faults_waiting, total_objects_bytes, total_faults_waiting_bytes, pct_waiting);
+      fflush(log);
+
+
+      for (auto *page : rt.heap.get_aging_pages()) {
+        if (page->time_of_last_use > old_cutoff) break;
+
+        old_heaps++;
+        rt.heap.promote_to_elderly(*page);
+
+        // now that that page is old, we should mark all the objects in it as invalid (so we fault
+        // on it!) alaska::printf("Promoting page %p to elderly (last use: %lu ms ago)\n",
+        // page->start(),
+        //                 now - page->time_of_last_use);
+        for (auto *obj : page->objects()) {
+          if (!obj->is_active()) continue;
+
+          // Temporary thrashing protection
+          if (obj->localized) continue;
+
+          auto *mapping = obj->get_mapping();
+          // alaska::printf("%p %p %zu\n", obj, mapping, obj->real_object_size());
+          if (mapping->is_pinned()) continue;
+          obj->get_mapping()->set_fault_pending(true);
+          obj->localized = true;
+          // obj->get_mapping()->set_fault_pending(true);
+          // obj.mark_invalid();
+        }
+      }
 
       toWait = rt.scheduler.tick(toWait);
       // fflush(log);
@@ -94,7 +148,8 @@ static void *barrier_thread_func(void *) {
 
     auto end = alaska_timestamp();
     auto duration_ns = end - start;
-    alaska::printf("Barrier took %10.2fms o:%lu y:%lu t:%lu\n", duration_ns / 1e6, old_heaps, young_heaps, total_heaps);
+    // alaska::printf("Barrier took %10.2fms o:%lu y:%lu t:%lu\n", duration_ns / 1e6, old_heaps,
+    //                young_heaps, total_heaps);
   }
 
   return NULL;
@@ -231,7 +286,9 @@ void __attribute__((constructor(102))) alaska_init(void) {
   the_runtime->barrier_manager = &the_barrier_manager;
   // Trigger the current() bootstrap swap now so the hot path skips init checks.
   alaska::ThreadCache::current();
-  pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
+  if (getenv("ALASKA_NO_BARRIER_THREAD") == nullptr) {
+    pthread_create(&barrier_thread, NULL, barrier_thread_func, NULL);
+  }
 
   char *port_env = getenv("ALASKA_CMD_PORT");
   if (port_env) {
