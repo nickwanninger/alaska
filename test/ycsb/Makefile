@@ -1,7 +1,7 @@
 CXX       = gclang++
 CC        = gclang
-CXXFLAGS  = -std=c++17 -O2 -Wall -g3
-CFLAGS    = -std=c11 -O2 -Wall -g3
+CXXFLAGS  = -std=c++17 -O1 -Wall -g3
+CFLAGS    = -std=c11 -O1 -Wall -g3
 TARGET    = bin/ycsb
 
 all: $(TARGET) bin/ycsb-alaska
@@ -16,7 +16,7 @@ $(TARGET): $(OBJS) | bin/
 
 bin/ycsb.bc: $(TARGET)
 	get-bc -b -o $@ $(TARGET)
-	opt -O3 $@ -o $@
+	# opt $@ -o $@
 	# opt -strip-debug $@ -o $@
 
 bin/ycsb-alaska.bc: bin/ycsb.bc
