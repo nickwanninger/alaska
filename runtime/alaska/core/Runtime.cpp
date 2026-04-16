@@ -43,9 +43,6 @@ namespace alaska {
     // Attach a default barrier manager
     this->barrier_manager = &global_nop_barrier_manager;
 
-    // Register the arena heap as a periodic worker with the scheduler
-    arena_heap.register_periodic_work(scheduler);
-
     log_debug("Created a new Alaska Runtime @ %p", this);
     atomic_set(runtime_initialized, true);
   }
@@ -125,8 +122,8 @@ namespace alaska {
   int Runtime::handle_fault(uint64_t handle) {
     auto *m = alaska::Mapping::from_handle((void *)handle);
 
-    alaska::printf("Handle fault on %p %016p %c%c\n", (void *)m, m->get_pointer_fast(),
-                   m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-');
+    // alaska::printf("Handle fault on %p %016p %c%c\n", (void *)m, m->get_pointer_fast(),
+    //                m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-');
 
 
     // With domains removed, we simply clear the fault pending bit.
