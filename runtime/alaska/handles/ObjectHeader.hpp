@@ -62,6 +62,8 @@ namespace alaska {
     }
 
 
+    bool is_active(void) const { return handle_id != 0; }
+
     alaska::Mapping *get_mapping(void) const { return alaska::Mapping::from_handle_id(handle_id); }
     // Passing null here means the object is not mapped.
     inline void set_mapping(const alaska::Mapping *m) {

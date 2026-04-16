@@ -144,7 +144,10 @@ namespace alaska {
         // Setup the handle table mapping.
         auto *header = &d->header;
         header->set_mapping(&m);
-        header->set_object_size(size);
+        // Store the rounded size (from size class), not the requested size.
+        // This ensures ObjectIterator uses correct offsets when walking objects.
+        size_t rounded_size = alaska::class_to_size(cls);
+        header->set_object_size(rounded_size);
         m.set_pointer(header->data());
 
         // Encode and return the handle
@@ -274,9 +277,11 @@ namespace alaska {
     spfl.pop_unchecked(d);
     // Setup the handle table mapping.
     auto *header = &d->header;
-    header->reset(*mapping, size);
-    // header->set_mapping(mapping);
-    // header->set_object_size(size);
+    // Store the rounded size (from size class), not the requested size.
+    // This ensures ObjectIterator uses correct offsets when walking objects.
+    int cls = alaska::size_to_class(size);
+    size_t rounded_size = alaska::class_to_size(cls);
+    header->reset(*mapping, rounded_size);
     mapping->set_pointer(header->data());
 
     // Encode and return the handle
@@ -420,7 +425,10 @@ namespace alaska {
 
         auto *header = &d->header;
         header->set_mapping(mapping);
-        header->set_object_size(size);
+        // Store the rounded size (from size class), not the requested size.
+        // This ensures ObjectIterator uses correct offsets when walking objects.
+        size_t rounded_size = alaska::class_to_size(cls);
+        header->set_object_size(rounded_size);
         void *data = header->data();
         mapping->set_pointer(data);
 

@@ -52,7 +52,9 @@ namespace alaska {
       bump_next = (char *)bump_next + real_size;
       auto &header = block->header;
       header.set_mapping(&m);
-      header.set_object_size(size);
+      // Store the rounded size (object_size), not the requested size.
+      // This ensures ObjectIterator uses correct offsets when walking objects.
+      header.set_object_size(object_size);
       header.placement_badness = 0;
       return header.data();
     }
@@ -73,7 +75,9 @@ namespace alaska {
 
     auto &header = p->header;
     header.set_mapping(&m);
-    header.set_object_size(size);
+    // Store the rounded size (object_size), not the requested size.
+    // This ensures ObjectIterator uses correct offsets when walking objects.
+    header.set_object_size(object_size);
     header.placement_badness = 0;
 
     return p->header.data();
