@@ -16,7 +16,6 @@ namespace alaska::disk {
   BufferPool::BufferPool(ck::box<Disk> disk, size_t size_mb)
       : disk(move(disk)) {
     size_t pages = (size_mb * 1024 * 1024) / page_size;
-    printf("Creating BufferPool wth %zu pages in memory\n", pages);
     pool_memory = mmap_alloc(page_size * pages);
 
     this->lru_head = this->lru_tail = nullptr;
@@ -42,14 +41,11 @@ namespace alaska::disk {
     // Validate the header
     header = readValue<Header>(0);
     if (header.cookie != Header::COOKIE_VALUE) {
-      printf("Cookie wrong!\n");
       // Initialize the header
       header.cookie = Header::COOKIE_VALUE;
       header.next_free = 0;
       header.num_structures = 0;
       syncHeader();
-    } else {
-      printf("Cookie right!\n");
     }
   }
 
