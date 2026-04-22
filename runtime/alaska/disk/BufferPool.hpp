@@ -30,7 +30,7 @@ namespace alaska::disk {
 
   class BufferPool final {
    public:
-    BufferPool(const char *db_path, size_t size = 64);
+    BufferPool(ck::box<Disk> disk, size_t size = 64);
     ~BufferPool();
 
 
@@ -118,7 +118,7 @@ namespace alaska::disk {
 
     void *pool_memory = NULL;
 
-    Disk disk;
+    ck::box<Disk> disk;
 
     // Statistics
     alaska::RateCounter stat_accesses;

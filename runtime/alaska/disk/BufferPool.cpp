@@ -13,8 +13,8 @@
 
 
 namespace alaska::disk {
-  BufferPool::BufferPool(const char *db_path, size_t size_mb)
-      : disk(db_path) {
+  BufferPool::BufferPool(ck::box<Disk> disk, size_t size_mb)
+      : disk(move(disk)) {
     size_t pages = (size_mb * 1024 * 1024) / page_size;
     printf("Creating BufferPool wth %zu pages in memory\n", pages);
     pool_memory = mmap_alloc(page_size * pages);
@@ -34,7 +34,7 @@ namespace alaska::disk {
     }
 
 
-    if (disk.pageCount() == 0) {
+    if (this->disk->pageCount() == 0) {
       // Allocate a first page.
       newPage(false);
     }
@@ -73,7 +73,7 @@ namespace alaska::disk {
   bool BufferPool::readPage(uint64_t page_id, void *buf) {
     stat_disk_reads.track();
     // printf("[BufferPool] READ  %zu\n", page_id);
-    return disk.readPage(page_id, buf);
+    return disk->readPage(page_id, buf);
   }
 
 
@@ -81,7 +81,7 @@ namespace alaska::disk {
   bool BufferPool::writePage(uint64_t page_id, void *buf) {
     stat_disk_writes.track();
     // printf("[BufferPool] WRITE %zu\n", page_id);
-    return disk.writePage(page_id, buf);
+    return disk->writePage(page_id, buf);
   }
 
   FrameGuard BufferPool::newPage(bool useFreeList) {
@@ -93,8 +93,8 @@ namespace alaska::disk {
       return new_page;
     }
     // Bump allocate
-    uint64_t new_id = disk.pageCount();
-    disk.ensureFileSize(new_id * page_size + page_size);
+    uint64_t new_id = disk->pageCount();
+    disk->ensureFileSize(new_id * page_size + page_size);
     // No need to wipe the new page if we bump allocate, as the kernel
     // guarentees the data will be zeroed for us.
     return getPage(new_id);
@@ -110,7 +110,7 @@ namespace alaska::disk {
 
   FrameGuard BufferPool::getPage(uint64_t page_id) {
     ck::scoped_lock lock(frame_table_lock);
-    if (page_id >= disk.pageCount()) {
+    if (page_id >= disk->pageCount()) {
       printf("cannot read page %zu outside bounds of file. call newPage()\n", page_id);
       abort();
     }
