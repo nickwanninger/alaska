@@ -69,26 +69,3 @@ void printBitPattern(uint64_t n) {
     printf("%ld", (n >> i) & 1);
   }
 }
-
-TEST(SizeClass, ProblematicSizes) {
-  // Debug test for sizes 8, 28, and 40 that appeared in segfault output
-  printf("\n\nSize Class Debug for Problematic Sizes:\n");
-  printf("Alignment: %lu bytes\n", alaska::alignment);
-  printf("Small object alignment: %lu bytes\n", alaska::small_word_size);
-  printf("Large object alignment: %lu bytes\n\n", alaska::large_word_size);
-  
-  const size_t test_sizes[] = {8, 28, 40};
-  
-  for (size_t sz : test_sizes) {
-    alaska::size_class_t cls = alaska::size_to_class(sz);
-    size_t rounded = alaska::class_to_size(cls);
-    printf("  Size %2lu -> class %3lu -> rounded size %2lu%s\n", 
-           sz, cls, rounded, (sz != rounded) ? " (MISMATCH!)" : "");
-  }
-  
-  printf("\nFirst 10 size classes:\n");
-  for (int i = 0; i < 10; i++) {
-    size_t sz = alaska::class_to_size(i);
-    printf("  class %2d -> size %3lu\n", i, sz);
-  }
-}
