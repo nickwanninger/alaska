@@ -24,6 +24,7 @@
 #include <alaska/util/Logger.hpp>
 
 #include <ck/utility.h>
+#include <ck/template_lib.h> // for ck::move, mostly.
 #include <alaska/ftr/ftr.h>
 
 
@@ -76,23 +77,61 @@ namespace alaska {
 
 
 
+// How many bits of metadata are there.
+#define HTE_MD_BITS 3
+#define HTE_PTR_BITS (64 - HTE_MD_BITS)
+#define HTE_MASK_POINTER ((1UL << HTE_PTR_BITS) - 1)
+#define HTE_MASK_PINNED (1UL << (HTE_PTR_BITS + 0))
+#define HTE_MASK_TRACED (1UL << (HTE_PTR_BITS + 1))
+#define HTE_MASK_PENDING (1UL << (HTE_PTR_BITS + 2))
+
+#define ALASKA_SWAP_OFFSET_BITS 48
+#define ALASKA_SWAP_SIZE_BITS 12
+#define ALASKA_SWAP_TAG_BITS 1
+#define ALASKA_SWAP_SIZE_SHIFT ALASKA_SWAP_OFFSET_BITS
+#define ALASKA_SWAP_TAG_SHIFT (ALASKA_SWAP_OFFSET_BITS + ALASKA_SWAP_SIZE_BITS)
+#define ALASKA_SWAP_OFFSET_MASK ((1UL << ALASKA_SWAP_OFFSET_BITS) - 1)
+#define ALASKA_SWAP_SIZE_MASK (((1UL << ALASKA_SWAP_SIZE_BITS) - 1) << ALASKA_SWAP_SIZE_SHIFT)
+#define ALASKA_SWAP_TAG_MASK (1UL << ALASKA_SWAP_TAG_SHIFT)
+
+static_assert(ALASKA_SWAP_OFFSET_BITS + ALASKA_SWAP_SIZE_BITS + ALASKA_SWAP_TAG_BITS ==
+                  HTE_PTR_BITS,
+              "swap encoding must fit in the Mapping payload bits");
+
+#define HTE_IS_PENDING(value) (((value)&HTE_MASK_PENDING) != 0)
+#define HTE_IS_TRACED(value) (((value)&HTE_MASK_TRACED) != 0)
+#define HTE_IS_PINNED(value) (((value)&HTE_MASK_PINNED) != 0)
+#define HTE_GET_POINTER(value) ((void *)((value)&HTE_MASK_POINTER))
+
+#define HTE_SET_MASK(value, mask, to) \
+  do {                                \
+    if (to) {                         \
+      (value) |= (mask);              \
+    } else {                          \
+      (value) &= ~(mask);             \
+    }                                 \
+  } while (0)
+
+
   class Mapping {
    private:
     union {
-      struct {
-        uint64_t _value : 61;
-        uint64_t pinned : 1;
-        uint64_t access_trace : 1;
-        uint64_t pending_fault : 1;
-      };
+      // struct {
+      //   uint64_t _value : 61;
+      //   uint64_t pinned : 1;
+      //   uint64_t access_trace : 1;
+      //   uint64_t pending_fault : 1;
+      // };
       uint64_t value;
     };
 
 
    public:
-    ALASKA_INLINE void *get_pointer(void) const { return (void *)(uint64_t)this->_value; }
-
-    ALASKA_INLINE void *get_pointer_fast(void) const { return (void *)this->value; }
+    ALASKA_INLINE void *get_pointer(void) const {
+      return (void *)((uint64_t)this->value & HTE_MASK_POINTER);
+    }
+    ALASKA_INLINE void *get_pointer_fast(void) const { return get_pointer(); }
+    ALASKA_INLINE uint64_t payload_bits(void) const { return this->value & HTE_MASK_POINTER; }
 
     inline void invalidate(void) {
 #if defined(__riscv) && !defined(ALASKA_YUKON_NO_HARDWARE)
@@ -138,15 +177,41 @@ namespace alaska {
     }
 
 
-    // TODO: should these be atomic?
-    bool is_pinned(void) const { return this->pinned; }
-    void set_pinned(bool to) { this->pinned = to; }
+    bool is_pinned(void) const { return HTE_IS_PINNED(value); }
+    void set_pinned(bool to) { HTE_SET_MASK(this->value, HTE_MASK_PINNED, to); }
+    bool fault_pending(void) const { return HTE_IS_PENDING(value); }
+    void set_fault_pending(bool to) { HTE_SET_MASK(this->value, HTE_MASK_PENDING, to); }
+    bool access_traced(void) const { return HTE_IS_TRACED(value); }
+    void set_access_traced(bool to) { HTE_SET_MASK(value, HTE_MASK_TRACED, to); }
 
-    bool fault_pending(void) const { return this->pending_fault; }
-    void set_fault_pending(bool to) { this->pending_fault = to; }
+    bool is_swapped_out(void) const {
+      return fault_pending() && ((payload_bits() & ALASKA_SWAP_TAG_MASK) != 0);
+    }
 
-    bool access_traced(void) const { return this->access_trace; }
-    void set_access_traced(bool to) { this->access_trace = to; }
+    uint64_t swap_offset(void) const { return payload_bits() & ALASKA_SWAP_OFFSET_MASK; }
+
+    uint16_t swapped_object_size(void) const {
+      return (payload_bits() & ALASKA_SWAP_SIZE_MASK) >> ALASKA_SWAP_SIZE_SHIFT;
+    }
+
+    void set_swapped(uint64_t byte_offset, size_t object_size) {
+      if (byte_offset > ALASKA_SWAP_OFFSET_MASK) abort();
+      if (object_size >= (1UL << ALASKA_SWAP_SIZE_BITS)) abort();
+
+      uint64_t metadata = value & ~HTE_MASK_POINTER;
+      uint64_t payload = ALASKA_SWAP_TAG_MASK | (byte_offset & ALASKA_SWAP_OFFSET_MASK) |
+                         ((uint64_t)object_size << ALASKA_SWAP_SIZE_SHIFT);
+      this->value = metadata | payload;
+      set_fault_pending(true);
+      invalidate();
+    }
+
+    uint64_t get_raw_value(void) const { return value; }
+
+
+    bool should_software_fault(void) const {
+      return (value & (HTE_MASK_PENDING | HTE_MASK_TRACED)) != 0;
+    }
 
     void reset(void) {
       this->value = 0;
@@ -189,7 +254,7 @@ namespace alaska {
     // contains a handle internally.
     static ALASKA_INLINE alaska::Mapping *from_handle(void *handle) {
       return WORD_ALIGNED(
-          (alaska::Mapping *)((uint64_t)handle >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS)));
+          (alaska::Mapping *)(((uint64_t)handle) >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS)));
     }
 
     static ALASKA_INLINE uint64_t offset_from_handle(void *handle) {

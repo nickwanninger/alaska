@@ -284,6 +284,9 @@ namespace alaska {
     header->reset(*mapping, rounded_size);
     mapping->set_pointer(header->data());
 
+    // // Start off tracing the object in the trace queue.
+    // mapping->set_access_traced(true);
+
     // Encode and return the handle
     return mapping->to_handle(0);
   }
@@ -292,10 +295,16 @@ namespace alaska {
 
 
   LTO_INLINE void *ThreadCache::hrealloc(void *handle, size_t new_size) {
+    if (handle == nullptr) return halloc(new_size);
+
     // TODO: There is a race here... I think its okay, as a realloc really should
     // be treated like a UAF, and ideally another thread would not access the handle
     // while it is being reallocated.
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (m != nullptr && m->is_swapped_out()) {
+      auto *swap = runtime.get_swap_space();
+      if (swap == nullptr || !swap->handle_fault(m, this)) return nullptr;
+    }
 
     auto original_size = this->get_size(handle);
     // alaska::printf("ThreadCache::hrealloc: handle=%p, sz %zu -> %zu (%d -> %d)\n", handle,
@@ -332,13 +341,21 @@ namespace alaska {
       return;
     }
 
+    auto *handle_slab = FTR_EXPR("GetSlab", this->runtime.handle_table.get_slab(m));
+    if (unlikely(m->is_swapped_out())) {
+      auto *swap = runtime.get_swap_space();
+      if (swap != nullptr) {
+        swap->discard(m);
+      }
+      FTR_SCOPE("HandleSlabFree");
+      handle_slab->free(m);
+      return;
+    }
+
     // --- Free the data allocation --- //
     void *ptr = m->get_pointer();
     // auto *header = alaska::ObjectHeader::from(ptr);
-
-    auto *handle_slab = FTR_EXPR("GetSlab", this->runtime.handle_table.get_slab(m));
     auto *heap_page = FTR_EXPR("GetPage", alaska::Heap::get_page(ptr));
-
     bool heap_owned = FTR_EXPR("ChkOwner", heap_page->is_owned_by(this));
 
     // Now the slow path.
@@ -493,6 +510,9 @@ namespace alaska {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
 
     if (m) {
+      if (m->is_swapped_out()) {
+        return m->swapped_object_size();
+      }
       void *ptr = m->get_pointer();
       auto header = alaska::ObjectHeader::from(ptr);
       return header->object_size();
@@ -722,7 +742,6 @@ namespace alaska {
   }
 
   ThreadCache *ThreadCache::current() noexcept {
-
     if (unlikely(g_tc == nullptr)) {
       return current_bootstrap();
     }
