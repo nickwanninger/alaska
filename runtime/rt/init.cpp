@@ -48,7 +48,8 @@ static void *barrier_thread_func(void *) {
 
   FILE *log = fopen("faults.csv", "w");
   printf("Logging to faults.csv\n");
-  fprintf(log, "timestamp,total_objects,total_waiting_faults,total_bytes,bytes_waiting,pct_faults\n");
+  fprintf(log,
+          "timestamp,total_objects,total_waiting_faults,total_bytes,bytes_waiting,pct_faults\n");
 
   while (1) {
     auto &rt = alaska::Runtime::get();
@@ -87,59 +88,94 @@ static void *barrier_thread_func(void *) {
       uint64_t total_faults_waiting = 0;
       uint64_t total_objects = 0;
 
+      uint64_t hfps = rt.handle_faults.digest();
+      float mhfps = hfps / 1e6;
+
 
       uint64_t total_faults_waiting_bytes = 0;
       uint64_t total_objects_bytes = 0;
-      rt.heap.for_each_page([&](alaska::HeapPage *page) {
-        for (auto *obj : page->objects()) {
-          if (!obj->is_active()) continue;
-          total_objects++;
-          size_t size = obj->real_object_size();
-          total_objects_bytes += size;
-          auto *mapping = obj->get_mapping();
-          if (mapping->fault_pending()) {
-            total_faults_waiting++;
-            total_faults_waiting_bytes += size;
-          }
-          // if (is_marking) {
-          //   obj->get_mapping()->set_fault_pending(true);
-          // }
-        }
-      });
+      // rt.heap.for_each_page([&](alaska::HeapPage *page) {
+      //   for (auto *obj : page->objects()) {
+      //     if (!obj->is_active()) continue;
+      //     total_objects++;
+      //     size_t size = obj->real_object_size();
+      //     total_objects_bytes += size;
+      //     auto *mapping = obj->get_mapping();
+      //     if (mapping->fault_pending() || mapping->access_traced()) {
+      //       total_faults_waiting++;
+      //       total_faults_waiting_bytes += size;
+      //     }
+      //   }
+      // });
+
+      uint64_t total_traced = 0;
+      alaska::Mapping *traced = nullptr;
+      while (rt.handle_trace_queue.pop(traced)) {
+        total_traced++;
+        traced->set_access_traced(false);
+      }
 
       float pct_waiting =
           total_objects > 0 ? (total_faults_waiting * 100.0f) / total_objects : 0.0f;
-      alaska::printf("Objects waiting for fault resolution: %zu/%zu (%.2f%%)\n",
-                     total_faults_waiting, total_objects, pct_waiting);
-      fprintf(log, "%lu,%lu,%lu,%lu,%lu,%.2f\n", timestamp, total_objects, total_faults_waiting, total_objects_bytes, total_faults_waiting_bytes, pct_waiting);
+      alaska::printf(
+          "Objects waiting for fault resolution: %zu/%zu (%.2f%%) %10f MHF/S %10zu traced\n",
+          total_faults_waiting, total_objects, pct_waiting, mhfps, total_traced);
+      // fprintf(log, "%lu,%lu,%lu,%lu,%lu,%.2f\n", timestamp, total_objects, total_faults_waiting,
+      //         total_objects_bytes, total_faults_waiting_bytes, pct_waiting);
       fflush(log);
 
 
-      for (auto *page : rt.heap.get_aging_pages()) {
-        if (page->time_of_last_use > old_cutoff) break;
 
-        old_heaps++;
-        rt.heap.promote_to_elderly(*page);
 
-        // now that that page is old, we should mark all the objects in it as invalid (so we fault
-        // on it!) alaska::printf("Promoting page %p to elderly (last use: %lu ms ago)\n",
-        // page->start(),
-        //                 now - page->time_of_last_use);
-        for (auto *obj : page->objects()) {
-          if (!obj->is_active()) continue;
+      auto *swap = rt.get_swap_space();
+      if (swap) {
+        FILE* debug = fopen("swap_debug.txt", "w");
+        swap->debug_dump(debug);
+        fclose(debug);
+        for (auto *page : rt.heap.get_aging_pages()) {
+          if (page->time_of_last_use > old_cutoff) break;
 
-          // Temporary thrashing protection
-          if (obj->localized) continue;
+          old_heaps++;
+          rt.heap.promote_to_elderly(*page);
 
-          auto *mapping = obj->get_mapping();
-          // alaska::printf("%p %p %zu\n", obj, mapping, obj->real_object_size());
-          if (mapping->is_pinned()) continue;
-          obj->get_mapping()->set_fault_pending(true);
-          obj->localized = true;
-          // obj->get_mapping()->set_fault_pending(true);
-          // obj.mark_invalid();
+          // now that that page is old, we should mark all the objects in it as
+          // invalid (so we fault on it!)
+          for (auto *obj : page->objects()) {
+            if (!obj->is_active()) continue;
+
+            // Temporary thrashing protection
+            if (obj->localized) continue;
+
+            auto *mapping = obj->get_mapping();
+            if (mapping->is_pinned()) continue;
+
+            swap->swap_out(mapping);
+          }
         }
       }
+
+      // for (auto *page : rt.heap.get_aging_pages()) {
+      //   if (page->time_of_last_use > old_cutoff) break;
+
+      //   old_heaps++;
+      //   rt.heap.promote_to_elderly(*page);
+
+      //   // now that that page is old, we should mark all the objects in it as
+      //   // invalid (so we fault on it!)
+      //   for (auto *obj : page->objects()) {
+      //     if (!obj->is_active()) continue;
+
+      //     // Temporary thrashing protection
+      //     if (obj->localized) continue;
+
+      //     auto *mapping = obj->get_mapping();
+      //     if (mapping->is_pinned()) continue;
+
+      //     obj->localized = true;
+      //     // obj->get_mapping()->set_fault_pending(true);
+      //     obj->get_mapping()->set_access_traced(true);
+      //   }
+      // }
 
       toWait = rt.scheduler.tick(toWait);
       // fflush(log);
@@ -279,9 +315,13 @@ static void test_dwarf(void) {
 
 
 void __attribute__((constructor(102))) alaska_init(void) {
+  alaska::Configuration config;
+  config.swap_enabled = true;
+  config.swap_path = "alaska.swap";
+
   // Allocate the runtime simply by creating a new instance of it. Everywhere
   // we use it, we will use alaska::Runtime::get() to get the singleton instance.
-  the_runtime = new alaska::Runtime();
+  the_runtime = new alaska::Runtime(config);
   // Attach the runtime's barrier manager
   the_runtime->barrier_manager = &the_barrier_manager;
   // Trigger the current() bootstrap swap now so the hot path skips init checks.
