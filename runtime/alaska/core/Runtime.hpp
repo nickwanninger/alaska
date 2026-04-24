@@ -18,12 +18,16 @@
 #include <alaska/heaps/Heap.hpp>
 #include <alaska/heaps/ArenaHeap.hpp>
 #include <alaska/heaps/HugeAllocator.hpp>
+#include <alaska/disk/BufferPool.hpp>
+#include <alaska/disk/SwapSpace.hpp>
 #include <alaska/alaska.hpp>
+#include <ck/box.h>
 #include <ck/set.h>
 #include <alaska/Configuration.hpp>
 #include <alaska/core/Runtime.hpp>
 #include <alaska/util/RateCounter.hpp>
 #include <alaska/work/BarrierWorker.hpp>
+#include <alaska/util/LossyCircularQueue.hpp>
 
 
 namespace alaska {
@@ -55,6 +59,9 @@ namespace alaska {
     // Huge object allocator for objects >= max_large_size (bypasses handle table)
     alaska::HugeAllocator huge_allocator;
 
+    bool has_swap_space(void) const { return swap_space != nullptr; }
+    alaska::disk::SwapSpace *get_swap_space(void);
+
     // This is a set of all the active thread caches in the system
     ck::set<alaska::ThreadCache *> tcs;
     ck::mutex tcs_lock;
@@ -67,6 +74,9 @@ namespace alaska {
 
     // The work scheduler
     alaska::WorkScheduler scheduler;
+
+    // TEMPORARY
+    alaska::LossyCircularQueue<Mapping *, 128> handle_trace_queue;
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
     static Runtime &get();
@@ -180,6 +190,9 @@ namespace alaska {
     unsigned long last_barrier_time = 0;
     unsigned long min_barrier_interval = 0;  //  10 * 1000 * 1000;
 
+    alaska::disk::BufferPool *swap_pool = nullptr;
+    alaska::disk::SwapSpace *swap_space = nullptr;
+    ck::mutex swap_init_lock;
 
     void lock_all_thread_caches(void);
     void unlock_all_thread_caches(void);

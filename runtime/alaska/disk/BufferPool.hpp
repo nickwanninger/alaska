@@ -24,11 +24,12 @@
 // Disk includes
 #include <alaska/disk/Frame.hpp>
 #include <alaska/disk/Disk.hpp>
+#include "alaska/alaska.hpp"
 
 namespace alaska::disk {
 
 
-  class BufferPool final {
+  class BufferPool final : public InternalHeapAllocated {
    public:
     BufferPool(ck::box<Disk> disk, size_t size = 64);
     ~BufferPool();

@@ -14,6 +14,7 @@
 #include <alaska/core/Runtime.hpp>
 #include <alaska/heaps/SizeClass.hpp>
 #include <alaska/work/BarrierManager.hpp>
+#include <alaska/disk/Disk.hpp>
 #include "alaska/alaska.hpp"
 #include "alaska/util/utils.h"
 #include <stdlib.h>
@@ -26,6 +27,32 @@ namespace alaska {
   // The current global instance of the runtime, since we can only have one at a time
   static Runtime *g_runtime = nullptr;
   static volatile bool runtime_initialized = false;
+
+  static ck::box<alaska::disk::BufferPool> make_swap_pool(const alaska::Configuration &config) {
+    size_t pool_mb = config.swap_buffer_pool_mb;
+    if (const char *env = getenv("ALASKA_SWAP_BUFFER_POOL_MB")) {
+      char *end = nullptr;
+      size_t parsed = strtoull(env, &end, 10);
+      if (end != env) pool_mb = parsed;
+    }
+
+    if (config.swap_use_memory_disk) {
+      return ck::box<alaska::disk::BufferPool>(
+          new alaska::disk::BufferPool(ck::box<alaska::disk::Disk>(new alaska::disk::MemoryDisk()),
+                                       pool_mb));
+    }
+
+    const char *path = config.swap_path;
+    if (const char *env = getenv("ALASKA_SWAP_PATH")) {
+      path = env;
+    }
+    if (path == nullptr) path = "alaska.swap";
+
+    unlink(path);
+    return ck::box<alaska::disk::BufferPool>(
+        new alaska::disk::BufferPool(ck::box<alaska::disk::Disk>(new alaska::disk::FileDisk(path)),
+                                     pool_mb));
+  }
 
 
   Runtime::Runtime(alaska::Configuration config)
@@ -49,6 +76,8 @@ namespace alaska {
 
   Runtime::~Runtime() {
     log_debug("Destroying Alaska Runtime");
+    delete swap_space;
+    delete swap_pool;
     // Unset the global instance so anoruntime can be allocated
     atomic_set(g_runtime, nullptr);
   }
@@ -64,6 +93,18 @@ namespace alaska {
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(p);
     if (m == nullptr) return false;
     return this->handle_table.valid_handle(m);
+  }
+
+  alaska::disk::SwapSpace *Runtime::get_swap_space(void) {
+    if (!config.swap_enabled) return nullptr;
+    if (swap_space != nullptr) return swap_space;
+
+    ck::scoped_lock lock(swap_init_lock);
+    if (swap_space != nullptr) return swap_space;
+
+    swap_pool = make_swap_pool(config).leak_ptr();
+    swap_space = new alaska::disk::SwapSpace(*this, *swap_pool);
+    return swap_space;
   }
 
   ThreadCache *Runtime::new_threadcache(void) {
@@ -118,19 +159,41 @@ namespace alaska {
     alaska::printf("[AT] Handle %p (mapping %p)\n", (void *)handle, (void *)m);
   }
 
-
   int Runtime::handle_fault(uint64_t handle) {
     auto *m = alaska::Mapping::from_handle((void *)handle);
 
-    // alaska::printf("Handle fault on %p %016p %c%c\n", (void *)m, m->get_pointer_fast(),
-    //                m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-');
+    if (m->is_swapped_out()) {
+      auto *actor = alaska::ThreadCache::current();
+      auto *swap = get_swap_space();
+      return (swap != nullptr && swap->handle_fault(m, actor)) ? 0 : -1;
+    }
+
+    alaska::ObjectHeader *header = alaska::ObjectHeader::from(m);
+
+    // uint64_t offset = handle & 0xFFFFFF;
+    // if (offset > header->object_size()) {
+    //   alaska::printf("Fault on handle %p m=%p with offset %zu beyond object size %zu\n",
+    //                  (void *)handle, m, offset, header->object_size());
+    //   // abort();
+    //   return -1;
+    // }
+
+    // alaska::printf("HF %p (raw:%016zx) %016p %c%c %zu\n", (void *)m, handle, m->get_raw_value(),
+    //                m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-', header ?
+    //                header->object_size() : 0);
 
 
-    // With domains removed, we simply clear the fault pending bit.
-    // If we had more complex logic (like paging from disk), it would go here.
+    if (m->access_traced()) {
+      if (not this->handle_trace_queue.contains_slow(m)) {
+        this->handle_trace_queue.push(m);
+      }
+    }
+
+
+    // Clear the fault pending bit, which will allow the access to proceed on retry.
+    // TODO: do something useful.
     m->set_fault_pending(false);
 
-    // printf("fault on %p\n", m);
     handle_faults.track_atomic(1);
     return 0;
   }

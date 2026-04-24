@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace alaska {
@@ -19,5 +20,10 @@ namespace alaska {
   struct Configuration {
     uintptr_t handle_table_location =
         (0x8000000000000000LLU >> (ALASKA_SIZE_BITS - ALASKA_SQUEEZE_BITS));
+
+    bool swap_enabled = false;
+    const char *swap_path = "alaska.swap";
+    size_t swap_buffer_pool_mb = 64;
+    bool swap_use_memory_disk = false;
   };
 }  // namespace alaska

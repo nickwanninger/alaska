@@ -48,8 +48,25 @@ TEST_F(RuntimeTest, OnlyOneRuntime) {
       "");
 }
 
+TEST(RuntimeLazySwapTest, SwapSubsystemInitializesLazilyWhenEnabled) {
+  alaska::Configuration config;
+  config.swap_enabled = true;
+  config.swap_use_memory_disk = true;
 
+  alaska::Runtime runtime(config);
+  EXPECT_FALSE(runtime.has_swap_space());
 
+  auto *swap = runtime.get_swap_space();
+  ASSERT_NE(swap, nullptr);
+  EXPECT_TRUE(runtime.has_swap_space());
+  EXPECT_EQ(runtime.get_swap_space(), swap);
+}
+
+TEST_F(RuntimeTest, SwapSubsystemDisabledByDefault) {
+  EXPECT_FALSE(runtime.has_swap_space());
+  EXPECT_EQ(runtime.get_swap_space(), nullptr);
+  EXPECT_FALSE(runtime.has_swap_space());
+}
 
 TEST_F(RuntimeTest, FreshSlabAllocation) {
   // Allocate a fresh slab from the handle table

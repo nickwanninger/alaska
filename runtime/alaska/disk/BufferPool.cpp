@@ -52,7 +52,9 @@ namespace alaska::disk {
   BufferPool::~BufferPool(void) {
     flush();
     mmap_free(pool_memory, page_size * frames.size());
-    dumpStats();
+    if (getenv("ALASKA_BUFFERPOOL_STATS") != nullptr) {
+      dumpStats();
+    }
   }
 
 
