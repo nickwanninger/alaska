@@ -149,7 +149,9 @@ namespace alaska {
   ALASKA_EXPORT void *do_handle_fault_and_translate(uint64_t handle) {
     auto &rt = alaska::Runtime::get();
     rt.handle_fault(handle);
-    return alaska::Mapping::translate((void *)handle);
+    // Must match the fast path in alaska_translate_uncond: base pointer + the handle's offset.
+    auto *m = alaska::Mapping::from_handle((void *)handle);
+    return (void *)((uint64_t)m->get_pointer() + alaska::Mapping::offset_from_handle((void *)handle));
   }
 
   ALASKA_EXPORT void do_handle_access_trace(uint64_t handle) {

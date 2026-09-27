@@ -187,3 +187,16 @@ TEST_F(ThreadCacheTest, ReallocWorks) {
   // Free the new pointer
   t1->free(p2);
 }
+
+
+TEST_F(ThreadCacheTest, HandleFaultAppliesOffset) {
+  // A faulting translation of an interior handle must return base + offset, like the fast path.
+  void *h = t1->halloc(64);
+  auto *m = alaska::Mapping::from_handle(h);
+  void *base = alaska::Mapping::translate(h);
+  m->set_fault_pending(true);
+  void *p = alaska::do_handle_fault_and_translate((uint64_t)h + 24);
+  EXPECT_EQ(p, (void *)((uint64_t)base + 24));
+  EXPECT_FALSE(m->fault_pending());
+  t1->hfree(h);
+}
