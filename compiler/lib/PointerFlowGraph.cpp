@@ -37,16 +37,20 @@ struct NodeConstructionVisitor : public llvm::InstVisitor<NodeConstructionVisito
     }
   }
 
-  // void visitPHINode(llvm::PHINode &I) {
-  //   node.type = alaska::Source;
-  //   node.colors.insert(node.id);
-  //   return;
-  //
-  //   node.type = alaska::Transient;
-  //   for (auto &incoming : I.incoming_values()) {
-  //     node.add_in_edge(&incoming);
-  //   }
-  // }
+  void visitPHINode(llvm::PHINode &I) {
+    // A phi with a single root is transient, as it can be translated using a phi of translated
+    // pointers. Otherwise, it is a source and must be translated itself.
+    if (auto *root = node.graph.get_phi_root(&I)) {
+      node.type = alaska::Transient;
+      node.phi_root = root;
+      for (auto &incoming : I.incoming_values()) {
+        node.add_in_edge(&incoming);
+      }
+      return;
+    }
+    node.type = alaska::Source;
+    node.colors.insert(node.id);
+  }
 
   void visitAlloca(llvm::AllocaInst &I) {
     node.type = alaska::Source;
@@ -158,8 +162,102 @@ void alaska::FlowNode::remove_in_edge(llvm::Use *use) {
   in.erase(use);
 }
 
+static bool no_phi_translation(void) {
+  static bool set = getenv("ALASKA_NO_PHI_TRANSLATION") != NULL;
+  return set;
+}
+
+// Can a phi be translated from `root`? The root must be a source that we translate, and it
+// must dominate the phi so the translation can be placed before it.
+static bool is_valid_phi_root(llvm::Value *root, llvm::PHINode *phi, llvm::DominatorTree &DT) {
+  if (!alaska::shouldTranslate(root)) return false;
+  if (isa<llvm::Argument>(root)) return true;
+  auto *inst = dyn_cast<llvm::Instruction>(root);
+  if (inst == NULL) return false;
+  // Casts (other than inttoptr) are transient without in edges, and are not sources.
+  if (isa<llvm::CastInst>(inst) && !isa<llvm::IntToPtrInst>(inst)) return false;
+  return DT.dominates(inst, phi->getParent()->getFirstNonPHI());
+}
+
+// Find the phis whose incoming values all derive from a single root, looking through GEPs and
+// other such phis. This is an optimistic analysis: a phi's root is unknown until one of its
+// incoming values resolves, and becomes null (it is its own root) once two roots meet.
+void alaska::PointerFlowGraph::compute_phi_roots(void) {
+  if (no_strict_alias() || no_phi_translation()) return;
+
+  std::vector<llvm::PHINode *> phis;
+  for (auto &BB : m_func) {
+    for (auto &phi : BB.phis()) {
+      if (phi.getType()->isPointerTy()) phis.push_back(&phi);
+    }
+  }
+  if (phis.empty()) return;
+
+  llvm::DominatorTree DT(m_func);
+  // A missing entry means the root is unknown, and null means the phi has multiple roots.
+  std::map<llvm::PHINode *, llvm::Value *> roots;
+
+  bool changed;
+  do {
+    changed = false;
+    for (auto *phi : phis) {
+      auto it = roots.find(phi);
+      if (it != roots.end() && it->second == NULL) continue;
+
+      llvm::Value *root = NULL;
+      bool multiple = false;
+      for (auto &incoming : phi->incoming_values()) {
+        llvm::Value *base = incoming.get();
+        while (auto *gep = dyn_cast<llvm::GetElementPtrInst>(base)) {
+          base = gep->getPointerOperand();
+        }
+        if (base == phi) continue;
+        if (auto *other = dyn_cast<llvm::PHINode>(base)) {
+          auto f = roots.find(other);
+          if (f == roots.end()) continue;
+          if (f->second != NULL) base = f->second;
+        }
+        if (root != NULL && root != base) multiple = true;
+        root = base;
+      }
+
+      // Nothing is known about this phi yet
+      if (root == NULL) continue;
+      if (multiple || !is_valid_phi_root(root, phi, DT)) root = NULL;
+
+      if (it == roots.end() || it->second != root) {
+        roots[phi] = root;
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      // Any phis that never resolved (cycles of phis with no root) are sources.
+      for (auto *phi : phis) {
+        if (roots.find(phi) == roots.end()) {
+          roots[phi] = NULL;
+          changed = true;
+        }
+      }
+    }
+  } while (changed);
+
+  for (auto &[phi, root] : roots) {
+    if (root != NULL) m_phi_roots[phi] = root;
+  }
+}
+
+llvm::Value *alaska::PointerFlowGraph::get_phi_root(llvm::PHINode *phi) const {
+  auto it = m_phi_roots.find(phi);
+  if (it == m_phi_roots.end()) return NULL;
+  return it->second;
+}
+
 alaska::PointerFlowGraph::PointerFlowGraph(llvm::Function &func)
     : m_func(func) {
+  // Figure out which phis can be translated through before building the graph.
+  compute_phi_roots();
+
   //
   // Step 1. Find all the sinks in the function.
   //

@@ -53,6 +53,13 @@ struct TranslationVisitor : public llvm::InstVisitor<TranslationVisitor> {
     I.setOperand(1, t);
   }
 
+  void visitPHINode(llvm::PHINode &I) {
+    // Create a phi of translated pointers. Its incoming values are other nodes in the tree, so
+    // they are filled in by `fill_translated_phis` once the whole tree has been translated.
+    node.translated = llvm::PHINode::Create(
+        I.getType(), I.getNumIncomingValues(), I.getName() + ".translated", I.getIterator());
+  }
+
   void visitInstruction(llvm::Instruction &I) {
     alaska::println("dunno how to handle this: ", I);
     ALASKA_SANITY(node.translated != NULL, "Dunno how to handle this node");
@@ -104,7 +111,58 @@ alaska::TranslationForest::Node::Node(
   this->val = val->value;
   this->parent = parent;
   for (auto *out : val->get_out_nodes()) {
+    // phis can be reached along many paths (and through cycles), so they are not built here.
+    // Instead, they are added once as children of their root.
+    if (out->phi_root != NULL) continue;
     children.push_back(std::make_unique<Node>(out, this));
+  }
+}
+
+
+// The translation of a root with phi children must dominate every child, as well as the edges
+// into its phis which use the root directly.
+static llvm::Instruction *compute_phi_translation_anchor(
+    alaska::TranslationForest::Node &root, llvm::DominatorTree &DT) {
+  llvm::Instruction *anchor = NULL;
+  auto add = [&](llvm::Instruction *inst) {
+    anchor = anchor == NULL ? inst : DT.findNearestCommonDominator(anchor, inst);
+  };
+
+  for (auto &child : root.children) {
+    if (auto *phi = dyn_cast<llvm::PHINode>(child->val)) {
+      for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+        if (phi->getIncomingValue(i) == root.val) add(phi->getIncomingBlock(i)->getTerminator());
+      }
+    } else {
+      add(cast<llvm::Instruction>(child->val));
+    }
+  }
+  return anchor;
+}
+
+
+// Fill in the incoming values of the translated phis under `root`, now that every node in its
+// tree has been translated.
+static void fill_translated_phis(
+    alaska::TranslationForest::Node &root, llvm::Instruction *root_translation) {
+  std::set<alaska::TranslationForest::Node *> nodes;
+  extract_nodes(&root, nodes);
+
+  std::map<llvm::Value *, llvm::Instruction *> translated;
+  for (auto *node : nodes) {
+    if (node->translated != NULL) translated[node->val] = node->translated;
+  }
+
+  for (auto &child : root.children) {
+    auto *phi = dyn_cast<llvm::PHINode>(child->val);
+    if (phi == NULL) continue;
+    auto *translated_phi = cast<llvm::PHINode>(child->translated);
+    for (unsigned i = 0; i < phi->getNumIncomingValues(); i++) {
+      auto *incoming = phi->getIncomingValue(i);
+      llvm::Value *t = incoming == root.val ? root_translation : translated[incoming];
+      ALASKA_SANITY(t != NULL, "No translated value for an incoming value of a phi");
+      translated_phi->addIncoming(t, phi->getIncomingBlock(i));
+    }
   }
 }
 
@@ -200,13 +258,32 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   // printf("grab roots %lf\n", alaska::time_ms() - start);
   // start = alaska::time_ms();
 
-  // Create the forest from the roots, and compute dominance relationships among top-level siblings
+  // Create the forest from the roots
+  std::map<llvm::Value *, Node *> root_nodes;
   for (auto *root : temp_roots) {
     auto node = std::make_unique<Node>(root);
+    root_nodes[root->value] = node.get();
+    this->roots.push_back(std::move(node));
+  }
+
+  // Add each phi with a single root as a child of that root
+  for (auto *node : G.get_nodes()) {
+    if (node->phi_root == NULL) continue;
+    auto f = root_nodes.find(node->phi_root);
+    ALASKA_SANITY(f != root_nodes.end(), "The root of a phi is not a root in the forest");
+    auto *root = f->second;
+    root->children.push_back(std::make_unique<Node>(node, root));
+    root->has_phi_children = true;
+  }
+
+  // Compute dominance relationships among siblings so they can share translations. Roots with
+  // phi children always use a single translation, so they are skipped.
+  for (auto &root : this->roots) {
+    if (root->has_phi_children) continue;
 
     // compute which children dominate which siblings
     std::set<Node *> nodes;
-    extract_nodes(node.get(), nodes);
+    extract_nodes(root.get(), nodes);
     for (auto *node : nodes) {
       for (auto &child : node->children) {
         auto *inst = child->effective_instruction();
@@ -224,8 +301,6 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
         }
       }
     }
-
-    this->roots.push_back(std::move(node));
   }
 
 
@@ -235,6 +310,15 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
   for (auto &root : this->roots) {
     // errs() << "root " << root.get() << " val: " << *root->val << "\n";
+    if (root->has_phi_children) {
+      auto &lb = get_translation_bounds();
+      lb.pointer = root->val;
+      for (auto &child : root->children) {
+        child->set_translation_id(lb.id);
+      }
+      continue;
+    }
+
     for (auto &child : root->children) {
       if (child->share_translation_with == NULL) {
         auto &lb = get_translation_bounds();
@@ -266,6 +350,18 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
   //     - else, translate before the branch into the loop's header.
   //   - else, translate at @user
   for (auto &root : this->roots) {
+    if (root->has_phi_children) {
+      // A single translation for all the children, placed where it dominates all of them.
+      auto *anchor = compute_phi_translation_anchor(*root, DT);
+      ALASKA_SANITY(anchor != NULL, "No anchor for translation of a root with phis");
+      auto &lb = get_translation_bounds(root->children.front()->translation_id);
+      lb.translateBefore = compute_translation_insertion_location(root->val, anchor, loops);
+      ALASKA_SANITY(lb.translateBefore == anchor || DT.dominates(lb.translateBefore, anchor),
+          "Translation of a root with phis does not dominate its uses");
+      lb.pointer = alaska::insertRootBefore(lb.translateBefore, root->val);
+      continue;
+    }
+
     for (auto &child : root->children) {
       auto *inst = dyn_cast<llvm::Instruction>(child->val);
       ALASKA_SANITY(inst != NULL, "child node has no instruction");
@@ -496,6 +592,11 @@ std::vector<std::unique_ptr<alaska::Translation>> alaska::TranslationForest::app
 
     for (auto &child : root->children) {
       apply(*child);
+    }
+
+    if (root->has_phi_children) {
+      auto &bounds = get_translation_bounds(root->children.front()->translation_id);
+      fill_translated_phis(*root, bounds.translated);
     }
   }
 

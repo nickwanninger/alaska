@@ -47,6 +47,9 @@ namespace alaska {
     PointerFlowGraph &graph;
     llvm::Value *value = NULL;
     llvm::Value *pinned_value = NULL;  // HACK: abstraction leakage
+    // If this node is a phi whose incoming values all derive from a single root, this is that
+    // root. Such phis are transient, and are translated using a phi of translated pointers.
+    llvm::Value *phi_root = NULL;
     std::set<int> colors;
 
     FlowNode(PointerFlowGraph &graph, llvm::Value *value);
@@ -86,6 +89,8 @@ namespace alaska {
     // get all nodes, including those we don't really care about.
     std::set<alaska::FlowNode *> get_all_nodes(void) const;
     void dump_dot(DominatorTree &DT, PostDominatorTree &PDT) const;
+    // get the single root of a phi, or null if it has more than one (and is a source)
+    llvm::Value *get_phi_root(llvm::PHINode *phi) const;
 
    protected:
     friend struct FlowNode;
@@ -94,9 +99,13 @@ namespace alaska {
     int next_id = 0;
 
    private:
+    void compute_phi_roots(void);
+
     llvm::Function &m_func;
     std::map<llvm::Value *, std::unique_ptr<FlowNode>> m_nodes;
     std::map<llvm::Value *, std::unique_ptr<FlowNode>> m_sinks;
+    // phis which have a single root, mapped to that root
+    std::map<llvm::PHINode *, llvm::Value *> m_phi_roots;
   };
 
 }  // namespace alaska

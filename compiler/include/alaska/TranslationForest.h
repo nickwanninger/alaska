@@ -36,6 +36,9 @@ namespace alaska {
       // which of the TranslationBounds does this node use?
       unsigned translation_id = UINT_MAX;
       std::vector<std::unique_ptr<Node>> children;
+      // Does this root have phis (with this root as their only root) as children? If so, all
+      // of its children share a single translation which the translated phis are built from.
+      bool has_phi_children = false;
 
       // which siblings does this node dominates and post dominates in the cfg.
       // This is used to share translations among multiple subtrees in the forest.
