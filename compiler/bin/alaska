@@ -88,7 +88,7 @@ do
     esac
 done
 
-COLLECT_CLANG_ARGS+=("-Xclang -disable-O0-optnone -fno-slp-vectorize -fno-discard-value-names")
+COLLECT_CLANG_ARGS+=("-Xclang -disable-llvm-passes -fno-slp-vectorize -fno-discard-value-names")
 # COLLECT_CLANG_ARGS+=("-gdwarf-4 ")
 # COLLECT_CLANG_ARGS+=("$OPT ")
 
@@ -98,13 +98,13 @@ CLANG="${ALASKA_CLANG:=clang}"
 
 if [ "$phase" = "compile" ]; then
   # -Xclang -disable-llvm-passes
-	$GCLANG -O0 -g3 -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
+	$GCLANG -O2 -g3 -Wno-unused-command-line-argument -I${PFX}/include -c ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags`
 	exit
 else
 
 	# If the program is being linked, link it as the user requests, then
 	# use get-bc to run our pass on it behind the scenes :)
-	$GCLANG -O0 -g3 -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
+	$GCLANG -O2 -g3 -Wno-unused-command-line-argument -I${PFX}/include ${COLLECT_CLANG_ARGS[@]} `alaska-config --cflags --ldflags`
 
 	get-bc $OUTFILE >/dev/null
 	TMPFILE=${OUTFILE}.bc
