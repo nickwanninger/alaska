@@ -54,6 +54,13 @@ TEST(SizeClass, SizeToClass) {
   }
 }
 
+TEST(SizeClass, ClassInBounds) {
+  // Every non-huge size must index within per-class arrays (e.g. ThreadCache::bins).
+  for (size_t sz = 1; sz < alaska::huge_object_thresh; sz++) {
+    ASSERT_LT(alaska::size_to_class(sz), alaska::num_size_classes) << "size " << sz;
+  }
+}
+
 TEST(SizeClass, ClassToSize) {
   for (alaska::size_class_t cl = 0; cl < alaska::num_size_classes; cl++) {
     size_t sz = alaska::class_to_size(cl);

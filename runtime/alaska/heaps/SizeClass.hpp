@@ -27,7 +27,10 @@ namespace alaska {
 
 
   static constexpr uint64_t num_small_classes = max_small_size / small_word_size;
-  static constexpr uint64_t num_large_classes = (max_large_size - max_small_size) / large_word_size;
+  // +1: large classes cover [max_small_size, max_large_size] inclusive, so sizes just below
+  // max_large_size (e.g. 4033..4095) land in class size_to_class(max_large_size - 1) == 112.
+  static constexpr uint64_t num_large_classes =
+      (max_large_size - max_small_size) / large_word_size + 1;
 
   static constexpr uint64_t num_size_classes = num_small_classes + num_large_classes;
 
