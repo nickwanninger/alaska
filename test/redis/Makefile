@@ -1,13 +1,17 @@
 .DEFAULT_GOAL := redis
 .PHONY: redis compilation
 
+# redis caches OPT in src/src/.make-settings, so pass OPT explicitly to override it.
+# -disable-llvm-passes: unoptimized IR without -O0's optnone, keeping TBAA.
+OPT := -O2 -Xclang -disable-llvm-passes
+
 
 src:
 	git clone git@github.com:redis/redis.git src
 	git -C src checkout 131d95f203351b19f307072e6582fda91e149580 
 
 compilation: src FORCE
-	$(MAKE) -C src USE_JEMALLOC=no CC=gclang OPTIMIZATION=-O0 "CFLAGS=-gdwarf-4 -fPIE -fpic -Wno-strict-prototypes $(shell alaska-config --cflags)" "LDFLAGS=$(shell alaska-config --ldflags)"
+	$(MAKE) -C src USE_JEMALLOC=no CC=gclang "OPTIMIZATION=$(OPT)" "OPT=$(OPT)" "CFLAGS=-gdwarf-4 -fPIE -fpic -Wno-strict-prototypes $(shell alaska-config --cflags)" "LDFLAGS=$(shell alaska-config --ldflags)"
 
 bin/redis-server.bc: src compilation
 	@mkdir -p bin
