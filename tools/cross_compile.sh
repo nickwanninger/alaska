@@ -1,142 +1,158 @@
 #!/usr/bin/bash
-
-
-# This script tests cross compilation (to riscv) for a simple test program
-
+#
+# cross_compile.sh: build the pieces another script needs to apply Alaska's
+# handle-translation transform to RISC-V bitcode with `opt`. This script
+# compiles no programs and runs no tests. It only produces:
+#
+#   build-cross/local/lib/Alaska.so   host opt pass plugin
+#   build-cross/translate.bc          RISC-V bitcode of runtime/rt/translate.cpp
+#                                     (alaska_translate & friends, no handle faults)
+#
+# Run from the repo root: tools/cross_compile.sh
+#
+# Requirements:
+#   - LLVM/Clang 21 at /usr/lib/llvm-21/bin (put on PATH below) plus clang-21 /
+#     clang++-21 for the host build. The consumer's opt/llvm-link/llc must
+#     also be LLVM 21, or the plugin won't load / bitcode won't read.
+#   - RISC-V GNU toolchain + sysroot at /opt/riscv. Clang uses it for headers
+#     (--sysroot/--gcc-toolchain). Nothing is linked here.
+#
+# History (why the script looks like this):
+#   - It used to build the RISC-V runtime (libalaska.so), run the full
+#     pipeline (incl. alaska-replace) on test/list.c, and link/test binaries.
+#     The runtime build failed on <libunwind.h> (no RISC-V libunwind).
+#   - Requirements then narrowed to "translation only, no runtime, no
+#     handle faults", and then to "just produce the plugin + bitcode". A
+#     separate script does the cross compiling via opt. Don't re-add program
+#     builds, linking, or tests here.
+#
+# ---------------------------------------------------------------------------
+# SCOPE
+# ---------------------------------------------------------------------------
+# The consumer wants *only* translation: alaska_translate checks inlined at
+# pointer uses. It does NOT want:
+#   - alaska-replace (malloc->halloc, free->hfree, libc wrappers)
+#   - alaska-tracking (safepoints, HandleFaultPass, PinTrackingPass)
+#   - handle faults: translate.cpp is compiled with -DALASKA_NO_HANDLE_FAULTS.
+#     That macro is an #ifndef guard in alaska_translate_uncond()
+#     (runtime/rt/translate.cpp) added for this script. It removes the
+#     should_software_fault() -> alaska::do_handle_fault_and_translate()
+#     (asm name "alaska.HF") slow path, so translate.bc has no references
+#     back into the runtime. Normal builds don't define it and are unchanged.
+#     If that guard is ever removed, alaska.HF reappears as an undefined
+#     symbol in transformed programs.
+#   - the RISC-V runtime library (libalaska). Building it also needs a
+#     cross-compiled libunwind (runtime/rt/barrier.cpp includes <libunwind.h>),
+#     which we don't have. It is intentionally not built here.
+#
+# Resulting semantics: allocations stay plain libc, so no handles ever exist.
+# Every inlined translate takes the "not a handle" branch
+# ((int64_t)p >= 0 || p == -1 -> p). The overhead measured is check + branch
+# + code-layout effects. The handle-table walk is compiled in but never runs.
+#
+# ---------------------------------------------------------------------------
+# HOW THE CONSUMER SHOULD USE THESE FILES
+# ---------------------------------------------------------------------------
+# Given RISC-V bitcode prog.bc, compiled e.g. as
+#   clang -target riscv64-unknown-linux-gnu --sysroot=/opt/riscv/sysroot \
+#     --gcc-toolchain=/opt/riscv -g0 -O3 -DALASKA_SIZE_BITS=32 \
+#     -c -emit-llvm prog.c -o prog.bc
+# (ALASKA_SIZE_BITS must match TRANSLATE_CFLAGS below. It sets how many low
+# bits of a handle are the offset. Multi-file programs: llvm-link them into
+# one prog.bc first, because escape/hoisting are module-level):
+#
+#   P=build-cross/local/lib/Alaska.so
+#   opt prog.bc -o prog.bc \
+#     -passes=mergereturn,break-crit-edges,loop-simplify,lcssa,indvars,mem2reg,instnamer
+#   for p in alaska-prepare alaska-translate alaska-escape alaska-lower; do
+#     opt --load-pass-plugin=$P --passes=$p prog.bc -o prog.bc
+#   done
+#   llvm-link prog.bc --only-needed --internalize build-cross/translate.bc -o prog.bc
+#   opt --load-pass-plugin=$P --passes=alaska-inline,globaldce prog.bc -o prog.bc
+#   # then, e.g.:
+#   llc -O3 -mtriple=riscv64-unknown-linux-gnu -filetype=obj prog.bc -o prog.o
+#   riscv64-unknown-linux-gnu-gcc prog.o -o prog -lm -lpthread
+#
+# For an untransformed baseline, snapshot prog.bc after the canonicalization
+# opt line and before the Alaska passes, then give it the same llc/link
+# steps. That way the two differ only by Alaska. There is no IR-level
+# opt -O3 after the Alaska passes. If you add one, add it to both.
+#
+# Notes on that pipeline:
+#   - One opt invocation per Alaska pass. That is how the project drives them.
+#   - alaska-prepare    DCE/ADCE, devirt, marks "alaska_is_simple", normalize
+#     alaska-translate  insert + hoist alaska.translate/release intrinsics
+#                       (alaska-translate-nohoist = no hoisting). It also runs
+#                       AlaskaIntentPass, a debug no-op unless a fn is named
+#                       "search".
+#     alaska-escape     translate pointers passed to external fns (printf,
+#                       memcpy, ...). Omit it for loads/stores only.
+#     alaska-lower      alaska.translate -> call @alaska_translate
+#     llvm-link         MUST come after alaska-lower. Before lowering nothing
+#                       references @alaska_translate, so --only-needed would
+#                       pull in nothing.
+#     alaska-inline     inline all calls to alaska_* functions
+#     globaldce         drop the dead internal translate definitions
+#   - Self-check: after llc, `llvm-nm -u` on the object should list only libc
+#     symbols. alaska.HF / halloc / hfree / alaska_* mean the runtime leaked
+#     back in.
+#   - The result links with plain libc (no libalaska, no Alaska linker
+#     script). Programs in test/ that call alaska_timestamp() need the
+#     consumer to supply it (a clock_gettime wrapper).
+#   - translate.bc still declares alaska_barrier_poll (used by
+#     alaska_safepoint). --only-needed leaves it out unless safepoints are
+#     inserted, and they aren't, because alaska-tracking is not run.
+#   - "preserve_all/preserve_most not supported for this target" warnings
+#     are expected on RISC-V and harmless (they only affect the fault path).
+#   - Neither alaska-replace nor alaska-tracking should appear in the
+#     pipeline (see SCOPE).
 
 set -e
 
 export PATH=/usr/lib/llvm-21/bin:$PATH
 
-
 ROOT=$(pwd)
-
-
 B=${ROOT}/build-cross
 L=${B}/local
 
 mkdir -p ${B}
 
-
-
+# --- Host build of the compiler plugin (Alaska.so) --------------------------
+# The plugin runs inside host opt, so it is built for the host. It transforms
+# IR independently of the target, so it works on RISC-V bitcode unchanged.
+# The host runtime this build also produces is unused. cmake only configures
+# once (guarded by Makefile), so delete build-cross/host to pick up option
+# changes.
 mkdir -p ${B}/host
 pushd ${B}/host
   export CC=clang-21
   export CXX=clang++-21
+  # Use lld: it handles LTO natively, so the LTO/IPO configure check does not
+  # have to dlopen LLVMgold.so through whichever ld happens to be on PATH.
+  # Must be LDFLAGS (not -DCMAKE_*_LINKER_FLAGS) so check_ipo_supported()'s
+  # try-compile project picks it up too.
+  export LDFLAGS="-fuse-ld=lld"
 
-  echo "Building Alaska for host..."
+  echo "Building Alaska plugin for host..."
   if [ ! -f Makefile ]; then
       cmake ../../ -DALASKA_ENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX:PATH=${L}
   fi
   make -j 32 install
 popd
+unset LDFLAGS
 
-mkdir -p ${B}/riscv
-pushd ${B}/riscv
-  echo "Building Alaska for RISC-V..."
-  export RISCV=/opt/riscv
-  export CC=$RISCV/bin/riscv64-unknown-linux-gnu-gcc
-  export CXX=$RISCV/bin/riscv64-unknown-linux-gnu-g++
-  export AS=$RISCV/bin/riscv64-unknown-linux-gnu-as
-  export LD=$RISCV/bin/riscv64-unknown-linux-gnu-ld
-  cmake ../../ \
-      -DALASKA_REVISION="TEST" \
-      -DALASKA_ENABLE_COMPILER=OFF \
-      -DALASKA_ENABLE_TESTING=OFF \
-      -DALASKA_ENABLE_LOGGING=OFF \
-      -DALASKA_CORE_ONLY=OFF \
-      -DALASKA_YUKON=OFF \
-      -DALASKA_YUKON_NO_HARDWARE=ON \
-      -DALASKA_CORE_BITCODE=OFF \
-      -DALASKA_LIBRARY_TYPE=SHARED \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DALASKA_SIZE_BITS=32 \
-      -DCMAKE_SYSROOT=$RISCV/sysroot
-  make -j 32
-popd
+# --- RISC-V translate.bc -----------------------------------------------------
+# ALASKA_SIZE_BITS must match what the consumer compiles programs with.
+# -include config.h / -I./runtime: translate.cpp needs the alaska headers.
+# -g0 + --strip-debug: debug info only gets in the way of linking/inlining.
+TRANSLATE_CFLAGS="-target riscv64-unknown-linux-gnu --sysroot=/opt/riscv/sysroot --gcc-toolchain=/opt/riscv "
+TRANSLATE_CFLAGS+="-g0 -fno-sanitize=cfi -O3 -DALASKA_SIZE_BITS=32 -include runtime/alaska/config.h -I./runtime "
+TRANSLATE_CFLAGS+="-DALASKA_NO_HANDLE_FAULTS "
 
-
-
-CFLAGS="-target riscv64-unknown-linux-gnu --sysroot=/opt/riscv/sysroot --gcc-toolchain=/opt/riscv "
-CFLAGS+="-g0 -fno-sanitize=cfi -O3 -DALASKA_SIZE_BITS=32 -include runtime/alaska/config.h -I./runtime "
-
-# compile the translate.cpp for the host.
-clang++ ${CFLAGS} runtime/rt/translate.cpp -c -emit-llvm -o ${B}/translate.bc
-
-
-mkdir -p ${B}/stub
-for f in runtime/stub/*.c; do
-    name=$(basename ${f} .c)
-    clang ${CFLAGS} ${f} -c -emit-llvm -o ${B}/stub/${name}.bc
-done
-llvm-link ${B}/stub/*.bc -o ${B}/stub.bc
-
-
-opt --strip-debug ${B}/stub.bc -o ${B}/stub.bc
+echo "Building translate.bc for RISC-V..."
+clang++ ${TRANSLATE_CFLAGS} runtime/rt/translate.cpp -c -emit-llvm -o ${B}/translate.bc
 opt --strip-debug ${B}/translate.bc -o ${B}/translate.bc
 
-llvm-dis ${B}/stub.bc -o ${B}/stub.ll
-llvm-dis ${B}/translate.bc -o ${B}/translate.ll
-
-
-
-SOURCE=test/list.c
-
-bitcode=${B}/prog.bc
-clang ${CFLAGS} ${SOURCE} -c -emit-llvm -o ${bitcode}
-# link the stub
-llvm-link ${bitcode} --internalize ${B}/stub.bc -o ${bitcode}
-
-opt ${bitcode} -o ${bitcode} -passes=mergereturn,break-crit-edges,loop-simplify,lcssa,indvars,mem2reg,instnamer
-
-
-
-baselinebc=${B}/baseline.bc
-cp ${bitcode} ${baselinebc}
-
-function run_passes() {
-    for pass in "$@"; do
-        opt --load-pass-plugin=${L}/lib/Alaska.so --passes=${pass} ${bitcode} -o ${bitcode}
-    done
-}
-
-# First round of passes
-run_passes alaska-prepare alaska-replace alaska-translate
-# link the translate runtime
-llvm-link ${bitcode} --internalize ${B}/translate.bc -o ${bitcode}
-# Second round of passes
-run_passes alaska-escape alaska-lower alaska-inline
-
-llvm-dis ${bitcode} -o ${B}/final.ll
-
-mkdir -p ${B}/dist
-
-# now we have the final bitcode. use llc to generate a riscv object file
-llc -O3 -mtriple=riscv64-unknown-linux-gnu -filetype=obj ${bitcode} -o ${B}/dist/final.o
-
-
-llvm-link ${baselinebc} --internalize ${B}/translate.bc -o ${baselinebc}
-llc -O3 -mtriple=riscv64-unknown-linux-gnu -filetype=obj ${baselinebc} -o ${B}/dist/baseline.o
-
-
-
-LDS=${ROOT}/compiler/ldscripts/alaska-riscv64.ld
-
-cp ${B}/riscv/runtime/libalaska.so.2 ${B}/dist/
-cp ${LDS} ${B}/dist/
-
-ls -la ${B}/dist
-
-pushd ${B}/dist
-
-FINAL_ARGS="-lm -lpthread -L. "
-FINAL_ARGS+="-Wl,-z,now -l:libalaska.so.2 -Wl,-rpath=\$ORIGIN "
-# FINAL_ARGS+="-Wl,--whole-archive ${B}/dist/libalaska.a "
-FINAL_ARGS+="-T./alaska-riscv64.ld "
-
-# now link the final executable with /opt/riscv tools
-/opt/riscv/bin/riscv64-unknown-linux-gnu-gcc ./final.o -o ./alaska ${FINAL_ARGS}
-/opt/riscv/bin/riscv64-unknown-linux-gnu-gcc ./baseline.o -o ./baseline ${FINAL_ARGS}
-
-echo "gcc ./final.o -o ./alaska ${FINAL_ARGS}" > ${B}/dist/build.sh
-popd
+echo
+echo "plugin:    ${L}/lib/Alaska.so"
+echo "translate: ${B}/translate.bc"

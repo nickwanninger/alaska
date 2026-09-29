@@ -130,7 +130,6 @@ namespace alaska::disk {
           memcpy(dst_header->data(), page.get<void>(offset + sizeof(alaska::ObjectHeader)),
                  object_size);
           dst_header->marked = disk_header->marked;
-          dst_header->placement_badness = disk_header->placement_badness;
           dst_header->localized = 0;
           note_dead_record(page_id);
         }

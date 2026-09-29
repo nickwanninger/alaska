@@ -56,6 +56,8 @@ static void *barrier_thread_func(void *) {
     useconds_t sleep_time = (useconds_t)(toWait * 1000000);
     usleep(sleep_time);
 
+    continue;
+
     uint64_t old_heaps = 0;
     uint64_t total_heaps = 0;
     uint64_t young_heaps = 0;
@@ -94,19 +96,19 @@ static void *barrier_thread_func(void *) {
 
       uint64_t total_faults_waiting_bytes = 0;
       uint64_t total_objects_bytes = 0;
-      // rt.heap.for_each_page([&](alaska::HeapPage *page) {
-      //   for (auto *obj : page->objects()) {
-      //     if (!obj->is_active()) continue;
-      //     total_objects++;
-      //     size_t size = obj->real_object_size();
-      //     total_objects_bytes += size;
-      //     auto *mapping = obj->get_mapping();
-      //     if (mapping->fault_pending() || mapping->access_traced()) {
-      //       total_faults_waiting++;
-      //       total_faults_waiting_bytes += size;
-      //     }
-      //   }
-      // });
+      rt.heap.for_each_page([&](alaska::HeapPage *page) {
+        for (auto *obj : page->objects()) {
+          if (!obj->is_active()) continue;
+          total_objects++;
+          size_t size = obj->real_object_size();
+          total_objects_bytes += size;
+          auto *mapping = obj->get_mapping();
+          if (mapping->fault_pending()) {
+            total_faults_waiting++;
+            total_faults_waiting_bytes += size;
+          }
+        }
+      });
 
       uint64_t total_traced = 0;
       alaska::Mapping *traced = nullptr;
@@ -127,55 +129,57 @@ static void *barrier_thread_func(void *) {
 
 
 
-      auto *swap = rt.get_swap_space();
-      if (swap) {
-        FILE* debug = fopen("swap_debug.txt", "w");
-        swap->debug_dump(debug);
-        fclose(debug);
-        for (auto *page : rt.heap.get_aging_pages()) {
-          if (page->time_of_last_use > old_cutoff) break;
+      // auto *swap = rt.get_swap_space();
+      // if (swap) {
+      //   FILE* debug = fopen("swap_debug.txt", "w");
+      //   swap->debug_dump(debug);
+      //   fclose(debug);
+      //   for (auto *page : rt.heap.get_aging_pages()) {
+      //     if (page->time_of_last_use > old_cutoff) break;
 
-          old_heaps++;
-          rt.heap.promote_to_elderly(*page);
+      //     old_heaps++;
+      //     rt.heap.promote_to_elderly(*page);
 
-          // now that that page is old, we should mark all the objects in it as
-          // invalid (so we fault on it!)
-          for (auto *obj : page->objects()) {
-            if (!obj->is_active()) continue;
+      //     // now that that page is old, we should mark all the objects in it as
+      //     // invalid (so we fault on it!)
+      //     for (auto *obj : page->objects()) {
+      //       if (!obj->is_active()) continue;
 
-            // Temporary thrashing protection
-            if (obj->localized) continue;
+      //       // Temporary thrashing protection
+      //       if (obj->localized) continue;
 
-            auto *mapping = obj->get_mapping();
-            if (mapping->is_pinned()) continue;
+      //       auto *mapping = obj->get_mapping();
+      //       if (mapping->is_pinned()) continue;
 
-            swap->swap_out(mapping);
-          }
-        }
-      }
-
-      // for (auto *page : rt.heap.get_aging_pages()) {
-      //   if (page->time_of_last_use > old_cutoff) break;
-
-      //   old_heaps++;
-      //   rt.heap.promote_to_elderly(*page);
-
-      //   // now that that page is old, we should mark all the objects in it as
-      //   // invalid (so we fault on it!)
-      //   for (auto *obj : page->objects()) {
-      //     if (!obj->is_active()) continue;
-
-      //     // Temporary thrashing protection
-      //     if (obj->localized) continue;
-
-      //     auto *mapping = obj->get_mapping();
-      //     if (mapping->is_pinned()) continue;
-
-      //     obj->localized = true;
-      //     // obj->get_mapping()->set_fault_pending(true);
-      //     obj->get_mapping()->set_access_traced(true);
+      //       swap->swap_out(mapping);
+      //     }
       //   }
       // }
+
+
+
+      for (auto *page : rt.heap.get_aging_pages()) {
+        if (page->time_of_last_use > old_cutoff) break;
+
+        old_heaps++;
+        rt.heap.promote_to_elderly(*page);
+
+        // now that that page is old, we should mark all the objects in it as
+        // invalid (so we fault on it!)
+        for (auto *obj : page->objects()) {
+          if (!obj->is_active()) continue;
+
+          // Temporary thrashing protection
+          if (obj->localized) continue;
+
+          auto *mapping = obj->get_mapping();
+          if (mapping->is_pinned()) continue;
+
+          obj->localized = true;
+          obj->get_mapping()->set_fault_pending(true);
+          obj->get_mapping()->set_access_traced(true);
+        }
+      }
 
       toWait = rt.scheduler.tick(toWait);
       // fflush(log);

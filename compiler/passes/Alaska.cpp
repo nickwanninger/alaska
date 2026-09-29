@@ -367,8 +367,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginIn
             PB.registerPipelineParsingCallback([](StringRef name, ModulePassManager &MPM,
                                                   ArrayRef<llvm::PassBuilder::PipelineElement>) {
               if (name == "alaska-type-infer") {
-                // MPM.addPass(OptimisticTypesPass());
-                MPM.addPass(AlaskaTypeEmissionPass());
+                MPM.addPass(OptimisticTypesPass());
+                // MPM.addPass(AlaskaTypeEmissionPass());
                 return true;
               }
 

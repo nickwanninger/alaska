@@ -27,7 +27,9 @@
 #include <alaska/core/Runtime.hpp>
 #include <alaska/util/RateCounter.hpp>
 #include <alaska/work/BarrierWorker.hpp>
+
 #include <alaska/util/LossyCircularQueue.hpp>
+#include <alaska/util/HtlbCache.hpp>
 
 
 namespace alaska {
@@ -77,6 +79,7 @@ namespace alaska {
 
     // TEMPORARY
     alaska::LossyCircularQueue<Mapping *, 128> handle_trace_queue;
+    alaska::HtlbCache<8, 4> htlb_cache;
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.
     static Runtime &get();

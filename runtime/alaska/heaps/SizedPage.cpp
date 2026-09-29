@@ -55,7 +55,6 @@ namespace alaska {
       // Store the rounded size (object_size), not the requested size.
       // This ensures ObjectIterator uses correct offsets when walking objects.
       header.set_object_size(object_size);
-      header.placement_badness = 0;
       return header.data();
     }
 
@@ -78,7 +77,6 @@ namespace alaska {
     // Store the rounded size (object_size), not the requested size.
     // This ensures ObjectIterator uses correct offsets when walking objects.
     header.set_object_size(object_size);
-    header.placement_badness = 0;
 
     return p->header.data();
   }

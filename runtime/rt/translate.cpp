@@ -57,23 +57,24 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 
 
 
-#define ENABLE_HANDLE_FAULTS
-
 
 extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *ptr) {
   auto m = alaska::Mapping::from_handle(ptr);
 
 
-  // #ifdef ENABLE_HANDLE_FAULTS
+#ifndef ALASKA_NO_HANDLE_FAULTS
   // Check if either of the two top bits are set (pending_fault or access_trace)
   bool shouldFault = m->should_software_fault();
   if (unlikely(shouldFault)) {
     return alaska::do_handle_fault_and_translate((int64_t)ptr);
   }
-  // #endif
+#endif
 
+
+  // printf("[ALASKA] Translate %zx -> m=%zx\n", (uintptr_t)ptr, (uintptr_t)m);
   // Read the HTE
   void *mapped = m->get_pointer();
+  //("[ALASKA] -> %zx\n", (uintptr_t)mapped);
   // Apply the offset from the pointer
   void *result = APPLY_OFFSET(mapped, (int64_t)ptr);
 

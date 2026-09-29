@@ -32,31 +32,11 @@ alaska::LockedThreadCache get_tc(void) { return *alaska::ThreadCache::current();
 
 
 
-
-static void *_halloc(size_t sz, int zero) {
-  void *result = get_tc()->halloc(sz);
-
-  // This seems right...
-  if (result == NULL) errno = ENOMEM;
-
-  if (zero) {
-    alaska::handle_memset(result, 0, sz);
-  }
-
-  auto *h = alaska::Mapping::from_handle_safe(result);
-  if (h) {
-    printf("halloc: %zu bytes -> %p -> %p\n", sz, result, h->get_pointer());
-  }
-  return result;
-}
-
-
 void *halloc(size_t sz) noexcept {
 #ifdef MALLOC_BYPASS
   return ::malloc(sz);
 #endif
   return alaska::halloc(sz);
-  // return _halloc(sz, 0);
 }
 
 void *hcalloc(size_t nmemb, size_t size) {
@@ -64,7 +44,6 @@ void *hcalloc(size_t nmemb, size_t size) {
   return ::calloc(nmemb, size);
 #endif
   return alaska::hcalloc(nmemb, size);
-  // return _halloc(nmemb * size, 1);
 }
 
 // Reallocate a handle

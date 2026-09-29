@@ -37,9 +37,8 @@ namespace alaska {
     }
 
     if (config.swap_use_memory_disk) {
-      return ck::box<alaska::disk::BufferPool>(
-          new alaska::disk::BufferPool(ck::box<alaska::disk::Disk>(new alaska::disk::MemoryDisk()),
-                                       pool_mb));
+      return ck::box<alaska::disk::BufferPool>(new alaska::disk::BufferPool(
+          ck::box<alaska::disk::Disk>(new alaska::disk::MemoryDisk()), pool_mb));
     }
 
     const char *path = config.swap_path;
@@ -49,9 +48,8 @@ namespace alaska {
     if (path == nullptr) path = "alaska.swap";
 
     unlink(path);
-    return ck::box<alaska::disk::BufferPool>(
-        new alaska::disk::BufferPool(ck::box<alaska::disk::Disk>(new alaska::disk::FileDisk(path)),
-                                     pool_mb));
+    return ck::box<alaska::disk::BufferPool>(new alaska::disk::BufferPool(
+        ck::box<alaska::disk::Disk>(new alaska::disk::FileDisk(path)), pool_mb));
   }
 
 
@@ -172,31 +170,17 @@ namespace alaska {
 
     alaska::ObjectHeader *header = alaska::ObjectHeader::from(m);
 
-    // uint64_t offset = handle & 0xFFFFFF;
-    // if (offset > header->object_size()) {
-    //   alaska::printf("Fault on handle %p m=%p with offset %zu beyond object size %zu\n",
-    //                  (void *)handle, m, offset, header->object_size());
-    //   // abort();
-    //   return -1;
-    // }
-
-    // alaska::printf("HF %p (raw:%016zx) %016p %c%c %zu\n", (void *)m, handle, m->get_raw_value(),
-    //                m->fault_pending() ? 'F' : '-', m->access_traced() ? 'T' : '-', header ?
-    //                header->object_size() : 0);
-
-
     if (m->access_traced()) {
-      if (not this->handle_trace_queue.contains_slow(m)) {
+      if (!this->htlb_cache.access(m->handle_id())) {
         this->handle_trace_queue.push(m);
+        handle_faults.track_atomic(1);
       }
     }
-
 
     // Clear the fault pending bit, which will allow the access to proceed on retry.
     // TODO: do something useful.
     m->set_fault_pending(false);
 
-    handle_faults.track_atomic(1);
     return 0;
   }
 

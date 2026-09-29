@@ -51,7 +51,6 @@ namespace alaska {
 
     inline void reset(void) {
       __metadata = 0;
-      // placement_badness = 0;
     }
 
     // Bitwise reset
