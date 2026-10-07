@@ -114,21 +114,6 @@ static void CONSTRUCTOR yukon_init(void) {
 
 
 
-#if !defined(ALASKA_YUKON_NO_HARDWARE)
-  if (getenv("YUKON_PHYS") != NULL) {
-    alaska::printf("Setting up handles to bypass the TLB when they're cached!\n");
-    uint64_t value;
-    read_csr(CSR_HTBASE, value);
-    alaska::printf("  HTBASE was 0x%lx\n", value);
-
-    value |= (1LU << 63);
-    alaska::printf("  Setting HTBASE to 0x%lx\n", value);
-    write_csr(CSR_HTBASE, value);
-
-    read_csr(CSR_HTBASE, value);
-    alaska::printf("  Reading it back gave 0x%lx\n", value);
-  }
-#endif
 }
 
 
