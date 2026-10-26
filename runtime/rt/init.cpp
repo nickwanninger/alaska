@@ -304,12 +304,6 @@ static void *cmd_thread_function(void *arg) {
 #include <sys/mman.h>
 #include <alaska/dwarf/dwarf_parser.h>
 
-static void test_dwarf(void) {
-  DwarfTypeDB db;
-  dwarf_parse_self(&db);
-  dwarf_dump(&db);
-}
-
 
 void __attribute__((constructor(102))) alaska_init(void) {
   alaska::Configuration config;
@@ -332,8 +326,6 @@ void __attribute__((constructor(102))) alaska_init(void) {
     int port = atoi(port_env);
     pthread_create(&cmd_thread, NULL, cmd_thread_function, (void *)(intptr_t)port);
   }
-
-  test_dwarf();
 }
 
 void __attribute__((destructor)) alaska_deinit(void) {}

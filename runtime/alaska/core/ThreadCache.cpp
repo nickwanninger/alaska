@@ -601,7 +601,6 @@ namespace alaska {
   static void tc_key_init() { pthread_key_create(&tc_cleanup_key, tc_thread_exit); }
 
   __attribute__((noinline)) static ThreadCache *current_bootstrap() noexcept {
-    alaska::printf("current_bootstrap called rt=%p\n", Runtime::get_ptr());
     pthread_mutex_lock(&init_mutex);
     if (g_current == current_bootstrap) {
       if (Runtime::get_ptr() == nullptr) {
@@ -616,7 +615,6 @@ namespace alaska {
     }
 
     g_current = current_fast;
-    alaska::printf("current_bootstrap done rt=%p tc=%p\n", Runtime::get_ptr(), g_tc);
     pthread_mutex_unlock(&init_mutex);
     return current_fast();
   }
