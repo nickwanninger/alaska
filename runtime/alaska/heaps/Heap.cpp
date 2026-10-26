@@ -14,7 +14,6 @@
 #include <alaska/util/Logger.hpp>
 #include <alaska/heaps/Heap.hpp>
 #include "alaska/heaps/HeapPage.hpp"
-#include "alaska/heaps/LocalityPage.hpp"
 #include "alaska/heaps/SizeClass.hpp"
 #include "alaska/util/utils.h"
 #include <alaska/core/ThreadCache.hpp>
@@ -112,34 +111,9 @@ namespace alaska {
   }
 
 
-  LocalityPage *Heap::get_localitypage(size_t size_requirement, ThreadCache *owner) {
-    FTR_FUNCTION();
-    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
-    auto *p = this->find_or_alloc_page<LocalityPage>(locality_pages, owner, size_requirement,
-                                                     [](auto *p) {
-                                                     });
-    return p;
-  }
-
-
   void Heap::put_page(SizedPage *page) {
     FTR_FUNCTION();
     // Return a SizedPage back to the global (unowned) heap.
-    ck::scoped_lock lk(this->lock);  // TODO: don't lock.
-    page->set_owner(nullptr);
-    if (page->magazine) {
-      if (page->available() > 0) {
-        page->magazine->move_to_available(page);
-      } else {
-        page->magazine->move_to_full(page);
-      }
-    }
-  }
-
-
-  void Heap::put_page(LocalityPage *page) {
-    FTR_FUNCTION();
-    // Return a LocalityPage back to the global (unowned) heap.
     ck::scoped_lock lk(this->lock);  // TODO: don't lock.
     page->set_owner(nullptr);
     if (page->magazine) {
@@ -174,15 +148,6 @@ namespace alaska {
       });
     }
 
-
-    fprintf(stream, "LocalityPages\n");
-    locality_pages.for_each([&](LocalityPage *p) {
-      size_t committed = p->committed();
-      total_committed += committed;
-      fprintf(stream, "  - %p avail:%zu  commit:%zu  frag:%f\n", p, p->available(), committed,
-              p->fragmentation());
-      return true;
-    });
 
     fprintf(stream, "Total committed memory: %zu bytes (%fmb)\n", total_committed,
             total_committed / (1024.0 * 1024.0));
@@ -225,20 +190,6 @@ namespace alaska {
     }
     return bytes_saved;
   }
-
-  long Heap::compact_locality_pages(void) {
-    return 0;
-    long c = 0;
-    alaska::printf("Locality pages: %lu\n", locality_pages.size());
-    locality_pages.for_each([&](LocalityPage *lp) {
-      alaska::printf(" - Locality page %p  commit:%zu, avail:%zu, frag:%.2f%%\n", lp,
-                     lp->committed(), lp->available(), lp->fragmentation() * 100);
-      return true;
-    });
-    return c;
-  }
-
-
 
   void Heap::sweep(void) {
     long num_marked = 0;

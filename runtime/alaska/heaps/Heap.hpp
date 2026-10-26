@@ -18,7 +18,6 @@
 #include <alaska/heaps/Magazine.hpp>
 #include <alaska/heaps/track.hpp>
 #include "alaska/Configuration.hpp"
-#include "alaska/heaps/LocalityPage.hpp"
 #include "alaska/util/list_head.h"
 #include <stdlib.h>
 #include <time.h>
@@ -68,11 +67,9 @@ namespace alaska {
     // Get an unowned sized page given a certain size request.
     // TODO: Allow filtering by fullness?
     alaska::SizedPage *get_sizedpage(size_t size, ThreadCache *owner = nullptr);
-    alaska::LocalityPage *get_localitypage(size_t size_requirement, ThreadCache *owner = nullptr);
 
 
     void put_page(alaska::SizedPage *page);
-    void put_page(alaska::LocalityPage *page);
 
     struct list_head m_nursery;  // active pages; head=newest, tail=oldest
     struct list_head m_elderly;  // pages promoted out of the nursery
@@ -124,7 +121,6 @@ namespace alaska {
 
     // Run a compaction on sized pages.
     long compact_sizedpages(void);
-    long compact_locality_pages(void);
 
 
     void sweep(void);
@@ -147,10 +143,6 @@ namespace alaska {
           return true;
         });
       }
-      locality_pages.for_each([=](auto *p) {
-        fn((alaska::HeapPage *)p);
-        return true;
-      });
     }
 
     void collect(ThreadCache *tc, int sc);
@@ -171,7 +163,6 @@ namespace alaska {
     void *heap_end;
     void *heap_bump;
     alaska::Magazine<alaska::SizedPage> size_classes[alaska::num_size_classes];
-    alaska::Magazine<alaska::LocalityPage> locality_pages;
   };
 
 

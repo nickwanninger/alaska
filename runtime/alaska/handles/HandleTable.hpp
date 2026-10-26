@@ -19,7 +19,6 @@
 #include <ck/lock.h>
 #include <alaska/util/SizedAllocator.hpp>
 #include <alaska/Configuration.hpp>
-#include <alaska/work/WorkScheduler.hpp>
 
 namespace alaska {
 

@@ -137,7 +137,6 @@ node_t *jumble_tree(node_t *root) {
   return new_root;
 }
 
-bool localize_structure(uint64_t ptr);
 
 
 
@@ -171,7 +170,6 @@ int main() {
   // return 0;
 
   // run_tests(n);
-  // localized = localize_structure((uint64_t)n);
   run_tests(n);
   free_tree(n);
 

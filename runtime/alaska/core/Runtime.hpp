@@ -14,9 +14,7 @@
 #include <alaska/work/BarrierManager.hpp>
 #include <alaska/util/Logger.hpp>
 #include <alaska/core/ThreadCache.hpp>
-#include <alaska/work/WorkScheduler.hpp>
 #include <alaska/heaps/Heap.hpp>
-#include <alaska/heaps/ArenaHeap.hpp>
 #include <alaska/heaps/HugeAllocator.hpp>
 #include <alaska/disk/BufferPool.hpp>
 #include <alaska/disk/SwapSpace.hpp>
@@ -28,7 +26,6 @@
 #include <alaska/util/RateCounter.hpp>
 #include <alaska/work/BarrierWorker.hpp>
 
-#include <alaska/util/LossyCircularQueue.hpp>
 #include <alaska/util/HtlbCache.hpp>
 
 
@@ -56,7 +53,6 @@ namespace alaska {
 
     // This is the actual heap
     alaska::Heap heap;
-    alaska::ArenaHeap arena_heap;
 
     // Huge object allocator for objects >= max_large_size (bypasses handle table)
     alaska::HugeAllocator huge_allocator;
@@ -74,11 +70,7 @@ namespace alaska {
     alaska::RateCounter stat_barriers;
     struct list_head barrier_workers = LIST_HEAD_INIT(barrier_workers);
 
-    // The work scheduler
-    alaska::WorkScheduler scheduler;
-
     // TEMPORARY
-    alaska::LossyCircularQueue<Mapping *, 128> handle_trace_queue;
     alaska::HtlbCache<8, 4> htlb_cache;
 
     // Return the singleton instance of the Runtime if it has been allocated. Abort otherwise.

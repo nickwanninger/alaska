@@ -172,7 +172,6 @@ namespace alaska {
 
     if (m->access_traced()) {
       if (!this->htlb_cache.access(m->handle_id())) {
-        this->handle_trace_queue.push(m);
         handle_faults.track_atomic(1);
       }
     }

@@ -206,33 +206,6 @@ static int dump_htlb_into(alaska::ThreadCache *tc, alaska::handle_id_t *space) {
   return r;
 }
 
-static void dump_htlb(alaska::ThreadCache *tc) {
-  // return;
-  auto fd = alaska::HandleTable::get_ht_fd();
-  auto &rt = alaska::Runtime::get();
-
-  rt.with_barrier([&]() {
-    alaska::printf("YUKON: Grading the heap...\n");
-    auto grade = rt.grade_heap();
-
-    auto total_pointers = grade.in_pointers + grade.out_pointers;
-    alaska::printf("Total pointers graded: %zu\n", total_pointers);
-    if (total_pointers > 0) {
-      float locality = (float)grade.in_pointers / (float)total_pointers;
-      alaska::printf("Locality = %f%% (%zu in, %zu out)\n", locality * 100.0f, grade.in_pointers,
-                     grade.out_pointers);
-      if (locality < 0.5f) {
-        alaska::printf(
-            "YUKON: Low locality detected (%.2f%%). Running brute-force localization...\n",
-            locality * 100.0f);
-        // rt.brute_force_localization(*tc);
-      }
-    }
-    ::printf("YUKON: Done grading the heap.\n");
-  });
-
-}
-
 // This method attempts to localize by feeding the thread cache with new dump data.
 // It returns true if anything was able to be done, and false if it should try again later.
 __attribute__((noinline)) static bool attempt_localization(void) {
@@ -241,7 +214,6 @@ __attribute__((noinline)) static bool attempt_localization(void) {
     return false;
   }
 
-  // dump_htlb(yukon_get_tc());
 
   return true;
 }

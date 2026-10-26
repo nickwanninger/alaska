@@ -58,7 +58,7 @@ install(FILES alaska.h yukon.h DESTINATION include)
 # Core sources
 
 set(CORE_SOURCES "")
-file(GLOB_RECURSE CORE_SOURCES
+file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS
   "alaska/**/*.cpp"
   "alaska/*.cpp"
   "alaska/**/*.c"
@@ -290,7 +290,7 @@ if (ALASKA_ENABLE_TESTING)
 
   enable_testing()
   include(GoogleTest)
-  file(GLOB_RECURSE TEST_SOURCES "test/*.cpp")
+  file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "test/*.cpp")
 
 
 	add_executable(

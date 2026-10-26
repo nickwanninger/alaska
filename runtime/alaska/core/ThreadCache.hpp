@@ -15,7 +15,7 @@
 #include <alaska/heaps/HeapPage.hpp>
 #include <alaska/handles/HandleTable.hpp>
 
-#include <alaska/heaps/LocalityPage.hpp>
+#include <alaska/handles/ObjectHeader.hpp>
 #include <alaska/alaska.hpp>
 #include "ck/lock.h"
 #include <alaska/util/RateCounter.hpp>
@@ -83,12 +83,6 @@ namespace alaska {
     };
     SizeClassBin bins[alaska::num_size_classes];
 
-    // Each thread cache also has a private "Locality Page", which
-    // objects can be relocated to according to some external
-    // policy. This page is special because it can contain many
-    // objects of many different sizes.
-    alaska::LocalityPage *locality_page = nullptr;
-
    public:
     ThreadCache(int id, alaska::Runtime &rt);
     ~ThreadCache();
@@ -138,17 +132,6 @@ namespace alaska {
     size_t get_size(void *handle);
 
 
-    struct LocalizationResult {
-      size_t count;  // how many mappings were localized
-    };
-    // The thread cache is responsible for localizing a set of mappings to improve object
-    // locality. This function takes a list of ordered mappings and lays them out contiguously
-    // in memory and the mappings are updated to point to their new locations.
-    LocalizationResult localize(alaska::handle_id_t *hids, size_t count);
-    long localize(alaska::Mapping *mapping, long allowed_depth = 0, long depth = 0);
-    long localize_one(alaska::Mapping *mapping);
-
-
     static ThreadCache *current() noexcept;
 
     void dump_info(FILE *f);
@@ -160,8 +143,6 @@ namespace alaska {
 
     // Rotate to a page with free space, acquiring from global heap if needed.
     alaska::SizedPage *rotate_sized_page(int cls);
-    // Swap to a new locality page owned by this thread cache
-    alaska::LocalityPage *new_locality_page(size_t required_size);
   };
 
 

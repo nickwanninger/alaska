@@ -110,18 +110,12 @@ static void *barrier_thread_func(void *) {
         }
       });
 
-      uint64_t total_traced = 0;
-      alaska::Mapping *traced = nullptr;
-      while (rt.handle_trace_queue.pop(traced)) {
-        total_traced++;
-        traced->set_access_traced(false);
-      }
 
       float pct_waiting =
           total_objects > 0 ? (total_faults_waiting * 100.0f) / total_objects : 0.0f;
       alaska::printf(
-          "Objects waiting for fault resolution: %zu/%zu (%.2f%%) %10f MHF/S %10zu traced\n",
-          total_faults_waiting, total_objects, pct_waiting, mhfps, total_traced);
+          "Objects waiting for fault resolution: %zu/%zu (%.2f%%) %10f MHF/S\n",
+          total_faults_waiting, total_objects, pct_waiting, mhfps);
       // fprintf(log, "%lu,%lu,%lu,%lu,%lu,%.2f\n", timestamp, total_objects, total_faults_waiting,
       //         total_objects_bytes, total_faults_waiting_bytes, pct_waiting);
       fflush(log);
@@ -181,7 +175,6 @@ static void *barrier_thread_func(void *) {
         }
       }
 
-      toWait = rt.scheduler.tick(toWait);
       // fflush(log);
     });
 

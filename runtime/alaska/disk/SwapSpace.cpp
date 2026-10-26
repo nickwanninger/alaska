@@ -11,7 +11,6 @@
 #include <alaska/core/ThreadCache.hpp>
 #include <alaska/disk/SwapSpace.hpp>
 #include <alaska/handles/ObjectHeader.hpp>
-#include <alaska/heaps/ArenaHeap.hpp>
 #include <alaska/heaps/Heap.hpp>
 #include <string.h>
 
@@ -232,13 +231,6 @@ namespace alaska::disk {
     if (runtime.heap.contains(ptr)) {
       auto *page = alaska::Heap::get_page(ptr);
       return page != nullptr && page->release_remote(*mapping, ptr);
-    }
-
-    if (runtime.arena_heap.contains(ptr)) {
-      auto *header = alaska::ObjectHeader::from(ptr);
-      header->handle_id = 0;
-      alaska::get_arena_block(ptr)->free(header);
-      return true;
     }
 
     return false;

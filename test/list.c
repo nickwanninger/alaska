@@ -52,7 +52,6 @@ void free_list(node_t *n) {
   }
 }
 
-bool localize_structure(uint64_t ptr);
 
 
 

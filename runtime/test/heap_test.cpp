@@ -36,26 +36,3 @@ TEST_F(HeapTest, SizedPageGet) {
 }
 
 
-TEST_F(HeapTest, LocalityPageGet) {
-  size_t size_req = 32;
-  auto lp = heap.get_localitypage(size_req);
-  ASSERT_NE(lp, nullptr);
-  alaska::Mapping m;
-  // ASSERT_NE(lp->alloc(m, 32), nullptr);
-}
-
-
-
-TEST_F(HeapTest, LocalityGetPutGet) {
-  size_t size_req = 32;
-  // Allocating a locality page then putting it back should return it
-  // again to promote reuse. Asserting this might be restrictive on
-  // future policy, but for now it's good enough.
-  auto lp = heap.get_localitypage(size_req);
-  ASSERT_NE(lp, nullptr);
-  heap.put_page(lp);
-
-  auto lp2 = heap.get_localitypage(size_req);
-  ASSERT_NE(lp2, nullptr);
-  ASSERT_EQ(lp, lp2);
-}

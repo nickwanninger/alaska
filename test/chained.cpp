@@ -3,14 +3,6 @@
 #include <dlfcn.h>
 #include <stdint.h>
 
-static void localize(void* ptr) {
-  typedef void (*yukon_localize_t)(void* ptr);
-  static yukon_localize_t yukon_localize =
-      (yukon_localize_t)dlsym(RTLD_DEFAULT, "localize_structure");
-  if (yukon_localize != NULL) {
-    yukon_localize(ptr);
-  }
-}
 
 
 static inline uint64_t read_cycle_counter() {
@@ -103,12 +95,6 @@ class ChainedHashTable {
       std::cout << "\n";
     }
   }
-
-  void localize(void) {
-    for (size_t i = 0; i < bucket_count; ++i) {
-      if (table[i] != nullptr) ::localize(table[i]);
-    }
-  }
 };
 
 int main() {
@@ -139,7 +125,6 @@ int main() {
            dc, di, (double)di / (double)dc);
   }
 
-  // hash_table.localize();
 
 
   // change_roi(1);

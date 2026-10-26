@@ -56,6 +56,19 @@ extern void alaska_htlb_sim_track(uintptr_t handle);
 #endif
 
 
+#ifdef ALASKA_COUNT_TRANSLATIONS
+// Temporary instrumentation: count the handle table loads of software translation.
+// Only for a program that links this file once (the cross build). The increment is not
+// atomic, so concurrent translations can lose counts.
+static uint64_t translation_count = 0;
+
+static void __attribute__((destructor)) print_translation_count(void) {
+  printf("YUKON_SW_TRANSLATIONS=%lu\n", translation_count);
+  fflush(stdout);
+}
+#endif
+
+
 
 
 extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *ptr) {
@@ -73,6 +86,9 @@ extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *pt
 
   // printf("[ALASKA] Translate %zx -> m=%zx\n", (uintptr_t)ptr, (uintptr_t)m);
   // Read the HTE
+#ifdef ALASKA_COUNT_TRANSLATIONS
+  translation_count++;
+#endif
   void *mapped = m->get_pointer();
   //("[ALASKA] -> %zx\n", (uintptr_t)mapped);
   // Apply the offset from the pointer
