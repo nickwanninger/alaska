@@ -23,8 +23,9 @@ using namespace llvm;
 // all the effects a safepoint might have which we ignored in the abstract
 // machine model for purposes of optimization.  We have to strip these on
 // both function declarations and call sites.
+// allocsize names argument indices of the original call, which the statepoint shifts.
 static constexpr Attribute::AttrKind FnAttrsToStrip[] = {
-    Attribute::Memory, Attribute::NoSync, Attribute::NoFree};
+    Attribute::Memory, Attribute::NoSync, Attribute::NoFree, Attribute::AllocSize};
 
 // Create new attribute set containing only attributes which can be transferred
 // from original call to the safepoint.
