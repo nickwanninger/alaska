@@ -425,7 +425,7 @@ namespace alaska {
       return nullptr;
     }
 
-    m.set_pointer(ptr);
+    m.set_pointer_no_invalidate(ptr);
     return ptr;
   }
 
@@ -458,7 +458,7 @@ namespace alaska {
         size_t rounded_size = alaska::class_to_size(cls);
         header->set_object_size(rounded_size);
         void *data = header->data();
-        mapping->set_pointer(data);
+        mapping->set_pointer_no_invalidate(data);
 
         return data;
       }

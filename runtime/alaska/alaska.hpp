@@ -148,6 +148,10 @@ static_assert(ALASKA_SWAP_OFFSET_BITS + ALASKA_SWAP_SIZE_BITS + ALASKA_SWAP_TAG_
       invalidate();
     }
 
+    // set_pointer without the HTLB invalidation. Only for the stub's dummy
+    // mapping, which no handle translates through.
+    void set_pointer_no_invalidate(void *ptr) { this->value = (uint64_t)ptr; }
+
 
 
     // Get the next mapping in the free list. Returns NULL
