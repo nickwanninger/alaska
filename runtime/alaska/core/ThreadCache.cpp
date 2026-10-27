@@ -21,9 +21,32 @@
 #include <alaska/heaps/HugeAllocator.hpp>
 
 #include <execinfo.h>
+#include <dlfcn.h>
+
+
+// glibc's own entry points. In the LD_PRELOAD mode, ::free and ::realloc are
+// Alaska's overrides, so foreign pointers must go to these instead.
+extern "C" void __libc_free(void *ptr);
+extern "C" void *__libc_realloc(void *ptr, size_t size);
 
 
 namespace alaska {
+
+  // A foreign pointer comes from glibc's malloc, not from Alaska: for example
+  // the result of vasprintf, or of memalign in the LD_PRELOAD mode.
+  static size_t foreign_usable_size(void *ptr) {
+    using UsableSizeFn = size_t (*)(void *);
+    // glibc has no __libc_ name for malloc_usable_size. RTLD_NEXT skips the
+    // LD_PRELOAD override.
+    static UsableSizeFn libc_usable_size = nullptr;
+    auto fn = __atomic_load_n(&libc_usable_size, __ATOMIC_RELAXED);
+    if (fn == nullptr) {
+      fn = (UsableSizeFn)dlsym(RTLD_NEXT, "malloc_usable_size");
+      ALASKA_ASSERT(fn != nullptr, "could not find glibc's malloc_usable_size");
+      __atomic_store_n(&libc_usable_size, fn, __ATOMIC_RELAXED);
+    }
+    return fn(ptr);
+  }
 
   ThreadCache::ThreadCache(int id, alaska::Runtime &rt)
       : id(id)
@@ -286,6 +309,9 @@ namespace alaska {
     // be treated like a UAF, and ideally another thread would not access the handle
     // while it is being reallocated.
     alaska::Mapping *m = alaska::Mapping::from_handle_safe(handle);
+    if (unlikely(m == nullptr && !runtime.huge_allocator.owns(handle))) {
+      return __libc_realloc(handle, new_size);
+    }
     if (m != nullptr && m->is_swapped_out()) {
       auto *swap = runtime.get_swap_space();
       if (swap == nullptr || !swap->handle_fault(m, this)) return nullptr;
@@ -322,7 +348,7 @@ namespace alaska {
 
     if (unlikely(m == nullptr)) {
       FTR_SCOPE("NonHandle");
-      runtime.huge_allocator.free(handle);
+      if (!runtime.huge_allocator.free(handle)) __libc_free(handle);
       return;
     }
 
@@ -443,6 +469,9 @@ namespace alaska {
 
 
   LTO_INLINE void *ThreadCache::realloc(void *ptr, size_t new_size) {
+    if (unlikely(!runtime.heap.contains(ptr) && !runtime.huge_allocator.owns(ptr))) {
+      return __libc_realloc(ptr, new_size);
+    }
     auto original_size = this->get_size(ptr);
     void *new_ptr = this->malloc(new_size, true);
     // We should copy the minimum of the two sizes between the allocations.
@@ -483,8 +512,8 @@ namespace alaska {
         heap_page->release_remote(*m, ptr);
       }
 
-    } else {
-      runtime.huge_allocator.free(ptr);
+    } else if (!runtime.huge_allocator.free(ptr)) {
+      __libc_free(ptr);
     }
   }
 
@@ -508,8 +537,10 @@ namespace alaska {
     if (runtime.heap.contains(pointer)) {
       // it has an object header.
       return alaska::ObjectHeader::from(pointer)->object_size();
-    } else {
+    } else if (runtime.huge_allocator.owns(pointer)) {
       return runtime.huge_allocator.usable_size(pointer);
+    } else {
+      return foreign_usable_size(pointer);
     }
   }
 

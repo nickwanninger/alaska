@@ -4,6 +4,8 @@
 #include "alaska/util/Logger.hpp"
 #include "gtest/gtest.h"
 #include <vector>
+#include <malloc.h>
+#include <string.h>
 #include <alaska/heaps/Heap.hpp>
 
 #include <alaska/core/ThreadCache.hpp>
@@ -101,6 +103,46 @@ TEST_F(ThreadCacheTest, HallocHuge) {
 }
 
 
+
+// Pointers from glibc's malloc (for example from strdup or vasprintf) must go
+// back to glibc.
+TEST_F(ThreadCacheTest, HfreeForeignPointer) {
+  char *s = strdup("foreign");
+  ASSERT_NE(s, nullptr);
+  t1->hfree(s);
+}
+
+TEST_F(ThreadCacheTest, FreeForeignPointer) {
+  char *s = strdup("foreign");
+  ASSERT_NE(s, nullptr);
+  t1->free(s);
+}
+
+TEST_F(ThreadCacheTest, GetSizeForeignPointer) {
+  void *p = ::malloc(100);
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(t1->get_size(p), malloc_usable_size(p));
+  t1->hfree(p);
+}
+
+TEST_F(ThreadCacheTest, HreallocForeignPointer) {
+  char *s = strdup("foreign");
+  ASSERT_NE(s, nullptr);
+  char *s2 = (char *)t1->hrealloc(s, 1 << 16);
+  ASSERT_NE(s2, nullptr);
+  EXPECT_STREQ(s2, "foreign");
+  EXPECT_EQ(nullptr, alaska::Mapping::from_handle_safe(s2));
+  t1->hfree(s2);
+}
+
+TEST_F(ThreadCacheTest, ReallocForeignPointer) {
+  char *s = strdup("foreign");
+  ASSERT_NE(s, nullptr);
+  char *s2 = (char *)t1->realloc(s, 1 << 16);
+  ASSERT_NE(s2, nullptr);
+  EXPECT_STREQ(s2, "foreign");
+  t1->free(s2);
+}
 
 // A few tests that validate that threadcache hrealloc works correctly and produces objects of the
 // right size

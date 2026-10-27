@@ -94,15 +94,33 @@ TEST_F(HugeAllocatorTest, FreeNull) {
   allocator.free(nullptr);
 }
 
-TEST_F(HugeAllocatorTest, ContainsPageRun) {
+TEST_F(HugeAllocatorTest, OwnsPageRun) {
   void *p = allocator.alloc(8192);
   ASSERT_NE(p, nullptr);
-  EXPECT_TRUE(allocator.contains(p));
-  allocator.free(p);
+  EXPECT_TRUE(allocator.owns(p));
+  EXPECT_TRUE(allocator.free(p));
 }
 
-TEST_F(HugeAllocatorTest, ContainsNull) {
-  EXPECT_FALSE(allocator.contains(nullptr));
+TEST_F(HugeAllocatorTest, OwnsDirectMmap) {
+  void *p = allocator.alloc(512 * 1024);
+  ASSERT_NE(p, nullptr);
+  EXPECT_TRUE(allocator.owns(p));
+  EXPECT_TRUE(allocator.free(p));
+  EXPECT_FALSE(allocator.owns(p));
+}
+
+TEST_F(HugeAllocatorTest, OwnsNull) {
+  EXPECT_FALSE(allocator.owns(nullptr));
+}
+
+// A pointer from glibc has no HugeHeader. free() must not touch it.
+TEST_F(HugeAllocatorTest, ForeignPointerNotOwned) {
+  char *s = strdup("foreign");
+  ASSERT_NE(s, nullptr);
+  EXPECT_FALSE(allocator.owns(s));
+  EXPECT_FALSE(allocator.free(s));
+  EXPECT_STREQ(s, "foreign");
+  ::free(s);
 }
 
 TEST_F(HugeAllocatorTest, WriteAndReadBack) {

@@ -73,16 +73,25 @@ namespace alaska {
     return result;
   }
 
-  void HugeAllocator::free(void *ptr) {
-    if (ptr == nullptr) return;
+  bool HugeAllocator::free(void *ptr) {
+    if (ptr == nullptr) return true;
 
     auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
 
-    if (header->is_direct_mmap) {
-      free_direct_mmap(header, header->total_size);
-    } else {
+    if (in_region(ptr)) {
       free_page_run(header, header->total_size);
+      return true;
     }
+
+    // Only read the header after the ownership check: a foreign pointer has none.
+    lock.lock();
+    bool found = direct_maps.contains((uintptr_t)ptr);
+    if (found) direct_maps.remove((uintptr_t)ptr);
+    lock.unlock();
+
+    if (!found) return false;
+    free_direct_mmap(header, header->total_size);
+    return true;
   }
 
   size_t HugeAllocator::usable_size(void *ptr) {
@@ -91,18 +100,20 @@ namespace alaska {
     return header->total_size - sizeof(HugeHeader);
   }
 
-  bool HugeAllocator::contains(void *ptr) {
-    if (ptr == nullptr) return false;
-
+  bool HugeAllocator::in_region(void *ptr) {
     auto addr = (uintptr_t)ptr;
     auto base = (uintptr_t)region_base;
-    if (addr >= base && addr < base + region_size) return true;
+    return region_base != nullptr && addr >= base && addr < base + region_size;
+  }
 
-    // For direct mmap'd allocations, recover the header and check the flag.
-    // We can't range-check arbitrary mmap'd regions, so we don't claim
-    // ownership of direct-mmap pointers here. The caller should use
-    // !heap.contains(ptr) as the discriminator (which is the existing pattern).
-    return false;
+  bool HugeAllocator::owns(void *ptr) {
+    if (ptr == nullptr) return false;
+    if (in_region(ptr)) return true;
+
+    lock.lock();
+    bool found = direct_maps.contains((uintptr_t)ptr);
+    lock.unlock();
+    return found;
   }
 
   // --- Page-run allocator ---
@@ -220,7 +231,12 @@ namespace alaska {
     auto *header = (HugeHeader *)mem;
     header->total_size = total;
     header->is_direct_mmap = true;
-    return (char *)header + sizeof(HugeHeader);
+    void *ptr = (char *)header + sizeof(HugeHeader);
+
+    lock.lock();
+    direct_maps.add((uintptr_t)ptr);
+    lock.unlock();
+    return ptr;
   }
 
   void HugeAllocator::free_direct_mmap(void *ptr, size_t total) {

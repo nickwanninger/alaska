@@ -14,6 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <ck/lock.h>
+#include <ck/set.h>
 
 namespace alaska {
 
@@ -49,15 +50,16 @@ namespace alaska {
     ~HugeAllocator();
 
     void *alloc(size_t size);
-    void free(void *ptr);
+    // Returns false and does nothing if this allocator does not own `ptr`.
+    bool free(void *ptr);
     size_t usable_size(void *ptr);
 
-    // Only returns true for pointers within the page-run region.
-    // Direct-mmap pointers can't be range-checked; callers should use
-    // !heap.contains(ptr) as the discriminator (which is the existing pattern).
-    bool contains(void *ptr);
+    // True if `ptr` came from alloc() and is not freed yet. A pointer from
+    // another allocator (for example glibc) is never owned.
+    bool owns(void *ptr);
 
    private:
+    bool in_region(void *ptr);
     void *alloc_page_run(size_t total);
     void free_page_run(void *ptr, size_t total);
     void *alloc_direct_mmap(size_t total);
@@ -71,6 +73,7 @@ namespace alaska {
     uint32_t *run_lengths = nullptr;    // page count stored at the start index of each run
 
     size_t search_hint = 0;             // scan starting point, avoids rescanning known-full pages
+    ck::set<uintptr_t> direct_maps;     // user pointers of live direct-mmap allocations
     ck::mutex lock;
   };
 
