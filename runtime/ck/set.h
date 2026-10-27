@@ -42,6 +42,10 @@ namespace ck {
       m_table.clear();
     }
 
+    void ensure_capacity(int capacity) {
+      m_table.ensure_capacity(capacity);
+    }
+
     void add(const T& v) {
       m_table.set(v);
     }

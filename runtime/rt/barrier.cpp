@@ -565,6 +565,15 @@ static void clear_pending_signals(void) {
 void parse_stack_map(uint8_t* t) {
   alaska::StackMapParser p(t);
 
+  // Size the tables up front. A rehash frees every node, and the internal
+  // allocator's first-fit freelist makes later inserts walk those chunks.
+  int blockRetCount = 0;
+  for (auto it = p.records_begin(); it != p.records_end(); it++) {
+    if ((*it).getID() == 'B') blockRetCount++;
+  }
+  block_rets.ensure_capacity(blockRetCount);
+  pin_map.ensure_capacity(p.getNumRecords());
+
   auto currFunc = p.functions_begin();
   size_t recordCount = 0;
 
