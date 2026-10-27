@@ -123,6 +123,39 @@ TEST_F(HugeAllocatorTest, ForeignPointerNotOwned) {
   ::free(s);
 }
 
+// Each alignment, with sizes on the page-run and direct-mmap paths.
+TEST_F(HugeAllocatorTest, AllocAligned) {
+  size_t aligns[] = {16, 32, 64, 256, 4096, 8192, 1 << 16, 1 << 21};
+  size_t sizes[] = {1, 100, 4096, 5000, 300 * 1024};
+  for (size_t align : aligns) {
+    for (size_t size : sizes) {
+      void *p = allocator.alloc_aligned(size, align);
+      ASSERT_NE(p, nullptr) << "align " << align << " size " << size;
+      EXPECT_EQ((uintptr_t)p % align, 0u) << "align " << align << " size " << size;
+      EXPECT_GE(allocator.usable_size(p), size);
+      memset(p, 0x5A, allocator.usable_size(p));
+      EXPECT_TRUE(allocator.owns(p));
+      EXPECT_TRUE(allocator.free(p));
+    }
+  }
+}
+
+TEST_F(HugeAllocatorTest, AllocTooLargeReturnsNull) {
+  EXPECT_EQ(allocator.alloc(SIZE_MAX - 100), nullptr);
+  EXPECT_EQ(allocator.alloc_aligned(SIZE_MAX - 100, 64), nullptr);
+  EXPECT_EQ(allocator.alloc_aligned(100, (SIZE_MAX >> 1) + 1), nullptr);
+}
+
+// A freed aligned run must be reusable by a plain allocation.
+TEST_F(HugeAllocatorTest, AllocAlignedReuse) {
+  void *p = allocator.alloc_aligned(100, 4096);
+  ASSERT_NE(p, nullptr);
+  EXPECT_TRUE(allocator.free(p));
+  void *q = allocator.alloc(8192);
+  ASSERT_NE(q, nullptr);
+  EXPECT_TRUE(allocator.free(q));
+}
+
 TEST_F(HugeAllocatorTest, WriteAndReadBack) {
   size_t sz = 8192;
   void *p = allocator.alloc(sz);

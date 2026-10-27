@@ -468,6 +468,17 @@ namespace alaska {
   }
 
 
+  void *ThreadCache::halloc_aligned(size_t align, size_t size) {
+    if (align <= min_object_align) return this->halloc(size);
+    return runtime.huge_allocator.alloc_aligned(size, align);
+  }
+
+  void *ThreadCache::malloc_aligned(size_t align, size_t size) {
+    if (align <= min_object_align) return this->malloc(size);
+    return runtime.huge_allocator.alloc_aligned(size, align);
+  }
+
+
   LTO_INLINE void *ThreadCache::realloc(void *ptr, size_t new_size) {
     if (unlikely(!runtime.heap.contains(ptr) && !runtime.huge_allocator.owns(ptr))) {
       return __libc_realloc(ptr, new_size);
@@ -693,6 +704,10 @@ namespace alaska {
     return ThreadCache::current()->get_size(handle);
   }
 
+  void *halloc_aligned(size_t align, size_t size) noexcept {
+    return ThreadCache::current()->halloc_aligned(align, size);
+  }
+
 
   // --- Stub Allocation functions (pointer-based, not handle-based) --- //
 
@@ -722,6 +737,10 @@ namespace alaska {
 
   size_t stub_malloc_usable_size(void *ptr) noexcept {
     return ThreadCache::current()->get_size(ptr);
+  }
+
+  void *stub_malloc_aligned(size_t align, size_t size) noexcept {
+    return ThreadCache::current()->malloc_aligned(align, size);
   }
 
 

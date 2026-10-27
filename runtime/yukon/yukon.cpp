@@ -136,6 +136,16 @@ PUBLIC void *calloc(size_t size, size_t count) { return alaska::hcalloc(size, co
 PUBLIC void *realloc(void *ptr, size_t newsize) { return alaska::hrealloc(ptr, newsize); }
 PUBLIC void free(void *ptr) { return alaska::hfree(ptr); }
 PUBLIC size_t malloc_usable_size(void *ptr) { return alaska::halloc_usable_size(ptr); }
+PUBLIC int posix_memalign(void **memptr, size_t align, size_t size) {
+  return shared_posix_memalign(alaska::halloc_aligned, memptr, align, size);
+}
+PUBLIC void *aligned_alloc(size_t align, size_t size) {
+  return shared_aligned_alloc(alaska::halloc_aligned, align, size);
+}
+PUBLIC void *memalign(size_t align, size_t size) {
+  return shared_memalign(alaska::halloc_aligned, align, size);
+}
+PUBLIC void *valloc(size_t size) { return shared_valloc(alaska::halloc_aligned, size); }
 }
 
 

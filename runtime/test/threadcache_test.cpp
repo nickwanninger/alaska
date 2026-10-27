@@ -144,6 +144,29 @@ TEST_F(ThreadCacheTest, ReallocForeignPointer) {
   t1->free(s2);
 }
 
+TEST_F(ThreadCacheTest, HallocAligned) {
+  for (size_t align : {8, 16, 64, 4096}) {
+    void *h = t1->halloc_aligned(align, 100);
+    ASSERT_NE(h, nullptr);
+    void *p = alaska::Mapping::translate(h);
+    EXPECT_EQ((uintptr_t)p % align, 0u) << "align " << align;
+    EXPECT_GE(t1->get_size(h), 100u);
+    t1->hfree(h);
+  }
+}
+
+TEST_F(ThreadCacheTest, MallocAligned) {
+  for (size_t align : {8, 16, 64, 4096, 1 << 21}) {
+    void *p = t1->malloc_aligned(align, 100);
+    ASSERT_NE(p, nullptr);
+    EXPECT_EQ((uintptr_t)p % align, 0u) << "align " << align;
+    EXPECT_GE(t1->get_size(p), 100u);
+    void *q = t1->realloc(p, 200);
+    ASSERT_NE(q, nullptr);
+    t1->free(q);
+  }
+}
+
 // A few tests that validate that threadcache hrealloc works correctly and produces objects of the
 // right size
 TEST_F(ThreadCacheTest, Hrealloc) {

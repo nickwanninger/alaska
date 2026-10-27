@@ -45,4 +45,14 @@ PUBLIC void *calloc(size_t size, size_t count) { return alaska::stub_calloc(size
 PUBLIC void *realloc(void *ptr, size_t newsize) { return alaska::stub_realloc(ptr, newsize); }
 PUBLIC void free(void *ptr) { return alaska::stub_free(ptr); }
 PUBLIC size_t malloc_usable_size(void *ptr) { return alaska::stub_malloc_usable_size(ptr); }
+PUBLIC int posix_memalign(void **memptr, size_t align, size_t size) {
+  return shared_posix_memalign(alaska::stub_malloc_aligned, memptr, align, size);
+}
+PUBLIC void *aligned_alloc(size_t align, size_t size) {
+  return shared_aligned_alloc(alaska::stub_malloc_aligned, align, size);
+}
+PUBLIC void *memalign(size_t align, size_t size) {
+  return shared_memalign(alaska::stub_malloc_aligned, align, size);
+}
+PUBLIC void *valloc(size_t size) { return shared_valloc(alaska::stub_malloc_aligned, size); }
 }

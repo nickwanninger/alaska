@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <sys/signal.h>
 #include <math.h>
+#include "./aligned.h"
 
 #define CONSTRUCTOR __attribute__((constructor))
 #define DESTRUCTOR __attribute__((destructor))

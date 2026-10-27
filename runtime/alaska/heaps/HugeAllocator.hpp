@@ -18,11 +18,12 @@
 
 namespace alaska {
 
-  // Prepended to every huge allocation. The caller receives a pointer
-  // just past this header; free() recovers it by subtracting sizeof(HugeHeader).
+  // Placed just before every huge allocation. free() recovers it by subtracting
+  // sizeof(HugeHeader) from the caller's pointer. The run starts data_offset bytes
+  // before the caller's pointer (more than sizeof(HugeHeader) for aligned allocations).
   struct HugeHeader {
-    size_t total_size;     // full allocation size including this header, page-aligned
-    bool is_direct_mmap;   // which deallocation path to take
+    size_t total_size;     // full size of the run or mapping, page-aligned
+    uint32_t data_offset;  // bytes from the start of the run to the caller's pointer
   };
 
   // VM-based allocator for objects that exceed the sized-page heap (>= max_large_size).
@@ -50,6 +51,8 @@ namespace alaska {
     ~HugeAllocator();
 
     void *alloc(size_t size);
+    // `align` must be a power of two. The result is aligned to at least 16 bytes.
+    void *alloc_aligned(size_t size, size_t align);
     // Returns false and does nothing if this allocator does not own `ptr`.
     bool free(void *ptr);
     size_t usable_size(void *ptr);
@@ -60,9 +63,11 @@ namespace alaska {
 
    private:
     bool in_region(void *ptr);
+    void *place(void *base, size_t total, size_t data_offset, bool direct);
     void *alloc_page_run(size_t total);
     void free_page_run(void *ptr, size_t total);
     void *alloc_direct_mmap(size_t total);
+    void *alloc_direct_mmap_aligned(size_t size, size_t align);
     void free_direct_mmap(void *ptr, size_t total);
 
     void *region_base = nullptr;

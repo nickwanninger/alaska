@@ -57,29 +57,54 @@ namespace alaska {
     }
   }
 
-  void *HugeAllocator::alloc(size_t size) {
+  void *HugeAllocator::alloc(size_t size) { return alloc_aligned(size, sizeof(HugeHeader)); }
+
+  void *HugeAllocator::alloc_aligned(size_t size, size_t align) {
     if (size == 0) return nullptr;
+    // Stop align_up from wrapping around to a small size.
+    if (size > SIZE_MAX / 2 || align > SIZE_MAX / 4) return nullptr;
+    if (align < sizeof(HugeHeader)) align = sizeof(HugeHeader);
 
-    size_t total = align_up(sizeof(HugeHeader) + size, PAGE_SIZE);
+    // Runs and mappings start on a page, so the data can only start on a larger
+    // alignment if the mapping itself is aligned.
+    if (align > PAGE_SIZE) return alloc_direct_mmap_aligned(size, align);
 
-    if (total >= DIRECT_MMAP_THRESH || region_base == nullptr) {
-      return alloc_direct_mmap(total);
+    size_t data_offset = align_up(sizeof(HugeHeader), align);
+    size_t total = align_up(data_offset + size, PAGE_SIZE);
+
+    void *base = nullptr;
+    bool direct = total >= DIRECT_MMAP_THRESH || region_base == nullptr;
+    if (!direct) {
+      base = alloc_page_run(total);
+      direct = base == nullptr;
     }
+    if (direct) base = alloc_direct_mmap(total);
+    if (base == nullptr) return nullptr;
 
-    void *result = alloc_page_run(total);
-    if (result == nullptr) {
-      return alloc_direct_mmap(total);
+    return place(base, total, data_offset, direct);
+  }
+
+  // Write the header for a run or mapping at `base` and return the caller's pointer.
+  void *HugeAllocator::place(void *base, size_t total, size_t data_offset, bool direct) {
+    void *ptr = (char *)base + data_offset;
+    auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
+    header->total_size = total;
+    header->data_offset = data_offset;
+
+    if (direct) {
+      lock.lock();
+      direct_maps.add((uintptr_t)ptr);
+      lock.unlock();
     }
-    return result;
+    return ptr;
   }
 
   bool HugeAllocator::free(void *ptr) {
     if (ptr == nullptr) return true;
 
-    auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
-
     if (in_region(ptr)) {
-      free_page_run(header, header->total_size);
+      auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
+      free_page_run((char *)ptr - header->data_offset, header->total_size);
       return true;
     }
 
@@ -90,14 +115,15 @@ namespace alaska {
     lock.unlock();
 
     if (!found) return false;
-    free_direct_mmap(header, header->total_size);
+    auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
+    free_direct_mmap((char *)ptr - header->data_offset, header->total_size);
     return true;
   }
 
   size_t HugeAllocator::usable_size(void *ptr) {
     if (ptr == nullptr) return 0;
     auto *header = (HugeHeader *)((char *)ptr - sizeof(HugeHeader));
-    return header->total_size - sizeof(HugeHeader);
+    return header->total_size - header->data_offset;
   }
 
   bool HugeAllocator::in_region(void *ptr) {
@@ -131,7 +157,7 @@ namespace alaska {
   }
 
   // Scan the bitmap for `pages_needed` consecutive free pages, mark them, and
-  // return a pointer into the region. Starts from search_hint and wraps around.
+  // return the start of the run. Starts from search_hint and wraps around.
   // Returns nullptr if no run is found (caller falls back to direct mmap).
   void *HugeAllocator::alloc_page_run(size_t total) {
     size_t pages_needed = total / PAGE_SIZE;
@@ -157,10 +183,7 @@ namespace alaska {
           search_hint = i + 1;
           lock.unlock();
 
-          auto *header = (HugeHeader *)((char *)region_base + scan_start * PAGE_SIZE);
-          header->total_size = total;
-          header->is_direct_mmap = false;
-          return (char *)header + sizeof(HugeHeader);
+          return (char *)region_base + scan_start * PAGE_SIZE;
         }
       }
     }
@@ -184,10 +207,7 @@ namespace alaska {
             search_hint = i + 1;
             lock.unlock();
 
-            auto *header = (HugeHeader *)((char *)region_base + scan_start * PAGE_SIZE);
-            header->total_size = total;
-            header->is_direct_mmap = false;
-            return (char *)header + sizeof(HugeHeader);
+            return (char *)region_base + scan_start * PAGE_SIZE;
           }
         }
       }
@@ -228,15 +248,26 @@ namespace alaska {
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mem == MAP_FAILED) return nullptr;
 
-    auto *header = (HugeHeader *)mem;
-    header->total_size = total;
-    header->is_direct_mmap = true;
-    void *ptr = (char *)header + sizeof(HugeHeader);
+    return mem;
+  }
 
-    lock.lock();
-    direct_maps.add((uintptr_t)ptr);
-    lock.unlock();
-    return ptr;
+  // Map more than needed, then unmap the pages before and after the aligned part.
+  // The run starts one page before the caller's pointer, so the header fits.
+  void *HugeAllocator::alloc_direct_mmap_aligned(size_t size, size_t align) {
+    size_t length = align_up(size, PAGE_SIZE) + PAGE_SIZE + align;
+    void *mem = mmap(nullptr, length, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mem == MAP_FAILED) return nullptr;
+
+    uintptr_t start = (uintptr_t)mem;
+    uintptr_t ptr = align_up(start + PAGE_SIZE, align);
+    uintptr_t base = ptr - PAGE_SIZE;
+    uintptr_t end = ptr + align_up(size, PAGE_SIZE);
+
+    if (base > start) munmap(mem, base - start);
+    if (start + length > end) munmap((void *)end, start + length - end);
+
+    return place((void *)base, end - base, PAGE_SIZE, true);
   }
 
   void HugeAllocator::free_direct_mmap(void *ptr, size_t total) {

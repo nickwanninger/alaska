@@ -124,6 +124,8 @@ namespace alaska {
     // in the same execution context, as it will likely cause bugs.
     void *malloc_generic(size_t size, alaska::Mapping &m) alaska_attr_malloc;
     void *malloc(size_t size, bool zero = false) alaska_attr_malloc;
+    void *halloc_aligned(size_t align, size_t size) alaska_attr_malloc;
+    void *malloc_aligned(size_t align, size_t size) alaska_attr_malloc;
     void *realloc(void *ptr, size_t new_size) alaska_attr_malloc;
     void free(void *ptr);
 
@@ -183,6 +185,9 @@ namespace alaska {
   void *hrealloc(void *handle, size_t new_size) noexcept;
   void hfree(void *handle) noexcept;
   size_t halloc_usable_size(void *handle) noexcept;
+  // `align` must be a power of two. Alignments above min_object_align give a raw
+  // pointer from the huge allocator, not a handle.
+  void *halloc_aligned(size_t align, size_t size) noexcept;
 
   // Pointer-returning allocation interface (no handles).
   void *stub_malloc(size_t size) noexcept;
@@ -190,6 +195,11 @@ namespace alaska {
   void *stub_realloc(void *ptr, size_t new_size) noexcept;
   void stub_free(void *ptr) noexcept;
   size_t stub_malloc_usable_size(void *ptr) noexcept;
+  void *stub_malloc_aligned(size_t align, size_t size) noexcept;
+
+  // The alignment that every halloc and stub_malloc result has. An object slot
+  // is a multiple of 16 bytes plus an 8-byte ObjectHeader, so only 8 is certain.
+  static constexpr size_t min_object_align = 8;
 
 
 
