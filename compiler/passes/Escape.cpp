@@ -3,6 +3,7 @@
 #include <alaska/Utils.h>
 #include <alaska/WrappedFunctions.h>
 #include <unistd.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 using namespace llvm;
 
@@ -350,7 +351,7 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
 
 
   std::set<llvm::Function *> blockingFunctions;
-  std::set<llvm::CallInst *> blockingSites;
+  std::set<llvm::CallBase *> blockingSites;
 
 
   for (auto &F : M) {
@@ -365,50 +366,48 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
       continue;
     }
 
-
-
+    // Collect first: an invoke splits an edge below, which adds a block.
+    std::vector<llvm::CallBase *> calls;
     for (auto &I : llvm::instructions(F)) {
-      // TODO: INVOKE!
-      if (auto *call = dyn_cast<CallInst>(&I)) {
-        if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
-          if (mightBlock(*func)) {
-            blockingSites.insert(call);
+      if (isa<CallInst>(&I) || isa<InvokeInst>(&I)) calls.push_back(cast<CallBase>(&I));
+    }
+
+    for (auto *call : calls) {
+      if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
+        if (mightBlock(*func)) {
+          blockingSites.insert(call);
+        }
+      }
+
+      // Where the releases go: after a call, or at the start of a new block on
+      // the normal edge of an invoke (an invoke ends its block). The new block
+      // has one predecessor, so a release never runs without its root. The
+      // unwind path has no release, so the pin lasts longer there.
+      llvm::Instruction *releasePoint = nullptr;
+      auto releaseBefore = [&](void) {
+        if (releasePoint == nullptr) {
+          if (auto *invoke = dyn_cast<InvokeInst>(call)) {
+            auto *edge = llvm::SplitEdge(invoke->getParent(), invoke->getNormalDest());
+            releasePoint = &*edge->getFirstInsertionPt();
+          } else {
+            releasePoint = call->getNextNode();
           }
         }
-        int i = -1;
-        for (auto &arg : call->args()) {
-          i++;
-          if (!alaska::shouldTranslate(arg)) continue;
+        return releasePoint;
+      };
 
-          if (!shouldLockArgument(call, i)) {
-            continue;
-          }
+      for (unsigned i = 0; i < call->arg_size(); i++) {
+        auto arg = call->getArgOperand(i);
+        if (!alaska::shouldTranslate(arg)) continue;
 
-
-          #if 0
-          if (auto func = dyn_cast<llvm::Function>(call->getCalledOperand())) {
-            // llvm::errs() << "ESCAPE " << func->getName() << " :: " << *func->getFunctionType()
-            //              << "\n";
-            llvm::errs() << "escape to argument " << i << " at call to \e[31m\"" << func->getName()
-                         << "\e[0m" << " in function " << F.getName();
-            if (llvm::DILocation *Loc = I.getDebugLoc()) {
-              unsigned Line = Loc->getLine();
-              unsigned Column = Loc->getColumn();  // Optional: Get column number
-              llvm::errs() << " Line: " << Line << ", Column: " << Column << "\n";
-            }
-            llvm::errs() << "\n";
-          }
-          #endif
-
-
-
-          IRBuilder<> b(call);
-
-          auto val = alaska::insertRootBefore(call, arg);
-          auto translated = alaska::insertTranslationBefore(call, val);
-          alaska::insertReleaseBefore(call->getNextNode(), arg);
-          call->setArgOperand(i, translated);
+        if (!shouldLockArgument(call, i)) {
+          continue;
         }
+
+        auto val = alaska::insertRootBefore(call, arg);
+        auto translated = alaska::insertTranslationBefore(call, val);
+        alaska::insertReleaseBefore(releaseBefore(), arg);
+        call->setArgOperand(i, translated);
       }
     }
   }
