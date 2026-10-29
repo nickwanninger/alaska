@@ -15,19 +15,19 @@ extern "C" {
 // Allocate a handle as well as its backing memory if the runtime decides to do
 // so. This is the main interface to alaska's handle system, as actually using
 // handles is entirely transparent.
-extern void *halloc(size_t sz) NOEXCEPT;  // __attribute__((alloc_size(1), malloc, nothrow));
+extern void *alaska_halloc(size_t sz) NOEXCEPT;  // __attribute__((alloc_size(1), malloc, nothrow));
 
 // calloc a handle, returning a zeroed array of nmemb elements, each of size
 // `size`
-extern void *hcalloc(size_t nmemb, size_t size);
+extern void *alaska_hcalloc(size_t nmemb, size_t size);
 
 // Realloc a handle. This function will always return the original handle, as it
 // just needs to reallocate the backing memory. Thus, if your application relies
 // on realloc returning something different, you should be careful!
-extern void *hrealloc(void *handle, size_t sz);
+extern void *alaska_hrealloc(void *handle, size_t sz);
 
 // Free a given handle. Is a no-op if ptr=null
-extern void hfree(void *ptr);
+extern void alaska_hfree(void *ptr);
 
 extern size_t alaska_usable_size(void *ptr);
 

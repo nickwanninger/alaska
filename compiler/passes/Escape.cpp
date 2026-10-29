@@ -190,12 +190,10 @@ llvm::PreservedAnalyses AlaskaEscapePass::run(llvm::Module &M, llvm::ModuleAnaly
   std::set<std::string> functions_to_ignore = {
       "__alaska_leak",
 
-      "halloc",
-      "hrealloc",
-      "hrealloc_trace",
-      "hcalloc",
-      "hfree",
-      "hfree_trace",
+      "alaska_halloc",
+      "alaska_hrealloc",
+      "alaska_hcalloc",
+      "alaska_hfree",
 
       // Don't pre-translate
       "alaska_usable_size",

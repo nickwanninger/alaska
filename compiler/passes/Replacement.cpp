@@ -46,6 +46,18 @@ static void replace_function(
 
 
   if (oldFunction) {
+    // getOrInsertFunction returns any existing global with this name, even a
+    // variable of the program (redis has `static void (*hfree)(void *)`).
+    // Calls would then jump to the variable, so refuse anything but a
+    // declaration of the runtime function.
+    if (auto existing = M.getNamedValue(new_name)) {
+      auto func = dyn_cast<Function>(existing);
+      if (func == nullptr || !func->isDeclaration()) {
+        errs() << "alaska: the program defines '" << new_name
+               << "', which is a runtime function name\n";
+        exit(EXIT_FAILURE);
+      }
+    }
     auto newFunction = M.getOrInsertFunction(new_name, oldFunction->getFunctionType()).getCallee();
     // oldFunction->replaceAllUsesWith(newFunction);
     oldFunction->replaceUsesWithIf(newFunction, [&](llvm::Use &use) -> bool {
@@ -76,25 +88,25 @@ PreservedAnalyses AlaskaReplacementPass::run(Module &M, ModuleAnalysisManager &A
 
 
       alaska::println("XXX SPECIAL CASE GCC XXX\n");
-      replace_function(M, "xmalloc", "halloc", true);
-      replace_function(M, "xcalloc", "hcalloc", true);
-      replace_function(M, "xrealloc", "hrealloc", true);
+      replace_function(M, "xmalloc", "alaska_halloc", true);
+      replace_function(M, "xcalloc", "alaska_hcalloc", true);
+      replace_function(M, "xrealloc", "alaska_hrealloc", true);
     }
 
-    replace_function(M, "malloc", "halloc", true);
-    replace_function(M, "calloc", "hcalloc", true);
-    replace_function(M, "realloc", "hrealloc", true);
+    replace_function(M, "malloc", "alaska_halloc", true);
+    replace_function(M, "calloc", "alaska_hcalloc", true);
+    replace_function(M, "realloc", "alaska_hrealloc", true);
 
-    replace_function(M, "malloc_beebs", "halloc", true);     // embench
-    replace_function(M, "calloc_beebs", "hcalloc", true);    // embench
-    replace_function(M, "realloc_beebs", "hrealloc", true);  // embench
+    replace_function(M, "malloc_beebs", "alaska_halloc", true);     // embench
+    replace_function(M, "calloc_beebs", "alaska_hcalloc", true);    // embench
+    replace_function(M, "realloc_beebs", "alaska_hrealloc", true);  // embench
   }
 
   // even if calls to malloc are not replaced, we still ought to replace these functions for
-  // compatability. Calling hfree() with a non-handle will fall back to the system's free() - same
+  // compatability. Calling alaska_hfree() with a non-handle will fall back to the system's free() - same
   // for alaska_usable_size().
-  replace_function(M, "free", "hfree");
-  replace_function(M, "free_beebs", "hfree");  // embench
+  replace_function(M, "free", "alaska_hfree");
+  replace_function(M, "free_beebs", "alaska_hfree");  // embench
   replace_function(M, "malloc_usable_size", "alaska_usable_size");
 
   for (auto *name : alaska::wrapped_functions) {

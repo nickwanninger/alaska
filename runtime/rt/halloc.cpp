@@ -32,14 +32,14 @@ alaska::LockedThreadCache get_tc(void) { return *alaska::ThreadCache::current();
 
 
 
-void *halloc(size_t sz) noexcept {
+void *alaska_halloc(size_t sz) noexcept {
 #ifdef MALLOC_BYPASS
   return ::malloc(sz);
 #endif
   return alaska::halloc(sz);
 }
 
-void *hcalloc(size_t nmemb, size_t size) {
+void *alaska_hcalloc(size_t nmemb, size_t size) {
 #ifdef MALLOC_BYPASS
   return ::calloc(nmemb, size);
 #endif
@@ -47,7 +47,7 @@ void *hcalloc(size_t nmemb, size_t size) {
 }
 
 // Reallocate a handle
-void *hrealloc(void *handle, size_t new_size) {
+void *alaska_hrealloc(void *handle, size_t new_size) {
 #ifdef MALLOC_BYPASS
   return ::realloc(handle, new_size);
 #endif
@@ -56,7 +56,7 @@ void *hrealloc(void *handle, size_t new_size) {
 
 
 
-void hfree(void *ptr) {
+void alaska_hfree(void *ptr) {
 #ifdef MALLOC_BYPASS
   return ::free(ptr);
 #endif
