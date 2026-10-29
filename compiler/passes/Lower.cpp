@@ -6,6 +6,7 @@
 #include <set>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IR/GetElementPtrTypeIterator.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -153,8 +154,88 @@ static bool parse_profile_file(const char *path, std::map<std::string, char> &ou
   return true;
 }
 
+// Access tracing (ALASKA_TRACE_ACCESS). Before each memory access whose
+// address comes from a translation, call
+//   __alaska_track_access(uint64_t addr, uint64_t size, uint64_t kind)
+// with kind 0 for a read and 1 for a write. The address is an integer, so the
+// call is not an escape of a translated pointer.
+static void insertAccessTracking(llvm::Module &M) {
+  auto translate = M.getFunction("alaska.translate");
+  if (translate == nullptr) return;
+  auto derive = M.getFunction("alaska.derive");
+  auto &C = M.getContext();
+  auto i64 = Type::getInt64Ty(C);
+  auto hook = M.getOrInsertFunction(
+      "__alaska_track_access", FunctionType::get(Type::getVoidTy(C), {i64, i64, i64}, false));
+  const DataLayout &DL = M.getDataLayout();
+
+  struct Site {
+    Instruction *inst;
+    Value *address;
+    Value *size;
+    uint64_t kind;
+  };
+  std::vector<Site> sites;
+  auto fixed = [&](Type *type) {
+    return (Value *)ConstantInt::get(i64, DL.getTypeStoreSize(type).getFixedValue());
+  };
+
+  // Every value that holds a translated address, starting at the translations.
+  std::set<Value *> seen;
+  std::vector<Value *> work;
+  for (auto user : translate->users())
+    if (isa<CallBase>(user)) work.push_back(user);
+
+  while (!work.empty()) {
+    Value *v = work.back();
+    work.pop_back();
+    if (!seen.insert(v).second) continue;
+
+    for (auto user : v->users()) {
+      if (auto load = dyn_cast<LoadInst>(user)) {
+        sites.push_back({load, v, fixed(load->getType()), 0});
+      } else if (auto store = dyn_cast<StoreInst>(user)) {
+        // Storing the translated pointer itself is not an access through it.
+        if (store->getPointerOperand() == v)
+          sites.push_back({store, v, fixed(store->getValueOperand()->getType()), 1});
+      } else if (auto rmw = dyn_cast<AtomicRMWInst>(user)) {
+        if (rmw->getPointerOperand() == v)
+          sites.push_back({rmw, v, fixed(rmw->getValOperand()->getType()), 1});
+      } else if (auto cas = dyn_cast<AtomicCmpXchgInst>(user)) {
+        if (cas->getPointerOperand() == v)
+          sites.push_back({cas, v, fixed(cas->getNewValOperand()->getType()), 1});
+      } else if (auto mem = dyn_cast<MemIntrinsic>(user)) {
+        if (mem->getRawDest() == v) sites.push_back({mem, v, mem->getLength(), 1});
+        if (auto transfer = dyn_cast<MemTransferInst>(mem))
+          if (transfer->getRawSource() == v) sites.push_back({mem, v, mem->getLength(), 0});
+      } else if (auto gep = dyn_cast<GetElementPtrInst>(user)) {
+        if (gep->getPointerOperand() == v) work.push_back(gep);
+      } else if (isa<PHINode>(user) || isa<SelectInst>(user) || isa<BitCastInst>(user) ||
+                 isa<AddrSpaceCastInst>(user)) {
+        work.push_back(user);
+      } else if (auto call = dyn_cast<CallBase>(user)) {
+        if (derive && call->getCalledFunction() == derive && call->getArgOperand(0) == v)
+          work.push_back(call);
+      }
+    }
+  }
+
+  for (auto &site : sites) {
+    IRBuilder<> b(site.inst);
+    b.SetCurrentDebugLocation(site.inst->getDebugLoc());
+    auto address = b.CreatePtrToInt(site.address, i64);
+    auto size = b.CreateZExtOrTrunc(site.size, i64);
+    b.CreateCall(hook, {address, size, ConstantInt::get(i64, site.kind)});
+  }
+  alaska::println("alaska-lower: ", sites.size(), " traced access sites");
+}
+
+
 llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &AM) {
   std::set<llvm::Instruction *> to_delete;
+
+  // Before the translations are lowered: the walk starts at alaska.translate.
+  if (getenv("ALASKA_TRACE_ACCESS") != nullptr) insertAccessTracking(M);
 
   // Lower GC rooting.
   if (auto func = M.getFunction("alaska.safepoint_poll")) {
@@ -178,19 +259,10 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
 
 
 
-  // function which is (u64, u64, u64) -> void
-  auto trackHitMiss = M.getOrInsertFunction("__alaska_track_hitmiss",
-      FunctionType::get(Type::getVoidTy(M.getContext()),
-          {PointerType::get(M.getContext(), 0), Type::getInt64Ty(M.getContext()),
-              Type::getInt64Ty(M.getContext())},
-          false));
-
   std::map<std::string, char> profilePoints;
   if (const char *profilePath = getenv("ALASKA_HPROF"); profilePath != nullptr) {
     parse_profile_file(profilePath, profilePoints);
   }
-
-  bool addProfilerData = getenv("ALASKA_PROFON") != nullptr;
 
   // Lower alaska.translate
   if (auto func = M.getFunction("alaska.translate")) {
@@ -203,8 +275,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
         M.getOrInsertFunction("alaska_translate_escape", func->getFunctionType());
 
     for (auto *call : collectCalls(M, "alaska.translate")) {
-      IRBuilder<> b(call);  // insert after the call
-
 
       std::string ValueStr = "";
       llvm::raw_string_ostream OS(ValueStr);
@@ -258,21 +328,6 @@ llvm::PreservedAnalyses AlaskaLowerPass::run(llvm::Module &M, llvm::ModuleAnalys
         call->setCalledFunction(translateEscapeFunc);
       } else {
         call->setCalledFunction(translateFuncForThisSite);
-      }
-
-
-
-      if (addProfilerData) {
-        // alaska::println("Inserted alaska.translate to ", *call->getOperand(0));
-        // after, insert a call to trackHitMiss with a random ID, original pointer, translated
-        // pointer place the builder after the call
-        b.SetInsertPoint(call->getNextNode());
-
-        auto id = b.CreateGlobalStringPtr(profilePoint.c_str());
-        auto originalPtr =
-            b.CreatePtrToInt(call->getArgOperand(0), Type::getInt64Ty(M.getContext()));
-        auto translatedPtr = b.CreatePtrToInt(call, Type::getInt64Ty(M.getContext()));
-        b.CreateCall(trackHitMiss, {id, originalPtr, translatedPtr});
       }
     }
   }

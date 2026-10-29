@@ -42,6 +42,16 @@ namespace alaska {
     // Run through the page and validate as much info as possible w/ asserts.
     void validate(void);
 
+    // The header of the slot that contains addr (the header or the data), or
+    // nullptr if addr is not in a slot that was ever handed out.
+    ObjectHeader *slot_containing(void *addr) const {
+      auto a = (uintptr_t)addr;
+      if (a < (uintptr_t)objects_start || a >= (uintptr_t)bump_next) return nullptr;
+      size_t real_size = object_size + sizeof(ObjectHeader);
+      size_t index = (a - (uintptr_t)objects_start) / real_size;
+      return (ObjectHeader *)((uintptr_t)objects_start + index * real_size);
+    }
+
     long object_capacity(void) const { return this->capacity; }
 
 

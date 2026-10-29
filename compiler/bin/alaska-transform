@@ -34,6 +34,11 @@ parser.add_argument(
 parser.add_argument("--disable-tracking", action="store_true")
 parser.add_argument("--disable-hoisting", action="store_true")
 parser.add_argument("--disable-inlining", action="store_true")
+parser.add_argument(
+    "--trace-access",
+    action="store_true",
+    help="Call __alaska_track_access before each access through a translation",
+)
 
 args = parser.parse_args()
 
@@ -41,6 +46,10 @@ args = parser.parse_args()
 
 if args.output is None:
     args.output = args.input
+
+if args.trace_access:
+    # alaska-lower reads this variable.
+    os.environ["ALASKA_TRACE_ACCESS"] = "1"
 
 
 bitcode = args.output

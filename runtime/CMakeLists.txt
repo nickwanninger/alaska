@@ -120,6 +120,7 @@ if(NOT ALASKA_CORE_ONLY) # -----------------------------------------------------
   set(ALASKA_RT_SOURCES
     rt/init.cpp
     rt/halloc.cpp
+    rt/access_trace.cpp
     rt/compat.c
     rt/barrier.cpp
   )
