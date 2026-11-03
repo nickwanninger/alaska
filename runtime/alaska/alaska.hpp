@@ -135,9 +135,24 @@ static_assert(ALASKA_SWAP_OFFSET_BITS + ALASKA_SWAP_SIZE_BITS + ALASKA_SWAP_TAG_
 
     inline void invalidate(void) {
 #if defined(__riscv) && !defined(ALASKA_YUKON_NO_HARDWARE)
+#if ALASKA_YUKON_INVAL == 0
       // Fence *before* the handle invalidation.
       // __asm__ volatile("fence" ::: "memory");
       __asm__ volatile("csrw 0xc4, %0" ::"rK"((uint64_t)handle_id()) : "memory");
+#elif ALASKA_YUKON_INVAL == 1 || ALASKA_YUKON_INVAL == 2
+      // A store to HTLB control register 1 (INVALIDATE) of the handle: top
+      // bits 11, the HID, then the register number times 8. The HTLB runs it
+      // after the store commits and all older stores are done. The fence
+      // keeps younger accesses from using the old entry.
+      uint64_t ctrl = (3UL << 62) | ((uint64_t)handle_id() << 32) | (1 * 8);
+      __asm__ volatile("" ::: "memory");  // emit the HTE store first
+      *(volatile uint64_t *)ctrl = 0;
+#if ALASKA_YUKON_INVAL == 1
+      __asm__ volatile("fence rw, rw" ::: "memory");
+#endif
+#elif ALASKA_YUKON_INVAL != 3
+#error "ALASKA_YUKON_INVAL must be 0, 1, 2 or 3"
+#endif
 #endif
     }
 
