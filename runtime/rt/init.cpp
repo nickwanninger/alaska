@@ -46,10 +46,12 @@ static void *barrier_thread_func(void *) {
   float toWait = 0.125;  // Seconds to wait before the first barrier.
   int iteration = 0;
 
+#ifdef ALASKA_FAULT_LOG
   FILE *log = fopen("faults.csv", "w");
   printf("Logging to faults.csv\n");
   fprintf(log,
           "timestamp,total_objects,total_waiting_faults,total_bytes,bytes_waiting,pct_faults\n");
+#endif
 
   while (1) {
     auto &rt = alaska::Runtime::get();
@@ -118,7 +120,9 @@ static void *barrier_thread_func(void *) {
           total_faults_waiting, total_objects, pct_waiting, mhfps);
       // fprintf(log, "%lu,%lu,%lu,%lu,%lu,%.2f\n", timestamp, total_objects, total_faults_waiting,
       //         total_objects_bytes, total_faults_waiting_bytes, pct_waiting);
+#ifdef ALASKA_FAULT_LOG
       fflush(log);
+#endif
 
 
 

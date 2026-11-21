@@ -42,6 +42,8 @@ alaska_option(ALASKA_LIBRARY_TYPE      SHARED) # build translate.bc and stub.bc
 alaska_switch(ALASKA_YUKON             OFF)
 alaska_switch(ALASKA_YUKON_NO_HARDWARE OFF)
 alaska_switch(ALASKA_TRACING           OFF)
+# The barrier thread writes faults.csv in the working directory.
+alaska_switch(ALASKA_FAULT_LOG         OFF)
 # How Mapping::invalidate() invalidates the HTLB entry on yukon: 0 = write
 # CSR 0xc4, 1 = control store and fence, 2 = control store only, 3 = none.
 alaska_option(ALASKA_YUKON_INVAL 0)
