@@ -78,14 +78,20 @@ namespace alaska {
 
 
 // How many bits of metadata are there.
-#define HTE_MD_BITS 3
+// The Yukon HTLB reads bits 63:61. Bit 63 set: invalid (fault pending).
+// Bit 62: no read. Bit 61: no write. Bits 62 and 61: fault on each access.
+// Bits 60:59 are software only. Traced is next to the HTLB bits, so the
+// HTLB can read it later.
+#define HTE_MD_BITS 5
 #define HTE_PTR_BITS (64 - HTE_MD_BITS)
 #define HTE_MASK_POINTER ((1UL << HTE_PTR_BITS) - 1)
-#define HTE_MASK_PINNED (1UL << (HTE_PTR_BITS + 0))
-#define HTE_MASK_TRACED (1UL << (HTE_PTR_BITS + 1))
-#define HTE_MASK_PENDING (1UL << (HTE_PTR_BITS + 2))
+#define HTE_MASK_PINNED (1UL << 59)
+#define HTE_MASK_TRACED (1UL << 60)
+#define HTE_MASK_NO_WRITE (1UL << 61)
+#define HTE_MASK_NO_READ (1UL << 62)
+#define HTE_MASK_PENDING (1UL << 63)
 
-#define ALASKA_SWAP_OFFSET_BITS 48
+#define ALASKA_SWAP_OFFSET_BITS 46
 #define ALASKA_SWAP_SIZE_BITS 12
 #define ALASKA_SWAP_TAG_BITS 1
 #define ALASKA_SWAP_SIZE_SHIFT ALASKA_SWAP_OFFSET_BITS
@@ -224,8 +230,12 @@ static_assert(ALASKA_SWAP_OFFSET_BITS + ALASKA_SWAP_SIZE_BITS + ALASKA_SWAP_TAG_
     uint64_t get_raw_value(void) const { return value; }
 
 
+    // Fault if any of bits 63:60 is set. Software translation does not know
+    // if the access is a read or a write, so no read and no write fault on
+    // each access. One shift and a branch, with no mask constant.
     bool should_software_fault(void) const {
-      return (value & (HTE_MASK_PENDING | HTE_MASK_TRACED)) != 0;
+      static_assert(HTE_MASK_TRACED == (1UL << 60), "traced must be the lowest fault bit");
+      return (value >> 60) != 0;
     }
 
     void reset(void) {

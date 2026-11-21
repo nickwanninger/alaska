@@ -76,7 +76,7 @@ extern "C" __attribute__((always_inline)) void *alaska_translate_uncond(void *pt
 
 
 #ifndef ALASKA_NO_HANDLE_FAULTS
-  // Check if either of the two top bits are set (pending_fault or access_trace)
+  // Check if any of the top four bits are set (pending, no read, no write, traced)
   bool shouldFault = m->should_software_fault();
   if (unlikely(shouldFault)) {
     return alaska::do_handle_fault_and_translate((int64_t)ptr);
